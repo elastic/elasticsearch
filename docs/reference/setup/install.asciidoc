@@ -59,6 +59,13 @@ downloaded from the Elastic Docker Registry.
 +
 {ref}/docker.html[Install {es} with Docker]
 
+`brew`::
+
+Formulae are available from the Elastic Homebrew tap for installing
+{es} on macOS with the Homebrew package manager.
++
+{ref}/brew.html[Install {es} on macOS with Homebrew]
+
 [float]
 [[config-mgmt-tools]]
 === Configuration Management Tools
@@ -84,3 +91,4 @@ include::install/windows.asciidoc[]
 
 include::install/docker.asciidoc[]
 
+include::install/brew.asciidoc[]

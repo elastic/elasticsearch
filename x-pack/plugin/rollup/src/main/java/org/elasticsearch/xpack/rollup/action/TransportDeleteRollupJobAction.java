@@ -57,7 +57,7 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<RollupJ
             // Non-master nodes may have a stale cluster state that shows jobs which are cancelled
             // on the master, which makes testing difficult.
             if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException("no known master nodes"));
+                listener.onFailure(new MasterNotDiscoveredException());
             } else {
                 transportService.sendRequest(nodes.getMasterNode(), actionName, request,
                     new ActionListenerResponseHandler<>(listener, DeleteRollupJobAction.Response::new));

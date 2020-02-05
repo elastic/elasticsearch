@@ -102,8 +102,9 @@ public class XmlFileStructureFinder implements FileStructureFinder {
                 .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
-                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(),
-                    topLevelTag + "." + timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone));
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null,
+                    Collections.emptyMap(), topLevelTag + "." + timeField.v1(), timeField.v2().getJavaTimestampFormats(),
+                    needClientTimeZone));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
@@ -120,8 +121,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         SortedMap<String, Object> outerMappings = new TreeMap<>();
         outerMappings.put(topLevelTag, secondLevelProperties);
         if (timeField != null) {
-            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
-                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
         }
 
         FileStructure structure = structureBuilder

@@ -43,6 +43,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -91,7 +92,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Before
     public void setupSourceIndex() {
-        client().prepareIndex("source", "test").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("source").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
     }
 
     @Before
@@ -161,8 +162,9 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Collection<String> getRestHeaders() {
-            return Arrays.asList(TestFilter.AUTHORIZATION_HEADER, TestFilter.EXAMPLE_HEADER);
+        public Collection<RestHeaderDefinition> getRestHeaders() {
+            return Arrays.asList(new RestHeaderDefinition(TestFilter.AUTHORIZATION_HEADER, false),
+                new RestHeaderDefinition(TestFilter.EXAMPLE_HEADER, false));
         }
     }
 

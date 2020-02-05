@@ -36,10 +36,7 @@ import java.util.function.Supplier;
 
 public class InternalSettingsPreparer {
 
-    /**
-     * Prepares settings for the transport client by gathering all
-     * elasticsearch system properties and setting defaults.
-     */
+    // TODO: refactor this method out, it used to exist for the transport client
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, Collections.emptyMap());
@@ -85,10 +82,6 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         finalizeSettings(output, defaultNodeName);
 
-        environment = new Environment(output.build(), configPath);
-
-        // we put back the path.logs so we can use it in the logging configuration file
-        output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
         return new Environment(output.build(), configPath);
     }
 

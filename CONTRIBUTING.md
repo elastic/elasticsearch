@@ -92,34 +92,43 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 12 is required to build Elasticsearch. You must have a JDK 12 installation
+JDK 13 is required to build Elasticsearch. You must have a JDK 13 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 12 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 13 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 12 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 13 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME` available so that the tests can pass.
+and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
 
 > Warning: do not use `sdkman` for Java installations which do not have proper
 `jrunscript` for jdk distributions.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
-using the wrapper via the `gradlew` script in the root of the repository.
+using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
+script on Windows in the root of the repository. The examples below show the
+usage on Unix.
 
-We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
-minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
-IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+We support development in the Eclipse and IntelliJ IDEs.
+For Eclipse, the minimum version that we support is [4.13][eclipse].
+For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+
+[Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
+
+    ./gradlew :run
+
+You can access Elasticsearch with:
+
+    curl -u elastic:password localhost:9200
 
 ### Configuring IDEs And Running Tests
 
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`
-then `File: Import: Existing Projects into Workspace`. Select the
-option `Search for nested projects`. Additionally you will want to
-ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
-accordingly to avoid GC overhead errors.
+then `File: Import: Gradle : Existing Gradle Project`.
+Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying
+`eclipse.ini` accordingly to avoid GC overhead and OOM errors.
 
 IntelliJ users can automatically configure their IDE: `./gradlew idea`
 then `File->New Project From Existing Sources`. Point to the root of
@@ -152,30 +161,225 @@ For IntelliJ, go to
 For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 `VM Arguments`.
 
+Some tests related to locale testing also require the flag
+`-Djava.locale.providers` to be set. Set the VM options/VM arguments for
+IntelliJ or Eclipse like describe above to use
+`-Djava.locale.providers=SPI,COMPAT`.
 
 ### Java Language Formatting Guidelines
+
+Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
+formatter, using the [Spotless
+Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
+plugin. This plugin is configured on a project-by-project basis, via
+`build.gradle` in the root of the repository. The formatting check can be
+run explicitly with:
+
+    ./gradlew spotlessJavaCheck
+
+The code can be formatted with:
+
+    ./gradlew spotlessApply
+
+These tasks can also be run for specific subprojects, e.g.
+
+    ./gradlew server:spotlessJavaCheck
 
 Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
 * Line width is 140 characters
-* Lines of code surrounded by `// tag` and `// end` comments are included in the
-documentation and should only be 76 characters wide not counting
-leading indentation
-* The rest is left to Java coding standards
-* Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
-* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. This can be done automatically by your IDE:
- * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
- * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
-* Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
+* Lines of code surrounded by `// tag::NAME` and `// end::NAME` comments are included
+  in the documentation and should only be 76 characters wide not counting
+  leading indentation. Such regions of code are not formatted automatically as
+  it is not possible to change the line length rule of the formatter for
+  part of a file. Please format such sections sympathetically with the rest
+  of the code, while keeping lines to maximum length of 76 characters.
+* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
+  the build to fail. This can be done automatically by your IDE:
+   * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are
+     two boxes labeled "`Number of (static )? imports needed for .*`". Set
+     their values to 99999 or some other absurdly high value.
+   * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`.
+     There are two configuration options: `Class count to use import with
+     '*'` and `Names count to use static import with '*'`. Set their values
+     to 99999 or some other absurdly high value.
+* If *absolutely* necessary, you can disable formatting for regions of code
+  with the `// tag::NAME` and `// end::NAME` directives, but note that
+  these are intended for use in documentation, so please make it clear what
+  you have done, and only do this where the benefit clearly outweighs the
+  decrease in consistency.
+* Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
+  but line comments i.e `// ...` are.
+* There is an implicit rule that negative boolean expressions should use
+  the form `foo == false` instead of `!foo` for better readability of the
+  code. While this isn't strictly enforced, if might get called out in PR
+  reviews as something to change.
+
+#### Editor / IDE Support
+
+Eclipse IDEs can import the file [.eclipseformat.xml]
+directly.
+
+IntelliJ IDEs can
+[import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
+the same settings file, and / or use the [Eclipse Code
+Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
+plugin.
+
+You can also tell Spotless to [format a specific
+file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
+from the command line.
+
+#### Formatting failures
+
+Sometimes Spotless will report a "misbehaving rule which can't make up its
+mind" and will recommend enabling the `paddedCell()` setting. If you
+enabled this setting and run the format check again,
+Spotless will write files to
+`$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
+different copies of the formatted files, so that you can see how they
+differ and infer what is the problem.
+
+The `paddedCell()` option is disabled for normal operation so that any
+misbehaviour is detected, and not just suppressed. You can enabled the
+option from the command line by running Gradle with `-Dspotless.paddedcell`.
+
+### Javadoc
+
+Good Javadoc can help with navigating and understanding code. Elasticsearch
+has some guidelines around when to write Javadoc and when not to, but note
+that we don't want to be overly prescriptive. The intent of these guidelines
+is to be helpful, not to turn writing code into a chore.
+
+#### The short version
+
+   1. Always add Javadoc to new code.
+   2. Add Javadoc to existing code if you can.
+   3. Document the "why", not the "how", unless that's important to the
+      "why".
+   4. Don't document anything trivial or obvious (e.g. getters and
+      setters). In other words, the Javadoc should add some value.
+
+#### The long version
+
+   1. If you add a new Java package, please also add package-level
+      Javadoc that explains what the package is for. This can just be a
+      reference to a more foundational / parent package if appropriate. An
+      example would be a package hierarchy for a new feature or plugin -
+      the package docs could explain the purpose of the feature, any
+      caveats, and possibly some examples of configuration and usage.
+   2. New classes and interfaces must have class-level Javadoc that
+      describes their purpose. There are a lot of classes in the
+      Elasticsearch repository, and it's easier to navigate when you
+      can quickly find out what is the purpose of a class. This doesn't
+      apply to inner classes or interfaces, unless you expect them to be
+      explicitly used outside their parent class.
+   3. New public methods must have Javadoc, because they form part of the
+      contract between the class and its consumers. Similarly, new abstract
+      methods must have Javadoc because they are part of the contract
+      between a class and its subclasses. It's important that contributors
+      know why they need to implement a method, and the Javadoc should make
+      this clear. You don't need to document a method if it's overriding an
+      abstract method (either from an abstract superclass or an interface),
+      unless your implementation is doing something "unexpected" e.g. deviating
+      from the intent of the original method.
+   4. Following on from the above point, please add docs to existing public
+      methods if you are editing them, or to abstract methods if you can.
+   5. Non-public, non-abstract methods don't require Javadoc, but if you feel
+      that adding some would make it easier for other developers to
+      understand the code, or why it's written in a particular way, then please
+      do so.
+   6. Properties don't need to have Javadoc, but please add some if there's
+      something useful to say.
+   7. Javadoc should not go into low-level implementation details unless
+      this is critical to understanding the code e.g. documenting the
+      subtleties of the implementation of a private method. The point here
+      is that implementations will change over time, and the Javadoc is
+      less likely to become out-of-date if it only talks about the what is
+      the purpose of the code, not what it does.
+   8. Examples in Javadoc can be very useful, so feel free to add some if
+      you can reasonably do so i.e. if it takes a whole page of code to set
+      up an example, then Javadoc probably isn't the right place for it.
+      Longer or more elaborate examples are probably better suited
+      to the package docs.
+   9. Test methods are a good place to add Javadoc, because you can use it
+      to succinctly describe e.g. preconditions, actions and expectations
+      of the test, more easily that just using the test name alone. Please
+      consider documenting your tests in this way.
+   10. Sometimes you shouldn't add Javadoc:
+       1. Where it adds no value, for example where a method's
+          implementation is trivial such as with getters and setters, or a
+          method just delegates to another object.
+       2. However, you should still add Javadoc if there are caveats around
+          calling a method that are not immediately obvious from reading the
+          method's implementation in isolation.
+       3. You can omit Javadoc for simple classes, e.g. where they are a
+          simple container for some data. However, please consider whether a
+          reader might still benefit from some additional background, for
+          example about why the class exists at all.
+   11. Not all comments need to be Javadoc. Sometimes it will make more
+       sense to add comments in a method's body, for example due to important
+       implementation decisions or "gotchas". As a general guide, if some
+       information forms part of the contract between a method and its callers,
+       then it should go in the Javadoc, otherwise you might consider using
+       regular comments in the code. Remember as well that Elasticsearch
+       has extensive [user documentation](./docs), and it is not the role
+       of Javadoc to replace that.
+   12. Please still try to make class, method or variable names as
+       descriptive and concise as possible, as opposed to relying solely on
+       Javadoc to describe something.
+   13. Use `@link` and `@see` to add references, either to related
+       resources in the codebase or to relevant external resources.
+   14. If you need help writing Javadoc, just ask!
+
+Finally, use your judgement! Base your decisions on what will help other
+developers - including yourself, when you come back to some code
+3 months in the future, having forgotten how it works.
 
 ### License Headers
 
-We require license headers on all Java files. You will notice that all the Java files in
-the top-level `x-pack` directory contain a separate license from the rest of the repository. This
-directory contains commercial code that is associated with a separate license. It can be helpful
-to have the IDE automatically insert the appropriate license header depending which part of the project
-contributions are made to.
+We require license headers on all Java files. With the exception of the
+top-level `x-pack` directory, all contributed code should have the following
+license header unless instructed otherwise:
+
+    /*
+     * Licensed to Elasticsearch under one or more contributor
+     * license agreements. See the NOTICE file distributed with
+     * this work for additional information regarding copyright
+     * ownership. Elasticsearch licenses this file to you under
+     * the Apache License, Version 2.0 (the "License"); you may
+     * not use this file except in compliance with the License.
+     * You may obtain a copy of the License at
+     *
+     *    http://www.apache.org/licenses/LICENSE-2.0
+     *
+     * Unless required by applicable law or agreed to in writing,
+     * software distributed under the License is distributed on an
+     * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+     * KIND, either express or implied.  See the License for the
+     * specific language governing permissions and limitations
+     * under the License.
+     */
+
+The top-level `x-pack` directory contains code covered by the [Elastic
+license](licenses/ELASTIC-LICENSE.txt). Community contributions to this code are
+welcome, and should have the following license header unless instructed
+otherwise:
+
+    /*
+     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+     * or more contributor license agreements. Licensed under the Elastic License;
+     * you may not use this file except in compliance with the Elastic License.
+     */
+
+It is important that the only code covered by the Elastic licence is contained
+within the top-level `x-pack` directory. The build will fail its pre-commit
+checks if contributed code does not have the appropriate license headers.
+
+You may find it helpful to configure your IDE to automatically insert the
+appropriate license header depending on the part of the project to which you are
+contributing.
 
 #### IntelliJ: Copyright & Scope Profiles
 
@@ -325,8 +529,7 @@ Commercially licensed code that integrates with the rest of Elasticsearch. The
 `docs` subdirectory functions just like the top level `docs` subdirectory and
 the `qa` subdirectory functions just like the top level `qa` subdirectory. The
 `plugin` subdirectory contains the x-pack module which runs inside the
-Elasticsearch process. The `transport-client` subdirectory contains extensions
-to Elasticsearch's standard transport client to work properly with x-pack.
+Elasticsearch process.
 
 ### Gradle Build
 
@@ -389,6 +592,6 @@ Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
-[eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
+[eclipse]: https://download.eclipse.org/eclipse/downloads/drops4/R-4.13-201909161045/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
 [shadow-plugin]: https://github.com/johnrengelman/shadow

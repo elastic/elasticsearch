@@ -1,0 +1,131 @@
+[role="xpack"]
+[testenv="platinum"]
+[[get-dfanalytics]]
+=== Get {dfanalytics-jobs} API
+[subs="attributes"]
+++++
+<titleabbrev>Get {dfanalytics-jobs}</titleabbrev>
+++++
+
+Retrieves configuration information for {dfanalytics-jobs}.
+
+experimental[]
+
+
+[[ml-get-dfanalytics-request]]
+==== {api-request-title}
+
+`GET _ml/data_frame/analytics/<data_frame_analytics_id>` +
+
+`GET _ml/data_frame/analytics/<data_frame_analytics_id>,<data_frame_analytics_id>` +
+
+`GET _ml/data_frame/analytics/` +
+
+`GET _ml/data_frame/analytics/_all`
+
+
+[[ml-get-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+
+[[ml-get-dfanalytics-desc]]
+==== {api-description-title}
+
+You can get information for multiple {dfanalytics-jobs} in a single API request 
+by using a comma-separated list of {dfanalytics-jobs} or a wildcard expression.
+
+
+[[ml-get-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+(Optional, string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
++
+--
+You can get information for all {dfanalytics-jobs} by using _all, by specifying 
+`*` as the `<data_frame_analytics_id>`, or by omitting the 
+`<data_frame_analytics_id>`.
+--
+
+
+[[ml-get-dfanalytics-query-params]]
+==== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
+`from`::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=from]
+
+`size`::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=size]
+
+
+[[ml-get-dfanalytics-results]]
+==== {api-response-body-title}
+
+`data_frame_analytics`::
+(array) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=data-frame-analytics]
+
+
+[[ml-get-dfanalytics-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
+
+
+[[ml-get-dfanalytics-example]]
+==== {api-examples-title}
+
+The following example gets configuration information for the `loganalytics` 
+{dfanalytics-job}:
+
+[source,console]
+--------------------------------------------------
+GET _ml/data_frame/analytics/loganalytics
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "count": 1,
+    "data_frame_analytics": [
+        {
+            "id": "loganalytics",
+            "source": {
+                "index": "logdata",
+                "query": {
+                    "match_all": {}
+                }
+            },
+            "dest": {
+                "index": "logdata_out",
+                "results_field": "ml"
+            },
+            "analysis": {
+                "outlier_detection": {}
+            },
+            "model_memory_limit": "1gb",
+            "create_time": 1562265491319,
+            "version" : "8.0.0"
+        }
+    ]
+}
+----

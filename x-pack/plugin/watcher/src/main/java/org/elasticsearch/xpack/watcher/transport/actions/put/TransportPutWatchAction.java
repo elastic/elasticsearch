@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 
@@ -66,10 +67,10 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
     @Inject
     public TransportPutWatchAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
+                                   ClockHolder clockHolder, XPackLicenseState licenseState, WatchParser parser, Client client) {
         super(PutWatchAction.NAME, transportService, actionFilters, licenseState, PutWatchRequest::new);
         this.threadPool = threadPool;
-        this.clock = clock;
+        this.clock = clockHolder.clock;
         this.parser = parser;
         this.client = client;
     }

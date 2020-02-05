@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -32,31 +33,31 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MedianAbsoluteDeviationAggregatorFactory extends
-        ValuesSourceAggregatorFactory<ValuesSource.Numeric, MedianAbsoluteDeviationAggregatorFactory> {
+public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final double compression;
 
     MedianAbsoluteDeviationAggregatorFactory(String name,
                                                     ValuesSourceConfig<ValuesSource.Numeric> config,
-                                                    SearchContext context,
-                                                    AggregatorFactory<?> parent,
+                                                    QueryShardContext queryShardContext,
+                                                    AggregatorFactory parent,
                                                     AggregatorFactories.Builder subFactoriesBuilder,
                                                     Map<String, Object> metaData,
                                                     double compression) throws IOException {
 
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.compression = compression;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
 
         return new MedianAbsoluteDeviationAggregator(
             name,
-            context,
+            searchContext,
             parent,
             pipelineAggregators,
             metaData,
@@ -68,14 +69,15 @@ public class MedianAbsoluteDeviationAggregatorFactory extends
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource,
-                                          Aggregator parent,
-                                          boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
 
         return new MedianAbsoluteDeviationAggregator(
             name,
-            context,
+            searchContext,
             parent,
             pipelineAggregators,
             metaData,

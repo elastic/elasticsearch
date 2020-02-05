@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutRequ
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -50,7 +52,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectTestCase;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -87,9 +89,11 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
 
     @Before
     public void setup() throws Exception {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
         final Settings settings = getBasicRealmSettings()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put("path.home", createTempDir())
+            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
         final Settings sslSettings = Settings.builder()
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate")
@@ -107,24 +111,20 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         doAnswer(invocationOnMock -> {
             GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                .setType((String) invocationOnMock.getArguments()[1])
-                .setId((String) invocationOnMock.getArguments()[2]);
+                .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
+        }).when(client).prepareGet(anyString(), anyString());
         doAnswer(invocationOnMock -> {
             IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                .setType((String) invocationOnMock.getArguments()[1])
-                .setId((String) invocationOnMock.getArguments()[2]);
+            builder.setIndex((String) invocationOnMock.getArguments()[0]);
             return builder;
-        }).when(client).prepareIndex(anyString(), anyString(), anyString());
+        }).when(client).prepareIndex(anyString());
         doAnswer(invocationOnMock -> {
             UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                .setType((String) invocationOnMock.getArguments()[1])
-                .setId((String) invocationOnMock.getArguments()[2]);
+                .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareUpdate(anyString(), anyString(), anyString());
+        }).when(client).prepareUpdate(anyString(), anyString());
         doAnswer(invocationOnMock -> {
             BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
             return builder;
@@ -134,7 +134,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[1];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
-                indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                indexRequest.shardId(), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
@@ -143,7 +143,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
-                indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
@@ -182,18 +182,16 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
 
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
-
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
-        oidcRealm = new OpenIdConnectRealm(realmConfig, new SSLService(sslSettings, env), mock(UserRoleMapper.class),
-            mock(ResourceWatcherService.class));
+        oidcRealm = new OpenIdConnectRealm(realmConfig, new SSLService(TestEnvironment.newEnvironment(sslSettings)),
+            mock(UserRoleMapper.class), mock(ResourceWatcherService.class));
         when(realms.realm(realmConfig.name())).thenReturn(oidcRealm);
     }
 
     public void testLogoutInvalidatesTokens() throws Exception {
         final String subject = randomAlphaOfLength(8);
         final JWT signedIdToken = generateIdToken(subject, randomAlphaOfLength(8), randomAlphaOfLength(8));
-        final User user = new User("oidc-user", new String[]{"superuser"}, null, null, null, true);
+        final User user = new User("oidc-user", new String[]{"superuser"}, null, null, Map.of(), true);
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(oidcRealm.name(), OpenIdConnectRealmSettings.TYPE, "node01");
         final Map<String, Object> tokenMetadata = new HashMap<>();
         tokenMetadata.put("id_token_hint", signedIdToken.serialize());

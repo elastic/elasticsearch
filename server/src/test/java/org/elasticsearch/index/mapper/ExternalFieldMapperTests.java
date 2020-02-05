@@ -84,7 +84,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject())
         ));
 
-        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("field", "1234")
@@ -136,7 +136,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().endObject())));
 
-        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("field", "1234")

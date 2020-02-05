@@ -9,21 +9,31 @@
 The `has_privileges` API allows you to determine whether the logged in user has
 a specified list of privileges.
 
-==== Request
+[[security-api-has-privileges-request]]
+==== {api-request-title}
 
 `GET /_security/user/_has_privileges`
 
 
-==== Description
+[[security-api-has-privileges-prereqs]]
+==== {api-prereq-title}
+
+* All users can use this API, but only to determine their own privileges.
+To check the privileges of other users, you must use the run as feature. For
+more information, see
+<<run-as-privilege>>.
+
+[[security-api-has-privileges-desc]]
+==== {api-description-title}
 
 For a list of the privileges that you can specify in this API,
-see {stack-ov}/security-privileges.html[Security privileges].
+see <<security-privileges>>.
 
 A successful call returns a JSON structure that shows whether each specified
 privilege is assigned to the user.
 
-
-==== Request Body
+[[security-api-has-privileges-request-body]]
+==== {api-request-body-title}
 
 `cluster`:: (list) A list of the cluster privileges that you want to check.
 
@@ -47,20 +57,14 @@ actions that are granted by those privileges
 `resources`::: (list) A list of resource names against which the privileges
 should be checked
 
-==== Authorization
 
-All users can use this API, but only to determine their own privileges.
-To check the privileges of other users, you must use the run as feature. For
-more information, see
-{xpack-ref}/run-as-privilege.html[Submitting Requests on Behalf of Other Users].
-
-
-==== Examples
+[[security-api-has-privileges-example]]
+==== {api-examples-title}
 
 The following example checks whether the current user has a specific set of
 cluster, index, and application privileges:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/user/_has_privileges
 {
@@ -84,11 +88,10 @@ GET /_security/user/_has_privileges
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The following example output indicates which privileges the "rdeniro" user has:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "username": "rdeniro",

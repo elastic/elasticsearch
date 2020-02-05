@@ -1,79 +1,148 @@
 [[docs-index_]]
-== Index API
+=== Index API
+++++
+<titleabbrev>Index</titleabbrev>
+++++
 
 IMPORTANT: See <<removal-of-types>>.
 
-The index API adds or updates a JSON document in a specific index,
-making it searchable. The following example inserts the JSON document
-into the "twitter" index with an id of 1:
+Adds a JSON document to the specified index and makes
+it searchable. If the document already exists,
+updates the document and increments its version.
 
-[source,js]
---------------------------------------------------
-PUT twitter/_doc/1
-{
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
-}
---------------------------------------------------
-// CONSOLE
+[[docs-index-api-request]]
+==== {api-request-title}
 
-The result of the above index operation is:
+`PUT /<index>/_doc/<_id>`
 
-[source,js]
---------------------------------------------------
-{
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 2
-    },
-    "_index" : "twitter",
-    "_type" : "_doc",
-    "_id" : "1",
-    "_version" : 1,
-    "_seq_no" : 0,
-    "_primary_term" : 1,
-    "result" : "created"
-}
---------------------------------------------------
-// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
+`POST /<index>/_doc/`
 
-The `_shards` header provides information about the replication process of the index operation:
+`PUT /<index>/_create/<_id>`
 
-`total`:: Indicates how many shard copies (primary and replica shards) the index operation should be executed on.
-`successful`:: Indicates the number of shard copies the index operation succeeded on.
-`failed`:: An array that contains replication-related errors in the case an index operation failed on a replica shard.
+`POST /<index>/_create/<_id>`
 
-The index operation is successful in the case `successful` is at least 1.
+[[docs-index-api-path-params]]
+==== {api-path-parms-title}
 
-NOTE:   Replica shards may not all be started when an indexing operation successfully returns (by default, only the
-        primary is required, but this behavior can be <<index-wait-for-active-shards,changed>>). In that case,
-        `total` will be equal to the total shards based on the `number_of_replicas` setting and `successful` will be
-        equal to the number of shards started (primary plus replicas). If there were no failures, the `failed` will be 0.
+`<index>`::
+(Required, string) Name of the target index. By default, the index is created
+automatically if it doesn't exist. For more information, see <<index-creation>>.
 
-[float]
+`<_id>`::
+(Optional, string) Unique identifier for the document. Required if you are
+using a PUT request. Omit to automatically generate an ID when using a
+POST request.
+
+
+[[docs-index-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
+
+`op_type`::
+(Optional, enum) Set to `create` to only index the document
+if it does not already exist (_put if absent_). If a document with the specified
+`_id` already exists, the indexing operation will fail. Same as using the
+`<index>/_create` endpoint. Valid values: `index`, `create`.
+If document id is specified, it defaults to `index`. Otherwise, it defaults to `create`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+[[docs-index-api-request-body]]
+==== {api-request-body-title}
+
+`<field>`::
+(Required, string) Request body contains the JSON source for the document
+data.
+
+[[docs-index-api-response-body]]
+==== {api-response-body-title}
+
+`_shards`::
+Provides information about the replication process of the index operation.
+
+`_shards.total`::
+Indicates how many shard copies (primary and replica shards) the index operation
+should be executed on.
+
+`_shards.successful`::
+Indicates the number of shard copies the index operation succeeded on.
+When the index operation is successful, `successful` is at least 1.
++
+NOTE: Replica shards might not all be started when an indexing operation
+returns successfully--by default, only the primary is required. Set
+`wait_for_active_shards` to change this default behavior. See
+<<index-wait-for-active-shards>>.
+
+`_shards.failed`::
+An array that contains replication-related errors in the case an index operation
+failed on a replica shard. 0 indicates there were no failures.
+
+`_index`::
+The name of the index the document was added to.
+
+`_type`::
+The document type. {es} indices now support a single document type, `_doc`.
+
+`_id`::
+The unique identifier for the added document.
+
+`_version`::
+The document version. Incremented each time the document is updated.
+
+`_seq_no`::
+The sequence number assigned to the document for the indexing operation.
+Sequence numbers are used to ensure an older version of a document
+doesn’t overwrite a newer version. See <<optimistic-concurrency-control-index>>.
+
+`_primary_term`::
+The primary term assigned to the document for the indexing operation.
+See <<optimistic-concurrency-control-index>>.
+
+`result`::
+The result of the indexing operation, `created` or `updated`.
+
+[[docs-index-api-desc]]
+==== {api-description-title}
+
+You can index a new JSON document with the `_doc` or `_create` resource. Using
+`_create` guarantees that the document is only indexed if it does not already
+exist. To update an existing document, you must use the `_doc` resource.
+
 [[index-creation]]
-=== Automatic Index Creation
+===== Create indices automatically
 
-The index operation automatically creates an index if it does not already
-exist, and applies any <<indices-templates,index templates>> that are
-configured. The index operation also creates a dynamic mapping if one does not
-already exist. By default, new fields and objects will automatically be added
-to the mapping definition if needed. Check out the <<mapping,mapping>> section
-for more information on mapping definitions, and the
-<<indices-put-mapping,put mapping>> API for information about updating mappings
-manually.
+If the specified index does not already exist, by default the index operation
+automatically creates it and applies any configured
+<<indices-templates,index templates>>. If no mapping exists, the index operation
+creates a dynamic mapping.  By default,  new fields and objects are
+automatically added to the mapping if needed. For more information about field
+mapping, see <<mapping,mapping>> and the <<indices-put-mapping,put mapping>> API.
 
 Automatic index creation is controlled by the `action.auto_create_index`
-setting. This setting defaults to `true`, meaning that indices are always
-automatically created. Automatic index creation can be permitted only for
-indices matching certain patterns by changing the value of this setting to a
-comma-separated list of these patterns. It can also be explicitly permitted and
-forbidden by prefixing patterns in the list with a `+` or `-`.  Finally it can
-be completely disabled by changing this setting to `false`.
+setting. This setting defaults to `true`, which allows any index to be created
+automatically. You can modify this setting to explicitly allow or block
+automatic creation of indices that match specified patterns, or set it to
+`false` to disable automatic index creation entirely. Specify a
+comma-separated list of patterns you want to allow, or prefix each pattern with
+`+` or `-` to indicate whether it should be allowed or blocked.  When a list is
+specified, the default behaviour is to disallow.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -96,60 +165,33 @@ PUT _cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 
-<1> Permit only the auto-creation of indices called `twitter`, `index10`, no
-other index matching `index1*`, and any other index matching `ind*`. The
-patterns are matched in the order in which they are given.
+<1> Allow auto-creation of indices called `twitter` or `index10`, block the
+creation of indices that match the pattern `index1*`, and allow creation of
+any other indices that match the `ind*` pattern. Patterns are matched in
+the order specified.
 
-<2> Completely disable the auto-creation of indices.
+<2> Disable automatic index creation entirely.
 
-<3> Permit the auto-creation of indices with any name. This is the default.
+<3> Allow automatic creation of any index. This is the default.
 
 [float]
 [[operation-type]]
-=== Operation Type
+===== Put if absent
 
-The index operation also accepts an `op_type` that can be used to force
-a `create` operation, allowing for "put-if-absent" behavior. When
-`create` is used, the index operation will fail if a document by that id
+You can force a create operation by using the `_create` resource or
+setting the `op_type` parameter to _create_. In this case,
+the index operation fails if a document with the specified ID
 already exists in the index.
 
-Here is an example of using the `op_type` parameter:
-
-[source,js]
---------------------------------------------------
-PUT twitter/_doc/1?op_type=create
-{
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
-}
---------------------------------------------------
-// CONSOLE
-
-Another option to specify `create` is to use the following uri:
-
-[source,js]
---------------------------------------------------
-PUT twitter/_create/1
-{
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
-}
---------------------------------------------------
-// CONSOLE
-
 [float]
-=== Automatic ID Generation
+===== Create document IDs automatically
 
-The index operation can be executed without specifying the id. In such a
-case, an id will be generated automatically. In addition, the `op_type`
-will automatically be set to `create`. Here is an example (note the
-*POST* used instead of *PUT*):
+If you don't specify a document ID when using POST, the `op_type` is
+automatically set to `create` and the index operation generates a unique ID
+for the document.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_doc/
 {
@@ -158,11 +200,10 @@ POST twitter/_doc/
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
-The result of the above index operation is:
+The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {
@@ -171,7 +212,6 @@ The result of the above index operation is:
         "successful" : 2
     },
     "_index" : "twitter",
-    "_type" : "_doc",
     "_id" : "W0tpsmIBdwcYyG50zbta",
     "_version" : 1,
     "_seq_no" : 0,
@@ -183,24 +223,24 @@ The result of the above index operation is:
 
 [float]
 [[optimistic-concurrency-control-index]]
-=== Optimistic concurrency control
+===== Optimistic concurrency control
 
 Index operations can be made conditional and only be performed if the last
-modification to the document was assigned the sequence number and primary 
+modification to the document was assigned the sequence number and primary
 term specified by the `if_seq_no` and `if_primary_term` parameters. If a
 mismatch is detected, the operation will result in a `VersionConflictException`
-and a status code of 409. See <<optimistic-concurrency-control>> for more details. 
+and a status code of 409. See <<optimistic-concurrency-control>> for more details.
 
 [float]
 [[index-routing]]
-=== Routing
+===== Routing
 
 By default, shard placement ? or `routing` ? is controlled by using a
 hash of the document's id value. For more explicit control, the value
 fed into the hash function used by the router can be directly specified
 on a per-operation basis using the `routing` parameter. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_doc?routing=kimchy
 {
@@ -209,13 +249,12 @@ POST twitter/_doc?routing=kimchy
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
-In the example above, the "_doc" document is routed to a shard based on
+In this example, the document is routed to a shard based on
 the `routing` parameter provided: "kimchy".
 
-When setting up explicit mapping, the `_routing` field can be optionally
-used to direct the index operation to extract the routing value from the
+When setting up explicit mapping, you can also use the `_routing` field
+to direct the index operation to extract the routing value from the
 document itself. This does come at the (very minimal) cost of an
 additional document parsing pass. If the `_routing` mapping is defined
 and set to be `required`, the index operation will fail if no routing
@@ -223,7 +262,7 @@ value is provided or extracted.
 
 [float]
 [[index-distributed]]
-=== Distributed
+===== Distributed
 
 The index operation is directed to the primary shard based on its route
 (see the Routing section above) and performed on the actual node
@@ -232,7 +271,7 @@ if needed, the update is distributed to applicable replicas.
 
 [float]
 [[index-wait-for-active-shards]]
-=== Wait For Active Shards
+===== Active shards
 
 To improve the resiliency of writes to the system, indexing operations
 can be configured to wait for a certain number of active shard copies
@@ -290,14 +329,14 @@ replication succeeded/failed.
 
 [float]
 [[index-refresh]]
-=== Refresh
+===== Refresh
 
 Control when the changes made by this request are visible to search. See
 <<docs-refresh,refresh>>.
 
 [float]
 [[index-noop]]
-=== Noop Updates
+===== Noop updates
 
 When updating a document using the index API a new version of the document is
 always created even if the document hasn't changed. If this isn't acceptable
@@ -312,7 +351,7 @@ Elasticsearch runs on the shard receiving the updates.
 
 [float]
 [[timeout]]
-=== Timeout
+===== Timeout
 
 The primary shard assigned to perform the index operation might not be
 available when the index operation is executed. Some reasons for this
@@ -323,7 +362,7 @@ and responding with an error. The `timeout` parameter can be used to
 explicitly specify how long it waits. Here is an example of setting it
 to 5 minutes:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1?timeout=5m
 {
@@ -332,19 +371,18 @@ PUT twitter/_doc/1?timeout=5m
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[index-versioning]]
-=== Versioning
+===== Versioning
 
-Each indexed document is given a version number. By default, 
+Each indexed document is given a version number. By default,
 internal versioning is used that starts at 1 and increments
 with each update, deletes included. Optionally, the version number can be
 set to an external value (for example, if maintained in a
 database). To enable this functionality, `version_type` should be set to
 `external`. The value provided must be a numeric, long value greater than or equal to 0,
-and less than around 9.2e+18. 
+and less than around 9.2e+18.
 
 When using the external version type, the system checks to see if
 the version number passed to the index request is greater than the
@@ -353,21 +391,21 @@ indexed and the new version number used. If the value provided is less
 than or equal to the stored document's version number, a version
 conflict will occur and the index operation will fail. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1?version=2&version_type=external
 {
     "message" : "elasticsearch now has versioning support, double cool!"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-*NOTE:* Versioning is completely real time, and is not affected by the
+NOTE: Versioning is completely real time, and is not affected by the
 near real time aspects of search operations. If no version is provided,
 then the operation is executed without any version checks.
 
-The above will succeed since the supplied version of 2 is higher than
+In the previous example, the operation will succeed since the supplied
+version of 2 is higher than
 the current document version of 1. If the document was already updated
 and its version was set to 2 or higher, the indexing command will fail
 and result in a conflict (409 http status code).
@@ -381,12 +419,13 @@ latest version will be used if the index operations arrive out of order for
 whatever reason.
 
 [float]
-==== Version types
+[[index-version-types]]
+===== Version types
 
-Next to the `external` version type explained above, Elasticsearch
-also supports other types for specific use cases. Here is an overview of
-the different version types and their semantics.
+In addition to the `external` version type, Elasticsearch
+also supports other types for specific use cases:
 
+[[_version_types]]
 `internal`:: Only index the document if the given version is identical to the version
 of the stored document.
 
@@ -400,8 +439,68 @@ than the version of the stored document. If there is no existing document
 the operation will succeed as well. The given version will be used as the new version
 and will be stored with the new document. The supplied version must be a non-negative long number.
 
-*NOTE*: The `external_gte` version type is meant for special use cases and
+NOTE: The `external_gte` version type is meant for special use cases and
 should be used with care. If used incorrectly, it can result in loss of data.
 There is another option, `force`, which is deprecated because it can cause
 primary and replica shards to diverge.
 
+[[docs-index-api-example]]
+==== {api-examples-title}
+
+Insert a JSON document into the `twitter` index with an `_id` of 1:
+
+[source,console]
+--------------------------------------------------
+PUT twitter/_doc/1
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+--------------------------------------------------
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "_shards" : {
+        "total" : 2,
+        "failed" : 0,
+        "successful" : 2
+    },
+    "_index" : "twitter",
+    "_id" : "1",
+    "_version" : 1,
+    "_seq_no" : 0,
+    "_primary_term" : 1,
+    "result" : "created"
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
+
+Use the `_create` resource to index a document into the `twitter` index if
+no document with that ID exists:
+
+[source,console]
+--------------------------------------------------
+PUT twitter/_create/1
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+--------------------------------------------------
+
+Set the `op_type` parameter to _create_ to index a document into the `twitter`
+index if no document with that ID exists:
+
+[source,console]
+--------------------------------------------------
+PUT twitter/_doc/1?op_type=create
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+--------------------------------------------------

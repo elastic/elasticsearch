@@ -20,17 +20,24 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Phaser;
 import java.util.stream.Collectors;
@@ -38,36 +45,49 @@ import java.util.stream.Collectors;
 /**
  * This class keeps track of the memory requirement of ML jobs.
  * It only functions on the master node - for this reason it should only be used by master node actions.
- * The memory requirement for ML jobs can be updated in 3 ways:
- * 1. For all open ML jobs (via {@link #asyncRefresh})
- * 2. For all open ML jobs, plus one named ML job that is not open (via {@link #refreshJobMemoryAndAllOthers})
- * 3. For one named ML job (via {@link #refreshJobMemory})
- * In cases 2 and 3 a listener informs the caller when the requested updates are complete.
+ * The memory requirement for ML jobs can be updated in 4 ways:
+ * 1. For all open ML data frame analytics jobs and anomaly detector jobs (via {@link #asyncRefresh})
+ * 2. For all open/started ML jobs, plus one named ML anomaly detector job that is not open
+ *    (via {@link #refreshAnomalyDetectorJobMemoryAndAllOthers})
+ * 3. For all open/started ML jobs, plus one named ML data frame analytics job that is not started
+ *    (via {@link #addDataFrameAnalyticsJobMemoryAndRefreshAllOthers})
+ * 4. For one named ML anomaly detector job (via {@link #refreshAnomalyDetectorJobMemory})
+ * In cases 2, 3 and 4 a listener informs the caller when the requested updates are complete.
  */
 public class MlMemoryTracker implements LocalNodeMasterListener {
 
     private static final Duration RECENT_UPDATE_THRESHOLD = Duration.ofMinutes(1);
 
     private final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
-    private final ConcurrentHashMap<String, Long> memoryRequirementByJob = new ConcurrentHashMap<>();
+    private final Map<String, Long> memoryRequirementByAnomalyDetectorJob = new ConcurrentHashMap<>();
+    private final Map<String, Long> memoryRequirementByDataFrameAnalyticsJob = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Long>> memoryRequirementByTaskName;
     private final List<ActionListener<Void>> fullRefreshCompletionListeners = new ArrayList<>();
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
+    private final DataFrameAnalyticsConfigProvider configProvider;
     private final Phaser stopPhaser;
     private volatile boolean isMaster;
     private volatile Instant lastUpdateTime;
     private volatile Duration reassignmentRecheckInterval;
 
     public MlMemoryTracker(Settings settings, ClusterService clusterService, ThreadPool threadPool, JobManager jobManager,
-                           JobResultsProvider jobResultsProvider) {
+                           JobResultsProvider jobResultsProvider, DataFrameAnalyticsConfigProvider configProvider) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
+        this.configProvider = configProvider;
         this.stopPhaser = new Phaser(1);
+
+        Map<String, Map<String, Long>> memoryRequirementByTaskName = new TreeMap<>();
+        memoryRequirementByTaskName.put(MlTasks.JOB_TASK_NAME, memoryRequirementByAnomalyDetectorJob);
+        memoryRequirementByTaskName.put(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryRequirementByDataFrameAnalyticsJob);
+        this.memoryRequirementByTaskName = Collections.unmodifiableMap(memoryRequirementByTaskName);
+
         setReassignmentRecheckInterval(PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
         clusterService.addLocalNodeMasterListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(
@@ -88,7 +108,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void offMaster() {
         isMaster = false;
         logger.trace("ML memory tracker off master");
-        memoryRequirementByJob.clear();
+        for (Map<String, Long> memoryRequirementByJob : memoryRequirementByTaskName.values()) {
+            memoryRequirementByJob.clear();
+        }
         lastUpdateTime = null;
     }
 
@@ -125,37 +147,69 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     }
 
     /**
-     * Get the memory requirement for a job.
+     * Get the memory requirement for an anomaly detector job.
      * This method only works on the master node.
      * @param jobId The job ID.
      * @return The memory requirement of the job specified by {@code jobId},
      *         or <code>null</code> if it cannot be calculated.
      */
-    public Long getJobMemoryRequirement(String jobId) {
+    public Long getAnomalyDetectorJobMemoryRequirement(String jobId) {
+        return getJobMemoryRequirement(MlTasks.JOB_TASK_NAME, jobId);
+    }
+
+    /**
+     * Get the memory requirement for a data frame analytics job.
+     * This method only works on the master node.
+     * @param id The job ID.
+     * @return The memory requirement of the job specified by {@code id},
+     *         or <code>null</code> if it cannot be found.
+     */
+    public Long getDataFrameAnalyticsJobMemoryRequirement(String id) {
+        return getJobMemoryRequirement(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, id);
+    }
+
+    /**
+     * Get the memory requirement for the type of job corresponding to a specified persistent task name.
+     * This method only works on the master node.
+     * @param taskName The persistent task name.
+     * @param id The job ID.
+     * @return The memory requirement of the job specified by {@code id},
+     *         or <code>null</code> if it cannot be found.
+     */
+    public Long getJobMemoryRequirement(String taskName, String id) {
 
         if (isMaster == false) {
             return null;
         }
 
-        Long memoryRequirement = memoryRequirementByJob.get(jobId);
-        if (memoryRequirement != null) {
-            return memoryRequirement;
+        Map<String, Long> memoryRequirementByJob = memoryRequirementByTaskName.get(taskName);
+        if (memoryRequirementByJob == null) {
+            return null;
         }
 
-        return null;
+        return memoryRequirementByJob.get(id);
     }
 
     /**
-     * Remove any memory requirement that is stored for the specified job.
-     * It doesn't matter if this method is called for a job that doesn't have
-     * a stored memory requirement.
+     * Remove any memory requirement that is stored for the specified anomaly detector job.
+     * It doesn't matter if this method is called for a job that doesn't have a
+     * stored memory requirement.
      */
-    public void removeJob(String jobId) {
-        memoryRequirementByJob.remove(jobId);
+    public void removeAnomalyDetectorJob(String jobId) {
+        memoryRequirementByAnomalyDetectorJob.remove(jobId);
     }
 
     /**
-     * Uses a separate thread to refresh the memory requirement for every ML job that has
+     * Remove any memory requirement that is stored for the specified data frame analytics
+     * job.  It doesn't matter if this method is called for a job that doesn't have a
+     * stored memory requirement.
+     */
+    public void removeDataFrameAnalyticsJob(String id) {
+        memoryRequirementByDataFrameAnalyticsJob.remove(id);
+    }
+
+    /**
+     * Uses a separate thread to refresh the memory requirement for every ML anomaly detector job that has
      * a corresponding persistent task.  This method only works on the master node.
      * @return <code>true</code> if the async refresh is scheduled, and <code>false</code>
      *         if this is not possible for some reason.
@@ -188,7 +242,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * @param listener Receives the memory requirement of the job specified by {@code jobId},
      *                 or <code>null</code> if it cannot be calculated.
      */
-    public void refreshJobMemoryAndAllOthers(String jobId, ActionListener<Long> listener) {
+    public void refreshAnomalyDetectorJobMemoryAndAllOthers(String jobId, ActionListener<Long> listener) {
 
         if (isMaster == false) {
             listener.onResponse(null);
@@ -196,14 +250,36 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }
 
         PersistentTasksCustomMetaData persistentTasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        refresh(persistentTasks, ActionListener.wrap(aVoid -> refreshJobMemory(jobId, listener), listener::onFailure));
+        refresh(persistentTasks,
+            ActionListener.wrap(aVoid -> refreshAnomalyDetectorJobMemory(jobId, listener), listener::onFailure));
+    }
+
+    /**
+     * This refreshes the memory requirement for every ML job that has a corresponding
+     * persistent task and, in addition, adds the memory requirement of one data frame analytics
+     * job that doesn't have a persistent task.  This method only works on the master node.
+     * @param id The job ID of the job whose memory requirement is to be added.
+     * @param mem The memory requirement (in bytes) of the job specified by {@code id}.
+     * @param listener Called when the refresh is complete or fails.
+     */
+    public void addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(String id, long mem, ActionListener<Void> listener) {
+
+        if (isMaster == false) {
+            listener.onResponse(null);
+            return;
+        }
+
+        memoryRequirementByDataFrameAnalyticsJob.put(id, mem + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
+
+        PersistentTasksCustomMetaData persistentTasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        refresh(persistentTasks, listener);
     }
 
     /**
      * This refreshes the memory requirement for every ML job that has a corresponding persistent task.
-     * It does NOT remove entries for jobs that no longer have a persistent task, because that would
-     * lead to a race where a job was opened part way through the refresh.  (Instead, entries are removed
-     * when jobs are deleted.)
+     * It does NOT remove entries for jobs that no longer have a persistent task, because that would lead
+     * to a race where a job was opened part way through the refresh.  (Instead, entries are removed when
+     * jobs are deleted.)
      */
     void refresh(PersistentTasksCustomMetaData persistentTasks, ActionListener<Void> onCompletion) {
 
@@ -224,43 +300,82 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 }
                 fullRefreshCompletionListeners.clear();
             }
-        }, onCompletion::onFailure);
+        },
+        e -> {
+            synchronized (fullRefreshCompletionListeners) {
+                assert fullRefreshCompletionListeners.isEmpty() == false;
+                for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
+                    listener.onFailure(e);
+                }
+                // It's critical that we empty out the current listener list on
+                // error otherwise subsequent retries to refresh will be ignored
+                fullRefreshCompletionListeners.clear();
+            }
+        });
 
         // persistentTasks will be null if there's never been a persistent task created in this cluster
         if (persistentTasks == null) {
             refreshComplete.onResponse(null);
         } else {
-            List<PersistentTasksCustomMetaData.PersistentTask<?>> mlJobTasks = persistentTasks.tasks().stream()
+            List<PersistentTasksCustomMetaData.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks().stream()
+                .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
+            ActionListener<Void> refreshDataFrameAnalyticsJobs =
+                ActionListener.wrap(aVoid -> refreshAllDataFrameAnalyticsJobTasks(mlDataFrameAnalyticsJobTasks, refreshComplete),
+                    refreshComplete::onFailure);
+
+            List<PersistentTasksCustomMetaData.PersistentTask<?>> mlAnomalyDetectorJobTasks = persistentTasks.tasks().stream()
                 .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
-            iterateMlJobTasks(mlJobTasks.iterator(), refreshComplete);
+            iterateAnomalyDetectorJobTasks(mlAnomalyDetectorJobTasks.iterator(), refreshDataFrameAnalyticsJobs);
         }
     }
 
-    private void iterateMlJobTasks(Iterator<PersistentTasksCustomMetaData.PersistentTask<?>> iterator,
-                                   ActionListener<Void> refreshComplete) {
+    private void iterateAnomalyDetectorJobTasks(Iterator<PersistentTasksCustomMetaData.PersistentTask<?>> iterator,
+                                                ActionListener<Void> refreshComplete) {
         if (iterator.hasNext()) {
             OpenJobAction.JobParams jobParams = (OpenJobAction.JobParams) iterator.next().getParams();
-            refreshJobMemory(jobParams.getJobId(),
+            refreshAnomalyDetectorJobMemory(jobParams.getJobId(),
                 ActionListener.wrap(
                     // Do the next iteration in a different thread, otherwise stack overflow
                     // can occur if the searches happen to be on the local node, as the huge
                     // chain of listeners are all called in the same thread if only one node
                     // is involved
-                    mem -> threadPool.executor(executorName()).execute(() -> iterateMlJobTasks(iterator, refreshComplete)),
+                    mem -> threadPool.executor(executorName()).execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
                     refreshComplete::onFailure));
         } else {
             refreshComplete.onResponse(null);
         }
     }
 
+    private void refreshAllDataFrameAnalyticsJobTasks(List<PersistentTasksCustomMetaData.PersistentTask<?>> mlDataFrameAnalyticsJobTasks,
+                                                      ActionListener<Void> listener) {
+        if (mlDataFrameAnalyticsJobTasks.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+
+        Set<String> jobsWithTasks = mlDataFrameAnalyticsJobTasks.stream().map(
+            task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId()).collect(Collectors.toSet());
+
+        configProvider.getConfigsForJobsWithTasksLeniently(jobsWithTasks, ActionListener.wrap(
+            analyticsConfigs -> {
+                for (DataFrameAnalyticsConfig analyticsConfig : analyticsConfigs) {
+                    memoryRequirementByDataFrameAnalyticsJob.put(analyticsConfig.getId(),
+                        analyticsConfig.getModelMemoryLimit().getBytes() + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
+                }
+                listener.onResponse(null);
+            },
+            listener::onFailure
+        ));
+    }
+
     /**
-     * Refresh the memory requirement for a single job.
+     * Refresh the memory requirement for a single anomaly detector job.
      * This method only works on the master node.
      * @param jobId    The ID of the job to refresh the memory requirement for.
      * @param listener Receives the job's memory requirement, or <code>null</code>
      *                 if it cannot be calculated.
      */
-    public void refreshJobMemory(String jobId, ActionListener<Long> listener) {
+    public void refreshAnomalyDetectorJobMemory(String jobId, ActionListener<Long> listener) {
         if (isMaster == false) {
             listener.onResponse(null);
             return;
@@ -288,25 +403,25 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             jobResultsProvider.getEstablishedMemoryUsage(jobId, null, null,
                 establishedModelMemoryBytes -> {
                     if (establishedModelMemoryBytes <= 0L) {
-                        setJobMemoryToLimit(jobId, phaserListener);
+                        setAnomalyDetectorJobMemoryToLimit(jobId, phaserListener);
                     } else {
                         Long memoryRequirementBytes = establishedModelMemoryBytes + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
-                        memoryRequirementByJob.put(jobId, memoryRequirementBytes);
+                        memoryRequirementByAnomalyDetectorJob.put(jobId, memoryRequirementBytes);
                         phaserListener.onResponse(memoryRequirementBytes);
                     }
                 },
                 e -> {
-                    logger.error("[" + jobId + "] failed to calculate job established model memory requirement", e);
-                    setJobMemoryToLimit(jobId, phaserListener);
+                    logger.error("[" + jobId + "] failed to calculate anomaly detector job established model memory requirement", e);
+                    setAnomalyDetectorJobMemoryToLimit(jobId, phaserListener);
                 }
             );
         } catch (Exception e) {
-            logger.error("[" + jobId + "] failed to calculate job established model memory requirement", e);
-            setJobMemoryToLimit(jobId, phaserListener);
+            logger.error("[" + jobId + "] failed to calculate anomaly detector job established model memory requirement", e);
+            setAnomalyDetectorJobMemoryToLimit(jobId, phaserListener);
         }
     }
 
-    private void setJobMemoryToLimit(String jobId, ActionListener<Long> listener) {
+    private void setAnomalyDetectorJobMemoryToLimit(String jobId, ActionListener<Long> listener) {
         jobManager.getJob(jobId, ActionListener.wrap(job -> {
             Long memoryLimitMb = (job.getAnalysisLimits() != null) ? job.getAnalysisLimits().getModelMemoryLimit() : null;
             // Although recent versions of the code enforce a non-null model_memory_limit
@@ -316,16 +431,20 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 memoryLimitMb = AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB;
             }
             Long memoryRequirementBytes = ByteSizeUnit.MB.toBytes(memoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
-            memoryRequirementByJob.put(jobId, memoryRequirementBytes);
+            memoryRequirementByAnomalyDetectorJob.put(jobId, memoryRequirementBytes);
             listener.onResponse(memoryRequirementBytes);
         }, e -> {
             if (e instanceof ResourceNotFoundException) {
                 // TODO: does this also happen if the .ml-config index exists but is unavailable?
-                logger.trace("[{}] job deleted during ML memory update", jobId);
+                // However, note that we wait for the .ml-config index to be available earlier on in the
+                // job assignment process, so that scenario should be very rare, i.e. somebody has closed
+                // the .ml-config index (which would be unexpected and unsupported for an internal index)
+                // during the memory refresh.
+                logger.trace("[{}] anomaly detector job deleted during ML memory update", jobId);
             } else {
-                logger.error("[" + jobId + "] failed to get job during ML memory update", e);
+                logger.error("[" + jobId + "] failed to get anomaly detector job during ML memory update", e);
             }
-            memoryRequirementByJob.remove(jobId);
+            memoryRequirementByAnomalyDetectorJob.remove(jobId);
             listener.onResponse(null);
         }));
     }

@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.watcher.history;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
-import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
@@ -25,12 +25,11 @@ import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequ
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.hasItem;
 
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     public void testTransformFields() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("doc",
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(
                 jsonBuilder().startObject()
                         .startObject("properties")
                         .startObject("foo")
@@ -48,7 +47,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                                 .startObject("foo").field("what", "ever").endObject().endObject()))
                 .get();
 
-        watcherClient().preparePutWatch("_first").setSource(watchBuilder()
+        new PutWatchRequestBuilder(client(), "_first").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
                 .transform(searchTransform(templateRequest(searchSource().query(QueryBuilders.termQuery("name", "first")), "idx")))
@@ -59,7 +58,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
 
         // execute another watch which with a transform that should conflict with the previous watch. Since the
         // mapping for the transform construct is disabled, there should be no problems.
-        watcherClient().preparePutWatch("_second").setSource(watchBuilder()
+        new PutWatchRequestBuilder(client(), "_second").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
                 .transform(searchTransform(templateRequest(searchSource().query(QueryBuilders.termQuery("name", "second")), "idx")))
@@ -68,26 +67,23 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                         loggingAction("indexed")))
                 .get();
 
-        watcherClient().prepareExecuteWatch("_first").setRecordExecution(true).get();
-        watcherClient().prepareExecuteWatch("_second").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client(), "_first").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client(), "_second").setRecordExecution(true).get();
 
         assertBusy(() -> {
             GetFieldMappingsResponse response = client().admin().indices()
                                                                 .prepareGetFieldMappings(".watcher-history*")
                                                                 .setFields("result.actions.transform.payload")
-                                                                .setTypes(SINGLE_MAPPING_NAME)
                                                                 .includeDefaults(true)
                                                                 .get();
 
             // time might have rolled over to a new day, thus we need to check that this field exists only in one of the history indices
-            List<Boolean> payloadNulls = response.mappings().values().stream()
-                    .map(map -> map.get(SINGLE_MAPPING_NAME))
+            Optional<GetFieldMappingsResponse.FieldMappingMetaData> mapping = response.mappings().values().stream()
                     .map(map -> map.get("result.actions.transform.payload"))
                     .filter(Objects::nonNull)
-                    .map(GetFieldMappingsResponse.FieldMappingMetaData::isNull)
-                    .collect(Collectors.toList());
+                    .findFirst();
 
-            assertThat(payloadNulls, hasItem(true));
+            assertTrue(mapping.isEmpty());
         });
     }
 }

@@ -58,7 +58,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
             , numShards.totalNumShards);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
         assertAcked(client().admin().indices().prepareClose("test"));
@@ -69,7 +69,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+            client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -90,7 +90,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
             numShards.totalNumShards);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
     }
 
     public void testFastCloseAfterCreateContinuesCreateAfterOpen() {
@@ -122,7 +122,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
             numShards.totalNumShards);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
     }
 
     public void testConsistencyAfterIndexCreationFailure() {

@@ -8,7 +8,15 @@ package org.elasticsearch.xpack.core.ml.job.results;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -23,6 +31,8 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -64,6 +74,7 @@ public final class ReservedFieldNames {
             AnomalyCause.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyCause.TYPICAL.getPreferredName(),
             AnomalyCause.ACTUAL.getPreferredName(),
+            AnomalyCause.GEO_RESULTS.getPreferredName(),
             AnomalyCause.INFLUENCERS.getPreferredName(),
             AnomalyCause.FIELD_NAME.getPreferredName(),
 
@@ -78,6 +89,7 @@ public final class ReservedFieldNames {
             AnomalyRecord.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyRecord.TYPICAL.getPreferredName(),
             AnomalyRecord.ACTUAL.getPreferredName(),
+            AnomalyRecord.GEO_RESULTS.getPreferredName(),
             AnomalyRecord.INFLUENCERS.getPreferredName(),
             AnomalyRecord.FIELD_NAME.getPreferredName(),
             AnomalyRecord.OVER_FIELD_NAME.getPreferredName(),
@@ -86,6 +98,9 @@ public final class ReservedFieldNames {
             AnomalyRecord.RECORD_SCORE.getPreferredName(),
             AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName(),
             AnomalyRecord.BUCKET_SPAN.getPreferredName(),
+
+            GeoResults.TYPICAL_POINT.getPreferredName(),
+            GeoResults.ACTUAL_POINT.getPreferredName(),
 
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),
@@ -174,9 +189,24 @@ public final class ReservedFieldNames {
             Result.TIMESTAMP.getPreferredName(),
             Result.IS_INTERIM.getPreferredName(),
 
+            TimingStats.BUCKET_COUNT.getPreferredName(),
+            TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
+
+            DatafeedTimingStats.SEARCH_COUNT.getPreferredName(),
+            DatafeedTimingStats.BUCKET_COUNT.getPreferredName(),
+            DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
+            DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
+
+            ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
+            ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),
+            ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
+
             GetResult._ID,
-            GetResult._INDEX,
-            GetResult._TYPE
+            GetResult._INDEX
    };
 
     /**
@@ -261,11 +291,43 @@ public final class ReservedFieldNames {
             ChunkingConfig.MODE_FIELD.getPreferredName(),
             ChunkingConfig.TIME_SPAN_FIELD.getPreferredName(),
 
+            DataFrameAnalyticsConfig.ID.getPreferredName(),
+            DataFrameAnalyticsConfig.DESCRIPTION.getPreferredName(),
+            DataFrameAnalyticsConfig.SOURCE.getPreferredName(),
+            DataFrameAnalyticsConfig.DEST.getPreferredName(),
+            DataFrameAnalyticsConfig.ANALYSIS.getPreferredName(),
+            DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(),
+            DataFrameAnalyticsConfig.CREATE_TIME.getPreferredName(),
+            DataFrameAnalyticsConfig.VERSION.getPreferredName(),
+            DataFrameAnalyticsDest.INDEX.getPreferredName(),
+            DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
+            DataFrameAnalyticsSource.INDEX.getPreferredName(),
+            DataFrameAnalyticsSource.QUERY.getPreferredName(),
+            DataFrameAnalyticsSource._SOURCE.getPreferredName(),
+            OutlierDetection.NAME.getPreferredName(),
+            OutlierDetection.N_NEIGHBORS.getPreferredName(),
+            OutlierDetection.METHOD.getPreferredName(),
+            OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName(),
+            Regression.NAME.getPreferredName(),
+            Regression.DEPENDENT_VARIABLE.getPreferredName(),
+            Regression.PREDICTION_FIELD_NAME.getPreferredName(),
+            Regression.TRAINING_PERCENT.getPreferredName(),
+            Classification.NAME.getPreferredName(),
+            Classification.DEPENDENT_VARIABLE.getPreferredName(),
+            Classification.PREDICTION_FIELD_NAME.getPreferredName(),
+            Classification.NUM_TOP_CLASSES.getPreferredName(),
+            Classification.TRAINING_PERCENT.getPreferredName(),
+            BoostedTreeParams.LAMBDA.getPreferredName(),
+            BoostedTreeParams.GAMMA.getPreferredName(),
+            BoostedTreeParams.ETA.getPreferredName(),
+            BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName(),
+            BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
+            BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(),
+
             ElasticsearchMappings.CONFIG_TYPE,
 
             GetResult._ID,
             GetResult._INDEX,
-            GetResult._TYPE
     };
 
     /**

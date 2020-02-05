@@ -97,10 +97,10 @@ public final class TimestampFormatFinder {
             "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", "\\b%{TIMESTAMP_ISO8601}\\b", "TIMESTAMP_ISO8601",
             "1111 11 11 11 11", 0, 19);
     static final CandidateTimestampFormat UNIX_MS_CANDIDATE_FORMAT =
-        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX_MS"), "\\b\\d{13}\\b", "\\b\\d{13}\\b", "POSINT",
+        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX_MS"), "\\b\\d{13}\\b", "\\b[12]\\d{12}\\b", "POSINT",
             "1111111111111", 0, 0);
     static final CandidateTimestampFormat UNIX_CANDIDATE_FORMAT =
-        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX"), "\\b\\d{10}\\b", "\\b\\d{10}(?:\\.\\d{3,9})?\\b",
+        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX"), "\\b\\d{10}\\b", "\\b[12]\\d{9}(?:\\.\\d{3,9})?\\b",
             "NUMBER", "1111111111", 0, 10);
     static final CandidateTimestampFormat TAI64N_CANDIDATE_FORMAT =
         new CandidateTimestampFormat(example -> Collections.singletonList("TAI64N"), "\\b[0-9A-Fa-f]{24}\\b", "\\b[0-9A-Fa-f]{24}\\b",
@@ -145,7 +145,7 @@ public final class TimestampFormatFinder {
             example -> CandidateTimestampFormat.expandDayAndAdjustFractionalSecondsFromExample(example, "MMM dd HH:mm:ss"),
             "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
             "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)(?:[:.,][0-9]{3,9})?\\b", "SYSLOGTIMESTAMP",
-            Arrays.asList("    11 11 11 11", "    1 11 11 11"), 4, 10),
+            Arrays.asList("    11 11 11 11", "    1 11 11 11"), 6, 10),
         new CandidateTimestampFormat(example -> Collections.singletonList("dd/MMM/yyyy:HH:mm:ss XX"),
             "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
             "\\b%{MONTHDAY}/%{MONTH}/%{YEAR}:%{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) [+-]?%{HOUR}%{MINUTE}\\b", "HTTPDATE",
@@ -154,18 +154,23 @@ public final class TimestampFormatFinder {
             "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
             "%{MONTH} %{MONTHDAY}, 20\\d{2} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:AM|PM)\\b", "CATALINA_DATESTAMP",
             Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11"), 0, 3),
-        new CandidateTimestampFormat(example -> Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"),
+        new CandidateTimestampFormat(example -> Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"),
             "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
             "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b", "CISCOTIMESTAMP",
-            Arrays.asList("    11 1111 11 11 11", "     1 1111 11 11 11"), 0, 0),
+            Arrays.asList("    11 1111 11 11 11", "    1 1111 11 11 11"), 1, 0),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
-            // In DATESTAMP the month may be 1 or 2 digits, but the day must be 2
-            Arrays.asList("11 11 1111 11 11 11", "1 11 1111 11 11 11", "11 1 1111 11 11 11"), 0, 10),
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
+            // In DATESTAMP the month may be 1 or 2 digits, the year 2 or 4, but the day must be 2
+            // Also note the Grok pattern search space is set to start one character before a quick rule-out
+            // match because we don't want 11 11 11 matching into 1111 11 11 with this pattern
+            Arrays.asList("11 11 1111 11 11 11", "1 11 1111 11 11 11", "11 1 1111 11 11 11", "11 11 11 11 11 11", "1 11 11 11 11 11",
+                "11 1 11 11 11 11"), 1, 10),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}\\b", "\\b%{DATE}\\b", "DATE",
-            // In DATE the month may be 1 or 2 digits, but the day must be 2
-            Arrays.asList("11 11 1111", "11 1 1111", "1 11 1111"), 0, 0),
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "\\b%{DATE}\\b", "DATE",
+            // In DATE the month may be 1 or 2 digits, the year 2 or 4, but the day must be 2
+            // Also note the Grok pattern search space is set to start one character before a quick rule-out
+            // match because we don't want 11 11 11 matching into 1111 11 11 with this pattern
+            Arrays.asList("11 11 1111", "11 1 1111", "1 11 1111", "11 11 11", "11 1 11", "1 11 11"), 1, 0),
         UNIX_MS_CANDIDATE_FORMAT,
         UNIX_CANDIDATE_FORMAT,
         TAI64N_CANDIDATE_FORMAT,
@@ -275,13 +280,14 @@ public final class TimestampFormatFinder {
                         "ss".equals(prevLetterGroup) == false || endPos - startPos > 9) {
                         String msg = "Letter group [" + letterGroup + "] in [" + overrideFormat + "] is not supported";
                         if (curChar == 'S') {
-                            msg += " because it is not preceeded by [ss] and a separator from [" + FRACTIONAL_SECOND_SEPARATORS + "]";
+                            msg += " because it is not preceded by [ss] and a separator from [" + FRACTIONAL_SECOND_SEPARATORS + "]";
                         }
                         throw new IllegalArgumentException(msg);
                     }
-                    // No need to append to the Grok pattern as %{SECOND} already allows for an optional
-                    // fraction, but we need to remove the separator that's included in %{SECOND}
-                    grokPatternBuilder.deleteCharAt(grokPatternBuilder.length() - 1);
+                    // No need to append to the Grok pattern as %{SECOND} already allows for an optional fraction,
+                    // but we need to remove the separator that's included in %{SECOND} (and that might be escaped)
+                    int numCharsToDelete = (PUNCTUATION_THAT_NEEDS_ESCAPING_IN_REGEX.indexOf(prevChar) >= 0) ? 2 : 1;
+                    grokPatternBuilder.delete(grokPatternBuilder.length() - numCharsToDelete, grokPatternBuilder.length());
                     regexBuilder.append("\\d{").append(endPos - startPos).append('}');
                 } else {
                     grokPatternBuilder.append(grokPatternAndRegexForGroup.v1());
@@ -1466,7 +1472,7 @@ public final class TimestampFormatFinder {
         static List<String> expandDayAndAdjustFractionalSecondsFromExample(String example, String formatWithddAndNoFraction) {
 
             String formatWithdd = adjustFractionalSecondsFromEndOfExample(example, formatWithddAndNoFraction);
-            return Arrays.asList(formatWithdd, formatWithdd.replace(" dd", "  d"));
+            return Arrays.asList(formatWithdd, formatWithdd.replace(" dd", "  d"), formatWithdd.replace(" dd", " d"));
         }
 
         static List<String> indeterminateDayMonthFormatFromExample(String example) {

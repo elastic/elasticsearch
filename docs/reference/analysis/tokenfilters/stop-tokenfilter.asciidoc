@@ -1,5 +1,8 @@
 [[analysis-stop-tokenfilter]]
-=== Stop Token Filter
+=== Stop token filter
+++++
+<titleabbrev>Stop</titleabbrev>
+++++
 
 A token filter of type `stop` that removes stop words from token
 streams.
@@ -31,7 +34,7 @@ type:
 
 The `stopwords` parameter accepts either an array of stopwords:
 
-[source,js]
+[source,console]
 ------------------------------------
 PUT /my_index
 {
@@ -47,11 +50,10 @@ PUT /my_index
     }
 }
 ------------------------------------
-// CONSOLE
 
 or a predefined language-specific list:
 
-[source,js]
+[source,console]
 ------------------------------------
 PUT /my_index
 {
@@ -67,12 +69,11 @@ PUT /my_index
     }
 }
 ------------------------------------
-// CONSOLE
 
 Elasticsearch provides the following predefined list of languages:
 
 `_arabic_`, `_armenian_`, `_basque_`, `_bengali_`, `_brazilian_`, `_bulgarian_`,
-`_catalan_`, `_czech_`, `_danish_`, `_dutch_`, `_english_`, `_finnish_`,
+`_catalan_`, `_czech_`, `_danish_`, `_dutch_`, `_english_`, `_estonian_`, `_finnish_`,
 `_french_`, `_galician_`, `_german_`, `_greek_`, `_hindi_`, `_hungarian_`,
 `_indonesian_`, `_irish_`, `_italian_`, `_latvian_`, `_norwegian_`, `_persian_`,
 `_portuguese_`, `_romanian_`, `_russian_`, `_sorani_`, `_spanish_`,

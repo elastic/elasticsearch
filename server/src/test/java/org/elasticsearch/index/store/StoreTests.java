@@ -64,6 +64,8 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -90,15 +92,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class StoreTests extends ESTestCase {
 
@@ -857,9 +861,15 @@ public class StoreTests extends ESTestCase {
 
     public void testStreamStoreFilesMetaData() throws Exception {
         Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
+        int numOfLeases = randomIntBetween(0, 10);
+        List<RetentionLease> peerRecoveryRetentionLeases = new ArrayList<>();
+        for (int i = 0; i < numOfLeases; i++) {
+            peerRecoveryRetentionLeases.add(new RetentionLease(ReplicationTracker.getPeerRecoveryRetentionLeaseId(UUIDs.randomBase64UUID()),
+                randomNonNegativeLong(), randomNonNegativeLong(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+        }
         TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData =
             new TransportNodesListShardStoreMetaData.StoreFilesMetaData(new ShardId("test", "_na_", 0),
-                metadataSnapshot);
+                metadataSnapshot, peerRecoveryRetentionLeases);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.elasticsearch.Version targetNodeVersion = randomVersion(random());
@@ -869,12 +879,13 @@ public class StoreTests extends ESTestCase {
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
         TransportNodesListShardStoreMetaData.StoreFilesMetaData inStoreFileMetaData =
-            TransportNodesListShardStoreMetaData.StoreFilesMetaData.readStoreFilesMetaData(in);
+            new TransportNodesListShardStoreMetaData.StoreFilesMetaData(in);
         Iterator<StoreFileMetaData> outFiles = outStoreFileMetaData.iterator();
         for (StoreFileMetaData inFile : inStoreFileMetaData) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
         }
         assertThat(outStoreFileMetaData.syncId(), equalTo(inStoreFileMetaData.syncId()));
+        assertThat(outStoreFileMetaData.peerRecoveryRetentionLeases(), equalTo(peerRecoveryRetentionLeases));
     }
 
     public void testMarkCorruptedOnTruncatedSegmentsFile() throws IOException {
@@ -968,96 +979,19 @@ public class StoreTests extends ESTestCase {
         store.close();
     }
 
-    public void testCanReadOldCorruptionMarker() throws IOException {
+    public void testCorruptionMarkerVersionCheck() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
-        Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
 
-        CorruptIndexException exception = new CorruptIndexException("foo", "bar");
-        String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
-        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_STACK_TRACE);
-            output.writeString(exception.getMessage());
-            output.writeString(ExceptionsHelper.stackTrace(exception));
-            CodecUtil.writeFooter(output);
-        }
-        try {
-            store.failIfCorrupted();
-            fail("should be corrupted");
-        } catch (CorruptIndexException e) {
-            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
-            assertTrue(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
-        }
-
-        store.removeCorruptionMarker();
-
-        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START);
-            output.writeString(exception.getMessage());
-            CodecUtil.writeFooter(output);
-        }
-        try {
-            store.failIfCorrupted();
-            fail("should be corrupted");
-        } catch (CorruptIndexException e) {
-            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
-            assertFalse(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
-        }
-
-        store.removeCorruptionMarker();
-
-        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START - 1); // corrupted header
-            CodecUtil.writeFooter(output);
-        }
-        try {
-            store.failIfCorrupted();
-            fail("should be too old");
-        } catch (IndexFormatTooOldException e) {
-        }
-
-        store.removeCorruptionMarker();
-        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION+1); // corrupted header
-            CodecUtil.writeFooter(output);
-        }
-        try {
-            store.failIfCorrupted();
-            fail("should be too new");
-        } catch (IndexFormatTooNewException e) {
-        }
-        store.close();
-    }
-
-    public void testEnsureIndexHasHistoryUUID() throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
-
-            store.createEmpty(Version.LATEST);
-
-            // remove the history uuid
-            IndexWriterConfig iwc = new IndexWriterConfig(null)
-                .setCommitOnClose(false)
-                // we don't want merges to happen here - we call maybe merge on the engine
-                // later once we stared it up otherwise we would need to wait for it here
-                // we also don't specify a codec here and merges should use the engines for this index
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-            try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
-                Map<String, String> newCommitData = new HashMap<>();
-                for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
-                    if (entry.getKey().equals(Engine.HISTORY_UUID_KEY) == false) {
-                        newCommitData.put(entry.getKey(), entry.getValue());
-                    }
-                }
-                writer.setLiveCommitData(newCommitData.entrySet());
-                writer.commit();
+        try (Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId))) {
+            final String corruptionMarkerName = Store.CORRUPTED_MARKER_NAME_PREFIX + UUIDs.randomBase64UUID();
+            try (IndexOutput output = dir.createOutput(corruptionMarkerName, IOContext.DEFAULT)) {
+                CodecUtil.writeHeader(output, Store.CODEC, Store.CORRUPTED_MARKER_CODEC_VERSION + randomFrom(1, 2, -1, -2, -3));
+                // we only need the header to trigger the exception
             }
-
-            store.ensureIndexHasHistoryUUID();
-
-            SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
-            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+            final IOException ioException = expectThrows(IOException.class, store::failIfCorrupted);
+            assertThat(ioException, anyOf(instanceOf(IndexFormatTooOldException.class), instanceOf(IndexFormatTooNewException.class)));
+            assertThat(ioException.getMessage(), containsString(corruptionMarkerName));
         }
     }
 

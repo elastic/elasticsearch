@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.sql-spec
+
 // Next 4 SELECTs in this file are related to https://github.com/elastic/elasticsearch/issues/32589
 // H2 is Locale sensitive, while ES-SQL is not (so far)
 selectInsertWithLcaseAndLengthWithOrderBy

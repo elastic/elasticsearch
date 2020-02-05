@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
@@ -54,9 +54,15 @@ public class SecurityRestFilter implements RestHandler {
             }
             service.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
                 authentication -> {
+                    if (authentication == null) {
+                        logger.trace("No authentication available for REST request [{}]", request.uri());
+                    } else {
+                        logger.trace("Authenticated REST request [{}] as {}", request.uri(), authentication);
+                    }
                     RemoteHostHeader.process(request, threadContext);
                     restHandler.handleRequest(request, channel, client);
                 }, e -> {
+                    logger.debug(new ParameterizedMessage("Authentication failed for REST request [{}]", request.uri()), e);
                     try {
                         channel.sendResponse(new BytesRestResponse(channel, e));
                     } catch (Exception inner) {
@@ -70,7 +76,22 @@ public class SecurityRestFilter implements RestHandler {
         }
     }
 
-    RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return restHandler.canTripCircuitBreaker();
+    }
+
+    @Override
+    public boolean supportsContentStream() {
+        return restHandler.supportsContentStream();
+    }
+
+    @Override
+    public boolean allowsUnsafeBuffers() {
+        return restHandler.allowsUnsafeBuffers();
+    }
+
+    private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);
         }

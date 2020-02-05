@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class StartDatafeedAction extends Action<AcknowledgedResponse> {
+public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
@@ -48,12 +48,7 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/start";
 
     private StartDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -85,7 +80,8 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
+            params = new DatafeedParams(in);
         }
 
         public Request() {
@@ -104,12 +100,6 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
                         + " [" + params.endTime + "]", e);
             }
             return e;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            params = new DatafeedParams(in);
         }
 
         @Override
@@ -142,11 +132,15 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
         }
     }
 
-    public static class DatafeedParams implements XPackPlugin.XPackPersistentTaskParams {
+    public static class DatafeedParams implements PersistentTaskParams {
 
         public static final ParseField INDICES = new ParseField("indices");
 
-        public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(MlTasks.DATAFEED_TASK_NAME, true, DatafeedParams::new);
+        public static final ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(
+            MlTasks.DATAFEED_TASK_NAME,
+            true,
+            DatafeedParams::new
+        );
         static {
             PARSER.declareString((params, datafeedId) -> params.datafeedId = datafeedId, DatafeedConfig.ID);
             PARSER.declareString((params, startTime) -> params.startTime = parseDateOrThrow(

@@ -90,9 +90,7 @@ final class RollupRequestConverters {
             .addPathPartAsIs("_rollup", "job")
             .addPathPart(deleteRollupJobRequest.getId())
             .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(deleteRollupJobRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
     static Request search(final SearchRequest request) throws IOException {
@@ -104,9 +102,7 @@ final class RollupRequestConverters {
             .addPathPartAsIs("_rollup", "data")
             .addPathPart(getRollupCapsRequest.getIndexPattern())
             .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(getRollupCapsRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request getRollupIndexCaps(final GetRollupIndexCapsRequest getRollupIndexCapsRequest) throws IOException {
@@ -114,8 +110,6 @@ final class RollupRequestConverters {
             .addCommaSeparatedPathParts(getRollupIndexCapsRequest.indices())
             .addPathPartAsIs("_rollup", "data")
             .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(getRollupIndexCapsRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 }

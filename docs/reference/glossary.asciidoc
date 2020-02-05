@@ -4,233 +4,398 @@
 
 [glossary]
 [[glossary-analysis]] analysis ::
-
++
+--
+// tag::analysis-def[]
 Analysis is the process of converting <<glossary-text,full text>> to
 <<glossary-term,terms>>. Depending on which analyzer is used, these phrases:
 `FOO BAR`, `Foo-Bar`, `foo,bar` will probably all result in the
 terms `foo` and `bar`. These terms are what is actually stored in
 the index.
-+
+
 A full text query (not a <<glossary-term,term>> query) for `FoO:bAR` will
 also be analyzed to the terms `foo`,`bar` and will thus match the
 terms stored in the index.
-+
+
 It is this process of analysis (both at index time and at search time)
 that allows Elasticsearch to perform full text queries.
-+
+
 Also see <<glossary-text,text>> and <<glossary-term,term>>.
+// end::analysis-def[]
+--
 
 [[glossary-cluster]] cluster ::
-
+// tag::cluster-def[]
 A cluster consists of one or more <<glossary-node,nodes>> which share the
 same cluster name. Each cluster has a single master node which is
 chosen automatically by the cluster and which can be replaced if the
 current master node fails.
+// end::cluster-def[]
 
 [[glossary-ccr]] {ccr} (CCR)::
-
+// tag::ccr-def[]
 The {ccr} feature enables you to replicate indices in remote clusters to your
 local cluster. For more information, see 
-{stack-ov}/xpack-ccr.html[{ccr-cap}].  
+{ref}/xpack-ccr.html[{ccr-cap}].  
+// end::ccr-def[]
   
 [[glossary-ccs]] {ccs} (CCS)::
-
+// tag::ccs-def[]
 The {ccs} feature enables any node to act as a federated client across
-multiple clusters. See <<modules-cross-cluster-search>>.    
+multiple clusters.
+See {ref}/modules-cross-cluster-search.html[Search across clusters].
+// end::ccs-def[]
 
 [[glossary-document]] document ::
-
++
+--
+// tag::document-def[]
 A document is a JSON document which is stored in Elasticsearch. It is
 like a row in a table in a relational database. Each document is
-stored in an <<glossary-index,index>> and has a <<glossary-type,type>> and an
-<<glossary-id,id>>.
-+
+stored in an <<glossary-index,index>> and has a <<glossary-type,type>>
+and an <<glossary-id,id>>.
+
 A document is a JSON object (also known in other languages as a hash /
 hashmap / associative array) which contains zero or more
 <<glossary-field,fields>>, or key-value pairs.
-+
+
 The original JSON document that is indexed will be stored in the
 <<glossary-source_field,`_source` field>>, which is returned by default when
 getting or searching for a document.
+// end::document-def[]
+--
 
 [[glossary-field]] field ::
-
++
+--
+// tag::field-def[]
 A <<glossary-document,document>> contains a list of fields, or key-value
 pairs. The value can be a simple (scalar) value (eg a string, integer,
 date), or a nested structure like an array or an object. A field is
 similar to a column in a table in a relational database.
-+
+
 The <<glossary-mapping,mapping>> for each field has a field _type_ (not to
 be confused with document <<glossary-type,type>>) which indicates the type
 of data that can be stored in that field, eg `integer`, `string`,
 `object`. The mapping also allows you to define (amongst other things)
 how the value for a field should be analyzed.
+// end::field-def[]
+--
 
 [[glossary-filter]] filter ::
-
-A filter is a non-scoring <<glossary-query,query>>, meaning that it does not score documents.
+// tag::filter-def[]
+A filter is a non-scoring <<glossary-query,query>>,
+meaning that it does not score documents.
 It is only concerned about answering the question - "Does this document match?". 
 The answer is always a simple, binary yes or no. This kind of query is said to be made 
-in a <<query-filter-context,filter context>>, 
+in a {ref}/query-filter-context.html[filter context], 
 hence it is called a filter. Filters are simple checks for set inclusion or exclusion. 
 In most cases, the goal of filtering is to reduce the number of documents that have to be examined.
+// end::filter-def[]
 
 [[glossary-follower-index]] follower index ::  
-
+// tag::follower-index-def[]
 Follower indices are the target indices for <<glossary-ccr,{ccr}>>. They exist
 in your local cluster and replicate <<glossary-leader-index,leader indices>>.
+// end::follower-index-def[]
+
+[[glossary-force-merge]] force merge ::  
+// tag::force-merge-def[]
+// tag::force-merge-def-short[]
+Manually trigger a merge to reduce the number of segments in each shard of an index 
+and free up the space used by deleted documents.
+// end::force-merge-def-short[]
+You should not force merge indices that are actively being written to.
+Merging is normally performed automatically, but you can use force merge after 
+<<glossary-rollover, rollover>> to reduce the shards in the old index to a single segment. 
+See the {ref}/indices-forcemerge.html[force merge API].
+// end::force-merge-def[]
+
+[[glossary-freeze]] freeze ::  
+// tag::freeze-def[]
+// tag::freeze-def-short[]
+Make an index read-only and minimize its memory footprint. 
+// end::freeze-def-short[]
+Frozen indices can be searched without incurring the overhead of of re-opening a closed index,
+but searches are throttled and might be slower. 
+You can freeze indices to reduce the overhead of keeping older indices searchable 
+before you are ready to archive or delete them.
+See the {ref}/freeze-index-api.html[freeze API].
+// end::freeze-def[]
 
 [[glossary-id]] id ::
-
+// tag::id-def[]
 The ID of a <<glossary-document,document>> identifies a document. The
 `index/id` of a document must be unique. If no ID is provided,
-then it will be auto-generated. (also see <<glossary-routing,routing>>)  
+then it will be auto-generated. (also see <<glossary-routing,routing>>)
+// end::id-def[]
 
 [[glossary-index]] index ::
-
++
+--
+// tag::index-def[]
 An index is like a _table_ in a relational database. It has a
 <<glossary-mapping,mapping>> which contains a <<glossary-type,type>>,
-which contains the <<glossary-field,fields>> in the index.
-+
+which contains the <<glossary-field,field>> in the index.
+
 An index is a logical namespace which maps to one or more
 <<glossary-primary-shard,primary shards>> and can have zero or more
 <<glossary-replica-shard,replica shards>>.
+// end::index-def[]
+--
+
+[[glossary-index-alias]] index alias ::
++
+--
+// tag::index-alias-def[]
+// tag::index-alias-desc[]
+An index alias is a secondary name
+used to refer to one or more existing indices.
+
+Most {es} APIs accept an index alias
+in place of an index name.
+// end::index-alias-desc[]
+
+See {ref}/indices-add-alias.html[Add index alias].
+// end::index-alias-def[]
+--
+
+[[glossary-index-template]] index template ::
++
+--
+// tag::index-template-def[]
+// tag::index-template-def-short[]
+Defines settings and mappings to apply to new indexes that match a simple naming pattern, such as _logs-*_. 
+// end::index-template-def-short[]
+An index template can also attach a lifecycle policy to the new index.
+Index templates are used to automatically configure indices created during <<glossary-rollover, rollover>>. 
+// end::index-template-def[]
+--
 
 [[glossary-leader-index]] leader index ::  
-  
+// tag::leader-index-def[]
 Leader indices are the source indices for <<glossary-ccr,{ccr}>>. They exist
 on remote clusters and are replicated to 
 <<glossary-follower-index,follower indices>>.
+// end::leader-index-def[]
 
 [[glossary-mapping]] mapping ::
-
-A mapping is like a _schema definition_ in a relational database. Each
-<<glossary-index,index>> has a mapping, which defines a <<glossary-type,type>>,
-plus a number of index-wide settings.
 +
+--
+// tag::mapping-def[]
+A mapping is like a _schema definition_ in a relational database. Each
+<<glossary-index,index>> has a mapping,
+which defines a <<glossary-type,type>>,
+plus a number of index-wide settings.
+
 A mapping can either be defined explicitly, or it will be generated
 automatically when a document is indexed.
+// end::mapping-def[]
+--
 
 [[glossary-node]] node ::
-
++
+--
+// tag::node-def[]
 A node is a running instance of Elasticsearch which belongs to a
 <<glossary-cluster,cluster>>. Multiple nodes can be started on a single
 server for testing purposes, but usually you should have one node per
 server.
-+
+
 At startup, a node will use unicast to discover an existing cluster with
 the same cluster name and will try to join that cluster.
+// end::node-def[]
+--
 
 [[glossary-primary-shard]] primary shard ::
-
++
+--
+// tag::primary-shard-def[]
 Each document is stored in a single primary <<glossary-shard,shard>>. When
 you index a document, it is indexed first on the primary shard, then
 on all <<glossary-replica-shard,replicas>> of the primary shard.
-+
+
 By default, an <<glossary-index,index>> has one primary shard. You can specify
 more primary shards to scale the number of <<glossary-document,documents>>
 that your index can handle.
-+
+
 You cannot change the number of primary shards in an index, once the index is
 created. However, an index can be split into a new index using the
-<<indices-split-index, split API>>.
-+
-See also <<glossary-routing,routing>>
+{ref}/indices-split-index.html[split index API].
+
+See also <<glossary-routing,routing>>.
+// end::primary-shard-def[]
+--
 
 [[glossary-query]] query ::
-
++
+--
+// tag::query-def[]
 A request for information from {es}. You can think of a query as a question,
 written in a way {es} understands. A search consists of one or more queries
 combined.
-+
+
 There are two types of queries: _scoring queries_ and _filters_. For more
-information about query types, see <<query-filter-context>>.
+information about query types,
+see {ref}/query-filter-context.html[Query and filter context].
+// end::query-def[]
+--
 
 [[glossary-recovery]] recovery ::
-The process of syncing a shard copy from a source shard. Upon completion, the recovery process makes the shard copy available for queries.
 +
-Recovery automatically occurs anytime a shard moves to a different node in the same cluster, including:
+--
+// tag::recovery-def[]
+Shard recovery is the process
+of syncing a <<glossary-replica-shard,replica shard>>
+from a <<glossary-primary-shard,primary shard>>.
+Upon completion,
+the replica shard is available for search.
 
-* Node startup
-* Node failure
-* Index shard replication
-* Snapshot restoration
+// tag::recovery-triggers[]
+Recovery automatically occurs
+during the following processes:
+
+* Node startup or failure.
+  This type of recovery is called a *local store recovery*.
+* <<glossary-replica-shard,Primary shard replication>>.
+* Relocation of a shard to a different node in the same cluster.
+* {ref}/snapshots-restore-snapshot.html[Snapshot restoration].
+// end::recovery-triggers[]
+// end::recovery-def[]
+--
+
+[[glossary-reindex]] reindex ::
+
+// tag::reindex-def[]
+To cycle through some or all documents in one or more indices, re-writing them into the same or new index in a local or remote cluster. This is most commonly done to update mappings, or to upgrade Elasticsearch between two incompatible index versions.
+// end::reindex-def[]
 
 [[glossary-replica-shard]] replica shard ::
-
++
+--
+// tag::replica-shard-def[]
 Each <<glossary-primary-shard,primary shard>> can have zero or more
 replicas. A replica is a copy of the primary shard, and has two
 purposes:
-+
-1.  increase failover: a replica shard can be promoted to a primary
+
+1.  Increase failover: a replica shard can be promoted to a primary
 shard if the primary fails
-2.  increase performance: get and search requests can be handled by
+2.  Increase performance: get and search requests can be handled by
 primary or replica shards.
-+
+
 By default, each primary shard has one replica, but the number of
 replicas can be changed dynamically on an existing index. A replica
 shard will never be started on the same node as its primary shard.
+// end::replica-shard-def[]
+--
+
+[[glossary-rollover]] rollover ::
++
+--
+// tag::rollover-def[]
+// tag::rollover-def-short[]
+Redirect an alias to begin writing to a new index when the existing index reaches a certain age, number of docs, or size. 
+// end::rollover-def-short[]
+The new index is automatically configured according to any matching <<glossary-index-template, index templates>>. 
+For example, if you're indexing log data, you might use rollover to create daily or weekly indices. 
+See the {ref}/indices-rollover-index.html[rollover index API].
+// end::rollover-def[]
+--
 
 [[glossary-routing]] routing ::
-
++
+--
+// tag::routing-def[]
 When you index a document, it is stored on a single
 <<glossary-primary-shard,primary shard>>. That shard is chosen by hashing
 the `routing` value. By default, the `routing` value is derived from
 the ID of the document or, if the document has a specified parent
 document, from the ID of the parent document (to ensure that child and
 parent documents are stored on the same shard).
-+
+
 This value can be overridden by specifying a `routing` value at index
-time, or a <<mapping-routing-field,routing
-field>> in the <<glossary-mapping,mapping>>.
+time, or a {ref}/mapping-routing-field.html[routing field]
+in the <<glossary-mapping,mapping>>.
+// end::routing-def[]
+--
 
 [[glossary-shard]] shard ::
-
++
+--
+// tag::shard-def[]
 A shard is a single Lucene instance. It is a low-level “worker” unit
 which is managed automatically by Elasticsearch. An index is a logical
 namespace which points to <<glossary-primary-shard,primary>> and
 <<glossary-replica-shard,replica>> shards.
-+
+
 Other than defining the number of primary and replica shards that an
 index should have, you never need to refer to shards directly.
 Instead, your code should deal only with an index.
-+
+
 Elasticsearch distributes shards amongst all <<glossary-node,nodes>> in the
 <<glossary-cluster,cluster>>, and can move shards automatically from one
 node to another in the case of node failure, or the addition of new
 nodes.
+// end::shard-def[]
+--
+
+[[glossary-shrink]] shrink ::
+// tag::shrink-def[]
+// tag::shrink-def-short[]
+Reduce the number of primary shards in an index.
+// end::shrink-def-short[]
+You can shrink an index to reduce its overhead when the request volume drops.
+For example, you might opt to shrink an index once it is no longer the write index. 
+See the {ref}/indices-shrink-index.html[shrink index API].
+// end::shrink-def[]
 
 [[glossary-source_field]] source field ::
-
+// tag::source-field-def[]
 By default, the JSON document that you index will be stored in the
 `_source` field and will be returned by all get and search requests.
 This allows you access to the original object directly from search
 results, rather than requiring a second step to retrieve the object
 from an ID.
+// end::source-field-def[]
+
+[[glossary-split]] split ::
+// tag::split-def[]
+To grow the amount of shards in an index.
+See the {ref}/indices-split-index.html[split index API].
+// end::split-def[]
 
 [[glossary-term]] term ::
-
++
+--
+// tag::term-def[]
 A term is an exact value that is indexed in Elasticsearch. The terms
 `foo`, `Foo`, `FOO` are NOT equivalent. Terms (i.e. exact values) can
 be searched for using _term_ queries.
-+
+
 See also <<glossary-text,text>> and <<glossary-analysis,analysis>>.
+// end::term-def[]
+--
 
 [[glossary-text]] text ::
-
++
+--
+// tag::text-def[]
 Text (or full text) is ordinary unstructured text, such as this
 paragraph. By default, text will be <<glossary-analysis,analyzed>> into
 <<glossary-term,terms>>, which is what is actually stored in the index.
-+
+
 Text <<glossary-field,fields>> need to be analyzed at index time in order to
 be searchable as full text, and keywords in full text queries must be
 analyzed at search time to produce (and search for) the same terms
 that were generated at index time.
-+
+
 See also <<glossary-term,term>> and <<glossary-analysis,analysis>>.
+// end::text-def[]
+--
 
 [[glossary-type]] type ::
-
+// tag::type-def[]
 A type used to represent the _type_ of document, e.g. an `email`, a `user`, or a `tweet`.
-Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.
-
+Types are deprecated and are in the process of being removed.
+See {ref}/removal-of-types.html[Removal of mapping types].
+// end::type-def[]

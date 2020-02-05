@@ -1,10 +1,13 @@
 [[query-dsl-geo-bounding-box-query]]
-=== Geo Bounding Box Query
+=== Geo-bounding box query
+++++
+<titleabbrev>Geo-bounding box</titleabbrev>
+++++
 
 A query allowing to filter hits based on a point location using a
 bounding box. Assuming the following indexed document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_locations
 {
@@ -31,15 +34,14 @@ PUT /my_locations/_doc/1
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 Then the following simple query can be executed with a
 `geo_bounding_box` filter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -64,7 +66,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Query Options
@@ -83,6 +84,7 @@ be executed in memory or indexed. See <<geo-bbox-type,Type>> below for further d
 Default is `memory`.
 |=======================================================================
 
+[[query-dsl-geo-bounding-box-query-accepted-formats]]
 [float]
 ==== Accepted Formats
 
@@ -92,9 +94,9 @@ representations of the geo point, the filter can accept it as well:
 [float]
 ===== Lat Lon As Properties
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -119,7 +121,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Lat Lon As Array
@@ -127,9 +128,9 @@ GET /_search
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
 conform with http://geojson.org/[GeoJSON].
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -148,16 +149,15 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Lat Lon As String
 
 Format in `lat,lon`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -176,14 +176,13 @@ GET /_search
 }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Bounding Box as Well-Known Text (WKT)
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -201,14 +200,13 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Geohash
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -227,7 +225,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 When geohashes are used to specify the bounding the edges of the
@@ -241,9 +238,9 @@ In order to specify a bounding box that would match entire area of a
 geohash the geohash can be specified in both `top_left` and
 `bottom_right` parameters:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "geo_bounding_box" : {
@@ -255,7 +252,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 In this example, the geohash `dr` will produce the bounding box
 query with the top left corner at `45.0,-78.75` and the bottom right
@@ -271,9 +267,9 @@ are supported. Instead of setting the values pairwise, one can use
 the simple names `top`, `left`, `bottom` and `right` to set the
 values separately.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -294,7 +290,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [float]
@@ -321,9 +316,9 @@ that the `geo_point` type must have lat and lon indexed in this case).
 Note, when using the indexed option, multi locations per document field
 are not supported. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -349,7 +344,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Ignore Unmapped

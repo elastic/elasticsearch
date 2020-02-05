@@ -10,6 +10,11 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -17,22 +22,27 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.mockito.ArgumentCaptor;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -46,7 +56,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 
 public class ElasticsearchMappingsTests extends ESTestCase {
@@ -66,11 +85,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private static List<String> INTERNAL_FIELDS = Arrays.asList(
             GetResult._ID,
-            GetResult._INDEX,
-            GetResult._TYPE
+            GetResult._INDEX
     );
 
-    public void testResultsMapppingReservedFields() throws Exception {
+    public void testResultsMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names
@@ -80,6 +98,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
         overridden.add(ModelSnapshot.TYPE.getPreferredName());
         overridden.add(Quantiles.TYPE.getPreferredName());
+        overridden.add(TimingStats.TYPE.getPreferredName());
+        overridden.add(DatafeedTimingStats.TYPE.getPreferredName());
 
         Set<String> expected = collectResultsDocFieldNames();
         expected.removeAll(overridden);
@@ -88,7 +108,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
     }
 
-    public void testConfigMapppingReservedFields() throws Exception {
+    public void testConfigMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names
@@ -203,6 +223,53 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion()));
     }
 
+    public void testAddDocMappingIfMissing() throws IOException {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(
+            invocationOnMock -> {
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                listener.onResponse(new AcknowledgedResponse(true));
+                return null;
+            })
+            .when(client).execute(eq(PutMappingAction.INSTANCE), any(), any(ActionListener.class));
+
+        ClusterState clusterState = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("index-name", "0.0"));
+        ElasticsearchMappings.addDocMappingIfMissing(
+            "index-name",
+            ElasticsearchMappingsTests::fakeMapping,
+            client,
+            clusterState,
+            ActionListener.wrap(
+                ok -> assertTrue(ok),
+                e -> fail(e.toString())
+            )
+        );
+
+        ArgumentCaptor<PutMappingRequest> requestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
+        verify(client).threadPool();
+        verify(client).execute(eq(PutMappingAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));
+        verifyNoMoreInteractions(client);
+
+        PutMappingRequest request = requestCaptor.getValue();
+        assertThat(request.indices(), equalTo(new String[] { "index-name" }));
+        assertThat(request.source(), equalTo("{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}"));
+    }
+
+    private static XContentBuilder fakeMapping() throws IOException {
+        return jsonBuilder()
+            .startObject()
+                .startObject("_doc")
+                    .startObject(ElasticsearchMappings.PROPERTIES)
+                        .startObject("some-field")
+                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.LONG)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+    }
 
     private ClusterState getClusterStateWithMappingsWithMetaData(Map<String, Object> namesAndVersions) throws IOException {
         MetaData.Builder metaDataBuilder = MetaData.builder();
@@ -242,7 +309,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(ElasticsearchMappings.resultsMapping("_doc"));
+        return collectFieldNames(ElasticsearchMappings.resultsMapping());
     }
 
     private Set<String> collectConfigDocFieldNames() throws IOException {

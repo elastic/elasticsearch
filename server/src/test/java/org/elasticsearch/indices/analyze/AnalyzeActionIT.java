@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.MockKeywordPlugin;
 import org.hamcrest.core.IsNull;
 
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
+@ClusterScope(minNumDataNodes = 2)
 public class AnalyzeActionIT extends ESIntegTestCase {
 
     @Override
@@ -83,7 +85,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testAnalyzeNumericField() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
         expectThrows(IllegalArgumentException.class,
@@ -128,7 +130,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-                .setType("document").setSource("simple", "type=text,analyzer=simple").get();
+                .setSource("simple", "type=text,analyzer=simple").get();
 
         for (int i = 0; i < 10; i++) {
             final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("THIS IS A TEST");
@@ -172,7 +174,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
+            .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
 
@@ -254,7 +256,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
         client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
+            .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze().setIndex(indexOrAlias()).setText(texts)
@@ -345,7 +347,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getPositionLength(), equalTo(1));
 
         // tokenfilter({"type": "stop", "stopwords": ["foo", "buzz"]})
-        assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("_anonymous_tokenfilter"));
+        assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("__anonymous__stop"));
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens().length, equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getTerm(), equalTo("test"));
@@ -356,7 +358,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testAnalyzeKeywordField() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "keyword", "type=keyword"));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("keyword", "type=keyword"));
         ensureGreen("test");
 
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
@@ -374,7 +376,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put(indexSettings())
                 .put("index.analysis.normalizer.my_normalizer.type", "custom")
                 .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase"))
-            .addMapping("test", "keyword", "type=keyword,normalizer=my_normalizer"));
+            .setMapping("keyword", "type=keyword,normalizer=my_normalizer"));
         ensureGreen("test");
 
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
@@ -387,5 +389,16 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getPositionLength(), equalTo(1));
     }
 
+    /**
+     * Input text that doesn't produce tokens should return an empty token list
+     */
+    public void testZeroTokenAnalysis() throws IOException {
+        assertAcked(prepareCreate("test"));
+        ensureGreen("test");
+
+        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("test", ".").get();
+        assertNotNull(analyzeResponse.getTokens());
+        assertThat(analyzeResponse.getTokens().size(), equalTo(0));
+    }
 
 }

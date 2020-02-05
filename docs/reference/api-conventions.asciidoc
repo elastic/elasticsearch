@@ -1,8 +1,6 @@
 [[api-conventions]]
-= API conventions
+== API conventions
 
-[partintro]
---
 The *Elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
 
 The conventions listed in this chapter can be applied throughout the REST
@@ -13,45 +11,21 @@ API, unless otherwise specified.
 * <<common-options>>
 * <<url-access-control>>
 
---
-
 [[multi-index]]
-== Multiple Indices
+=== Multiple Indices
 
 Most APIs that refer to an `index` parameter support execution across multiple indices,
 using simple `test1,test2,test3` notation (or `_all` for all indices). It also
 supports wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the
 ability to "exclude" (`-`), for example: `test*,-test3`.
 
-All multi indices APIs support the following url query string parameters:
+All multi index APIs support the following url query string parameters:
 
-[horizontal]
-`ignore_unavailable`::
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-Controls whether to ignore if any specified indices are unavailable, 
-including indices that don't exist or closed indices. Either `true` or `false`
-can be specified.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
-`allow_no_indices`::
-
-Controls whether to fail if a wildcard indices expression results in no
-concrete indices. Either `true` or `false` can be specified. For example if
-the wildcard expression `foo*` is specified and no indices are available that
-start with `foo`, then depending on this setting the request will fail. This
-setting is also applicable when `_all`, `*`, or no index has been specified. This
-settings also applies for aliases, in case an alias points to a closed index.
-
-`expand_wildcards`::
-
-Controls what kind of concrete indices that wildcard indices expressions can expand
-to. If `open` is specified then the wildcard expression is expanded to only
-open indices. If `closed` is specified then the wildcard expression is
-expanded only to closed indices. Also both values (`open,closed`) can be
-specified to expand to all indices.
-+
-If `none` is specified then wildcard expansion will be disabled. If `all`
-is specified, wildcard expressions will expand to all indices (this is equivalent
-to specifying `open,closed`).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
@@ -59,7 +33,7 @@ NOTE: Single index APIs such as the <<docs>> and the
 <<indices-aliases,single-index `alias` APIs>> do not support multiple indices.
 
 [[date-math-index-names]]
-== Date math support in index names
+=== Date math support in index names
 
 Date math index name resolution enables you to search a range of time-series indices, rather
 than searching all of your time-series indices and filtering the results or maintaining aliases.
@@ -96,7 +70,7 @@ calendars than the Gregorian calendar.
 You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------
 # GET /<logstash-{now/d}>/_search
 GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
@@ -108,7 +82,6 @@ GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
   }
 }
 ----------------------------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT logstash-2016.09.20\n/]
 // TEST[s/now/2016.09.20||/]
 
@@ -151,7 +124,7 @@ The following example shows a search request that searches the Logstash indices 
 three days, assuming the indices use the default Logstash index name format,
 `logstash-YYYY.MM.dd`.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------
 # GET /<logstash-{now/d-2d}>,<logstash-{now/d-1d}>,<logstash-{now/d}>/_search
 GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogstash-%7Bnow%2Fd%7D%3E/_search
@@ -163,17 +136,16 @@ GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogs
   }
 }
 ----------------------------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
 // TEST[s/now/2016.09.20||/]
 
 [[common-options]]
-== Common options
+=== Common options
 
 The following options can be applied to all of the REST APIs.
 
 [float]
-=== Pretty Results
+==== Pretty Results
 
 When appending `?pretty=true` to any request made, the JSON returned
 will be pretty formatted (use it for debugging only!). Another option is
@@ -182,7 +154,7 @@ to set `?format=yaml` which will cause the result to be returned in the
 
 
 [float]
-=== Human readable output
+==== Human readable output
 
 Statistics are returned in a format suitable for humans
 (e.g. `"exists_time": "1h"` or `"size": "1kb"`) and for computers
@@ -195,7 +167,7 @@ consumption.  The default for the `human` flag is
 
 [[date-math]]
 [float]
-=== Date Math
+==== Date Math
 
 Most parameters which accept a formatted date value -- such as `gt` and `lt`
 in <<query-dsl-range-query,`range` queries>>, or `from` and `to`
@@ -233,22 +205,21 @@ Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 
 [float]
 [[common-options-response-filtering]]
-=== Response Filtering
+==== Response Filtering
 
 All REST APIs accept a `filter_path` parameter that can be used to reduce
 the response returned by Elasticsearch. This parameter takes a comma
 separated list of filters expressed with the dot notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 3,
@@ -268,16 +239,15 @@ Responds:
 It also supports the `*` wildcard character to match any field or part
 of a field's name:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.stat*
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n/]
 
 Responds:
 
-[source,sh]
+[source,console-result]
 --------------------------------------------------
 {
   "metadata" : {
@@ -287,22 +257,20 @@ Responds:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 And the `**` wildcard can be used to include fields without knowing the
 exact path of the field. For example, we can return the Lucene version
 of every segment with this request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state?filter_path=routing_table.indices.**.state
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n/]
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "routing_table": {
@@ -316,41 +284,37 @@ Responds:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 It is also possible to exclude one or more fields by prefixing the filter with the char `-`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_count?filter_path=-_shards
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "count" : 5
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 And for more control, both inclusive and exclusive filters can be combined in the same expression. In
 this case, the exclusive filters will be applied first and the result will be filtered again using the
 inclusive filters:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logstash-*
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT index-1\nPUT index-2\nPUT index-3\nPUT logstash-2016.01\n/]
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "metadata" : {
@@ -362,7 +326,6 @@ Responds:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Note that Elasticsearch sometimes returns directly the raw value of a field,
 like the `_source` field. If you want to filter `_source` fields, you should
@@ -370,19 +333,18 @@ consider combining the already existing `_source` parameter (see
 <<get-source-filtering,Get API>> for more details) with the `filter_path`
 parameter like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /library/book?refresh
+POST /library/_doc?refresh
 {"title": "Book #1", "rating": 200.1}
-POST /library/book?refresh
+POST /library/_doc?refresh
 {"title": "Book #2", "rating": 1.7}
-POST /library/book?refresh
+POST /library/_doc?refresh
 {"title": "Book #3", "rating": 0.1}
 GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "hits" : {
@@ -396,25 +358,23 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 [float]
-=== Flat Settings
+==== Flat Settings
 
 The `flat_settings` flag affects rendering of the lists of settings. When the 
 `flat_settings` flag is `true`, settings are returned in a flat format:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_settings?flat_settings=true
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "twitter" : {
@@ -436,16 +396,15 @@ Returns:
 When the `flat_settings` flag is `false`, settings are returned in a more
 human readable structured format:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_settings?flat_settings=false
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "twitter" : {
@@ -471,27 +430,27 @@ Returns:
 By default `flat_settings` is set to `false`.
 
 [float]
-=== Parameters
+==== Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the
 convention of using underscore casing.
 
 [float]
-=== Boolean Values
+==== Boolean Values
 
 All REST API parameters (both request parameters and JSON body) support
 providing boolean "false" as the value `false` and boolean "true" as the
 value `true`. All other values will raise an error.
 
 [float]
-=== Number Values
+==== Number Values
 
 All REST APIs support providing numbered parameters as `string` on top
 of supporting the native JSON number types.
 
 [[time-units]]
 [float]
-=== Time units
+==== Time units
 
 Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
 the unit, like `2d` for 2 days.  The supported units are:
@@ -507,7 +466,7 @@ the unit, like `2d` for 2 days.  The supported units are:
 
 [[byte-units]]
 [float]
-=== Byte size units
+==== Byte size units
 
 Whenever the byte size of data needs to be specified, e.g. when setting a buffer size
 parameter, the value must specify the unit, like `10kb` for 10 kilobytes. Note that
@@ -523,7 +482,7 @@ these units use powers of 1024, so `1kb` means 1024 bytes. The supported units a
 
 [[size-units]]
 [float]
-=== Unit-less quantities
+==== Unit-less quantities
 
 Unit-less quantities means that they don't have a "unit" like "bytes" or "Hertz" or "meter" or "long tonne".
 
@@ -539,7 +498,7 @@ when we mean 87 though. These are the supported multipliers:
 
 [[distance-units]]
 [float]
-=== Distance Units
+==== Distance Units
 
 Wherever distances need to be specified, such as the `distance` parameter in
 the <<query-dsl-geo-distance-query>>), the default unit is meters if none is specified.
@@ -561,7 +520,7 @@ Nautical mile:: `NM`, `nmi`, or `nauticalmiles`
 
 [[fuzziness]]
 [float]
-=== Fuzziness
+==== Fuzziness
 
 Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
 using the `fuzziness` parameter.
@@ -594,24 +553,23 @@ the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
 
 [float]
 [[common-options-error-options]]
-=== Enabling stack traces
+==== Enabling stack traces
 
 By default when a request returns an error Elasticsearch doesn't include the
 stack trace of the error. You can enable that behavior by setting the
 `error_trace` url parameter to `true`. For example, by default when you send an
 invalid `size` parameter to the `_search` API:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------
 POST /twitter/_search?size=surprise_me
 ----------------------------------------------------------------------
-// CONSOLE
 // TEST[s/surprise_me/surprise_me&error_trace=false/ catch:bad_request]
 // Since the test system sends error_trace=true by default we have to override
 
 The response looks like:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------------
 {
   "error" : {
@@ -631,20 +589,18 @@ The response looks like:
   "status" : 400
 }
 ----------------------------------------------------------------------
-// TESTRESPONSE
 
 But if you set `error_trace=true`:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------
 POST /twitter/_search?size=surprise_me&error_trace=true
 ----------------------------------------------------------------------
-// CONSOLE
 // TEST[catch:bad_request]
 
 The response looks like:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------------
 {
   "error": {
@@ -672,7 +628,7 @@ The response looks like:
 // TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
 
 [float]
-=== Request body in query string
+==== Request body in query string
 
 For libraries that don't accept a request body for non-POST requests,
 you can pass the request body as the `source` query string parameter
@@ -681,7 +637,7 @@ should also be passed with a media type value that indicates the format
 of the source, such as `application/json`.
 
 [float]
-=== Content-Type Requirements
+==== Content-Type Requirements
 
 The type of the content sent in a request body must be specified using
 the `Content-Type` header. The value of this header must map to one of
@@ -694,7 +650,7 @@ content type must be specified using the `source_content_type` query
 string parameter.
 
 [[url-access-control]]
-== URL-based access control
+=== URL-based access control
 
 Many users use a proxy with URL-based access control to secure access to
 Elasticsearch indices. For <<search-multi-search,multi-search>>,

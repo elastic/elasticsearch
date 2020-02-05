@@ -17,11 +17,19 @@
  * under the License.
  */
 
+
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
+
+import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
+
+testFixtures.useFixture ":test:fixtures:azure-fixture", "azure-fixture"
 
 boolean useFixture = false
 
@@ -29,51 +37,52 @@ String azureAccount = System.getenv("azure_storage_account")
 String azureKey = System.getenv("azure_storage_key")
 String azureContainer = System.getenv("azure_storage_container")
 String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
 
-if (!azureAccount && !azureKey && !azureContainer && !azureBasePath) {
-    azureAccount = 'azure_integration_test_account'
-    azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
-    azureContainer = 'container_test'
-    azureBasePath = 'integration_test'
-    useFixture = true
-}
-
-/** A task to start the fixture which emulates an Azure Storage service **/
-task azureStorageFixture(type: AntFixture) {
-    dependsOn testClasses
-    env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    executable = new File(project.runtimeJavaHome, 'bin/java')
-    args 'org.elasticsearch.repositories.azure.AzureStorageFixture', baseDir, azureContainer
+if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
+  azureAccount = 'azure_integration_test_account'
+  azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
+  azureContainer = 'container'
+  azureBasePath = ''
+  azureSasToken = ''
+  useFixture = true
 }
 
 Map<String, Object> expansions = [
-        'container': azureContainer,
-        'base_path': azureBasePath
+  'container': azureContainer,
+  'base_path': azureBasePath + "_integration_tests"
 ]
 
 processTestResources {
-    inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
 }
 
 integTest {
-    dependsOn project(':plugins:repository-azure').bundlePlugin
-} 
+  dependsOn project(':plugins:repository-azure').bundlePlugin
+}
 
 testClusters.integTest {
-    plugin file(project(':plugins:repository-azure').bundlePlugin.archiveFile)
-    keystore 'azure.client.integration_test.account', azureAccount
+  plugin file(project(':plugins:repository-azure').bundlePlugin.archiveFile)
+  keystore 'azure.client.integration_test.account', azureAccount
+  if (azureKey != null && azureKey.isEmpty() == false) {
     keystore 'azure.client.integration_test.key', azureKey
+  }
+  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+    keystore 'azure.client.integration_test.sas_token', azureSasToken
+  }
 
-    if (useFixture) {
-        tasks.integTest.dependsOn azureStorageFixture
-        // Use a closure on the string to delay evaluation until tests are executed. The endpoint_suffix is used
-        // in a hacky way to change the protocol and endpoint. We must fix that.
-        setting 'azure.client.integration_test.endpoint_suffix',
-                { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${azureStorageFixture.addressAndPort }" }
-        String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
-        setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString()
-    } else {
-        println "Using an external service to test the repository-azure plugin"
+  if (useFixture) {
+    def azureAddress = {
+      int ephemeralPort = project(':test:fixtures:azure-fixture').postProcessFixture.ext."test.fixtures.azure-fixture.tcp.8091"
+      assert ephemeralPort > 0
+      'http://127.0.0.1:' + ephemeralPort
     }
+    // Use a closure on the string to delay evaluation until tests are executed. The endpoint_suffix is used
+    // in a hacky way to change the protocol and endpoint. We must fix that.
+    setting 'azure.client.integration_test.endpoint_suffix',
+      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=${-> azureAddress()}" }, IGNORE_VALUE
+    String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
+    setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
+  }
 }

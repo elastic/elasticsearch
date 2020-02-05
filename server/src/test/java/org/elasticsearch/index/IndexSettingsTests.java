@@ -343,29 +343,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxScriptFields());
     }
 
-    public void testMaxAdjacencyMatrixFiltersSetting() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), 15)
-            .build());
-        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
-        assertEquals(15, settings.getMaxAdjacencyMatrixFilters());
-        settings.updateIndexMetaData(newIndexMeta("index",
-            Settings.builder().put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(),
-            42).build()));
-        assertEquals(42, settings.getMaxAdjacencyMatrixFilters());
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
-        assertEquals(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.get(Settings.EMPTY).intValue(),
-                settings.getMaxAdjacencyMatrixFilters());
-
-        metaData = newIndexMeta("index", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build());
-        settings = new IndexSettings(metaData, Settings.EMPTY);
-        assertEquals(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.get(Settings.EMPTY).intValue(),
-                settings.getMaxAdjacencyMatrixFilters());
-    }
-
     public void testMaxRegexLengthSetting() {
         IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

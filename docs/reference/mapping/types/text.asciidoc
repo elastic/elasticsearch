@@ -1,5 +1,8 @@
 [[text]]
 === Text datatype
+++++
+<titleabbrev>Text</titleabbrev>
+++++
 
 A field to index full-text values, such as the body of an email or the
 description of a product. These fields are `analyzed`, that is they are passed through an
@@ -15,7 +18,7 @@ codes, or tags, it is likely that you should rather use a <<keyword,`keyword`>> 
 
 Below is an example of a mapping for a text field:
 
-[source,js]
+[source,console]
 --------------------------------
 PUT my_index
 {
@@ -28,8 +31,9 @@ PUT my_index
   }
 }
 --------------------------------
-// CONSOLE
 
+[[text-multi-fields]]
+==== Use a field as both text and keyword
 Sometimes it is useful to have both a full text (`text`) and a keyword
 (`keyword`) version of the same field: one for full text search and the
 other for aggregations and sorting. This can be achieved with
@@ -49,11 +53,6 @@ The following parameters are accepted by `text` fields:
     search-time (unless overridden by the  <<search-analyzer,`search_analyzer`>>).
     Defaults to the default index analyzer, or the
     <<analysis-standard-analyzer,`standard` analyzer>>.
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<eager-global-ordinals,`eager_global_ordinals`>>::
 
@@ -139,3 +138,7 @@ The following parameters are accepted by `text` fields:
 
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

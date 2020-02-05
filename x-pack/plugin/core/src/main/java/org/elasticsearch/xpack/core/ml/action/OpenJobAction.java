@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -34,18 +34,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class OpenJobAction extends Action<AcknowledgedResponse> {
+public class OpenJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
 
     private OpenJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -73,7 +68,8 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
+            jobParams = new JobParams(in);
         }
 
         public Request() {
@@ -86,12 +82,6 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobParams = new JobParams(in);
         }
 
         @Override
@@ -129,12 +119,12 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         }
     }
 
-    public static class JobParams implements XPackPlugin.XPackPersistentTaskParams {
+    public static class JobParams implements PersistentTaskParams {
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField JOB = new ParseField("job");
 
-        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(MlTasks.JOB_TASK_NAME, true, JobParams::new);
+        public static final ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(MlTasks.JOB_TASK_NAME, true, JobParams::new);
         static {
             PARSER.declareString(JobParams::setJobId, Job.ID);
             PARSER.declareString((params, val) ->

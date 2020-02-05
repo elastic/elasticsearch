@@ -58,7 +58,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(1, tasks.taskMap().size());
         // now just double check that the first job is still opened:
-        PersistentTasksCustomMetaData.PersistentTask task = tasks.getTask(MlTasks.jobTaskId("close-failed-job-1"));
+        PersistentTasksCustomMetaData.PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId("close-failed-job-1"));
         assertEquals(JobState.OPENED, ((JobTaskState) task.getState()).getState());
     }
 

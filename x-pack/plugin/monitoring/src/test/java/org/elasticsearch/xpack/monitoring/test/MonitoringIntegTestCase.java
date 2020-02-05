@@ -54,6 +54,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 //                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
 //                .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
                 // we do this by default in core, but for monitoring this isn't needed and only adds noise.
+                .put("indices.lifecycle.history_index_enabled", false)
                 .put("index.store.mock.check_index_on_close", false);
 
         return builder.build();
@@ -102,9 +103,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         CountDown retries = new CountDown(3);
         assertBusy(() -> {
             try {
-                boolean exist = client().admin().indices().prepareExists(ALL_MONITORING_INDICES)
-                        .get().isExists();
-                if (exist) {
+                if (indexExists(ALL_MONITORING_INDICES)) {
                     deleteMonitoringIndices();
                 } else {
                     retries.countDown();
@@ -186,7 +185,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     private void assertIndicesExists(String... indices) {
         logger.trace("checking if index exists [{}]", Strings.arrayToCommaDelimitedString(indices));
-        assertThat(client().admin().indices().prepareExists(indices).get().isExists(), is(true));
+        for (String index : indices) {
+            assertThat(indexExists(index), is(true));
+        }
     }
 
     protected void enableMonitoringCollection() {
@@ -198,5 +199,4 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                     Settings.builder().putNull(MonitoringService.ENABLED.getKey())));
     }
-
 }

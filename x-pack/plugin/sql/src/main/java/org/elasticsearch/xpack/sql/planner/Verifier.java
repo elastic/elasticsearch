@@ -5,14 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.sql.plan.physical.PivotExec;
 import org.elasticsearch.xpack.sql.plan.physical.Unexecutable;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
-import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 abstract class Verifier {
 
@@ -53,8 +57,8 @@ abstract class Verifier {
         }
     }
 
-    private static Failure fail(Node<?> source, String message) {
-        return new Failure(source, message);
+    private static Failure fail(Node<?> source, String message, Object... args) {
+        return new Failure(source, format(null, message, args));
     }
 
     static List<Failure> verifyMappingPlan(PhysicalPlan plan) {
@@ -70,8 +74,20 @@ abstract class Verifier {
                 }
             });
         });
+        // verify Pivot
+        checkInnerAggsPivot(plan, failures);
 
         return failures;
+    }
+
+    private static void checkInnerAggsPivot(PhysicalPlan plan, List<Failure> failures) {
+        plan.forEachDown(p -> {
+            p.pivot().aggregates().forEach(agg -> agg.forEachDown(e -> {
+                if (e instanceof InnerAggregate) {
+                    failures.add(fail(e, "Aggregation [{}] not supported (yet) by PIVOT", e.sourceText()));
+                }
+            }));
+        }, PivotExec.class);
     }
 
     static List<Failure> verifyExecutingPlan(PhysicalPlan plan) {

@@ -1,15 +1,19 @@
 {
-  "license.get_trial_status": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-trial-status.html",
-    "methods": ["GET"],
-    "url": {
-      "path": "/_license/trial_status",
-      "paths": ["/_license/trial_status"],
-      "parts" : {
-      },
-      "params": {
-      }
+  "license.get_trial_status":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-trial-status.html"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license/trial_status",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
   }
 }

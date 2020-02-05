@@ -22,8 +22,8 @@ apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
 dependencies {
-    compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
-    compile project(':libs:elasticsearch-core')
+  compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
+  compile project(':libs:elasticsearch-core')
 }
 
 test.enabled = false
@@ -31,5 +31,5 @@ test.enabled = false
 jarHell.enabled = false
 
 forbiddenApisMain {
-    replaceSignatureFiles 'jdk-signatures'
+  replaceSignatureFiles 'jdk-signatures'
 }

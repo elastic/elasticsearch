@@ -70,7 +70,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long valueCount = 0;
         for (InternalAggregation aggregation : aggregations) {
             valueCount += ((InternalValueCount) aggregation).value;
@@ -90,12 +90,16 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(value);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), value);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalValueCount that = (InternalValueCount) obj;
         return Objects.equals(this.value, that.value);
     }

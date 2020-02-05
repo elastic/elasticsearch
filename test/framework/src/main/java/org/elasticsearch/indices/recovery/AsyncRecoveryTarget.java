@@ -29,7 +29,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Executor;
 
@@ -46,13 +45,13 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
-        executor.execute(() -> target.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener));
+    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+        executor.execute(() -> target.prepareForTranslogOperations(totalTranslogOps, listener));
     }
 
     @Override
-    public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
-        executor.execute(() -> target.finalizeRecovery(globalCheckpoint, listener));
+    public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
+        executor.execute(() -> target.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, listener));
     }
 
     @Override
@@ -70,19 +69,20 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
 
     @Override
     public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes, int totalTranslogOps) {
-        target.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
+                                List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
+        executor.execute(() -> target.receiveFileInfo(
+            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps, listener));
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
-        target.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
+    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData,
+                           ActionListener<Void> listener) {
+        executor.execute(() -> target.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData, listener));
     }
 
     @Override
     public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
-        // TODO: remove this clone once we send file chunk async
         final BytesReference copy = new BytesArray(BytesRef.deepCopyOf(content.toBytesRef()));
         executor.execute(() -> target.writeFileChunk(fileMetaData, position, copy, lastChunk, totalTranslogOps, listener));
     }

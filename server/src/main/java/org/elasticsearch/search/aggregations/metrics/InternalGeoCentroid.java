@@ -114,7 +114,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     @Override
-    public InternalGeoCentroid doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalGeoCentroid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double lonSum = Double.NaN;
         double latSum = Double.NaN;
         int totalCount = 0;
@@ -180,15 +180,18 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     @Override
-    public boolean doEquals(Object o) {
-        InternalGeoCentroid that = (InternalGeoCentroid) o;
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+        InternalGeoCentroid that = (InternalGeoCentroid) obj;
         return count == that.count &&
                 Objects.equals(centroid, that.centroid);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(centroid, count);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), centroid, count);
     }
 
     @Override

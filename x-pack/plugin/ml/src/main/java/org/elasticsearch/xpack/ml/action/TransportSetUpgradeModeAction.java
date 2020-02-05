@@ -24,19 +24,23 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -64,8 +68,8 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                          PersistentTasksClusterService persistentTasksClusterService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                          PersistentTasksService persistentTasksService) {
-        super(SetUpgradeModeAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            SetUpgradeModeAction.Request::new);
+        super(SetUpgradeModeAction.NAME, transportService, clusterService, threadPool, actionFilters, SetUpgradeModeAction.Request::new,
+            indexNameExpressionResolver);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.clusterService = clusterService;
         this.client = client;
@@ -78,13 +82,13 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(SetUpgradeModeAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
-        throws Exception {
+    protected void masterOperation(Task task, SetUpgradeModeAction.Request request, ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
 
         // Don't want folks spamming this endpoint while it is in progress, only allow one request to be handled at a time
         if (isRunning.compareAndSet(false, true) == false) {
@@ -296,7 +300,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 // If the task was removed from the node, all is well
                 // We handle the case of allocation_id changing later in this transport class by timing out waiting for task completion
                 // Consequently, if the exception is ResourceNotFoundException, continue execution; circuit break otherwise.
-                ex -> ex instanceof ResourceNotFoundException == false);
+                ex -> ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException == false);
 
         for (PersistentTask<?> task : datafeedAndJobTasks) {
             chainTaskExecutor.add(

@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -25,7 +24,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,14 +32,13 @@ import static org.hamcrest.Matchers.nullValue;
 public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
     public void testFollowIndex() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(2, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(2, 0, Collections.emptyMap());
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
@@ -53,7 +50,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < secondBatchNumDocs; i++) {
-            client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -66,7 +63,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long thirdBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
-            client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
@@ -75,21 +72,6 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
         });
         ensureEmptyWriteBuffers();
-    }
-
-    public void testDoNotCreateFollowerIfLeaderDoesNotHaveSoftDeletes() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(2, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
-        assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
-        ResumeFollowAction.Request followRequest = getResumeFollowRequest("follower");
-        followRequest.setFollowerIndex("follower-index");
-        PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
-        putFollowRequest.setLeaderIndex("leader-index");
-        putFollowRequest.setFollowerIndex("follower-index");
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-            () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
-        assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
-        assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
     }
 
     public void testRemoveRemoteConnection() throws Exception {
@@ -103,12 +85,11 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         long previousNumberOfSuccessfulFollowedIndices = getAutoFollowStats().getNumberOfSuccessfulFollowIndices();
 
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
         createIndex("logs-20200101", leaderIndexSettings);
-        client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
             assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
@@ -125,7 +106,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         // This new index should be picked up by auto follow coordinator
         createIndex("logs-20200102", leaderIndexSettings);
         // This new document should be replicated to follower index:
-        client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
             assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),

@@ -19,17 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DotSubNode;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a field load/store.
@@ -45,12 +44,7 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
          if (write && Modifier.isFinal(field.javaField.getModifiers())) {
              throw createError(new IllegalArgumentException("Cannot write to read-only field [" + field.javaField.getName() + "] " +
                      "for type [" + PainlessLookupUtility.typeToCanonicalTypeName(field.javaField.getDeclaringClass()) + "]."));
@@ -60,21 +54,14 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    DotSubNode write(ClassNode classNode) {
+        DotSubNode dotSubNode = new DotSubNode();
 
-        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            writer.getStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        } else {
-            writer.getField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        }
-    }
+        dotSubNode.setLocation(location);
+        dotSubNode.setExpressionType(actual);
+        dotSubNode.setField(field);
 
-    @Override
-    int accessElementCount() {
-        return 1;
+        return dotSubNode;
     }
 
     @Override
@@ -85,37 +72,6 @@ final class PSubField extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    void setup(MethodWriter writer, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-
-        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            writer.getStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        } else {
-            writer.getField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        }
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-
-        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            writer.putStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        } else {
-            writer.putField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        }
     }
 
     @Override

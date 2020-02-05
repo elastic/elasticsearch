@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -85,4 +86,11 @@ public interface DiscoveryPlugin {
      * {@link IllegalStateException} if the node and the cluster-state are incompatible.
      */
     default BiConsumer<DiscoveryNode,ClusterState> getJoinValidator() { return null; }
+
+    /**
+     * Allows plugging in election strategies (see {@link ElectionStrategy}) that define a customized notion of an election quorum.
+     */
+    default Map<String, ElectionStrategy> getElectionStrategies() {
+        return Collections.emptyMap();
+    }
 }

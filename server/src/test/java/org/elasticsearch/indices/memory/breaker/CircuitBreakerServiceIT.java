@@ -129,14 +129,14 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             return;
         }
         assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
-                .addMapping("type", "test", "type=text,fielddata=true"));
+                .setMapping("test", "type=text,fielddata=true"));
         final Client client = client();
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", "value" + id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", "value" + id));
         }
         indexRandom(true, false, true, reqs);
 
@@ -185,7 +185,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("ramtest", "type", Long.toString(id)).setSource("test", "value" + id));
+            reqs.add(client.prepareIndex("ramtest").setId(Long.toString(id)).setSource("test", "value" + id));
         }
         indexRandom(true, false, true, reqs);
 
@@ -238,7 +238,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 
@@ -247,10 +247,10 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             client.prepareSearch("cb-test").setQuery(matchAllQuery()).addAggregation(cardinality("card").field("test")).get();
             fail("aggregation should have tripped the breaker");
         } catch (Exception e) {
-            String errMsg = "CircuitBreakingException[[request] Data too large";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException", e.toString(), containsString(errMsg));
-            errMsg = "which is larger than the limit of [10/10b]]";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException", e.toString(), containsString(errMsg));
+            Throwable cause = e.getCause();
+            assertThat("Exception cause should be a CircuitBreakingException", cause, instanceOf(CircuitBreakingException.class));
+            assertThat(cause.toString(), containsString("Data too large"));
+            assertThat(cause.toString(), containsString("which is larger than the limit of [10/10b]"));
         }
     }
 
@@ -272,7 +272,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(100, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 
@@ -285,12 +285,10 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             assertTrue("there should be shard failures", resp.getFailedShards() > 0);
             fail("aggregation should have tripped the breaker");
         } catch (Exception e) {
-            String errMsg = "CircuitBreakingException[[request] Data too large, data for [<agg [my_terms]>] would be";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
-                    e.toString(), containsString(errMsg));
-            errMsg = "which is larger than the limit of [100/100b]]";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
-                    e.toString(), containsString(errMsg));
+            Throwable cause = e.getCause();
+            assertThat(cause, instanceOf(CircuitBreakingException.class));
+            assertThat(cause.toString(), containsString("[request] Data too large, data for [<agg [my_terms]>] would be"));
+            assertThat(cause.toString(), containsString("which is larger than the limit of [100/100b]"));
         }
     }
 
@@ -394,7 +392,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         int numRequests = inFlightRequestsLimit.bytesAsInt();
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i));
+            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i));
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "num", i);
             bulkRequest.add(indexRequest);
         }

@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -31,7 +30,7 @@ import java.util.Objects;
 /**
  * Request to create a new Machine Learning MlFilter given a {@link MlFilter} configuration
  */
-public class PutFilterRequest extends ActionRequest implements ToXContentObject {
+public class PutFilterRequest implements Validatable, ToXContentObject {
 
     private final MlFilter filter;
 
@@ -77,8 +76,4 @@ public class PutFilterRequest extends ActionRequest implements ToXContentObject 
         return Strings.toString(this);
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
 }

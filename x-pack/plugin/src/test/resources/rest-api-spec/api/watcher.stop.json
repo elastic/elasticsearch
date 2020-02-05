@@ -1,15 +1,19 @@
 {
-  "watcher.stop": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stop.html",
-    "methods": [ "POST" ],
-    "url": {
-      "path": "/_watcher/_stop",
-      "paths": [ "/_watcher/_stop" ],
-      "parts": {
-      },
-      "params": {
-      }
+  "watcher.stop":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stop.html"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/_stop",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{}
   }
 }

@@ -1,0 +1,127 @@
+--
+:api: evaluate-data-frame
+:request: EvaluateDataFrameRequest
+:response: EvaluateDataFrameResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Evaluate {dfanalytics} API
+
+Evaluates the {ml} algorithm that ran on a {dataframe}.
+The API accepts an +{request}+ object and returns an +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Evaluate {dfanalytics} request
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new evaluation request
+<2> Reference to an existing index
+<3> The query with which to select data from indices
+<4> Evaluation to be performed
+
+==== Evaluation
+
+Evaluation to be performed.
+Currently, supported evaluations include: +BinarySoftClassification+, +Classification+, +Regression+.
+
+===== Binary soft classification
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-evaluation-softclassification]
+--------------------------------------------------
+<1> Constructing a new evaluation
+<2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) label for an example. Must be either true or false.
+<3> Name of the field in the index. Its value denotes the probability (as per some ML algorithm) of the example being classified as positive.
+<4> The remaining parameters are the metrics to be calculated based on the two fields described above
+<5> https://en.wikipedia.org/wiki/Precision_and_recall#Precision[Precision] calculated at thresholds: 0.4, 0.5 and 0.6
+<6> https://en.wikipedia.org/wiki/Precision_and_recall#Recall[Recall] calculated at thresholds: 0.5 and 0.7
+<7> https://en.wikipedia.org/wiki/Confusion_matrix[Confusion matrix] calculated at threshold 0.5
+<8> https://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated and the curve points returned
+
+===== Classification
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-evaluation-classification]
+--------------------------------------------------
+<1> Constructing a new evaluation
+<2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) class the example belongs to.
+<3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) class of the example.
+<4> The remaining parameters are the metrics to be calculated based on the two fields described above
+<5> Accuracy
+<6> Precision
+<7> Recall
+<8> Multiclass confusion matrix of size 3
+
+===== Regression
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-evaluation-regression]
+--------------------------------------------------
+<1> Constructing a new evaluation
+<2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) value for an example.
+<3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) value for the example.
+<4> The remaining parameters are the metrics to be calculated based on the two fields described above
+<5> https://en.wikipedia.org/wiki/Mean_squared_error[Mean squared error]
+<6> https://en.wikipedia.org/wiki/Coefficient_of_determination[R squared]
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the requested evaluation metrics.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Fetching all the calculated metrics results
+
+==== Results
+
+===== Binary soft classification
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-results-softclassification]
+--------------------------------------------------
+
+<1> Fetching precision metric by name
+<2> Fetching precision at a given (0.4) threshold
+<3> Fetching confusion matrix metric by name
+<4> Fetching confusion matrix at a given (0.5) threshold
+
+===== Classification
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-results-classification]
+--------------------------------------------------
+
+<1> Fetching accuracy metric by name
+<2> Fetching the actual accuracy value
+<3> Fetching precision metric by name
+<4> Fetching the actual precision value
+<5> Fetching recall metric by name
+<6> Fetching the actual recall value
+<7> Fetching multiclass confusion matrix metric by name
+<8> Fetching the contents of the confusion matrix
+<9> Fetching the number of classes that were not included in the matrix
+
+===== Regression
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-results-regression]
+--------------------------------------------------
+
+<1> Fetching mean squared error metric by name
+<2> Fetching the actual mean squared error value
+<3> Fetching R squared metric by name
+<4> Fetching the actual R squared value

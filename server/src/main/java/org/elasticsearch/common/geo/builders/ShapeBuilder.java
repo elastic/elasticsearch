@@ -50,7 +50,7 @@ import java.util.Objects;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.geo.geometry.Geometry,
+public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.geometry.Geometry,
     E extends ShapeBuilder<T, G, E>> implements NamedWriteable, ToXContentObject {
 
     protected static final Logger LOGGER = LogManager.getLogger(ShapeBuilder.class);

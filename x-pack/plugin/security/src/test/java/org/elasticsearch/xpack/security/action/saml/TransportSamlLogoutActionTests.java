@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -60,7 +62,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTests;
 import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -102,6 +104,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
 
     @Before
     public void setup() throws Exception {
+        final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", REALM_NAME);
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Settings settings = Settings.builder()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
@@ -111,6 +114,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ENTITY_ID), SP_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SP_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
 
         final ThreadContext threadContext = new ThreadContext(settings);
@@ -126,24 +130,20 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         doAnswer(invocationOnMock -> {
             GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+                    .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
+        }).when(client).prepareGet(anyString(), anyString());
         doAnswer(invocationOnMock -> {
             IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+            builder.setIndex((String) invocationOnMock.getArguments()[0]);
             return builder;
-        }).when(client).prepareIndex(anyString(), anyString(), anyString());
+        }).when(client).prepareIndex(anyString());
         doAnswer(invocationOnMock -> {
             UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+                    .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareUpdate(anyString(), anyString(), anyString());
+        }).when(client).prepareUpdate(anyString(), anyString());
         doAnswer(invocationOnMock -> {
             BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
             return builder;
@@ -170,7 +170,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[1];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
-                    indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
@@ -179,7 +179,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
-                    indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
@@ -214,8 +214,6 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         action = new TransportSamlLogoutAction(transportService, mock(ActionFilters.class), realms, tokenService);
 
         final Environment env = TestEnvironment.newEnvironment(settings);
-
-        final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", REALM_NAME);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
         samlRealm = SamlRealm.create(realmConfig, mock(SSLService.class), mock(ResourceWatcherService.class), mock(UserRoleMapper.class));

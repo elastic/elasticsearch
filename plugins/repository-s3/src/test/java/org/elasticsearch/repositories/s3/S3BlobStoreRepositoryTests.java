@@ -18,89 +18,64 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.StorageClass;
-import org.elasticsearch.client.node.NodeClient;
+import com.amazonaws.http.AmazonHttpClient;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import fixture.s3.S3HttpHandler;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
-import org.elasticsearch.rest.AbstractRestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Locale;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.mock;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
-public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
+@SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
-    private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
-    private static String bucket;
-    private static ByteSizeValue bufferSize;
-    private static boolean serverSideEncryption;
-    private static String cannedACL;
-    private static String storageClass;
+    private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(5L);
 
-    @BeforeClass
-    public static void setUpRepositorySettings() {
-        bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        bufferSize = new ByteSizeValue(randomIntBetween(5, 50), ByteSizeUnit.MB);
-        serverSideEncryption = randomBoolean();
-        if (randomBoolean()) {
-            cannedACL = randomFrom(CannedAccessControlList.values()).toString();
-        }
-        if (randomBoolean()) {
-            storageClass = randomValueOtherThan(StorageClass.Glacier, () -> randomFrom(StorageClass.values())).toString();
-        }
-    }
-
-    @After
-    public void wipeRepository() {
-        blobs.clear();
+    @Override
+    protected String repositoryType() {
+        return S3Repository.TYPE;
     }
 
     @Override
-    protected void createTestRepository(final String name, boolean verify) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setType(S3Repository.TYPE)
-            .setVerify(verify)
-            .setSettings(Settings.builder()
-                .put(S3Repository.BUCKET_SETTING.getKey(), bucket)
-                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), bufferSize)
-                .put(S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), serverSideEncryption)
-                .put(S3Repository.CANNED_ACL_SETTING.getKey(), cannedACL)
-                .put(S3Repository.STORAGE_CLASS_SETTING.getKey(), storageClass)
-                .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "not_used_but_this_is_a_secret")
-                .put(S3Repository.SECRET_KEY_SETTING.getKey(), "not_used_but_this_is_a_secret")));
-    }
-
-    @Override
-    protected void afterCreationCheck(Repository repository) {
-        assertThat(repository, instanceOf(S3Repository.class));
+    protected Settings repositorySettings() {
+        return Settings.builder()
+            .put(super.repositorySettings())
+            .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+            .put(S3Repository.CLIENT_NAME.getKey(), "test")
+            .build();
     }
 
     @Override
@@ -108,6 +83,72 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         return Collections.singletonList(TestS3RepositoryPlugin.class);
     }
 
+    @Override
+    protected Map<String, HttpHandler> createHttpHandlers() {
+        return Collections.singletonMap("/bucket", new S3BlobStoreHttpHandler("bucket"));
+    }
+
+    @Override
+    protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
+        return new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
+        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret");
+
+        return Settings.builder()
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
+            .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
+            // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
+            .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
+            // Disable request throttling because some random values in tests might generate too many failures for the S3 client
+            .put(S3ClientSettings.USE_THROTTLE_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), false)
+            .put(super.nodeSettings(nodeOrdinal))
+            .setSecureSettings(secureSettings)
+            .build();
+    }
+
+    public void testEnforcedCooldownPeriod() throws IOException {
+        final String repoName = createRepository(randomName(), Settings.builder().put(repositorySettings())
+            .put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build());
+
+        final SnapshotId fakeOldSnapshot = client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-old")
+            .setWaitForCompletion(true).setIndices().get().getSnapshotInfo().snapshotId();
+        final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        final RepositoryData repositoryData =
+            PlainActionFuture.get(f -> repository.threadPool().generic().execute(() -> repository.getRepositoryData(f)));
+        final RepositoryData modifiedRepositoryData = repositoryData.withVersions(Collections.singletonMap(fakeOldSnapshot,
+            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion()));
+        final BytesReference serialized =
+            BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), false));
+        PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () -> {
+            try (InputStream stream = serialized.streamInput()) {
+                repository.blobStore().blobContainer(repository.basePath()).writeBlobAtomic(
+                    BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(), stream, serialized.length(), true);
+            }
+        })));
+
+        final String newSnapshotName = "snapshot-new";
+        final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();
+        client().admin().cluster().prepareCreateSnapshot(repoName, newSnapshotName).setWaitForCompletion(true).setIndices().get();
+        assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledSnapshot, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
+
+        final long beforeThrottledDelete = repository.threadPool().relativeTimeInNanos();
+        client().admin().cluster().prepareDeleteSnapshot(repoName, newSnapshotName).get();
+        assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledDelete, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
+
+        final long beforeFastDelete = repository.threadPool().relativeTimeInNanos();
+        client().admin().cluster().prepareDeleteSnapshot(repoName, fakeOldSnapshot.getName()).get();
+        assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
+    }
+
+    /**
+     * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
+     */
     public static class TestS3RepositoryPlugin extends S3RepositoryPlugin {
 
         public TestS3RepositoryPlugin(final Settings settings) {
@@ -115,43 +156,64 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         }
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
-                                                               final ThreadPool threadPool) {
-            return Collections.singletonMap(S3Repository.TYPE,
-                    metadata -> new S3Repository(metadata, env.settings(), registry, new S3Service() {
+        public List<Setting<?>> getSettings() {
+            final List<Setting<?>> settings = new ArrayList<>(super.getSettings());
+            settings.add(S3ClientSettings.DISABLE_CHUNKED_ENCODING);
+            return settings;
+        }
+
+        @Override
+        protected S3Repository createRepository(RepositoryMetaData metadata, NamedXContentRegistry registry,
+                                                ClusterService clusterService) {
+            return new S3Repository(metadata, registry, service, clusterService) {
+
+                @Override
+                public BlobStore blobStore() {
+                    return new BlobStoreWrapper(super.blobStore()) {
                         @Override
-                        AmazonS3 buildClient(S3ClientSettings clientSettings) {
-                            return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);
+                        public BlobContainer blobContainer(final BlobPath path) {
+                            return new S3BlobContainer(path, (S3BlobStore) delegate()) {
+                                @Override
+                                long getLargeBlobThresholdInBytes() {
+                                    return ByteSizeUnit.MB.toBytes(1L);
+                                }
+
+                                @Override
+                                void ensureMultiPartUploadSize(long blobSize) {
+                                }
+                            };
                         }
-                    }, threadPool));
-        }
-    }
-
-    public void testInsecureRepositoryCredentials() throws Exception {
-        final String repositoryName = "testInsecureRepositoryCredentials";
-        createAndCheckTestRepository(repositoryName);
-        final NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
-        final RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(Settings.EMPTY, mock(RestController.class),
-                internalCluster().getInstance(SettingsFilter.class));
-        final RestRequest getRepoRequest = new FakeRestRequest();
-        getRepoRequest.params().put("repository", repositoryName);
-        final CountDownLatch getRepoLatch = new CountDownLatch(1);
-        final AtomicReference<AssertionError> getRepoError = new AtomicReference<>();
-        getRepoAction.handleRequest(getRepoRequest, new AbstractRestChannel(getRepoRequest, true) {
-            @Override
-            public void sendResponse(RestResponse response) {
-                try {
-                    assertThat(response.content().utf8ToString(), not(containsString("not_used_but_this_is_a_secret")));
-                } catch (final AssertionError ex) {
-                    getRepoError.set(ex);
+                    };
                 }
-                getRepoLatch.countDown();
-            }
-        }, nodeClient);
-        getRepoLatch.await();
-        if (getRepoError.get() != null) {
-            throw getRepoError.get();
+            };
         }
     }
 
+    @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an S3 endpoint")
+    private static class S3BlobStoreHttpHandler extends S3HttpHandler implements BlobStoreHttpHandler {
+
+        S3BlobStoreHttpHandler(final String bucket) {
+            super(bucket);
+        }
+    }
+
+    /**
+     * HTTP handler that injects random S3 service errors
+     *
+     * Note: it is not a good idea to allow this handler to simulate too many errors as it would
+     * slow down the test suite.
+     */
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+    private static class S3ErroneousHttpHandler extends ErroneousHttpHandler {
+
+        S3ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
+            super(delegate, maxErrorsPerRequest);
+        }
+
+        @Override
+        protected String requestUniqueId(final HttpExchange exchange) {
+            // Amazon SDK client provides a unique ID per request
+            return exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
+        }
+    }
 }

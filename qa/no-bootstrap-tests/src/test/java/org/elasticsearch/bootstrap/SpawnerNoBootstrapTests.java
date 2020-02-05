@@ -68,7 +68,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     /**
      * Simplest case: a module with no controller daemon.
      */
-    public void testNoControllerSpawn() throws IOException, InterruptedException {
+    public void testNoControllerSpawn() throws IOException {
         Path esHome = createTempDir().resolve("esHome");
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,18 +17,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> {
+public class DeleteAutoFollowPatternAction extends ActionType<AcknowledgedResponse> {
 
     public static final String NAME = "cluster:admin/xpack/ccr/auto_follow_pattern/delete";
     public static final DeleteAutoFollowPatternAction INSTANCE = new DeleteAutoFollowPatternAction();
 
     private DeleteAutoFollowPatternAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

@@ -163,7 +163,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     protected Nested createNested(IndexSearcher searcher, Query parentFilter, Query childFilter) throws IOException {
         BitsetFilterCache s = indexService.cache().bitsetFilterCache();
-        return new Nested(s.getBitSetProducer(parentFilter), childFilter, null);
+        return new Nested(s.getBitSetProducer(parentFilter), childFilter, null, searcher);
     }
 
     public void testEmpty() throws Exception {

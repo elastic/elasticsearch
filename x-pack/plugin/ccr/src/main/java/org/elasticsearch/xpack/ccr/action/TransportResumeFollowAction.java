@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -41,6 +42,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -101,8 +103,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -111,7 +113,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     }
 
     @Override
-    protected void masterOperation(final ResumeFollowAction.Request request,
+    protected void masterOperation(Task task, final ResumeFollowAction.Request request,
                                    ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
@@ -387,8 +389,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
             IndexSettings.MAX_TOKEN_COUNT_SETTING,
             IndexSettings.MAX_SLICES_PER_SCROLL,
-            IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
             IndexSettings.DEFAULT_PIPELINE,
+            IndexSettings.FINAL_PIPELINE,
             IndexSettings.INDEX_SEARCH_THROTTLED,
             IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
             IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
@@ -396,6 +398,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
             IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
+            IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_GC_DELETES_SETTING,
             IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
             IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,

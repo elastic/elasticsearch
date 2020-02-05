@@ -1,12 +1,10 @@
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  if (isEclipse) {
-    testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-  }
   testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
@@ -17,7 +15,10 @@ task copyMlRestTests(type: Copy) {
   include 'rest-api-spec/test/ml/**'
 }
 
-integTestRunner {
+integTest.runner {
+  dependsOn copyMlRestTests
+}
+integTest.runner {
   systemProperty 'tests.rest.blacklist', [
     // Remove this test because it doesn't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
@@ -37,6 +38,87 @@ integTestRunner {
     'ml/datafeeds_crud/Test put datafeed with invalid query',
     'ml/datafeeds_crud/Test put datafeed with security headers in the body',
     'ml/datafeeds_crud/Test update datafeed with missing id',
+    'ml/data_frame_analytics_crud/Test put config with security headers in the body',
+    'ml/data_frame_analytics_crud/Test put config with create_time in the body',
+    'ml/data_frame_analytics_crud/Test put config with version in the body',
+    'ml/data_frame_analytics_crud/Test put config with inconsistent body/param ids',
+    'ml/data_frame_analytics_crud/Test put config with invalid id',
+    'ml/data_frame_analytics_crud/Test put config with invalid dest index name',
+    'ml/data_frame_analytics_crud/Test put config with pattern dest index name',
+    'ml/data_frame_analytics_crud/Test put config with missing concrete source index',
+    'ml/data_frame_analytics_crud/Test put config with missing wildcard source index',
+    'ml/data_frame_analytics_crud/Test put config with dest index same as source index',
+    'ml/data_frame_analytics_crud/Test put config with dest index matching multiple indices',
+    'ml/data_frame_analytics_crud/Test put config with dest index included in source via alias',
+    'ml/data_frame_analytics_crud/Test put config with remote source index',
+    'ml/data_frame_analytics_crud/Test put config with unknown top level field',
+    'ml/data_frame_analytics_crud/Test put config with unknown field in outlier detection analysis',
+    'ml/data_frame_analytics_crud/Test put config given analyzed_fields include field excluded by source',
+    'ml/data_frame_analytics_crud/Test put config given missing source',
+    'ml/data_frame_analytics_crud/Test put config given source with empty index array',
+    'ml/data_frame_analytics_crud/Test put config given source with empty string in index array',
+    'ml/data_frame_analytics_crud/Test put config given source without index',
+    'ml/data_frame_analytics_crud/Test put config given missing dest',
+    'ml/data_frame_analytics_crud/Test put config given dest index contains uppercase chars',
+    'ml/data_frame_analytics_crud/Test put config given dest with empty index',
+    'ml/data_frame_analytics_crud/Test put config given dest without index',
+    'ml/data_frame_analytics_crud/Test put config given missing analysis',
+    'ml/data_frame_analytics_crud/Test put config given empty analysis',
+    'ml/data_frame_analytics_crud/Test max model memory limit',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given n_neighbors is negative',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given n_neighbors is zero',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given feature_influence_threshold is negative',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given feature_influence_threshold is greater than one',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given outlier_fraction is negative',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given outlier_fraction is greater than one',
+    'ml/data_frame_analytics_crud/Test put regression given dependent_variable is not defined',
+    'ml/data_frame_analytics_crud/Test put regression given negative lambda',
+    'ml/data_frame_analytics_crud/Test put regression given negative gamma',
+    'ml/data_frame_analytics_crud/Test put regression given eta less than 1e-3',
+    'ml/data_frame_analytics_crud/Test put regression given eta greater than one',
+    'ml/data_frame_analytics_crud/Test put regression given maximum_number_trees is zero',
+    'ml/data_frame_analytics_crud/Test put regression given maximum_number_trees is greater than 2k',
+    'ml/data_frame_analytics_crud/Test put regression given feature_bag_fraction is negative',
+    'ml/data_frame_analytics_crud/Test put regression given feature_bag_fraction is greater than one',
+    'ml/data_frame_analytics_crud/Test put regression given training_percent is less than one',
+    'ml/data_frame_analytics_crud/Test put regression given training_percent is greater than hundred',
+    'ml/data_frame_analytics_crud/Test put classification given dependent_variable is not defined',
+    'ml/data_frame_analytics_crud/Test put classification given negative lambda',
+    'ml/data_frame_analytics_crud/Test put classification given negative gamma',
+    'ml/data_frame_analytics_crud/Test put classification given eta less than 1e-3',
+    'ml/data_frame_analytics_crud/Test put classification given eta greater than one',
+    'ml/data_frame_analytics_crud/Test put classification given maximum_number_trees is zero',
+    'ml/data_frame_analytics_crud/Test put classification given maximum_number_trees is greater than 2k',
+    'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is negative',
+    'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is greater than one',
+    'ml/data_frame_analytics_crud/Test put classification given num_top_classes is less than zero',
+    'ml/data_frame_analytics_crud/Test put classification given num_top_classes is greater than 1k',
+    'ml/data_frame_analytics_crud/Test put classification given training_percent is less than one',
+    'ml/data_frame_analytics_crud/Test put classification given training_percent is greater than hundred',
+    'ml/evaluate_data_frame/Test given missing index',
+    'ml/evaluate_data_frame/Test given index does not exist',
+    'ml/evaluate_data_frame/Test given missing evaluation',
+    'ml/evaluate_data_frame/Test binary_soft_classification auc_roc given actual_field is always true',
+    'ml/evaluate_data_frame/Test binary_soft_classification auc_roc given actual_field is always false',
+    'ml/evaluate_data_frame/Test binary_soft_classification given evaluation with empty metrics',
+    'ml/evaluate_data_frame/Test binary_soft_classification given missing actual_field',
+    'ml/evaluate_data_frame/Test binary_soft_classification given missing predicted_probability_field',
+    'ml/evaluate_data_frame/Test binary_soft_classification given precision with threshold less than zero',
+    'ml/evaluate_data_frame/Test binary_soft_classification given recall with threshold less than zero',
+    'ml/evaluate_data_frame/Test binary_soft_classification given confusion_matrix with threshold less than zero',
+    'ml/evaluate_data_frame/Test binary_soft_classification given precision with empty thresholds',
+    'ml/evaluate_data_frame/Test binary_soft_classification given recall with empty thresholds',
+    'ml/evaluate_data_frame/Test binary_soft_classification given confusion_matrix with empty thresholds',
+    'ml/evaluate_data_frame/Test classification given evaluation with empty metrics',
+    'ml/evaluate_data_frame/Test classification given missing actual_field',
+    'ml/evaluate_data_frame/Test classification given missing predicted_field',
+    'ml/evaluate_data_frame/Test regression given evaluation with empty metrics',
+    'ml/evaluate_data_frame/Test regression given missing actual_field',
+    'ml/evaluate_data_frame/Test regression given missing predicted_field',
+    'ml/explain_data_frame_analytics/Test neither job id nor body',
+    'ml/explain_data_frame_analytics/Test both job id and body',
+    'ml/explain_data_frame_analytics/Test missing job',
+    'ml/explain_data_frame_analytics/Test empty data frame given body',
     'ml/delete_job_force/Test cannot force delete a non-existent job',
     'ml/delete_model_snapshot/Test delete snapshot missing snapshotId',
     'ml/delete_model_snapshot/Test delete snapshot missing job_id',
@@ -47,8 +129,18 @@ integTestRunner {
     'ml/filter_crud/Test invalid param combinations',
     'ml/filter_crud/Test non-existing filter',
     'ml/filter_crud/Test update filter given remove item is not present',
+    'ml/filter_crud/Test get all filter given index exists but no mapping for filter_id',
     'ml/get_datafeed_stats/Test get datafeed stats given missing datafeed_id',
     'ml/get_datafeeds/Test get datafeed given missing datafeed_id',
+    'ml/inference_crud/Test delete given used trained model',
+    'ml/inference_crud/Test delete with missing model',
+    'ml/inference_crud/Test get given missing trained model',
+    'ml/inference_crud/Test get given expression without matches and allow_no_match is false',
+    'ml/inference_crud/Test put ensemble with empty models',
+    'ml/inference_crud/Test put ensemble with tree where tree has empty feature-names',
+    'ml/inference_crud/Test put model with empty input.field_names',
+    'ml/inference_stats_crud/Test get stats given missing trained model',
+    'ml/inference_stats_crud/Test get stats given expression without matches and allow_no_match is false',
     'ml/jobs_crud/Test cannot create job with existing categorizer state document',
     'ml/jobs_crud/Test cannot create job with existing quantiles document',
     'ml/jobs_crud/Test cannot create job with existing result document',
@@ -87,6 +179,11 @@ integTestRunner {
     'ml/post_data/Test POST data with invalid parameters',
     'ml/preview_datafeed/Test preview missing datafeed',
     'ml/revert_model_snapshot/Test revert model with invalid snapshotId',
+    'ml/start_data_frame_analytics/Test start given missing source index',
+    'ml/start_data_frame_analytics/Test start given source index has no compatible fields',
+    'ml/start_data_frame_analytics/Test start with inconsistent body/param ids',
+    'ml/start_data_frame_analytics/Test start given dest index is not empty',
+    'ml/start_data_frame_analytics/Test start with compatible fields but no data',
     'ml/start_stop_datafeed/Test start datafeed job, but not open',
     'ml/start_stop_datafeed/Test start non existing datafeed',
     'ml/start_stop_datafeed/Test stop non existing datafeed',
@@ -105,27 +202,14 @@ integTestRunner {
   ].join(',')
 }
 
-integTestCluster {
-  dependsOn copyMlRestTests
-  extraConfigFile 'roles.yml', 'roles.yml'
-  setupCommand 'setupTestAdminUser',
-               'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  setupCommand 'setupMlAdminUser',
-               'bin/elasticsearch-users', 'useradd', 'ml_admin', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_admin'
-  setupCommand 'setupMlUserUser',
-               'bin/elasticsearch-users', 'useradd', 'ml_user', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_user'
-  setupCommand 'setupPowerlessUser',
-               'bin/elasticsearch-users', 'useradd', 'no_ml', '-p', 'x-pack-test-password', '-r', 'minimal'
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+  user username: "ml_admin", password: "x-pack-test-password", role: "minimal,machine_learning_admin"
+  user username: "ml_user", password: "x-pack-test-password", role: "minimal,machine_learning_user"
+  user username: "no_ml", password: "x-pack-test-password", role: "minimal"
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'x_pack_rest_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
 }

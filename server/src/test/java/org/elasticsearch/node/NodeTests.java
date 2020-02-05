@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -43,14 +42,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42577")
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
 
@@ -154,12 +154,61 @@ public class NodeTests extends ESTestCase {
         node.start();
         ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
         AtomicBoolean shouldRun = new AtomicBoolean(true);
+        final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            threadRunning.countDown();
             while (shouldRun.get());
         });
+        threadRunning.await();
         node.close();
         shouldRun.set(false);
-        assertTrue(node.awaitClose(1, TimeUnit.DAYS));
+        assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
+    }
+
+    public void testCloseRaceWithTaskExecution() throws Exception {
+        Node node = new MockNode(baseSettings().build(), basePlugins());
+        node.start();
+        ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
+        AtomicBoolean shouldRun = new AtomicBoolean(true);
+        final CountDownLatch running = new CountDownLatch(3);
+        Thread submitThread = new Thread(() -> {
+            running.countDown();
+            try {
+                running.await();
+            } catch (InterruptedException e) {
+                throw new AssertionError("interrupted while waiting", e);
+            }
+            try {
+                threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+                    while (shouldRun.get());
+                });
+            } catch (RejectedExecutionException e) {
+                assertThat(e.getMessage(), containsString("[Terminated,"));
+            }
+        });
+        Thread closeThread = new Thread(() -> {
+            running.countDown();
+            try {
+                running.await();
+            } catch (InterruptedException e) {
+                throw new AssertionError("interrupted while waiting", e);
+            }
+            try {
+                node.close();
+            } catch (IOException e) {
+                throw new AssertionError("node close failed", e);
+            }
+        });
+        submitThread.start();
+        closeThread.start();
+        running.countDown();
+        running.await();
+
+        submitThread.join();
+        closeThread.join();
+
+        shouldRun.set(false);
+        assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
     }
 
     public void testAwaitCloseTimeoutsOnNonInterruptibleTask() throws Exception {
@@ -167,22 +216,28 @@ public class NodeTests extends ESTestCase {
         node.start();
         ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
         AtomicBoolean shouldRun = new AtomicBoolean(true);
+        final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            threadRunning.countDown();
             while (shouldRun.get());
         });
+        threadRunning.await();
         node.close();
         assertFalse(node.awaitClose(0, TimeUnit.MILLISECONDS));
         shouldRun.set(false);
+        assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
     }
 
     public void testCloseOnInterruptibleTask() throws Exception {
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
-        CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch threadRunning = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch finishLatch = new CountDownLatch(1);
         final AtomicBoolean interrupted = new AtomicBoolean(false);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            threadRunning.countDown();
             try {
                 latch.await();
             } catch (InterruptedException e) {
@@ -192,8 +247,9 @@ public class NodeTests extends ESTestCase {
                 finishLatch.countDown();
             }
         });
+        threadRunning.await();
         node.close();
-        // close should not interrput ongoing tasks
+        // close should not interrupt ongoing tasks
         assertFalse(interrupted.get());
         // but awaitClose should
         node.awaitClose(0, TimeUnit.SECONDS);
@@ -212,9 +268,9 @@ public class NodeTests extends ESTestCase {
         Searcher searcher = shard.acquireSearcher("test");
         node.close();
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(1, TimeUnit.DAYS));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));
         searcher.close();
-        assertThat(e.getMessage(), Matchers.containsString("Something is leaking index readers or store references"));
+        assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
     }
 
     public void testCloseOnLeakedStoreReference() throws Exception {
@@ -228,8 +284,8 @@ public class NodeTests extends ESTestCase {
         shard.store().incRef();
         node.close();
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(1, TimeUnit.DAYS));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));
         shard.store().decRef();
-        assertThat(e.getMessage(), Matchers.containsString("Something is leaking index readers or store references"));
+        assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
     }
 }

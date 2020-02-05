@@ -61,6 +61,10 @@ public abstract class InnerHitContextBuilder {
         doBuild(parentSearchContext, innerHitsContext);
     }
 
+    public InnerHitBuilder innerHitBuilder() {
+        return innerHitBuilder;
+    }
+
     protected abstract void doBuild(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException;
 
     public static void extractInnerHits(QueryBuilder query, Map<String, InnerHitContextBuilder> innerHitBuilders) {
@@ -89,7 +93,7 @@ public abstract class InnerHitContextBuilder {
         if (innerHitBuilder.getScriptFields() != null) {
             for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {
                 QueryShardContext innerContext = innerHitsContext.getQueryShardContext();
-                FieldScript.Factory factory = innerContext.getScriptService().compile(field.script(), FieldScript.CONTEXT);
+                FieldScript.Factory factory = innerContext.compile(field.script(), FieldScript.CONTEXT);
                 FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerHitsContext.lookup());
                 innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), fieldScript, field.ignoreFailure()));

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -14,15 +14,16 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -33,12 +34,17 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGenerations;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -71,46 +77,55 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
+    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
+                                 int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                 boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
+                                 boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
         try {
-            MetaData.Builder builder = MetaData.builder(metaData);
-            for (IndexId indexId : indices) {
-                IndexMetaData index = metaData.index(indexId.getName());
-                IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(index);
-                // for a minimal restore we basically disable indexing on all fields and only create an index
-                // that is valid from an operational perspective. ie. it will have all metadata fields like version/
-                // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
-                ImmutableOpenMap<String, MappingMetaData> mappings = index.getMappings();
-                Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = mappings.iterator();
-                while (iterator.hasNext()) {
-                    ObjectObjectCursor<String, MappingMetaData> next = iterator.next();
-                    // we don't need to obey any routing here stuff is read-only anyway and get is disabled
-                    final String mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string()
-                        + " } }";
-                    indexMetadataBuilder.putMapping(next.key, mapping);
-                }
-                indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
-                    .put(SOURCE_ONLY.getKey(), true)
-                    .put("index.blocks.write", true)); // read-only!
-                indexMetadataBuilder.settingsVersion(1 + indexMetadataBuilder.settingsVersion());
-                builder.put(indexMetadataBuilder);
-            }
-            super.initializeSnapshot(snapshotId, indices, builder.build());
+            super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
+                includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metaData), userMetadata, writeShardGens, listener);
         } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
+            listener.onFailure(ex);
         }
     }
 
+    private static MetaData metadataToSnapshot(Collection<IndexId> indices, MetaData metaData) throws IOException {
+        MetaData.Builder builder = MetaData.builder(metaData);
+        for (IndexId indexId : indices) {
+            IndexMetaData index = metaData.index(indexId.getName());
+            IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(index);
+            // for a minimal restore we basically disable indexing on all fields and only create an index
+            // that is valid from an operational perspective. ie. it will have all metadata fields like version/
+            // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
+            MappingMetaData mmd = index.mapping();
+            if (mmd != null) {
+                // we don't need to obey any routing here stuff is read-only anyway and get is disabled
+                final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
+                indexMetadataBuilder.putMapping(mapping);
+            }
+            indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
+                .put(SOURCE_ONLY.getKey(), true)
+                .put("index.blocks.write", true)); // read-only!
+            indexMetadataBuilder.settingsVersion(1 + indexMetadataBuilder.settingsVersion());
+            builder.put(indexMetadataBuilder);
+        }
+        return builder.build();
+    }
+
+
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
+                              Map<String, Object> userMetadata, ActionListener<String> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
-            throw new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
-                "or filters the source");
+            listener.onFailure(
+                new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
+                    "or filters the source"));
+            return;
         }
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
@@ -119,7 +134,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
-        try (FSDirectory directory = new SimpleFSDirectory(snapPath)) {
+        final List<Closeable> toClose = new ArrayList<>(3);
+        try {
+            FSDirectory directory = new SimpleFSDirectory(snapPath);
+            toClose.add(directory);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {
@@ -135,15 +153,20 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
-            try (DirectoryReader reader = DirectoryReader.open(tempStore.directory(), ReadOnlyEngine.OFF_HEAP_READER_ATTRIBUTES)) {
-                IndexCommit indexCommit = reader.getIndexCommit();
-                super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus);
-            } finally {
-                store.decRef();
-            }
+            toClose.add(store::decRef);
+            DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
+                Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
+            toClose.add(reader);
+            IndexCommit indexCommit = reader.getIndexCommit();
+            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, writeShardGens,
+                userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
-            // why on earth does this super method not declare IOException
-            throw new UncheckedIOException(e);
+            try {
+                IOUtils.close(toClose);
+            } catch (IOException ex) {
+                e.addSuppressed(ex);
+            }
+            listener.onFailure(e);
         }
     }
 

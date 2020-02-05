@@ -1,0 +1,165 @@
+--
+:api: put-data-frame-analytics
+:request: PutDataFrameAnalyticsRequest
+:response: PutDataFrameAnalyticsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Put {dfanalytics-jobs} API
+
+Creates a new {dfanalytics-job}.
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Put {dfanalytics-jobs} request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The configuration of the {dfanalytics-job} to create
+
+[id="{upid}-{api}-config"]
+==== {dfanalytics-cap} configuration
+
+The `DataFrameAnalyticsConfig` object contains all the details about the {dfanalytics-job}
+configuration and contains the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config]
+--------------------------------------------------
+<1> The {dfanalytics-job} ID
+<2> The source index and query from which to gather data
+<3> The destination index
+<4> The analysis to be performed
+<5> The fields to be included in / excluded from the analysis
+<6> The memory limit for the model created as part of the analysis process
+<7> Optionally, a human-readable description
+
+[id="{upid}-{api}-query-config"]
+
+==== SourceConfig
+
+The index and the query from which to collect data.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-source-config]
+--------------------------------------------------
+<1> Constructing a new DataFrameAnalyticsSource
+<2> The source index
+<3> The query from which to gather the data. If query is not set, a `match_all` query is used by default.
+<4> Source filtering to select which fields will exist in the destination index.
+
+===== QueryConfig
+
+The query with which to select data from the source.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-query-config]
+--------------------------------------------------
+
+==== DestinationConfig
+
+The index to which data should be written by the {dfanalytics-job}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-dest-config]
+--------------------------------------------------
+<1> Constructing a new DataFrameAnalyticsDest
+<2> The destination index
+
+==== Analysis
+
+The analysis to be performed.
+Currently, the supported analyses include: +OutlierDetection+, +Classification+, +Regression+.
+
+===== Outlier detection
+
++OutlierDetection+ analysis can be created in one of two ways:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-outlier-detection-default]
+--------------------------------------------------
+<1> Constructing a new OutlierDetection object with default strategy to determine outliers
+
+or
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-outlier-detection-customized]
+--------------------------------------------------
+<1> Constructing a new OutlierDetection object
+<2> The method used to perform the analysis
+<3> Number of neighbors taken into account during analysis
+<4> The min `outlier_score` required to compute feature influence
+<5> Whether to compute feature influence
+<6> The proportion of the data set that is assumed to be outlying prior to outlier detection
+<7> Whether to apply standardization to feature values
+
+===== Classification
+
++Classification+ analysis requires to set which is the +dependent_variable+ and
+has a number of other optional parameters:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-classification]
+--------------------------------------------------
+<1> Constructing a new Classification builder object with the required dependent variable
+<2> The lambda regularization parameter. A non-negative double.
+<3> The gamma regularization parameter. A non-negative double.
+<4> The applied shrinkage. A double in [0.001, 1].
+<5> The maximum number of trees the forest is allowed to contain. An integer in [1, 2000].
+<6> The fraction of features which will be used when selecting a random bag for each candidate split. A double in (0, 1].
+<7> If set, feature importance for the top most important features will be computed.
+<8> The name of the prediction field in the results object.
+<9> The percentage of training-eligible rows to be used in training. Defaults to 100%.
+<10> The seed to be used by the random generator that picks which rows are used in training.
+<11> The number of top classes to be reported in the results. Defaults to 2.
+
+===== Regression
+
++Regression+ analysis requires to set which is the +dependent_variable+ and
+has a number of other optional parameters:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-regression]
+--------------------------------------------------
+<1> Constructing a new Regression builder object with the required dependent variable
+<2> The lambda regularization parameter. A non-negative double.
+<3> The gamma regularization parameter. A non-negative double.
+<4> The applied shrinkage. A double in [0.001, 1].
+<5> The maximum number of trees the forest is allowed to contain. An integer in [1, 2000].
+<6> The fraction of features which will be used when selecting a random bag for each candidate split. A double in (0, 1].
+<7> If set, feature importance for the top most important features will be computed.
+<8> The name of the prediction field in the results object.
+<9> The percentage of training-eligible rows to be used in training. Defaults to 100%.
+<10> The seed to be used by the random generator that picks which rows are used in training.
+
+==== Analyzed fields
+
+FetchContext object containing fields to be included in / excluded from the analysis
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-analyzed-fields]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the newly created {dfanalytics-job}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

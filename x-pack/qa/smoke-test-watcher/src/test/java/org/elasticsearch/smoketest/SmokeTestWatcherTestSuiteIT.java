@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -21,6 +22,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -93,7 +95,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override
@@ -108,9 +110,8 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32299")
     public void testMonitorClusterHealth() throws Exception {
-        String watchId = "cluster_health_watch";
+        final String watchId = "cluster_health_watch";
 
         // get master publish address
         Response clusterStateResponse = adminClient().performRequest(new Request("GET", "/_cluster/state"));
@@ -124,7 +125,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         assertThat(address, is(notNullValue()));
         String[] splitAddress = address.split(":", 2);
         String host = splitAddress[0];
-        int port = Integer.valueOf(splitAddress[1]);
+        int port = Integer.parseInt(splitAddress[1]);
 
         // put watch
         try (XContentBuilder builder = jsonBuilder()) {
@@ -156,11 +157,17 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
 
         // check watch history
         ObjectPath objectPath = getWatchHistoryEntry(watchId);
-        boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
-        assertThat(conditionMet, is(true));
+        Boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
+        String historyEntriesAsString = Strings.toString(objectPath.toXContentBuilder(XContentType.JSON.xContent()));
+        assertThat("condition not met in response [" + historyEntriesAsString + "]", conditionMet, is(true));
 
         deleteWatch(watchId);
-        assertWatchCount(0);
+        // Wrap inside an assertBusy(...), because watch may execute just after being deleted,
+        // This tries to re-add the watch which fails, because of version conflict,
+        // but for a moment the watch count from watcher stats api may be incorrect.
+        // (via WatcherIndexingListener#preIndex)
+        // The WatcherIndexingListener#postIndex() detects this version conflict and corrects the watch count.
+        assertBusy(() -> assertWatchCount(0));
     }
 
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
@@ -187,19 +194,51 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
             try {
                 client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
             } catch (ResponseException e) {
-                final String err = "Failed to perform refresh of watcher history - " + e;
-                logger.info(err);
-                fail(err);
+                final String err = "Failed to perform refresh of watcher history";
+                logger.error(err, e);
+                throw new AssertionError(err, e);
             }
 
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
-                builder.startObject("query").startObject("bool").startArray("must");
-                builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
-                    .endObject();
-                builder.endArray().endObject().endObject();
-                builder.startArray("sort").startObject().startObject("trigger_event.triggered_time").field("order", "desc").endObject()
-                    .endObject().endArray();
+                {
+                    builder.startObject("query");
+                    {
+                        builder.startObject("bool");
+                        builder.startArray("must");
+                        builder.startObject();
+                        {
+                            builder.startObject("term");
+                            builder.startObject("watch_id");
+                            builder.field("value", watchId);
+                            builder.endObject();
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                        builder.startObject();
+                        {
+                            builder.startObject("term");
+                            builder.startObject("state");
+                            builder.field("value", "executed");
+                            builder.endObject();
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                        builder.endArray();
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                    builder.startArray("sort");
+                    builder.startObject();
+                    {
+
+                        builder.startObject("result.execution_time");
+                        builder.field("order", "desc");
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                    builder.endArray();
+                }
                 builder.endObject();
 
                 logger.info("Searching watcher history");
@@ -216,9 +255,9 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 assertThat("watch_id for hit 0 in watcher history", foundWatchId, is(watchId));
                 objectPathReference.set(objectPath);
             } catch (ResponseException e) {
-                final String err = "Failed to perform search of watcher history - " + e;
-                logger.info(err);
-                fail(err);
+                final String err = "Failed to perform search of watcher history";
+                logger.error(err, e);
+                throw new AssertionError(err, e);
             }
         });
         return objectPathReference.get();

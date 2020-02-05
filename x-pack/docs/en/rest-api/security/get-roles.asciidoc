@@ -7,48 +7,58 @@
 
 Retrieves roles in the native realm.
 
-==== Request
+[[security-api-get-role-request]]
+==== {api-request-title}
 
 `GET /_security/role` +
 
 `GET /_security/role/<name>` +
 
-==== Description
+[[security-api-get-role-prereqs]]
+==== {api-prereq-title}
 
-For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
-
-==== Path Parameters
-
-`name`::
-  (string) The name of the role. You can specify multiple roles as a 
-  comma-separated list. If you do not specify this parameter, the API 
-  returns information about all roles.
-
-//==== Request Body
-
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster
+* To use this API, you must have at least the `manage_security` cluster
 privilege.
 
+[[security-api-get-role-desc]]
+==== {api-description-title}
 
-==== Examples
+The role management APIs are generally the preferred way to manage roles, rather than using
+<<roles-management-file,file-based role management>>. The get roles
+API cannot retrieve roles that are defined in roles files.
+
+[[security-api-get-role-path-params]]
+==== {api-path-parms-title}
+
+`name`::
+  (Optional, string) The name of the role. You can specify multiple roles as a 
+  comma-separated list. If you do not specify this parameter, the API 
+  returns information about all roles.
+  
+[[security-api-get-role-response-body]]
+==== {api-response-body-title}
+
+A successful call returns an array of roles with the JSON representation of the
+role.
+
+[[security-api-get-role-response-codes]]
+==== {api-response-codes-title}
+
+If the role is not defined in the native realm, the request returns 404.
+
+[[security-api-get-role-example]]
+==== {api-examples-title}
 
 The following example retrieves information about the `my_admin_role` role in 
 the native realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/role/my_admin_role
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:admin_role]
 
-A successful call returns an array of roles with the JSON representation of the
-role. If the role is not defined in the native realm, the request returns 404.
-
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my_admin_role": {
@@ -73,17 +83,12 @@ role. If the role is not defined in the native realm, the request returns 404.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 To retrieve all roles, omit the role name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/role
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-NOTE: If single role is requested, that role is returned as the response. When 
-requesting multiple roles, an object is returned holding the found roles, each 
-keyed by the relevant role name.

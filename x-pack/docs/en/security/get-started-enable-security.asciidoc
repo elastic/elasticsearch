@@ -1,0 +1,35 @@
+When you use the basic and trial licenses, the {es} {security-features} are
+disabled by default. To enable them:
+
+. Stop {kib}. The method for starting and stopping {kib} varies depending on 
+how you installed it. For example, if you installed {kib} from an archive 
+distribution (`.tar.gz` or `.zip`), stop it by entering `Ctrl-C` on the command 
+line. See {kibana-ref}/start-stop.html[Starting and stopping {kib}]. 
+
+. Stop {es}. For example, if you installed {es} from an archive distribution, 
+enter `Ctrl-C` on the command line. See 
+<<stopping-elasticsearch>>.
+
+. Add the `xpack.security.enabled` setting to the 
+`ES_PATH_CONF/elasticsearch.yml` file. 
++
+--
+TIP: The `ES_PATH_CONF` environment variable contains the path for the {es} 
+configuration files. If you installed {es} using archive distributions (`zip` or 
+`tar.gz`), it defaults to `ES_HOME/config`. If you used package distributions 
+(Debian or RPM), it defaults to `/etc/elasticsearch`. For more information, see 
+<<settings>>.  
+
+For example, add the following setting:
+
+[source,yaml]
+----
+xpack.security.enabled: true
+----
+
+TIP: If you have a basic or trial license, the default value for this setting is 
+`false`. If you have a gold or higher license, the default value is `true`. 
+Therefore, it is a good idea to explicitly add this setting to avoid confusion 
+about whether {security-features} are enabled.  
+
+--

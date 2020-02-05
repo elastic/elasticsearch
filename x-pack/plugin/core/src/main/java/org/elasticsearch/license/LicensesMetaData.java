@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -24,7 +23,7 @@ import java.util.EnumSet;
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom,
+public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom,
         MergableCustomMetaData<LicensesMetaData> {
 
     public static final String TYPE = "licenses";
@@ -40,7 +39,7 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
      * ever existed in the cluster state
      */
     public static final License LICENSE_TOMBSTONE = License.builder()
-            .type("trial")
+            .type(License.LicenseType.TRIAL)
             .issuer("elasticsearch")
             .uid("TOMBSTONE")
             .issuedTo("")

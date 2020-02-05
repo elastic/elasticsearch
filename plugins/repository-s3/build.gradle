@@ -1,7 +1,8 @@
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.test.AntFixture
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -21,6 +22,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.test.fixtures'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
@@ -28,12 +30,11 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.505'
+  'aws': '1.11.636'
 ]
 
 dependencies {
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   compile "com.amazonaws:jmespath-java:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -42,14 +43,16 @@ dependencies {
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
+  compile "com.fasterxml.jackson.core:jackson-databind:${versions.jacksondatabind}"
   compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   compile "joda-time:joda-time:${versions.joda}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell 
+  // and whitelist this hack in JarHell
   compile 'javax.xml.bind:jaxb-api:2.2.2'
+
+  testCompile project(':test:fixtures:s3-fixture')
 }
 
 dependencyLicenses {
@@ -65,17 +68,8 @@ bundlePlugin {
   }
 }
 
-task testRepositoryCreds(type: Test) {
-  include '**/RepositoryCredentialsTests.class'
-  include '**/S3BlobStoreRepositoryTests.class'
-  systemProperty 'es.allow_insecure_settings', 'true'
-}
-check.dependsOn(testRepositoryCreds)
-
 test {
-  // these are tested explicitly in separate test tasks
-  exclude '**/*CredentialsTests.class'
-  exclude '**/S3BlobStoreRepositoryTests.class'
+  // this is tested explicitly in separate test tasks
   exclude '**/S3RepositoryThirdPartyTests.class'
 }
 
@@ -101,14 +95,16 @@ String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
 String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 
+boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
-  s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
-  s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
-  s3PermanentBucket = 'permanent-bucket-test'
-  s3PermanentBasePath = 'integration_test'
+  s3PermanentAccessKey = 'access_key'
+  s3PermanentSecretKey = 'secret_key'
+  s3PermanentBucket = 'bucket'
+  s3PermanentBasePath = 'base_path'
 
   useFixture = true
 
@@ -117,21 +113,21 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
 }
 
 if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
-  s3TemporaryAccessKey = 's3_integration_test_temporary_access_key'
-  s3TemporarySecretKey = 's3_integration_test_temporary_secret_key'
-  s3TemporaryBucket = 'temporary-bucket-test'
-  s3TemporaryBasePath = 'integration_test'
-  s3TemporarySessionToken = 's3_integration_test_temporary_session_token'
+  s3TemporaryAccessKey = 'session_token_access_key'
+  s3TemporarySecretKey = 'session_token_secret_key'
+  s3TemporaryBucket = 'session_token_bucket'
+  s3TemporaryBasePath = 'session_token_base_path'
+  s3TemporarySessionToken = 'session_token'
 
 } else if (!s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service as temporary credentials are present")
 }
 
 if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
-  s3EC2Bucket = 'ec2-bucket-test'
-  s3EC2BasePath = 'integration_test'
-  s3ECSBucket = 'ecs-bucket-test'
-  s3ECSBasePath = 'integration_test'
+  s3EC2Bucket = 'ec2_bucket'
+  s3EC2BasePath = 'ec2_base_path'
+  s3ECSBucket = 'ecs_bucket'
+  s3ECSBasePath = 'ecs_base_path'
 } else if (!s3EC2Bucket || !s3EC2BasePath || !s3ECSBucket || !s3ECSBasePath) {
   throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
 }
@@ -141,71 +137,48 @@ task thirdPartyTest(type: Test) {
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
-  systemProperty 'test.s3.base', s3PermanentBasePath
+  systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + BuildParams.testSeed
 }
 
 if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  task writeDockerFile {
-    File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
-    outputs.file(minioDockerfile)
-    doLast {
-      minioDockerfile.parentFile.mkdirs()
-      minioDockerfile.text = "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-              "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-              "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-              "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
-    }
-  }
-  preProcessFixture {
-    dependsOn(writeDockerFile)
-  }
+  testFixtures.useFixture(':test:fixtures:minio-fixture', 'minio-fixture')
 
   def minioAddress = {
-    int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+    int minioPort = project(':test:fixtures:minio-fixture').postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
     assert minioPort > 0
-    return 'http://127.0.0.1:' + minioPort
+    'http://127.0.0.1:' + minioPort
   }
 
-  File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
-
-  // We can't lazy evaluate a system property for the Minio address passed to JUnit so we write it to a resource file
-  // and pass its name instead.
-  task writeMinioAddress {
-    dependsOn tasks.bundlePlugin, tasks.postProcessFixture
-    outputs.file(minioAddressFile)
-    doLast {
-      file(minioAddressFile).text = "${ -> minioAddress.call() }"
+  normalization {
+    runtimeClasspath {
+      // ignore generated address file for the purposes of build avoidance
+      ignore 's3Fixture.address'
     }
   }
 
   thirdPartyTest {
-    dependsOn writeMinioAddress
-    inputs.file(minioAddressFile)
-    systemProperty 'test.s3.endpoint', minioAddressFile.name
+    dependsOn tasks.bundlePlugin
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
   }
-
-  BuildPlugin.requireDocker(tasks.thirdPartyTest)
 
   task integTestMinio(type: RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
-    dependsOn tasks.bundlePlugin, tasks.postProcessFixture
+    dependsOn tasks.bundlePlugin
     runner {
       // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
       systemProperty 'tests.rest.blacklist', [
-              'repository_s3/30_repository_temporary_credentials/*',
-              'repository_s3/40_repository_ec2_credentials/*',
-              'repository_s3/50_repository_ecs_credentials/*'
+        'repository_s3/30_repository_temporary_credentials/*',
+        'repository_s3/40_repository_ec2_credentials/*',
+        'repository_s3/50_repository_ecs_credentials/*'
       ].join(",")
     }
   }
   check.dependsOn(integTestMinio)
-  BuildPlugin.requireDocker(tasks.integTestMinio)
 
   testClusters.integTestMinio {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
-    setting 's3.client.integration_test_permanent.endpoint', minioAddress
+    setting 's3.client.integration_test_permanent.endpoint', minioAddress, IGNORE_VALUE
     plugin file(tasks.bundlePlugin.archiveFile)
   }
 
@@ -215,65 +188,39 @@ if (useFixture) {
 } else {
   integTest.runner {
     systemProperty 'tests.rest.blacklist',
-            [
-                    'repository_s3/30_repository_temporary_credentials/*',
-                    'repository_s3/40_repository_ec2_credentials/*',
-                    'repository_s3/50_repository_ecs_credentials/*'
-            ].join(",")
+      [
+        'repository_s3/30_repository_temporary_credentials/*',
+        'repository_s3/40_repository_ec2_credentials/*',
+        'repository_s3/50_repository_ecs_credentials/*'
+      ].join(",")
   }
 }
 
 check.dependsOn(thirdPartyTest)
 
-File parentFixtures = new File(project.buildDir, "fixtures")
-File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')
-
-task s3FixtureProperties {
-  outputs.file(s3FixtureFile)
-  def s3FixtureOptions = [
-      "tests.seed"                       : project.testSeed,
-      "s3Fixture.permanent_bucket_name"  : s3PermanentBucket,
-      "s3Fixture.permanent_key"          : s3PermanentAccessKey,
-      "s3Fixture.temporary_bucket_name"  : s3TemporaryBucket,
-      "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
-      "s3Fixture.temporary_session_token": s3TemporarySessionToken,
-      "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
-      "s3Fixture.ecs_bucket_name"        : s3ECSBucket
-  ]
-
-  doLast {
-    file(s3FixtureFile).text = s3FixtureOptions.collect { k, v -> "$k = $v" }.join("\n")
-  }
-}
-
-/** A task to start the AmazonS3Fixture which emulates an S3 service **/
-task s3Fixture(type: AntFixture) {
-  dependsOn testClasses
-  dependsOn s3FixtureProperties
-  inputs.file(s3FixtureFile)
-
-  env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-  executable = new File(project.runtimeJavaHome, 'bin/java')
-  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3FixtureFile.getAbsolutePath()
-}
-
 processTestResources {
   Map<String, Object> expansions = [
-          'permanent_bucket': s3PermanentBucket,
-          'permanent_base_path': s3PermanentBasePath,
-          'temporary_bucket': s3TemporaryBucket,
-          'temporary_base_path': s3TemporaryBasePath,
-          'ec2_bucket': s3EC2Bucket,
-          'ec2_base_path': s3EC2BasePath,
-          'ecs_bucket': s3ECSBucket,
-          'ecs_base_path': s3ECSBasePath
+    'permanent_bucket'        : s3PermanentBucket,
+    'permanent_base_path'     : s3PermanentBasePath + "_integration_tests",
+    'temporary_bucket'        : s3TemporaryBucket,
+    'temporary_base_path'     : s3TemporaryBasePath + "_integration_tests",
+    'ec2_bucket'              : s3EC2Bucket,
+    'ec2_base_path'           : s3EC2BasePath,
+    'ecs_bucket'              : s3ECSBucket,
+    'ecs_base_path'           : s3ECSBasePath,
+    'disable_chunked_encoding': s3DisableChunkedEncoding,
   ]
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
 
-integTest {
-  dependsOn s3Fixture
+testFixtures.useFixture(':test:fixtures:s3-fixture')
+
+def fixtureAddress = { fixture ->
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = project(':test:fixtures:s3-fixture').postProcessFixture.ext."test.fixtures.${fixture}.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
 }
 
 testClusters.integTest {
@@ -285,45 +232,56 @@ testClusters.integTest {
   keystore 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
 
   if (useFixture) {
-    setting 's3.client.integration_test_permanent.endpoint', { "http://${s3Fixture.addressAndPort}" }
-    setting 's3.client.integration_test_temporary.endpoint', { "http://${s3Fixture.addressAndPort}" }
-    setting 's3.client.integration_test_ec2.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('s3-fixture')}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_temporary.endpoint', { "${-> fixtureAddress('s3-fixture-with-session-token')}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_ec2.endpoint', { "${-> fixtureAddress('s3-fixture-with-ec2')}" }, IGNORE_VALUE
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${s3Fixture.addressAndPort}" }
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "${-> fixtureAddress('s3-fixture-with-ec2')}" }, IGNORE_VALUE
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
 }
 
+task s3ThirdPartyTests {
+  dependsOn check
+}
+
 if (useFixture) {
   task integTestECS(type: RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
-    dependsOn(project.s3Fixture)
+    dependsOn('bundlePlugin')
     runner {
       systemProperty 'tests.rest.blacklist', [
-              'repository_s3/10_basic/*',
-              'repository_s3/20_repository_permanent_credentials/*',
-              'repository_s3/30_repository_temporary_credentials/*',
-              'repository_s3/40_repository_ec2_credentials/*'
+        'repository_s3/10_basic/*',
+        'repository_s3/20_repository_permanent_credentials/*',
+        'repository_s3/30_repository_temporary_credentials/*',
+        'repository_s3/40_repository_ec2_credentials/*'
       ].join(",")
     }
   }
   check.dependsOn(integTestECS)
 
   testClusters.integTestECS {
-    setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture-with-ecs')}" }, IGNORE_VALUE
     plugin file(tasks.bundlePlugin.archiveFile)
-    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }
+    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture-with-ecs')}/ecs_credentials_endpoint" }, IGNORE_VALUE
+  }
+
+  gradle.taskGraph.whenReady {
+    if (it.hasTask(s3ThirdPartyTests)) {
+      throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'amazon_s3_access_key', " +
+        "'amazon_s3_secret_key', 'amazon_s3_bucket', and 'amazon_s3_base_path' are set.");
+    }
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   // classes are missing
-  'javax.servlet.ServletContextEvent', 
-  'javax.servlet.ServletContextListener', 
-  'org.apache.avalon.framework.logger.Logger', 
-  'org.apache.log.Hierarchy', 
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
   'software.amazon.ion.IonReader',
   'software.amazon.ion.IonSystem',
@@ -333,7 +291,17 @@ thirdPartyAudit.ignoreMissingClasses (
   'software.amazon.ion.system.IonBinaryWriterBuilder',
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder'
+  'software.amazon.ion.system.IonWriterBuilder',
+  // We don't use the kms dependency
+  'com.amazonaws.services.kms.AWSKMS',
+  'com.amazonaws.services.kms.AWSKMSClient',
+  'com.amazonaws.services.kms.model.DecryptRequest',
+  'com.amazonaws.services.kms.model.DecryptResult',
+  'com.amazonaws.services.kms.model.EncryptRequest',
+  'com.amazonaws.services.kms.model.EncryptResult',
+  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
 )
 
 thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
+

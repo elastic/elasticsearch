@@ -4,51 +4,48 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
-    testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
-    testCompile project(':x-pack:plugin:ccr:qa')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
+  testCompile project(':x-pack:plugin:ccr:qa')
 }
 
 task 'leader-cluster'(type: RestIntegTestTask) {
-    mustRunAfter(precommit)
-    runner {
-        systemProperty 'tests.target_cluster', 'leader'
-    }
+  mustRunAfter(precommit)
+  runner {
+    systemProperty 'tests.target_cluster', 'leader'
+  }
 }
 
 testClusters.'leader-cluster' {
-    distribution = 'Default'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.monitoring.enabled', 'false'
-    extraConfigFile 'roles.yml', file('leader-roles.yml')
-    user username: "test_admin", role: "superuser"
-    user username: "test_ccr", role: "ccruser"
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.monitoring.enabled', 'false'
+  extraConfigFile 'roles.yml', file('leader-roles.yml')
+  user username: "test_admin", role: "superuser"
+  user username: "test_ccr", role: "ccruser"
 }
 
 task 'follow-cluster'(type: RestIntegTestTask) {
-    dependsOn 'leader-cluster'
+  dependsOn 'leader-cluster'
+  runner {
     useCluster testClusters.'leader-cluster'
-    runner {
-        systemProperty 'tests.target_cluster', 'follow'
-        nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
-    }
+    systemProperty 'tests.target_cluster', 'follow'
+    nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
+  }
 }
 
 testClusters.'follow-cluster' {
-    distribution = 'Default'
-    setting 'cluster.remote.leader_cluster.seeds', {
-        "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\""
-    }
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.monitoring.collection.enabled', 'true'
-    extraConfigFile 'roles.yml', file('follower-roles.yml')
-    user username: "test_admin", role: "superuser"
-    user username: "test_ccr", role: "ccruser"
+  testDistribution = 'DEFAULT'
+  setting 'cluster.remote.leader_cluster.seeds', {
+    "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\""
+  }
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  extraConfigFile 'roles.yml', file('follower-roles.yml')
+  user username: "test_admin", role: "superuser"
+  user username: "test_ccr", role: "ccruser"
 }
 
 check.dependsOn 'follow-cluster'

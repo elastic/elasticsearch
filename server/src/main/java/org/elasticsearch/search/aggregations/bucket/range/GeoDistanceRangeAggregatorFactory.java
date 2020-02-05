@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -43,7 +44,7 @@ import java.util.List;
 import java.util.Map;
 
 public class GeoDistanceRangeAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoDistanceRangeAggregatorFactory> {
+        extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
     private final InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory = InternalGeoDistance.FACTORY;
     private final GeoPoint origin;
@@ -53,9 +54,9 @@ public class GeoDistanceRangeAggregatorFactory
     private final boolean keyed;
 
     public GeoDistanceRangeAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, GeoPoint origin,
-            Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, SearchContext context,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+            Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, QueryShardContext queryShardContext,
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.origin = origin;
         this.ranges = ranges;
         this.unit = unit;
@@ -64,17 +65,23 @@ public class GeoDistanceRangeAggregatorFactory
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new RangeAggregator.Unmapped<>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators,
-                metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new RangeAggregator.Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent,
+            rangeFactory, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
-        return new RangeAggregator(name, factories, distanceSource, config.format(), rangeFactory, ranges, keyed, context,
+        return new RangeAggregator(name, factories, distanceSource, config.format(), rangeFactory, ranges, keyed, searchContext,
                 parent,
                 pipelineAggregators, metaData);
     }

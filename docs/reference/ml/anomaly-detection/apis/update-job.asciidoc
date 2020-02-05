@@ -1,0 +1,221 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-update-job]]
+=== Update {anomaly-jobs} API
+++++
+<titleabbrev>Update jobs</titleabbrev>
+++++
+
+Updates certain properties of an {anomaly-job}.
+
+[[ml-update-job-request]]
+==== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/_update`
+
+[[ml-update-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+
+[[ml-update-job-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+[[ml-update-job-request-body]]
+==== {api-request-body-title}
+
+The following properties can be updated after the job is created:
+
+`allow_lazy_open`::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
++
+--
+NOTE: If the job is open when you make the update, you must stop the {dfeed},
+close the job, then reopen the job and restart the {dfeed} for the changes to take effect.
+
+--
+
+[[update-analysislimits]]`analysis_limits`.`model_memory_limit`::
+(long or string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
++
+--
+NOTE: You can update the `analysis_limits` only while the job is closed. The 
+`model_memory_limit` property value cannot be decreased below the current usage.
+ 
+TIP: If the `memory_status` property in the
+<<ml-get-snapshot-results,`model_size_stats` object>> has a value of `hard_limit`,
+this means that it was unable to process some data. You might want to re-run the
+job with an increased `model_memory_limit`.
+
+--
+
+`background_persist_interval`::
+(<<time-units,time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
++
+--
+NOTE: If the job is open when you make the update, you must stop the {dfeed},
+close the job, then reopen the job and restart the {dfeed} for the changes to take effect.
+
+--
+
+[[update-customsettings]]`custom_settings`::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
+
+`description`::
+(string) A description of the job.
+
+`detectors`::
+(array) An array of detector update objects.
+
+`detectors`.`custom_rules`:::
++
+--
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
+
+`detectors`.`custom_rules`.`actions`:::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
+
+`detectors`.`custom_rules`.`scope`:::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
+
+`detectors`.`custom_rules`.`scope`.`filter_id`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
+
+`detectors`.`custom_rules`.`scope`.`filter_type`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
+
+`detectors`.`custom_rules`.`conditions`:::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
+
+`detectors`.`custom_rules`.`conditions`.`applies_to`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
+
+`detectors`.`custom_rules`.`conditions`.`operator`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
+
+`detectors`.`custom_rules`.`conditions`.`value`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
+--
+
+`detectors`.`description`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
+
+`detectors`.`detector_index`:::
++
+--
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
+If you want to update a specific detector, you must use this identifier. You
+cannot, however, change the `detector_index` value for a detector.
+--
+
+`groups`::
+(array of strings)
+include::{docdir}/ml/ml-shared.asciidoc[tag=groups]
+
+`model_plot_config`::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config]
+
+`model_plot_config`.`enabled`:::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
+
+`model_plot_config`.`terms`:::
+experimental[] (string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
+
+`model_snapshot_retention_days`::
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
+
+`renormalization_window_days`::
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=renormalization-window-days]
++
+--
+NOTE: If the job is open when you make the update, you must stop the {dfeed},
+close the job, then reopen the job and restart the {dfeed} for the changes to take effect.
+
+--
+
+`results_retention_days`::
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=results-retention-days]
+
+
+[[ml-update-job-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/low_request_rate/_update
+{
+  "description":"An updated job",
+  "detectors": {
+    "detector_index": 0,
+    "description": "An updated detector description"
+  },
+  "groups": ["kibana_sample_data","kibana_sample_web_logs"],
+  "model_plot_config": {
+    "enabled": true
+  },
+  "renormalization_window_days": 30,
+  "background_persist_interval": "2h",
+  "model_snapshot_retention_days": 7,
+  "results_retention_days": 60
+}
+--------------------------------------------------
+// TEST[skip:setup:Kibana sample data]
+
+When the {anomaly-job} is updated, you receive a summary of the job
+configuration information, including the updated property values. For example:
+
+[source,js]
+----
+{
+  "job_id" : "low_request_rate",
+  "job_type" : "anomaly_detector",
+  "job_version" : "8.0.0",
+  "groups" : [
+    "kibana_sample_data",
+    "kibana_sample_web_logs"
+  ],
+  "description" : "An updated job",
+  "create_time" : 1576623023709,
+  "analysis_config" : {
+    "bucket_span" : "1h",
+    "summary_count_field_name" : "doc_count",
+    "detectors" : [
+      {
+        "detector_description" : "An updated detector description",
+        "function" : "low_count",
+        "detector_index" : 0
+      }
+    ],
+    "influencers" : [ ]
+  },
+  ...
+}
+----

@@ -1200,7 +1200,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
     private void indexData() {
         for (int i = 0; i < 10; i++) {
-            index("idx", "t", Integer.toString(i), Collections.singletonMap("f1", Integer.toString(i)));
+            index("idx", Integer.toString(i), Collections.singletonMap("f1", Integer.toString(i)));
         }
         flushAndRefresh("idx");
     }

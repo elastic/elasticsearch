@@ -24,16 +24,19 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
@@ -42,6 +45,11 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -52,6 +60,10 @@ import org.elasticsearch.client.ml.GetCalendarEventsRequest;
 import org.elasticsearch.client.ml.GetCalendarEventsResponse;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
@@ -64,6 +76,10 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
+import org.elasticsearch.client.ml.GetTrainedModelsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsResponse;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsResponse;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -77,17 +93,24 @@ import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.PutTrainedModelRequest;
+import org.elasticsearch.client.ml.PutTrainedModelResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -103,7 +126,37 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedState;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
+import org.elasticsearch.client.ml.dataframe.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.PhaseProgress;
+import org.elasticsearch.client.ml.dataframe.QueryConfig;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
+import org.elasticsearch.client.ml.inference.InferenceToXContentCompressor;
+import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.client.ml.inference.TrainedModelConfig;
+import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.client.ml.inference.TrainedModelInput;
+import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -113,9 +166,16 @@ import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.junit.After;
@@ -132,16 +192,22 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItem;
-import static org.hamcrest.CoreMatchers.hasItems;
-import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
@@ -403,9 +469,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testUpdateDatafeed() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
 
         String datafeedId = "datafeed-" + jobId;
@@ -528,18 +595,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "start_data_1";
 
         // Set up the index and docs
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         long now = (System.currentTimeMillis()/1000)*1000;
@@ -611,18 +667,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "stop_data_1";
 
         // Set up the index
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
 
         // create the job and the datafeed
         Job job1 = buildJob(jobId1);
@@ -684,18 +729,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "datafeed_stats_data_1";
 
         // Set up the index
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
 
         // create the job and the datafeed
         Job job1 = buildJob(jobId1);
@@ -762,18 +796,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "preview_data_1";
 
         // Set up the index and docs
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         long now = (System.currentTimeMillis()/1000)*1000;
@@ -826,21 +849,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     private  String createExpiredData(String jobId) throws Exception {
-        String indexId = jobId + "-data";
+        String indexName = jobId + "-data";
         // Set up the index and docs
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexId);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                    .field("format", "epoch_millis")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -853,7 +864,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
             int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
             for (int point = 0; point < bucketRate; point++) {
-                IndexRequest indexRequest = new IndexRequest(indexId);
+                IndexRequest indexRequest = new IndexRequest(indexName);
                 indexRequest.source(XContentType.JSON, "timestamp", timestamp, "total", randomInt(1000));
                 bulk.add(indexRequest);
             }
@@ -872,7 +883,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         Job job = buildJobForExpiredDataTests(jobId);
         putJob(job);
         openJob(job);
-        String datafeedId = createAndPutDatafeed(jobId, indexId);
+        String datafeedId = createAndPutDatafeed(jobId, indexName);
 
         startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis - TimeValue.timeValueHours(24).getMillis()));
 
@@ -887,7 +898,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         // b) is slightly more efficient since we may not need to wait an entire second for the timestamp to increment
         assertBusy(() -> {
             long timeNow = System.currentTimeMillis() / 1000;
-            assertFalse(prevJobTimeStamp >= timeNow);
+            assertThat(prevJobTimeStamp, lessThan(timeNow));
         });
 
         // Update snapshot timestamp to force it out of snapshot retention window
@@ -905,7 +916,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         waitForForecastToComplete(jobId, forecastJobResponse.getForecastId());
 
         // Wait for the forecast to expire
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        // FIXME: We should wait for something specific to change, rather than waiting for time to pass.
+        waitUntil(() -> false, 1, TimeUnit.SECONDS);
 
         // Run up to now
         startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis));
@@ -949,7 +961,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(response.getDeleted());
 
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        // Wait for the forecast to expire
+        // FIXME: We should wait for something specific to change, rather than waiting for time to pass.
+        waitUntil(() -> false, 1, TimeUnit.SECONDS);
 
         GetModelSnapshotsRequest getModelSnapshotsRequest1 = new GetModelSnapshotsRequest(jobId);
         GetModelSnapshotsResponse getModelSnapshotsResponse1 = execute(getModelSnapshotsRequest1, machineLearningClient::getModelSnapshots,
@@ -1230,6 +1244,1113 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(remainingIds, not(hasItem(deletedEvent)));
     }
 
+    public void testPutDataFrameAnalyticsConfig_GivenOutlierDetectionAnalysis() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-put-df-analytics-outlier-detection";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .setDescription("some description")
+            .build();
+
+        createIndex("put-test-source-index", defaultMappingForTest());
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+        assertThat(createdConfig.getId(), equalTo(config.getId()));
+        assertThat(createdConfig.getSource().getIndex(), equalTo(config.getSource().getIndex()));
+        assertThat(createdConfig.getSource().getQueryConfig(), equalTo(new QueryConfig(new MatchAllQueryBuilder())));  // default value
+        assertThat(createdConfig.getDest().getIndex(), equalTo(config.getDest().getIndex()));
+        assertThat(createdConfig.getDest().getResultsField(), equalTo("ml"));  // default value
+        assertThat(createdConfig.getAnalysis(), equalTo(OutlierDetection.builder()
+            .setComputeFeatureInfluence(true)
+            .setOutlierFraction(0.05)
+            .setStandardizationEnabled(true).build()));
+        assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
+        assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
+        assertThat(createdConfig.getDescription(), equalTo("some description"));
+    }
+
+    public void testPutDataFrameAnalyticsConfig_GivenRegression() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-put-df-analytics-regression";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Regression.builder("my_dependent_variable")
+                .setPredictionFieldName("my_dependent_variable_prediction")
+                .setTrainingPercent(80.0)
+                .setRandomizeSeed(42L)
+                .setLambda(1.0)
+                .setGamma(1.0)
+                .setEta(1.0)
+                .setMaximumNumberTrees(10)
+                .setFeatureBagFraction(0.5)
+                .setNumTopFeatureImportanceValues(3)
+                .build())
+            .setDescription("this is a regression")
+            .build();
+
+        createIndex("put-test-source-index", defaultMappingForTest());
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+        assertThat(createdConfig.getId(), equalTo(config.getId()));
+        assertThat(createdConfig.getSource().getIndex(), equalTo(config.getSource().getIndex()));
+        assertThat(createdConfig.getSource().getQueryConfig(), equalTo(new QueryConfig(new MatchAllQueryBuilder())));  // default value
+        assertThat(createdConfig.getDest().getIndex(), equalTo(config.getDest().getIndex()));
+        assertThat(createdConfig.getDest().getResultsField(), equalTo("ml"));  // default value
+        assertThat(createdConfig.getAnalysis(), equalTo(config.getAnalysis()));
+        assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
+        assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
+        assertThat(createdConfig.getDescription(), equalTo("this is a regression"));
+    }
+
+    public void testPutDataFrameAnalyticsConfig_GivenClassification() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-put-df-analytics-classification";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable")
+                .setPredictionFieldName("my_dependent_variable_prediction")
+                .setTrainingPercent(80.0)
+                .setRandomizeSeed(42L)
+                .setNumTopClasses(1)
+                .setLambda(1.0)
+                .setGamma(1.0)
+                .setEta(1.0)
+                .setMaximumNumberTrees(10)
+                .setFeatureBagFraction(0.5)
+                .setNumTopFeatureImportanceValues(3)
+                .build())
+            .setDescription("this is a classification")
+            .build();
+
+        createIndex("put-test-source-index", defaultMappingForTest());
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+        assertThat(createdConfig.getId(), equalTo(config.getId()));
+        assertThat(createdConfig.getSource().getIndex(), equalTo(config.getSource().getIndex()));
+        assertThat(createdConfig.getSource().getQueryConfig(), equalTo(new QueryConfig(new MatchAllQueryBuilder())));  // default value
+        assertThat(createdConfig.getDest().getIndex(), equalTo(config.getDest().getIndex()));
+        assertThat(createdConfig.getDest().getResultsField(), equalTo("ml"));  // default value
+        assertThat(createdConfig.getAnalysis(), equalTo(config.getAnalysis()));
+        assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
+        assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
+        assertThat(createdConfig.getDescription(), equalTo("this is a classification"));
+    }
+
+    public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "get-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("get-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("get-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        createIndex("get-test-source-index", defaultMappingForTest());
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+
+        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), contains(createdConfig));
+    }
+
+    public void testGetDataFrameAnalyticsConfig_MultipleConfigs() throws Exception {
+        createIndex("get-test-source-index", defaultMappingForTest());
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configIdPrefix = "get-test-config-";
+        int numberOfConfigs = 10;
+        List<DataFrameAnalyticsConfig> createdConfigs = new ArrayList<>();
+        for (int i = 0; i < numberOfConfigs; ++i) {
+            String configId = configIdPrefix + i;
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+                .setId(configId)
+                .setSource(DataFrameAnalyticsSource.builder()
+                    .setIndex("get-test-source-index")
+                    .build())
+                .setDest(DataFrameAnalyticsDest.builder()
+                    .setIndex("get-test-dest-index")
+                    .build())
+                .setAnalysis(OutlierDetection.createDefault())
+                .build();
+
+            PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+                new PutDataFrameAnalyticsRequest(config),
+                machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+            DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+            createdConfigs.add(createdConfig);
+        }
+
+        {
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                GetDataFrameAnalyticsRequest.getAllDataFrameAnalyticsRequest(),
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(numberOfConfigs));
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), containsInAnyOrder(createdConfigs.toArray()));
+        }
+        {
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                new GetDataFrameAnalyticsRequest(configIdPrefix + "*"),
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(numberOfConfigs));
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), containsInAnyOrder(createdConfigs.toArray()));
+        }
+        {
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                new GetDataFrameAnalyticsRequest(configIdPrefix + "9", configIdPrefix + "1", configIdPrefix + "4"),
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(3));
+            assertThat(
+                getDataFrameAnalyticsResponse.getAnalytics(),
+                containsInAnyOrder(createdConfigs.get(1), createdConfigs.get(4), createdConfigs.get(9)));
+        }
+        {
+            GetDataFrameAnalyticsRequest getDataFrameAnalyticsRequest = new GetDataFrameAnalyticsRequest(configIdPrefix + "*");
+            getDataFrameAnalyticsRequest.setPageParams(new PageParams(3, 4));
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                getDataFrameAnalyticsRequest,
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(4));
+            assertThat(
+                getDataFrameAnalyticsResponse.getAnalytics(),
+                containsInAnyOrder(createdConfigs.get(3), createdConfigs.get(4), createdConfigs.get(5), createdConfigs.get(6)));
+        }
+    }
+
+    public void testGetDataFrameAnalyticsConfig_ConfigNotFound() {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("config_that_does_not_exist");
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(request, machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testGetDataFrameAnalyticsStats() throws Exception {
+        String sourceIndex = "get-stats-test-source-index";
+        String destIndex = "get-stats-test-dest-index";
+        createIndex(sourceIndex, defaultMappingForTest());
+        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000), RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "get-stats-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex(sourceIndex)
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex(destIndex)
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+
+        GetDataFrameAnalyticsStatsResponse statsResponse = execute(
+            new GetDataFrameAnalyticsStatsRequest(configId),
+            machineLearningClient::getDataFrameAnalyticsStats, machineLearningClient::getDataFrameAnalyticsStatsAsync);
+
+        assertThat(statsResponse.getAnalyticsStats(), hasSize(1));
+        DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
+        assertThat(stats.getId(), equalTo(configId));
+        assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
+        assertNull(stats.getFailureReason());
+        assertNull(stats.getNode());
+        assertNull(stats.getAssignmentExplanation());
+        assertThat(statsResponse.getNodeFailures(), hasSize(0));
+        assertThat(statsResponse.getTaskFailures(), hasSize(0));
+        List<PhaseProgress> progress = stats.getProgress();
+        assertThat(progress, is(notNullValue()));
+        assertThat(progress.size(), equalTo(4));
+        assertThat(progress.get(0), equalTo(new PhaseProgress("reindexing", 0)));
+        assertThat(progress.get(1), equalTo(new PhaseProgress("loading_data", 0)));
+        assertThat(progress.get(2), equalTo(new PhaseProgress("analyzing", 0)));
+        assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
+    }
+
+    public void testStartDataFrameAnalyticsConfig() throws Exception {
+        String sourceIndex = "start-test-source-index";
+        String destIndex = "start-test-dest-index";
+        createIndex(sourceIndex, defaultMappingForTest());
+        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
+
+        // Verify that the destination index does not exist. Otherwise, analytics' reindexing step would fail.
+        assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "start-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex(sourceIndex)
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex(destIndex)
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED));
+
+        AcknowledgedResponse startDataFrameAnalyticsResponse = execute(
+            new StartDataFrameAnalyticsRequest(configId),
+            machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
+        assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
+
+        // Wait for the analytics to stop.
+        assertBusy(() -> assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED)), 30, TimeUnit.SECONDS);
+
+        // Verify that the destination index got created.
+        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43924")
+    public void testStopDataFrameAnalyticsConfig() throws Exception {
+        String sourceIndex = "stop-test-source-index";
+        String destIndex = "stop-test-dest-index";
+        createIndex(sourceIndex, defaultMappingForTest());
+        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
+
+        // Verify that the destination index does not exist. Otherwise, analytics' reindexing step would fail.
+        assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "stop-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex(sourceIndex)
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex(destIndex)
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED));
+
+        AcknowledgedResponse startDataFrameAnalyticsResponse = execute(
+            new StartDataFrameAnalyticsRequest(configId),
+            machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
+        assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
+        assertThat(getAnalyticsState(configId), anyOf(equalTo(DataFrameAnalyticsState.STARTED),
+            equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING)));
+
+        StopDataFrameAnalyticsResponse stopDataFrameAnalyticsResponse = execute(
+            new StopDataFrameAnalyticsRequest(configId),
+            machineLearningClient::stopDataFrameAnalytics, machineLearningClient::stopDataFrameAnalyticsAsync);
+        assertTrue(stopDataFrameAnalyticsResponse.isStopped());
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED));
+    }
+
+    private DataFrameAnalyticsState getAnalyticsState(String configId) throws IOException {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        GetDataFrameAnalyticsStatsResponse statsResponse =
+            machineLearningClient.getDataFrameAnalyticsStats(new GetDataFrameAnalyticsStatsRequest(configId), RequestOptions.DEFAULT);
+        assertThat(statsResponse.getAnalyticsStats(), hasSize(1));
+        DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
+        return stats.getState();
+    }
+
+    public void testDeleteDataFrameAnalyticsConfig() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "delete-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("delete-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("delete-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        createIndex("delete-test-source-index", defaultMappingForTest());
+
+        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId + "*"),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(0));
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+
+        getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId + "*"),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
+
+        DeleteDataFrameAnalyticsRequest deleteRequest = new DeleteDataFrameAnalyticsRequest(configId);
+        if (randomBoolean()) {
+            deleteRequest.setForce(randomBoolean());
+        }
+        AcknowledgedResponse deleteDataFrameAnalyticsResponse = execute(deleteRequest,
+            machineLearningClient::deleteDataFrameAnalytics, machineLearningClient::deleteDataFrameAnalyticsAsync);
+        assertTrue(deleteDataFrameAnalyticsResponse.isAcknowledged());
+
+        getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId + "*"),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(0));
+    }
+
+    public void testDeleteDataFrameAnalyticsConfig_ConfigNotFound() {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        DeleteDataFrameAnalyticsRequest request = new DeleteDataFrameAnalyticsRequest("config_that_does_not_exist");
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(
+                request, machineLearningClient::deleteDataFrameAnalytics, machineLearningClient::deleteDataFrameAnalyticsAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testEvaluateDataFrame_BinarySoftClassification() throws IOException {
+        String indexName = "evaluate-test-index";
+        createIndex(indexName, mappingForSoftClassification());
+        BulkRequest bulk = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(docForSoftClassification(indexName, "blue", false, 0.1))  // #0
+            .add(docForSoftClassification(indexName, "blue", false, 0.2))  // #1
+            .add(docForSoftClassification(indexName, "blue", false, 0.3))  // #2
+            .add(docForSoftClassification(indexName, "blue", false, 0.4))  // #3
+            .add(docForSoftClassification(indexName, "blue", false, 0.7))  // #4
+            .add(docForSoftClassification(indexName, "blue", true, 0.2))  // #5
+            .add(docForSoftClassification(indexName, "green", true, 0.3))  // #6
+            .add(docForSoftClassification(indexName, "green", true, 0.4))  // #7
+            .add(docForSoftClassification(indexName, "green", true, 0.8))  // #8
+            .add(docForSoftClassification(indexName, "green", true, 0.9));  // #9
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        EvaluateDataFrameRequest evaluateDataFrameRequest =
+            new EvaluateDataFrameRequest(
+                indexName,
+                null,
+                new BinarySoftClassification(
+                    actualField,
+                    probabilityField,
+                    PrecisionMetric.at(0.4, 0.5, 0.6), RecallMetric.at(0.5, 0.7), ConfusionMatrixMetric.at(0.5), AucRocMetric.withCurve()));
+
+        EvaluateDataFrameResponse evaluateDataFrameResponse =
+            execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(BinarySoftClassification.NAME));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(4));
+
+        PrecisionMetric.Result precisionResult = evaluateDataFrameResponse.getMetricByName(PrecisionMetric.NAME);
+        assertThat(precisionResult.getMetricName(), equalTo(PrecisionMetric.NAME));
+        // Precision is 3/5=0.6 as there were 3 true examples (#7, #8, #9) among the 5 positive examples (#3, #4, #7, #8, #9)
+        assertThat(precisionResult.getScoreByThreshold("0.4"), closeTo(0.6, 1e-9));
+        // Precision is 2/3=0.(6) as there were 2 true examples (#8, #9) among the 3 positive examples (#4, #8, #9)
+        assertThat(precisionResult.getScoreByThreshold("0.5"), closeTo(0.666666666, 1e-9));
+        // Precision is 2/3=0.(6) as there were 2 true examples (#8, #9) among the 3 positive examples (#4, #8, #9)
+        assertThat(precisionResult.getScoreByThreshold("0.6"), closeTo(0.666666666, 1e-9));
+        assertNull(precisionResult.getScoreByThreshold("0.1"));
+
+        RecallMetric.Result recallResult = evaluateDataFrameResponse.getMetricByName(RecallMetric.NAME);
+        assertThat(recallResult.getMetricName(), equalTo(RecallMetric.NAME));
+        // Recall is 2/5=0.4 as there were 2 true positive examples (#8, #9) among the 5 true examples (#5, #6, #7, #8, #9)
+        assertThat(recallResult.getScoreByThreshold("0.5"), closeTo(0.4, 1e-9));
+        // Recall is 2/5=0.4 as there were 2 true positive examples (#8, #9) among the 5 true examples (#5, #6, #7, #8, #9)
+        assertThat(recallResult.getScoreByThreshold("0.7"), closeTo(0.4, 1e-9));
+        assertNull(recallResult.getScoreByThreshold("0.1"));
+
+        ConfusionMatrixMetric.Result confusionMatrixResult = evaluateDataFrameResponse.getMetricByName(ConfusionMatrixMetric.NAME);
+        assertThat(confusionMatrixResult.getMetricName(), equalTo(ConfusionMatrixMetric.NAME));
+        ConfusionMatrixMetric.ConfusionMatrix confusionMatrix = confusionMatrixResult.getScoreByThreshold("0.5");
+        assertThat(confusionMatrix.getTruePositives(), equalTo(2L));  // docs #8 and #9
+        assertThat(confusionMatrix.getFalsePositives(), equalTo(1L));  // doc #4
+        assertThat(confusionMatrix.getTrueNegatives(), equalTo(4L));  // docs #0, #1, #2 and #3
+        assertThat(confusionMatrix.getFalseNegatives(), equalTo(3L));  // docs #5, #6 and #7
+        assertNull(confusionMatrixResult.getScoreByThreshold("0.1"));
+
+        AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
+        assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
+        assertThat(aucRocResult.getScore(), closeTo(0.70025, 1e-9));
+        assertNotNull(aucRocResult.getCurve());
+        List<AucRocMetric.AucRocPoint> curve = aucRocResult.getCurve();
+        AucRocMetric.AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
+        assertThat(curvePointAtThreshold0.getTruePositiveRate(), equalTo(1.0));
+        assertThat(curvePointAtThreshold0.getFalsePositiveRate(), equalTo(1.0));
+        assertThat(curvePointAtThreshold0.getThreshold(), equalTo(0.0));
+        AucRocMetric.AucRocPoint curvePointAtThreshold1 = curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get();
+        assertThat(curvePointAtThreshold1.getTruePositiveRate(), equalTo(0.0));
+        assertThat(curvePointAtThreshold1.getFalsePositiveRate(), equalTo(0.0));
+        assertThat(curvePointAtThreshold1.getThreshold(), equalTo(1.0));
+    }
+
+    public void testEvaluateDataFrame_BinarySoftClassification_WithQuery() throws IOException {
+        String indexName = "evaluate-with-query-test-index";
+        createIndex(indexName, mappingForSoftClassification());
+        BulkRequest bulk = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #0
+            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #1
+            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #2
+            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #3
+            .add(docForSoftClassification(indexName, "blue", true, 0.0))  // #4
+            .add(docForSoftClassification(indexName, "blue", true, 0.0))  // #5
+            .add(docForSoftClassification(indexName, "green", true, 0.0))  // #6
+            .add(docForSoftClassification(indexName, "green", true, 0.0))  // #7
+            .add(docForSoftClassification(indexName, "green", true, 0.0))  // #8
+            .add(docForSoftClassification(indexName, "green", true, 1.0));  // #9
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        EvaluateDataFrameRequest evaluateDataFrameRequest =
+            new EvaluateDataFrameRequest(
+                indexName,
+                // Request only "blue" subset to be evaluated
+                new QueryConfig(QueryBuilders.termQuery(datasetField, "blue")),
+                new BinarySoftClassification(actualField, probabilityField, ConfusionMatrixMetric.at(0.5)));
+
+        EvaluateDataFrameResponse evaluateDataFrameResponse =
+            execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(BinarySoftClassification.NAME));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+        ConfusionMatrixMetric.Result confusionMatrixResult = evaluateDataFrameResponse.getMetricByName(ConfusionMatrixMetric.NAME);
+        assertThat(confusionMatrixResult.getMetricName(), equalTo(ConfusionMatrixMetric.NAME));
+        ConfusionMatrixMetric.ConfusionMatrix confusionMatrix = confusionMatrixResult.getScoreByThreshold("0.5");
+        assertThat(confusionMatrix.getTruePositives(), equalTo(4L));  // docs #0, #1, #2 and #3
+        assertThat(confusionMatrix.getFalsePositives(), equalTo(0L));
+        assertThat(confusionMatrix.getTrueNegatives(), equalTo(0L));
+        assertThat(confusionMatrix.getFalseNegatives(), equalTo(2L));  // docs #4 and #5
+    }
+
+    public void testEvaluateDataFrame_Regression() throws IOException {
+        String regressionIndex = "evaluate-regression-test-index";
+        createIndex(regressionIndex, mappingForRegression());
+        BulkRequest regressionBulk = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(docForRegression(regressionIndex, 0.3, 0.1))  // #0
+            .add(docForRegression(regressionIndex, 0.3, 0.2))  // #1
+            .add(docForRegression(regressionIndex, 0.3, 0.3))  // #2
+            .add(docForRegression(regressionIndex, 0.3, 0.4))  // #3
+            .add(docForRegression(regressionIndex, 0.3, 0.7))  // #4
+            .add(docForRegression(regressionIndex, 0.5, 0.2))  // #5
+            .add(docForRegression(regressionIndex, 0.5, 0.3))  // #6
+            .add(docForRegression(regressionIndex, 0.5, 0.4))  // #7
+            .add(docForRegression(regressionIndex, 0.5, 0.8))  // #8
+            .add(docForRegression(regressionIndex, 0.5, 0.9));  // #9
+        highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        EvaluateDataFrameRequest evaluateDataFrameRequest =
+            new EvaluateDataFrameRequest(
+                regressionIndex,
+                null,
+                new Regression(actualRegression, predictedRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
+
+        EvaluateDataFrameResponse evaluateDataFrameResponse =
+            execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(2));
+
+        MeanSquaredErrorMetric.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredErrorMetric.NAME);
+        assertThat(mseResult.getMetricName(), equalTo(MeanSquaredErrorMetric.NAME));
+        assertThat(mseResult.getError(), closeTo(0.061000000, 1e-9));
+
+        RSquaredMetric.Result rSquaredResult = evaluateDataFrameResponse.getMetricByName(RSquaredMetric.NAME);
+        assertThat(rSquaredResult.getMetricName(), equalTo(RSquaredMetric.NAME));
+        assertThat(rSquaredResult.getValue(), closeTo(-5.1000000000000005, 1e-9));
+    }
+
+    public void testEvaluateDataFrame_Classification() throws IOException {
+        String indexName = "evaluate-classification-test-index";
+        createIndex(indexName, mappingForClassification());
+        BulkRequest regressionBulk = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(docForClassification(indexName, "cat", "cat"))
+            .add(docForClassification(indexName, "cat", "cat"))
+            .add(docForClassification(indexName, "cat", "cat"))
+            .add(docForClassification(indexName, "cat", "dog"))
+            .add(docForClassification(indexName, "cat", "fish"))
+            .add(docForClassification(indexName, "dog", "cat"))
+            .add(docForClassification(indexName, "dog", "dog"))
+            .add(docForClassification(indexName, "dog", "dog"))
+            .add(docForClassification(indexName, "dog", "dog"))
+            .add(docForClassification(indexName, "ant", "cat"));
+        highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        {  // Accuracy
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName, null, new Classification(actualClassField, predictedClassField, new AccuracyMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            AccuracyMetric.Result accuracyResult = evaluateDataFrameResponse.getMetricByName(AccuracyMetric.NAME);
+            assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
+            assertThat(
+                accuracyResult.getClasses(),
+                equalTo(
+                    List.of(
+                        // 9 out of 10 examples were classified correctly
+                        new AccuracyMetric.PerClassResult("ant", 0.9),
+                        // 6 out of 10 examples were classified correctly
+                        new AccuracyMetric.PerClassResult("cat", 0.6),
+                        // 8 out of 10 examples were classified correctly
+                        new AccuracyMetric.PerClassResult("dog", 0.8))));
+            assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
+        }
+        {  // Precision
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(
+                        actualClassField,
+                        predictedClassField,
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.Result precisionResult =
+                evaluateDataFrameResponse.getMetricByName(
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME);
+            assertThat(
+                precisionResult.getMetricName(),
+                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME));
+            assertThat(
+                precisionResult.getClasses(),
+                equalTo(
+                    List.of(
+                        // 3 out of 5 examples labeled as "cat" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("cat", 0.6),
+                        // 3 out of 4 examples labeled as "dog" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("dog", 0.75))));
+            assertThat(precisionResult.getAvgPrecision(), equalTo(0.675));
+        }
+        {  // Recall
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(
+                        actualClassField,
+                        predictedClassField,
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.Result recallResult =
+                evaluateDataFrameResponse.getMetricByName(
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME);
+            assertThat(
+                recallResult.getMetricName(),
+                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME));
+            assertThat(
+                recallResult.getClasses(),
+                equalTo(
+                    List.of(
+                        // 3 out of 5 examples labeled as "cat" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("cat", 0.6),
+                        // 3 out of 4 examples labeled as "dog" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("dog", 0.75),
+                        // no examples labeled as "ant" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("ant", 0.0))));
+            assertThat(recallResult.getAvgRecall(), equalTo(0.45));
+        }
+        {  // No size provided for MulticlassConfusionMatrixMetric, default used instead
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(actualClassField, predictedClassField, new MulticlassConfusionMatrixMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            MulticlassConfusionMatrixMetric.Result mcmResult =
+                evaluateDataFrameResponse.getMetricByName(MulticlassConfusionMatrixMetric.NAME);
+            assertThat(mcmResult.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
+            assertThat(
+                mcmResult.getConfusionMatrix(),
+                equalTo(
+                    List.of(
+                        new MulticlassConfusionMatrixMetric.ActualClass(
+                            "ant",
+                            1L,
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("ant", 0L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 1L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 0L)),
+                            0L),
+                        new MulticlassConfusionMatrixMetric.ActualClass(
+                            "cat",
+                            5L,
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("ant", 0L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 3L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 1L)),
+                            1L),
+                        new MulticlassConfusionMatrixMetric.ActualClass(
+                            "dog",
+                            4L,
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("ant", 0L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 1L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 3L)),
+                            0L))));
+            assertThat(mcmResult.getOtherActualClassCount(), equalTo(0L));
+        }
+        {  // Explicit size provided for MulticlassConfusionMatrixMetric metric
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(actualClassField, predictedClassField, new MulticlassConfusionMatrixMetric(2)));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            MulticlassConfusionMatrixMetric.Result mcmResult =
+                evaluateDataFrameResponse.getMetricByName(MulticlassConfusionMatrixMetric.NAME);
+            assertThat(mcmResult.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
+            assertThat(
+                mcmResult.getConfusionMatrix(),
+                equalTo(
+                    List.of(
+                        new MulticlassConfusionMatrixMetric.ActualClass(
+                            "cat",
+                            5L,
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 3L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 1L)),
+                            1L),
+                        new MulticlassConfusionMatrixMetric.ActualClass(
+                            "dog",
+                            4L,
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 1L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 3L)),
+                            0L)
+                    )));
+            assertThat(mcmResult.getOtherActualClassCount(), equalTo(1L));
+        }
+    }
+
+    private static XContentBuilder defaultMappingForTest() throws IOException {
+        return XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+               .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject();
+    }
+
+    private static final String datasetField = "dataset";
+    private static final String actualField = "label";
+    private static final String probabilityField = "p";
+
+    private static XContentBuilder mappingForSoftClassification() throws IOException {
+        return XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject(datasetField)
+                    .field("type", "keyword")
+                .endObject()
+                .startObject(actualField)
+                    .field("type", "keyword")
+                .endObject()
+                .startObject(probabilityField)
+                    .field("type", "double")
+                .endObject()
+            .endObject()
+        .endObject();
+    }
+
+    private static IndexRequest docForSoftClassification(String indexName, String dataset, boolean isTrue, double p) {
+        return new IndexRequest()
+            .index(indexName)
+            .source(XContentType.JSON, datasetField, dataset, actualField, Boolean.toString(isTrue), probabilityField, p);
+    }
+
+    private static final String actualClassField = "actual_class";
+    private static final String predictedClassField = "predicted_class";
+
+    private static XContentBuilder mappingForClassification() throws IOException {
+        return XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject(actualClassField)
+                    .field("type", "keyword")
+                .endObject()
+                .startObject(predictedClassField)
+                    .field("type", "keyword")
+                .endObject()
+            .endObject()
+        .endObject();
+    }
+
+    private static IndexRequest docForClassification(String indexName, String actualClass, String predictedClass) {
+        return new IndexRequest()
+            .index(indexName)
+            .source(XContentType.JSON, actualClassField, actualClass, predictedClassField, predictedClass);
+    }
+
+    private static final String actualRegression = "regression_actual";
+    private static final String predictedRegression = "regression_predicted";
+
+    private static XContentBuilder mappingForRegression() throws IOException {
+        return XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject(actualRegression)
+                    .field("type", "double")
+                .endObject()
+                .startObject(predictedRegression)
+                    .field("type", "double")
+                .endObject()
+            .endObject()
+        .endObject();
+    }
+
+    private static IndexRequest docForRegression(String indexName, double actualValue, double predictedValue) {
+        return new IndexRequest()
+            .index(indexName)
+            .source(XContentType.JSON, actualRegression, actualValue, predictedRegression, predictedValue);
+    }
+
+    private void createIndex(String indexName, XContentBuilder mapping) throws IOException {
+        highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
+    }
+
+    public void testExplainDataFrameAnalytics() throws IOException {
+        String indexName = "explain-df-test-index";
+        createIndex(indexName, mappingForSoftClassification());
+        BulkRequest bulk1 = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 10; ++i) {
+            bulk1.add(docForSoftClassification(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
+        }
+        highLevelClient().bulk(bulk1, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        ExplainDataFrameAnalyticsRequest explainRequest =
+            new ExplainDataFrameAnalyticsRequest(
+                DataFrameAnalyticsConfig.builder()
+                    .setSource(DataFrameAnalyticsSource.builder().setIndex(indexName).build())
+                    .setAnalysis(OutlierDetection.createDefault())
+                    .build());
+
+        // We are pretty liberal here as this test does not aim at verifying concrete numbers but rather end-to-end user workflow.
+        ByteSizeValue lowerBound = new ByteSizeValue(1, ByteSizeUnit.KB);
+        ByteSizeValue upperBound = new ByteSizeValue(1, ByteSizeUnit.GB);
+
+        // Data Frame has 10 rows, expect that the returned estimates fall within (1kB, 1GB) range.
+        ExplainDataFrameAnalyticsResponse response1 = execute(explainRequest, machineLearningClient::explainDataFrameAnalytics,
+            machineLearningClient::explainDataFrameAnalyticsAsync);
+
+        MemoryEstimation memoryEstimation1 = response1.getMemoryEstimation();
+        assertThat(memoryEstimation1.getExpectedMemoryWithoutDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
+        assertThat(memoryEstimation1.getExpectedMemoryWithDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
+
+        List<FieldSelection> fieldSelection = response1.getFieldSelection();
+        assertThat(fieldSelection.size(), equalTo(3));
+        assertThat(fieldSelection.stream().map(FieldSelection::getName).collect(Collectors.toList()), contains("dataset", "label", "p"));
+
+        BulkRequest bulk2 = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 10; i < 100; ++i) {
+            bulk2.add(docForSoftClassification(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
+        }
+        highLevelClient().bulk(bulk2, RequestOptions.DEFAULT);
+
+        // Data Frame now has 100 rows, expect that the returned estimates will be greater than or equal to the previous ones.
+        ExplainDataFrameAnalyticsResponse response2 =
+            execute(
+                explainRequest, machineLearningClient::explainDataFrameAnalytics, machineLearningClient::explainDataFrameAnalyticsAsync);
+        MemoryEstimation memoryEstimation2 = response2.getMemoryEstimation();
+        assertThat(
+            memoryEstimation2.getExpectedMemoryWithoutDisk(),
+            allOf(greaterThanOrEqualTo(memoryEstimation1.getExpectedMemoryWithoutDisk()), lessThan(upperBound)));
+        assertThat(
+            memoryEstimation2.getExpectedMemoryWithDisk(),
+            allOf(greaterThanOrEqualTo(memoryEstimation1.getExpectedMemoryWithDisk()), lessThan(upperBound)));
+    }
+
+    public void testGetTrainedModels() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String modelIdPrefix = "get-trained-model-";
+        int numberOfModels = 5;
+        for (int i = 0; i < numberOfModels; ++i) {
+            String modelId = modelIdPrefix + i;
+            putTrainedModel(modelId);
+        }
+
+        {
+            GetTrainedModelsResponse getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(true).setIncludeDefinition(true),
+                machineLearningClient::getTrainedModels,
+                machineLearningClient::getTrainedModelsAsync);
+
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getCompressedDefinition(), is(nullValue()));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition(), is(not(nullValue())));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
+
+            getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(true),
+                machineLearningClient::getTrainedModels,
+                machineLearningClient::getTrainedModelsAsync);
+
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getCompressedDefinition(), is(not(nullValue())));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition(), is(nullValue()));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
+
+            getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(false),
+                machineLearningClient::getTrainedModels,
+                machineLearningClient::getTrainedModelsAsync);
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getCompressedDefinition(), is(nullValue()));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition(), is(nullValue()));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
+
+        }
+        {
+            GetTrainedModelsResponse getTrainedModelsResponse = execute(
+                GetTrainedModelsRequest.getAllTrainedModelConfigsRequest(),
+                machineLearningClient::getTrainedModels, machineLearningClient::getTrainedModelsAsync);
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(numberOfModels + 1));
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L + 1));
+        }
+        {
+            GetTrainedModelsResponse getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + 4, modelIdPrefix + 2, modelIdPrefix + 3),
+                machineLearningClient::getTrainedModels, machineLearningClient::getTrainedModelsAsync);
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(3));
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(3L));
+        }
+        {
+            GetTrainedModelsResponse getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + "*").setPageParams(new PageParams(1, 2)),
+                machineLearningClient::getTrainedModels, machineLearningClient::getTrainedModelsAsync);
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(2));
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L));
+            assertThat(
+                getTrainedModelsResponse.getTrainedModels().stream().map(TrainedModelConfig::getModelId).collect(Collectors.toList()),
+                containsInAnyOrder(modelIdPrefix + 1, modelIdPrefix + 2));
+        }
+    }
+
+    public void testPutTrainedModel() throws Exception {
+        String modelId = "test-put-trained-model";
+        String modelIdCompressed = "test-put-trained-model-compressed-definition";
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder(TargetType.REGRESSION).build();
+        TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
+            .setDefinition(definition)
+            .setModelId(modelId)
+            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setDescription("test model")
+            .build();
+        PutTrainedModelResponse putTrainedModelResponse = execute(new PutTrainedModelRequest(trainedModelConfig),
+            machineLearningClient::putTrainedModel,
+            machineLearningClient::putTrainedModelAsync);
+        TrainedModelConfig createdModel = putTrainedModelResponse.getResponse();
+        assertThat(createdModel.getModelId(), equalTo(modelId));
+
+        definition = TrainedModelDefinitionTests.createRandomBuilder(TargetType.REGRESSION).build();
+        trainedModelConfig = TrainedModelConfig.builder()
+            .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition))
+            .setModelId(modelIdCompressed)
+            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setDescription("test model")
+            .build();
+        putTrainedModelResponse = execute(new PutTrainedModelRequest(trainedModelConfig),
+            machineLearningClient::putTrainedModel,
+            machineLearningClient::putTrainedModelAsync);
+        createdModel = putTrainedModelResponse.getResponse();
+        assertThat(createdModel.getModelId(), equalTo(modelIdCompressed));
+
+        GetTrainedModelsResponse getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest(modelIdCompressed).setDecompressDefinition(true).setIncludeDefinition(true),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getCompressedDefinition(), is(nullValue()));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition(), is(not(nullValue())));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdCompressed));
+    }
+
+    public void testGetTrainedModelsStats() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String modelIdPrefix = "a-get-trained-model-stats-";
+        int numberOfModels = 5;
+        for (int i = 0; i < numberOfModels; ++i) {
+            String modelId = modelIdPrefix + i;
+            putTrainedModel(modelId);
+        }
+
+        String regressionPipeline = "{" +
+            "    \"processors\": [\n" +
+            "      {\n" +
+            "        \"inference\": {\n" +
+            "          \"target_field\": \"regression_value\",\n" +
+            "          \"model_id\": \"" + modelIdPrefix + 0 + "\",\n" +
+            "          \"inference_config\": {\"regression\": {}},\n" +
+            "          \"field_mappings\": {\n" +
+            "            \"col1\": \"col1\",\n" +
+            "            \"col2\": \"col2\",\n" +
+            "            \"col3\": \"col3\",\n" +
+            "            \"col4\": \"col4\"\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }]}\n";
+
+        highLevelClient().ingest().putPipeline(
+            new PutPipelineRequest("regression-stats-pipeline",
+                new BytesArray(regressionPipeline.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON),
+            RequestOptions.DEFAULT);
+        {
+            GetTrainedModelsStatsResponse getTrainedModelsStatsResponse = execute(
+                GetTrainedModelsStatsRequest.getAllTrainedModelStatsRequest(),
+                machineLearningClient::getTrainedModelsStats, machineLearningClient::getTrainedModelsStatsAsync);
+            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats(), hasSize(numberOfModels + 1));
+            assertThat(getTrainedModelsStatsResponse.getCount(), equalTo(5L + 1));
+            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats().get(0).getPipelineCount(), equalTo(1));
+            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats().get(1).getPipelineCount(), equalTo(0));
+        }
+        {
+            GetTrainedModelsStatsResponse getTrainedModelsStatsResponse = execute(
+                new GetTrainedModelsStatsRequest(modelIdPrefix + 4, modelIdPrefix + 2, modelIdPrefix + 3),
+                machineLearningClient::getTrainedModelsStats, machineLearningClient::getTrainedModelsStatsAsync);
+            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats(), hasSize(3));
+            assertThat(getTrainedModelsStatsResponse.getCount(), equalTo(3L));
+        }
+        {
+            GetTrainedModelsStatsResponse getTrainedModelsStatsResponse = execute(
+                new GetTrainedModelsStatsRequest(modelIdPrefix + "*").setPageParams(new PageParams(1, 2)),
+                machineLearningClient::getTrainedModelsStats, machineLearningClient::getTrainedModelsStatsAsync);
+            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats(), hasSize(2));
+            assertThat(getTrainedModelsStatsResponse.getCount(), equalTo(5L));
+            assertThat(
+                getTrainedModelsStatsResponse.getTrainedModelStats()
+                    .stream()
+                    .map(TrainedModelStats::getModelId)
+                    .collect(Collectors.toList()),
+                containsInAnyOrder(modelIdPrefix + 1, modelIdPrefix + 2));
+        }
+    }
+
+    public void testDeleteTrainedModel() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String modelId = "delete-trained-model-test";
+        putTrainedModel(modelId);
+
+        GetTrainedModelsResponse getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest(modelId + "*").setIncludeDefinition(false).setAllowNoMatch(true),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+
+        AcknowledgedResponse deleteTrainedModelResponse = execute(
+            new DeleteTrainedModelRequest(modelId),
+            machineLearningClient::deleteTrainedModel, machineLearningClient::deleteTrainedModelAsync);
+        assertTrue(deleteTrainedModelResponse.isAcknowledged());
+
+        getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest(modelId + "*").setIncludeDefinition(false).setAllowNoMatch(true),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(0L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(0));
+    }
+
+    public void testGetPrepackagedModels() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        GetTrainedModelsResponse getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest("lang_ident_model_1").setIncludeDefinition(true),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo("lang_ident_model_1"));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition().getTrainedModel(),
+            instanceOf(LangIdentNeuralNetwork.class));
+    }
+
     public void testPutFilter() throws Exception {
         String filterId = "filter-job-test";
         MlFilter mlFilter = MlFilter.builder(filterId)
@@ -1286,7 +2407,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             GetFiltersResponse getFiltersResponse = execute(getFiltersRequest,
                 machineLearningClient::getFilter,
                 machineLearningClient::getFilterAsync);
-            assertThat(getFiltersResponse.count(), equalTo(2L));
+            assertThat(getFiltersResponse.count(), equalTo(3L));
             assertThat(getFiltersResponse.filters().size(), equalTo(2));
             assertThat(getFiltersResponse.filters().stream().map(MlFilter::getId).collect(Collectors.toList()),
                 containsInAnyOrder("get-filter-test-2", "get-filter-test-3"));
@@ -1407,6 +2528,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
     }
 
+    private void putTrainedModel(String modelId) throws IOException {
+        TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder(TargetType.REGRESSION).build();
+        TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
+            .setDefinition(definition)
+            .setModelId(modelId)
+            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setDescription("test model")
+            .build();
+        highLevelClient().machineLearning().putTrainedModel(new PutTrainedModelRequest(trainedModelConfig), RequestOptions.DEFAULT);
+    }
+
     private void waitForJobToClose(String jobId) throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
@@ -1445,12 +2577,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
 
         String snapshotUpdate = "{ \"timestamp\": " + timestamp + "}";
-        UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, "_doc", documentId);
+        UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, documentId);
         updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
     }
-
-
 
     private String createAndPutDatafeed(String jobId, String indexName) throws IOException {
         String datafeedId = jobId + "-feed";
@@ -1467,7 +2597,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         Job job = MachineLearningIT.buildJob(jobId);
         highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -1487,7 +2617,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         for(String snapshotId : snapshotIds) {
             String documentId = jobId + "_model_snapshot_" + snapshotId;
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
                 "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -1650,5 +2780,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
         assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(false));
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 }

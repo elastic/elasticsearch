@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -97,14 +97,14 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         }
         return Paths.get(auditLogFileString);
     }
-    
+
     @SuppressForbidden(reason="security doesn't work with mock filesystem")
     private static Path lookupRolledOverAuditLog() {
         String auditLogFileString = System.getProperty("tests.audit.yesterday.logfile");
         if (null == auditLogFileString) {
             throw new IllegalStateException("tests.audit.yesterday.logfile must be set to run this test. It should be automatically "
                     + "set by gradle.");
-        }        
+        }
         return Paths.get(auditLogFileString);
     }
 
@@ -120,7 +120,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
      * How much of the audit log was written before the test started.
      */
     private static long auditLogWrittenBeforeTestStart;
-    
+
     /**
      * If the audit log file rolled over. This is a rare case possible only at midnight.
      */
@@ -188,7 +188,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            
+
             // The log file can roll over without being caught by assertLogs() method: in those tests where exceptions are being handled
             // and no audit logs being read (and, thus, assertLogs() is not called) - for example testNoMonitorMain() method: there are no
             // calls to auditLogs(), and the method could run while the audit file is rolled over.
@@ -205,12 +205,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     @AfterClass
     public static void wipeIndicesAfterTests() throws IOException {
         try {
-            adminClient().performRequest(new Request("DELETE", "*"));
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
+           wipeAllIndices();
         } finally {
             // Clear the static state so other subclasses can reuse it later
             oneTimeSetup = false;
@@ -586,7 +581,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                     if (sm != null) {
                         sm.checkPermission(new SpecialPermission());
                     }
-                    
+
                     BufferedReader[] logReaders = new BufferedReader[2];
                     AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                         try {
@@ -604,7 +599,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                             throw new RuntimeException(e);
                         }
                     });
-                    
+
                     // The "index" is used as a way of reading from both rolled over file and current audit file in order: rolled over file
                     // first, then the audit log file. Very rarely we will read from the rolled over file: when the test happened to run
                     // at midnight and the audit file rolled over during the test.
@@ -647,14 +642,17 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                 assertThat(log.containsKey("user.name"), is(true));
                                 List<String> indices = new ArrayList<>();
                                 if (log.containsKey("indices")) {
-                                    indices = (ArrayList<String>) log.get("indices");
+                                    @SuppressWarnings("unchecked")
+                                    List<String> castIndices = (ArrayList<String>) log.get("indices");
+                                    indices = castIndices;
                                     if ("test_admin".equals(log.get("user.name"))) {
                                         /*
                                          * Sometimes we accidentally sneak access to the security tables. This is fine,
                                          * SQL drops them from the interface. So we might have access to them, but we
                                          * don't show them.
                                          */
-                                        indices.removeAll(RestrictedIndicesNames.RESTRICTED_NAMES);
+                                        indices = indices.stream().filter(
+                                                idx -> false == RestrictedIndicesNames.isRestricted(idx)).collect(Collectors.toList());
                                     }
                                 }
                                 // Use a sorted list for indices for consistent error reporting

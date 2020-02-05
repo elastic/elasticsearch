@@ -3,6 +3,7 @@
 :request: FlushJobRequest
 :response: FlushJobResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Flush Job API
 

@@ -37,7 +37,7 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -54,7 +54,7 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         try {
-            docMapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+            docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("_routing", "foo").endObject()),XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {

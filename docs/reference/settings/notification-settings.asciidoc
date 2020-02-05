@@ -27,14 +27,12 @@ Set to `false` to disable {watcher} on the node.
 `xpack.watcher.encrypt_sensitive_data`::
 Set to `true` to encrypt sensitive data. If this setting is enabled, you
 must also specify the `xpack.watcher.encryption_key` setting. For more
-information, see
-{xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
+information, see <<encrypting-data>>.
 
 `xpack.watcher.encryption_key` (<<secure-settings,Secure>>)::
 Specifies the path to a file that contains a key for encrypting sensitive data.
 If `xpack.watcher.encrypt_sensitive_data` is set to `true`, this setting is
-required. For more information, see
-{xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
+required. For more information, see <<encrypting-data>>.
 
 `xpack.watcher.history.cleaner_service.enabled`::
 added:[6.3.0,Default changed to `true`.]
@@ -76,7 +74,7 @@ corresponding endpoints are whitelisted as well.
 
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http
-:component:              {watcher}
+:component:              {watcher} HTTP
 :verifies:
 :server!:
 :ssl-context:            watcher
@@ -88,7 +86,7 @@ include::ssl-settings.asciidoc[]
 ==== Email Notification Settings
 You can configure the following email notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via email, see {xpack-ref}/actions-email.html#configuring-email-actions[Configuring Email].
+via email, see <<configuring-email-actions>>.
 
 `xpack.notification.email.account`::
 Specifies account information for sending notifications via email. You
@@ -98,14 +96,15 @@ can specify the following email account attributes:
 [[email-account-attributes]]
 
   `profile` (<<cluster-update-settings,Dynamic>>);;
-  The {xpack-ref}/actions-email.html#configuring-email[email profile] to use to build the MIME
+  The <<configuring-email,email profile>> to use to build the MIME
   messages that are sent from the account. Valid values: `standard`, `gmail` and
   `outlook`. Defaults to `standard`.
 
   `email_defaults.*` (<<cluster-update-settings,Dynamic>>);;
   An optional set of email attributes to use as defaults
-  for the emails sent from the account. See {xpack-ref}/actions-email.html#email-action-attributes[
-  Email Action Attributes] for the supported attributes.
+  for the emails sent from the account. See
+  <<email-action-attributes>> for the supported
+  attributes.
 
   `smtp.auth` (<<cluster-update-settings,Dynamic>>);;
   Set to `true` to attempt to authenticate the user using the
@@ -166,9 +165,9 @@ can specify the following email account attributes:
 
 `xpack.notification.email.html.sanitization.allow`::
 Specifies the HTML elements that are allowed in email notifications. For
-more information, see {xpack-ref}/actions-email.html#email-html-sanitization[Configuring HTML
-Sanitization Options]. You can specify individual HTML elements
-and the following HTML feature groups:
+more information, see
+<<email-html-sanitization>>. You can
+specify individual HTML elements and the following HTML feature groups:
 +
 --
 [[html-feature-groups]]
@@ -215,12 +214,21 @@ HTML feature groups>>.
 Set to `false` to completely disable HTML sanitation. Not recommended.
 Defaults to `true`.
 
+[[ssl-notification-smtp-settings]]
+:ssl-prefix:             xpack.notification.email
+:component:              {watcher} Email
+:verifies:
+:server!:
+:ssl-context:            watcher-email
+
+include::ssl-settings.asciidoc[]
+
 [float]
 [[slack-notification-settings]]
 ==== Slack Notification Settings
 You can configure the following Slack notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via Slack, see  {xpack-ref}/actions-slack.html#configuring-slack-actions[Configuring Slack].
+via Slack, see <<configuring-slack-actions>>.
 
 `xpack.notification.slack` ::
 Specifies account information for sending notifications
@@ -261,7 +269,7 @@ via Slack. You can specify the following Slack account attributes:
 ==== Jira Notification Settings
 You can configure the following Jira notification settings in
 `elasticsearch.yml`. For more information about using notifications
-to create issues in Jira, see  {xpack-ref}/actions-jira.html#configuring-jira-actions[Configuring Jira].
+to create issues in Jira, see <<configuring-jira-actions>>.
 
 `xpack.notification.jira` ::
 Specifies account information for using notifications to create
@@ -281,7 +289,7 @@ issues in Jira. You can specify the following Jira account attributes:
 
   `issue_defaults`;;
   Default fields values for the issue created in Jira. See
-  {xpack-ref}/actions-jira.html#jira-action-attributes[Jira Action Attributes] for more information.
+  <<jira-action-attributes>> for more information.
   Optional.
 --
 
@@ -290,7 +298,7 @@ issues in Jira. You can specify the following Jira account attributes:
 ==== PagerDuty Notification Settings
 You can configure the following PagerDuty notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via PagerDuty, see  {xpack-ref}/actions-pagerduty.html#configuring-pagerduty-actions[Configuring PagerDuty].
+via PagerDuty, see <<configuring-pagerduty-actions>>.
 
 
 [[pagerduty-account-attributes]]
@@ -309,8 +317,9 @@ PagerDuty API key] to use to access PagerDuty. Required.
 --
 +
 `event_defaults`;;
-Default values for  {xpack-ref}/actions-pagerduty.html#pagerduty-event-trigger-incident-attributes[
-PagerDuty event attributes]. Optional.
+Default values for
+<<pagerduty-event-trigger-incident-attributes,PagerDuty event attributes>>.
+Optional.
 +
 --
 `description`::

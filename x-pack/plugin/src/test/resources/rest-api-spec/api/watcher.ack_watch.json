@@ -1,22 +1,42 @@
 {
-  "watcher.ack_watch": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html",
-    "methods": [ "PUT", "POST" ],
-    "url": {
-      "path": "/_watcher/watch/{watch_id}/_ack",
-      "paths": [ "/_watcher/watch/{watch_id}/_ack", "/_watcher/watch/{watch_id}/_ack/{action_id}"],
-      "parts": {
-        "watch_id": {
-          "type" : "string",
-          "description" : "Watch ID",
-          "required" : true
-        },
-        "action_id": {
-          "type" : "list",
-          "description" : "A comma-separated list of the action ids to be acked"
-        }
-      }
+  "watcher.ack_watch":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/watch/{watch_id}/_ack",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "watch_id":{
+              "type":"string",
+              "description":"Watch ID"
+            }
+          }
+        },
+        {
+          "path":"/_watcher/watch/{watch_id}/_ack/{action_id}",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "watch_id":{
+              "type":"string",
+              "description":"Watch ID"
+            },
+            "action_id":{
+              "type":"list",
+              "description":"A comma-separated list of the action ids to be acked"
+            }
+          }
+        }
+      ]
+    }
   }
 }

@@ -97,7 +97,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     protected abstract InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations);
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long docCount = 0L;
         List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
@@ -107,6 +107,22 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         }
         final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
         return newAggregation(getName(), docCount, aggs);
+    }
+
+    /**
+     * Unlike {@link InternalAggregation#reducePipelines(InternalAggregation, ReduceContext)}, a single-bucket
+     * agg needs to first reduce the aggs in it's bucket (and their parent pipelines) before allowing sibling pipelines
+     * to reduce
+     */
+    @Override
+    public final InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        assert reduceContext.isFinalReduce();
+        List<InternalAggregation> aggs = new ArrayList<>();
+        for (Aggregation agg : getAggregations().asList()) {
+            aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext));
+        }
+        InternalAggregations reducedSubAggs = new InternalAggregations(aggs);
+        return super.reducePipelines(create(reducedSubAggs), reduceContext);
     }
 
     @Override
@@ -137,14 +153,18 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalSingleBucketAggregation other = (InternalSingleBucketAggregation) obj;
         return Objects.equals(docCount, other.docCount) &&
                 Objects.equals(aggregations, other.aggregations);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(docCount, aggregations);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), docCount, aggregations);
     }
 }

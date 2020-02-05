@@ -1,0 +1,217 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-bucket]]
+=== Get buckets API
+++++
+<titleabbrev>Get buckets</titleabbrev>
+++++
+
+Retrieves {anomaly-job} results for one or more buckets.
+
+[[ml-get-bucket-request]]
+==== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>/results/buckets` +
+
+`GET _ml/anomaly_detectors/<job_id>/results/buckets/<timestamp>`
+
+[[ml-get-bucket-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. For more information, see
+<<security-privileges>> and
+<<built-in-roles>>.
+
+[[ml-get-bucket-desc]]
+==== {api-description-title}
+
+The get buckets API presents a chronological view of the records, grouped by
+bucket.
+
+[[ml-get-bucket-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`<timestamp>`::
+(Optional, string) The timestamp of a single bucket result. If you do not
+specify this parameter, the API returns information about all buckets.
+
+[[ml-get-bucket-request-body]]
+==== {api-request-body-title}
+
+`anomaly_score`::
+(Optional, double) Returns buckets with anomaly scores greater or equal than
+this value.
+
+`desc`::
+(Optional, boolean) If true, the buckets are sorted in descending order.
+
+`end`::
+(Optional, string) Returns buckets with timestamps earlier than this time.
+
+`exclude_interim`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
+
+`expand`::
+(Optional, boolean) If true, the output includes anomaly records.
+
+`page`.`from`::
+(Optional, integer) Skips the specified number of buckets.
+`page`.`size`::
+(Optional, integer) Specifies the maximum number of buckets to obtain.
+
+`sort`::
+(Optional, string) Specifies the sort field for the requested buckets. By
+default, the buckets are sorted by the `timestamp` field.
+
+`start`::
+(Optional, string) Returns buckets with timestamps after this time.
+
+[[ml-get-bucket-results]]
+==== {api-response-body-title}
+
+The API returns an array of bucket objects, which have the following properties:
+
+`anomaly_score`::
+(number) The maximum anomaly score, between 0-100, for any of the bucket
+influencers. This is an overall, rate-limited score for the job. All the anomaly 
+records in the bucket contribute to this score. This value might be updated as
+new data is analyzed.
+
+`bucket_influencers`::
+(array) An array of bucket influencer objects, which have the following
+properties:
+
+`bucket_influencers`.`anomaly_score`:::
+(number) A normalized score between 0-100, which is calculated for each bucket
+influencer. This score might be updated as newer data is analyzed.
+
+`bucket_influencers`.`bucket_span`:::
+(number) The length of the bucket in seconds. This value matches the `bucket_span`
+that is specified in the job.
+
+`bucket_influencers`.`initial_anomaly_score`:::
+(number) The score between 0-100 for each bucket influencer. This score is the
+initial value that was calculated at the time the bucket was processed.
+
+`bucket_influencers`.`influencer_field_name`:::
+(string) The field name of the influencer.
+
+`bucket_influencers`.`influencer_field_value`:::
+(string) The field value of the influencer. 
+
+`bucket_influencers`.`is_interim`:::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=is-interim]
+
+`bucket_influencers`.`job_id`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`bucket_influencers`.`probability`:::
+(number) The probability that the bucket has this behavior, in the range 0 to 1.
+This value can be held to a high precision of over 300 decimal places, so the
+`anomaly_score` is provided as a human-readable and friendly interpretation of
+this.
+
+`bucket_influencers`.`raw_anomaly_score`:::
+(number) Internal.
+
+`bucket_influencers`.`result_type`:::
+(string) Internal. This value is always set to `bucket_influencer`.
+
+`bucket_influencers`.`timestamp`:::
+(date) The start time of the bucket for which these results were calculated.
+
+`bucket_span`::
+(number)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
+
+`event_count`::
+(number) The number of input data records processed in this bucket.
+
+`initial_anomaly_score`::
+(number) The maximum `anomaly_score` for any of the bucket influencers. This is
+the initial value that was calculated at the time the bucket was processed.
+
+`is_interim`::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=is-interim]
+
+`job_id`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`processing_time_ms`::
+(number) The amount of time, in milliseconds, that it took to analyze the
+bucket contents and calculate results.
+
+`result_type`::
+(string) Internal. This value is always set to `bucket`.
+
+`timestamp`::
+(date) The start time of the bucket. This timestamp uniquely identifies the
+bucket. 
++
+--
+NOTE: Events that occur exactly at the timestamp of the bucket are included in
+the results for the bucket.
+
+--
+
+[[ml-get-bucket-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/low_request_rate/results/buckets
+{
+  "anomaly_score": 80,
+  "start": "1454530200001"
+}
+--------------------------------------------------
+// TEST[skip:Kibana sample data]
+
+In this example, the API returns a single result that matches the specified
+score and time constraints:
+[source,js]
+----
+{
+  "count" : 1,
+  "buckets" : [
+    {
+      "job_id" : "low_request_rate",
+      "timestamp" : 1578398400000,
+      "anomaly_score" : 91.58505459594764,
+      "bucket_span" : 3600,
+      "initial_anomaly_score" : 91.58505459594764,
+      "event_count" : 0,
+      "is_interim" : false,
+      "bucket_influencers" : [
+        {
+          "job_id" : "low_request_rate",
+          "result_type" : "bucket_influencer",
+          "influencer_field_name" : "bucket_time",
+          "initial_anomaly_score" : 91.58505459594764,
+          "anomaly_score" : 91.58505459594764,
+          "raw_anomaly_score" : 0.5758246639716365,
+          "probability" : 1.7340849573442696E-4,
+          "timestamp" : 1578398400000,
+          "bucket_span" : 3600,
+          "is_interim" : false
+        }
+      ],
+      "processing_time_ms" : 0,
+      "result_type" : "bucket"
+    }
+  ]
+}
+----

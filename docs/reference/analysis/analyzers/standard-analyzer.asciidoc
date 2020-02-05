@@ -10,7 +10,7 @@ for most languages.
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -18,11 +18,10 @@ POST _analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -106,7 +105,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -149,7 +147,7 @@ In this example, we configure the `standard` analyzer to have a
 `max_token_length` of 5 (for demonstration purposes), and to use the
 pre-defined list of English stop words:
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -172,11 +170,10 @@ POST my_index/_analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -253,7 +250,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -281,7 +277,7 @@ parameters then you need to recreate it as a `custom` analyzer and modify
 it, usually by adding token filters. This would recreate the built-in
 `standard` analyzer and you can use it as a starting point:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /standard_example
 {
@@ -299,6 +295,5 @@ PUT /standard_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: standard_example, first: standard, second: rebuilt_standard}\nendyaml\n/]
 <1> You'd add any token filters after `lowercase`.

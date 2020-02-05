@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo.NodeCtor2;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Extract the year from a datetime.
  */
 public class Year extends DateTimeHistogramFunction {
-
-    private static long YEAR_IN_MILLIS = TimeUnit.DAYS.toMillis(1) * 365L;
+    
+    public static String YEAR_INTERVAL = DateHistogramInterval.YEAR.toString();
 
     public Year(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, DateTimeExtractor.YEAR);
@@ -40,12 +40,7 @@ public class Year extends DateTimeHistogramFunction {
     }
 
     @Override
-    public Expression orderBy() {
-        return field();
-    }
-
-    @Override
-    public long interval() {
-        return YEAR_IN_MILLIS;
+    public String calendarInterval() {
+        return YEAR_INTERVAL;
     }
 }

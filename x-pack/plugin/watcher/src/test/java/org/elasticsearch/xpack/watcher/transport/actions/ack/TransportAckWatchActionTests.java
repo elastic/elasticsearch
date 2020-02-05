@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRespon
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 
@@ -63,14 +63,15 @@ public class TransportAckWatchActionTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         action = new TransportAckWatchAction(transportService, new ActionFilters(Collections.emptySet()),
-            Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client, createClusterService(threadPool));
+            new ClockHolder(Clock.systemUTC()), new XPackLicenseState(Settings.EMPTY),
+            watchParser, client, createClusterService(threadPool));
     }
 
     public void testWatchNotFound() {
         String watchId = "my_watch_id";
         doAnswer(invocation -> {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
-            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, MapperService.SINGLE_MAPPING_NAME, watchId, UNASSIGNED_SEQ_NO,
+            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, watchId, UNASSIGNED_SEQ_NO,
                 0, -1, false, BytesArray.EMPTY, Collections.emptyMap(), Collections.emptyMap())));
             return null;
         }).when(client).get(anyObject(), anyObject());

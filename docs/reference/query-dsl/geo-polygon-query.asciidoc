@@ -1,10 +1,13 @@
 [[query-dsl-geo-polygon-query]]
-=== Geo Polygon Query
+=== Geo-polygon query
+++++
+<titleabbrev>Geo-polygon</titleabbrev>
+++++
 
 A query returning hits that only fall within a polygon of
 points. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -28,7 +31,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Query Options
@@ -54,7 +56,7 @@ Format as `[lon, lat]`
 Note: the order of lon/lat here must
 conform with http://geojson.org/[GeoJSON].
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -78,14 +80,13 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Lat Lon as String
 
 Format in `lat,lon`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -109,12 +110,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Geohash
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -138,7 +138,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== geo_point Type

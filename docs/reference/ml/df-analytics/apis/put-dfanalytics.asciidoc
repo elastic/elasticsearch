@@ -1,0 +1,529 @@
+[role="xpack"]
+[testenv="platinum"]
+[[put-dfanalytics]]
+=== Create {dfanalytics-jobs} API
+[subs="attributes"]
+++++
+<titleabbrev>Create {dfanalytics-jobs}</titleabbrev>
+++++
+
+Instantiates a {dfanalytics-job}.
+
+experimental[]
+
+[[ml-put-dfanalytics-request]]
+==== {api-request-title}
+
+`PUT _ml/data_frame/analytics/<data_frame_analytics_id>`
+
+
+[[ml-put-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
+
+* `machine_learning_admin`
+* `kibana_user` (UI only)
+
+
+* source index: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, `manage` and `index`
+* cluster: `monitor` (UI only)
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+
+[[ml-put-dfanalytics-desc]]
+==== {api-description-title}
+
+This API creates a {dfanalytics-job} that performs an analysis on the source 
+index and stores the outcome in a destination index.
+
+The destination index will be automatically created if it does not exist. The 
+`index.number_of_shards` and `index.number_of_replicas` settings of the source 
+index will be copied over the destination index. When the source index matches 
+multiple indices, these settings will be set to the maximum values found in the 
+source indices.
+
+The mappings of the source indices are also attempted to be copied over
+to the destination index, however, if the mappings of any of the fields don't 
+match among the source indices, the attempt will fail with an error message.
+
+If the destination index already exists, then it will be use as is. This makes 
+it possible to set up the destination index in advance with custom settings 
+and mappings.
+
+[discrete]
+[[ml-hyperparam-optimization]]
+===== Hyperparameter optimization
+
+If you don't supply {regression} or {classification} parameters, _hyperparameter 
+optimization_ occurs, which sets a value for the undefined parameters. The
+starting point is calculated for data dependent parameters by examining the loss
+on the training data. Subject to the size constraint, this operation provides an
+upper bound on the improvement in validation loss.
+
+A fixed number of rounds is used for optimization which depends on the number of 
+parameters being optimized. The optimization starts with random search, then 
+Bayesian optimization is performed that is targeting maximum expected 
+improvement. If you override any parameters by explicitely setting it, the 
+optimization calculates the value of the remaining parameters accordingly and 
+uses the value you provided for the overridden parameter. The number of rounds 
+are reduced respectively. The validation error is estimated in each round by 
+using 4-fold cross validation.
+
+[[ml-put-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+
+[[ml-put-dfanalytics-request-body]]
+==== {api-request-body-title}
+
+`allow_lazy_start`::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-start]
+
+`analysis`::
+(Required, object)
+The analysis configuration, which contains the information necessary to perform
+one of the following types of analysis: {classification}, {oldetection}, or
+{regression}.
+//include::{docdir}/ml/ml-shared.asciidoc[tag=analysis]
+
+`analysis`.`classification`:::
+(Required^*^, object)
+The configuration information necessary to perform
+{ml-docs}/dfa-classification.html[{classification}].
++
+--
+TIP: Advanced parameters are for fine-tuning {classanalysis}. They are set 
+automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
+to give minimum validation error. It is highly recommended to use the default 
+values unless you fully understand the function of these parameters.
+--
+
+`analysis`.`classification`.`dependent_variable`::::
+(Required, string)
++
+--
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+
+The data type of the field must be numeric (`integer`, `short`, `long`, `byte`), 
+categorical (`ip`, `keyword`, `text`), or boolean.
+--
+
+`analysis`.`classification`.`eta`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+
+`analysis`.`classification`.`feature_bag_fraction`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+
+`analysis`.`classification`.`maximum_number_trees`::::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
+
+`analysis`.`classification`.`gamma`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+
+`analysis`.`classification`.`lambda`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+
+`analysis`.`classification`.`num_top_classes`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-classes]
+
+`analysis`.`classification`.`prediction_field_name`::::
+(Optional, string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+
+`analysis`.`classification`.`randomize_seed`::::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+`analysis`.`classification`.`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
+
+`analysis`.`classification`.`training_percent`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+
+`analysis`.`outlier_detection`:::
+(Required^*^, object)
+The configuration information necessary to perform
+{ml-docs}/dfa-outlier-detection.html[{oldetection}]:
+
+`analysis`.`outlier_detection`.`compute_feature_influence`::::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
+  
+`analysis`.`outlier_detection`.`feature_influence_threshold`:::: 
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
+
+`analysis`.`outlier_detection`.`method`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=method]
+  
+`analysis`.`outlier_detection`.`n_neighbors`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=n-neighbors]
+  
+`analysis`.`outlier_detection`.`outlier_fraction`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
+  
+`analysis`.`outlier_detection`.`standardization_enabled`::::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
+
+`analysis`.`regression`:::
+(Required^*^, object)
+The configuration information necessary to perform
+{ml-docs}/dfa-regression.html[{regression}].
++
+--
+TIP: Advanced parameters are for fine-tuning {reganalysis}. They are set 
+automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
+to give minimum validation error. It is highly recommended to use the default 
+values unless you fully understand the function of these parameters.
+
+--
+
+`analysis`.`regression`.`dependent_variable`::::
+(Required, string)
++
+--
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+
+The data type of the field must be numeric.
+--
+
+`analysis`.`regression`.`eta`::::
+(Optional, double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+
+`analysis`.`regression`.`feature_bag_fraction`::::
+(Optional, double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+
+`analysis`.`regression`.`maximum_number_trees`::::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
+
+`analysis`.`regression`.`gamma`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+
+`analysis`.`regression`.`lambda`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+
+`analysis`.`regression`.`prediction_field_name`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+
+`analysis`.`regression`.`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
+
+`analysis`.`regression`.`training_percent`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+
+`analysis`.`regression`.`randomize_seed`::::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+  
+`analyzed_fields`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields]
+
+`analyzed_fields`.`excludes`:::
+(Optional, array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-excludes]
+
+`analyzed_fields`.`includes`:::
+(Optional, array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-includes]
+
+`description`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=description-dfa]
+
+`dest`::
+(Required, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dest]
+  
+`model_memory_limit`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
+  
+`source`::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=source-put-dfa]
+
+[[ml-put-dfanalytics-example]]
+==== {api-examples-title}
+
+[[ml-put-dfanalytics-example-preprocess]]
+===== Preprocessing actions example
+
+The following example shows how to limit the scope of the analysis to certain 
+fields, specify excluded fields in the destination index, and use a query to 
+filter your data before analysis.
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/model-flight-delays-pre
+{
+  "source": {
+    "index": [
+      "kibana_sample_data_flights" <1>
+    ],
+    "query": { <2>
+      "range": {
+        "DistanceKilometers": { 
+          "gt": 0
+        }
+      }
+    },
+    "_source": { <3>
+      "includes": [],
+      "excludes": [
+        "FlightDelay",
+        "FlightDelayType"
+      ]
+    }
+  },
+  "dest": { <4>
+    "index": "df-flight-delays",
+    "results_field": "ml-results"
+  },
+  "analysis": {
+  "regression": {
+    "dependent_variable": "FlightDelayMin",
+    "training_percent": 90
+    }
+  },
+  "analyzed_fields": { <5>
+    "includes": [],
+    "excludes": [   
+      "FlightNum"
+    ]
+  },
+  "model_memory_limit": "100mb"
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> The source index to analyze.
+<2> This query filters out entire documents that will not be present in the 
+destination index.
+<3> The `_source` object defines fields in the dataset that will be included or 
+excluded in the destination index. In this case, `includes` does not specify any 
+fields, so the default behavior takes place: all the fields of the source index 
+will included except the ones that are explicitly specified in `excludes`.
+<4> Defines the destination index that contains the results of the analysis and 
+the fields of the source index specified in the `_source` object. Also defines 
+the name of the `results_field`.
+<5> Specifies fields to be included in or excluded from the analysis. This does 
+not affect whether the fields will be present in the destination index, only 
+affects whether they are used in the analysis.
+
+In this example, we can see that all the fields of the source index are included 
+in the destination index except `FlightDelay` and `FlightDelayType` because 
+these are defined as excluded fields by the `excludes` parameter of the 
+`_source` object. The `FlightNum` field is included in the destination index, 
+however it is not included in the analysis because it is explicitly specified as 
+excluded field by the `excludes` parameter of the `analyzed_fields` object.
+
+
+[[ml-put-dfanalytics-example-od]]
+===== {oldetection-cap} example
+
+The following example creates the `loganalytics` {dfanalytics-job}, the analysis 
+type is `outlier_detection`:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/loganalytics
+{
+  "description": "Outlier detection on log data",
+  "source": {
+    "index": "logdata"
+  },
+  "dest": {
+    "index": "logdata_out"
+  },
+  "analysis": {
+    "outlier_detection": {
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:setup_logdata]
+
+
+The API returns the following result:
+
+[source,console-result]
+----
+{
+    "id": "loganalytics",
+    "description": "Outlier detection on log data",
+    "source": {
+        "index": ["logdata"],
+        "query": {
+            "match_all": {}
+        }
+    },
+    "dest": {
+        "index": "logdata_out",
+        "results_field": "ml"
+    },
+    "analysis": {
+        "outlier_detection": {
+            "compute_feature_influence": true,
+            "outlier_fraction": 0.05,
+            "standardization_enabled": true
+        }
+    },
+    "model_memory_limit": "1gb",
+    "create_time" : 1562265491319,
+    "version" : "8.0.0",
+    "allow_lazy_start" : false
+}
+----
+// TESTRESPONSE[s/1562265491319/$body.$_path/]
+// TESTRESPONSE[s/"version" : "8.0.0"/"version" : $body.version/]
+
+
+[[ml-put-dfanalytics-example-r]]
+===== {regression-cap} examples
+
+The following example creates the `house_price_regression_analysis` 
+{dfanalytics-job}, the analysis type is `regression`:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/house_price_regression_analysis
+{
+  "source": {
+    "index": "houses_sold_last_10_yrs"
+  },
+  "dest": {
+    "index": "house_price_predictions"
+  },
+  "analysis": 
+    {
+      "regression": {
+        "dependent_variable": "price"
+      }
+    }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following result:
+
+[source,console-result]
+----
+{
+  "id" : "house_price_regression_analysis",
+  "source" : {
+    "index" : [
+      "houses_sold_last_10_yrs"
+    ],
+    "query" : {
+      "match_all" : { }
+    }
+  },
+  "dest" : {
+    "index" : "house_price_predictions",
+    "results_field" : "ml"
+  },
+  "analysis" : {
+    "regression" : {
+      "dependent_variable" : "price",
+      "training_percent" : 100
+    }
+  },
+  "model_memory_limit" : "1gb",
+  "create_time" : 1567168659127,
+  "version" : "8.0.0",
+  "allow_lazy_start" : false
+}
+----
+// TESTRESPONSE[s/1567168659127/$body.$_path/]
+// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+
+
+The following example creates a job and specifies a training percent:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
+{
+ "source": {
+   "index": "student_performance_mathematics"
+ },
+ "dest": {
+   "index":"student_performance_mathematics_reg"
+ },
+ "analysis":
+   {
+     "regression": {
+       "dependent_variable": "G3",
+       "training_percent": 70,  <1>
+       "randomize_seed": 19673948271  <2>
+     }
+   }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The `training_percent` defines the percentage of the data set that will be 
+used for training the model.
+<2> The `randomize_seed` is the seed used to randomly pick which data is used 
+for training.
+
+
+[[ml-put-dfanalytics-example-c]]
+===== {classification-cap} example
+
+The following example creates the `loan_classification` {dfanalytics-job}, the 
+analysis type is `classification`:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/loan_classification
+{
+  "source" : {
+    "index": "loan-applicants"
+  },
+  "dest" : {
+    "index": "loan-applicants-classified"
+  },
+  "analysis" : {
+    "classification": {
+      "dependent_variable": "label",
+      "training_percent": 75,
+      "num_top_classes": 2
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]

@@ -21,25 +21,25 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-    compile parent.project('java-version-checker')
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  compile parent.project('java-version-checker')
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 archivesBaseName = 'elasticsearch-launchers'
 
 tasks.withType(CheckForbiddenApis) {
-    replaceSignatureFiles 'jdk-signatures'
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 testingConventions {
-    naming.clear()
-    naming {
-      Tests {
-        baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
-      }
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
     }
+  }
 }
 
 javadoc.enabled = false

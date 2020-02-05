@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.sql-spec
+
 //
 // Group-By
 //
@@ -49,6 +51,10 @@ groupByMulScalar
 SELECT emp_no * 2 AS e FROM test_emp GROUP BY e ORDER BY e;
 groupByModScalar
 SELECT (emp_no % 3) + 1 AS e FROM test_emp GROUP BY e ORDER BY e;
+groupByCastScalar
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) FROM test_emp GROUP BY CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) ORDER BY CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) NULLS FIRST;
+groupByCastScalarWithAlias
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) as "cast" FROM test_emp GROUP BY "cast" ORDER BY "cast" NULLS FIRST;
 
 // group by nested functions with no alias
 groupByTruncate
@@ -423,6 +429,31 @@ SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING 
 aggAvgWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a > 10 AND AVG(emp_no) > 10000000 ORDER BY g ;
 
+// Implicit grouping with filtering
+implicitGroupingWithLiteralAndFiltering
+SELECT 1 FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithLiteralAliasAndFiltering
+SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithLiteralAndFilteringOnAlias
+SELECT 1, COUNT(*) AS c FROM test_emp HAVING c > 0; 
+implicitGroupingWithLiteralAliasAndFilteringOnAlias
+SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithAggs
+SELECT MAX(emp_no) AS m FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithOptimizedAggs
+SELECT MIN(emp_no) AS m FROM test_emp HAVING MAX(emp_no) > 0 AND COUNT(*) > 0;
+implicitGroupingWithNull
+SELECT NULL AS x FROM test_emp HAVING COUNT(1) > 1;
+implicitGroupingWithNullFunction
+SELECT LTRIM(CAST(YEAR(CAST(NULL AS DATE)) AS VARCHAR)) AS x FROM test_emp HAVING COUNT(1) > 1;
+implicitGroupingWithNullDateTimeFunction
+SELECT DAYNAME(CAST(NULL AS TIMESTAMP)) AS x FROM test_emp HAVING COUNT(1) > 1;
+implicitGroupingWithScalarInsideCase
+SELECT (CASE WHEN 'D' IS NULL THEN NULL WHEN 'D' IS NOT NULL THEN (LOCATE('D', 'Data') = 1) END) AS x FROM test_emp HAVING (COUNT(1) > 0);
+implicitGroupingWithMultiLevelCase
+SELECT (CASE WHEN ('Data' IS NULL) OR ('Xyz' IS NULL) THEN NULL WHEN 'Data' < 'Xyz' THEN 'Data' ELSE 'Xyz' END) AS x FROM test_emp HAVING (COUNT(1) > 0);
+
+
 //
 // GroupBy on Scalar plus Having
 //
@@ -528,3 +559,9 @@ aggMultiWithHavingUsingInAndNullHandling
 SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max IN(74999, null, 74600) ORDER BY gender;
 aggMultiGroupByMultiWithHavingUsingInAndNullHandling
 SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, null, 74600) ORDER BY gender, languages;
+
+// group by with literal
+implicitGroupByWithLiteral
+SELECT 10, MAX("salary") FROM test_emp;
+groupByWithLiteralAndCount
+SELECT 20, COUNT(*) from test_emp GROUP BY gender ORDER BY 2;

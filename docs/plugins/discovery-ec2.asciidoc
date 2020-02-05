@@ -8,7 +8,7 @@ matching certain criteria determined by the <<discovery-ec2-usage,plugin
 settings>>.
 
 *If you are looking for a hosted solution of {es} on AWS, please visit
-http://www.elastic.co/cloud.*
+https://www.elastic.co/cloud.*
 
 :plugin_name: discovery-ec2
 include::install_remove.asciidoc[]
@@ -56,24 +56,22 @@ bin/elasticsearch-keystore add discovery.ec2.secret_key
 
 The available settings for the EC2 discovery plugin are as follows.
 
-`discovery.ec2.access_key`::
+`discovery.ec2.access_key` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     An EC2 access key. If set, you must also set `discovery.ec2.secret_key`.
     If unset, `discovery-ec2` will instead use the instance role. This setting
-    is sensitive and must be stored in the {ref}/secure-settings.html[{es}
-    keystore].
+    is sensitive and must be stored in the {es} keystore.
 
-`discovery.ec2.secret_key`::
+`discovery.ec2.secret_key` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     An EC2 secret key. If set, you must also set `discovery.ec2.access_key`.
-    This setting is sensitive and must be stored in the
-    {ref}/secure-settings.html[{es} keystore].
+    This setting is sensitive and must be stored in the {es} keystore.
 
-`discovery.ec2.session_token`::
+`discovery.ec2.session_token` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     An EC2 session token. If set, you must also set `discovery.ec2.access_key`
     and `discovery.ec2.secret_key`. This setting is sensitive and must be
-    stored in the {ref}/secure-settings.html[{es} keystore].
+    stored in the {es} keystore.
 
 `discovery.ec2.endpoint`::
 
@@ -99,19 +97,19 @@ The available settings for the EC2 discovery plugin are as follows.
     this setting determines the port to use to connect to the proxy. Defaults to
     `80`.
 
-`discovery.ec2.proxy.username`::
+`discovery.ec2.proxy.username` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`,
     this setting determines the username to use to connect to the proxy. When
     not set, no username is used. This setting is sensitive and must be stored
-    in the {ref}/secure-settings.html[{es} keystore].
+    in the {es} keystore.
 
-`discovery.ec2.proxy.password`::
+`discovery.ec2.proxy.password` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`,
     this setting determines the password to use to connect to the proxy. When
     not set, no password is used. This setting is sensitive and must be stored
-    in the {ref}/secure-settings.html[{es} keystore].
+    in the {es} keystore.
 
 `discovery.ec2.read_timeout`::
 
@@ -181,8 +179,8 @@ discovery. For instance, the following settings will only use nodes with a
 
 [source,yaml]
 ----
-discovery.ec2.tags.role: master
-discovery.ec2.tags.environment: dev,staging
+discovery.ec2.tag.role: master
+discovery.ec2.tag.environment: dev,staging
 ----
 
 NOTE: The names of tags used for discovery may only contain ASCII letters,
@@ -287,12 +285,12 @@ you to set `discovery.seed_providers: ec2`. However they do require that the
 This section contains some other information about designing and managing an
 {es} cluster on your own AWS infrastructure. If you would prefer to avoid these
 operational details then you may be interested in a hosted {es} installation
-available on AWS-based infrastructure from http://www.elastic.co/cloud.
+available on AWS-based infrastructure from https://www.elastic.co/cloud.
 
 ===== Storage
 
 EC2 instances offer a number of different kinds of storage. Please be aware of
-the folowing when selecting the storage for your cluster:
+the following when selecting the storage for your cluster:
 
 * http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html[Instance
 Store] is recommended for {es} clusters as it offers excellent performance and
@@ -340,7 +338,7 @@ connections are unreliable or slow, it is not optimised for this case and its
 performance may suffer. If you wish to geographically distribute your data, you
 should provision multiple clusters and use features such as
 {ref}/modules-cross-cluster-search.html[cross-cluster search] and
-{stack-ov}/xpack-ccr.html[cross-cluster replication].
+{ref}/xpack-ccr.html[cross-cluster replication].
 
 ===== Other recommendations
 

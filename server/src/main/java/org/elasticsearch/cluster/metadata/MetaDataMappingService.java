@@ -43,17 +43,14 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.InvalidTypeNameException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -146,7 +143,7 @@ public class MetaDataMappingService {
             IndexService indexService = indicesService.indexService(indexMetaData.getIndex());
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+                indexService = indicesService.createIndex(indexMetaData, Collections.emptyList(), false);
                 removeIndex = true;
                 indexService.mapperService().merge(indexMetaData, MergeReason.MAPPING_RECOVERY);
             }
@@ -175,28 +172,19 @@ public class MetaDataMappingService {
         boolean dirty = false;
         String index = indexService.index().getName();
         try {
-            List<String> updatedTypes = new ArrayList<>();
             MapperService mapperService = indexService.mapperService();
-            for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
-                                                       mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
-                if (mapper != null) {
-                    final String type = mapper.type();
-                    if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
-                        updatedTypes.add(type);
-                    }
+            DocumentMapper mapper = mapperService.documentMapper();
+            if (mapper != null) {
+                if (mapper.mappingSource().equals(builder.mapping().source()) == false) {
+                    dirty = true;
                 }
             }
 
-            // if a single type is not up-to-date, re-send everything
-            if (updatedTypes.isEmpty() == false) {
-                logger.warn("[{}] re-syncing mappings with cluster state because of types [{}]", index, updatedTypes);
-                dirty = true;
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
-                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
-                    if (mapper != null) {
-                        builder.putMapping(new MappingMetaData(mapper));
-                    }
-                }
+            // if the mapping is not up-to-date, re-send everything
+            if (dirty) {
+                logger.warn("[{}] re-syncing mappings with cluster state]", index);
+                builder.putMapping(new MappingMetaData(mapper));
+
             }
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to refresh-mapping in cluster state", index), e);
@@ -249,7 +237,7 @@ public class MetaDataMappingService {
 
         private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request,
                                           Map<Index, MapperService> indexMapperServices) throws IOException {
-            String mappingType = request.type();
+
             CompressedXContent mappingUpdateSource = new CompressedXContent(request.source());
             final MetaData metaData = currentState.metaData();
             final List<IndexMetaData> updateList = new ArrayList<>();
@@ -263,32 +251,12 @@ public class MetaDataMappingService {
                 // we used for the validation, it makes this mechanism little less scary (a little)
                 updateList.add(indexMetaData);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                DocumentMapper newMapper;
                 DocumentMapper existingMapper = mapperService.documentMapper();
-                if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
-                    // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
-                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, false);
-                } else {
-                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, existingMapper == null);
-                    if (existingMapper != null) {
-                        // first, simulate: just call merge and ignore the result
-                        existingMapper.merge(newMapper.mapping());
-                    }
+                DocumentMapper newMapper = mapperService.parse(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
+                if (existingMapper != null) {
+                    // first, simulate: just call merge and ignore the result
+                    existingMapper.merge(newMapper.mapping());
                 }
-                if (mappingType == null) {
-                    mappingType = newMapper.type();
-                } else if (mappingType.equals(newMapper.type()) == false
-                        && (isMappingSourceTyped(request.type(), mappingUpdateSource)
-                                || mapperService.resolveDocumentType(mappingType).equals(newMapper.type()) == false)) {
-                    throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
-                }
-            }
-            assert mappingType != null;
-
-            if (MapperService.DEFAULT_MAPPING.equals(mappingType) == false
-                    && MapperService.SINGLE_MAPPING_NAME.equals(mappingType) == false
-                    && mappingType.charAt(0) == '_') {
-                throw new InvalidTypeNameException("Document mapping type name can't start with '_', found: [" + mappingType + "]");
             }
             MetaData.Builder builder = MetaData.builder(metaData);
             boolean updated = false;
@@ -299,20 +267,13 @@ public class MetaDataMappingService {
                 final Index index = indexMetaData.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
 
-                // If the _type name is _doc and there is no _doc top-level key then this means that we
-                // are handling a typeless call. In such a case, we override _doc with the actual type
-                // name in the mappings. This allows to use typeless APIs on typed indices.
-                String typeForUpdate = mappingType; // the type to use to apply the mapping update
-                if (isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
-                    typeForUpdate = mapperService.resolveDocumentType(mappingType);
-                }
-
                 CompressedXContent existingSource = null;
-                DocumentMapper existingMapper = mapperService.documentMapper(typeForUpdate);
+                DocumentMapper existingMapper = mapperService.documentMapper();
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(typeForUpdate, mappingUpdateSource, MergeReason.MAPPING_UPDATE);
+                DocumentMapper mergedMapper
+                    = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource, MergeReason.MAPPING_UPDATE);
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {
@@ -331,20 +292,18 @@ public class MetaDataMappingService {
                 } else {
                     updatedMapping = true;
                     if (logger.isDebugEnabled()) {
-                        logger.debug("{} create_mapping [{}] with source [{}]", index, mappingType, updatedSource);
+                        logger.debug("{} create_mapping with source [{}]", index, updatedSource);
                     } else if (logger.isInfoEnabled()) {
-                        logger.info("{} create_mapping [{}]", index, mappingType);
+                        logger.info("{} create_mapping", index);
                     }
                 }
 
                 IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
-                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
-                    if (mapper != null) {
-                        indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
-                    }
+                DocumentMapper mapper = mapperService.documentMapper();
+                if (mapper != null) {
+                    indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
                 }
                 if (updatedMapping) {
                     indexMetaDataBuilder.mappingVersion(1 + indexMetaDataBuilder.mappingVersion());
@@ -364,10 +323,6 @@ public class MetaDataMappingService {
             }
         }
 
-        @Override
-        public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
-            return String.join(", ", tasks.stream().map(t -> (CharSequence)t.type())::iterator);
-        }
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {

@@ -19,16 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.CallNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -52,30 +53,23 @@ public final class PCallInvoke extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        prefix.analyze(locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        prefix.analyze(scriptRoot, scope);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        prefix = prefix.cast(scriptRoot, scope);
 
         if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
             PainlessMethod method =
-                    locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
+                    scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
                         "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
+
+            scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
         }
@@ -86,16 +80,23 @@ public final class PCallInvoke extends AExpression {
 
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(locals);
+        sub.analyze(scriptRoot, scope);
         actual = sub.actual;
 
         statement = true;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.write(writer, globals);
+    CallNode write(ClassNode classNode) {
+        CallNode callNode = new CallNode();
+
+        callNode.setLeftNode(prefix.write(classNode));
+        callNode.setRightNode(sub.write(classNode));
+
+        callNode.setLocation(location);
+        callNode.setExpressionType(actual);
+
+        return callNode;
     }
 
     @Override

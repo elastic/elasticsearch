@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -38,6 +39,7 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -254,14 +256,48 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
     }
 
+    public void testRecoveryFailures() {
+        disableRandomFailures();
+        String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        ClusterState state = ClusterStateCreationUtils.state(index, randomBoolean(),
+            ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
+
+        // the initial state which is derived from the newly created cluster state but doesn't contain the index
+        ClusterState previousState = ClusterState.builder(state)
+            .metaData(MetaData.builder(state.metaData()).remove(index))
+            .routingTable(RoutingTable.builder().build())
+            .build();
+
+        // pick a data node to simulate the adding an index cluster state change event on, that has shards assigned to it
+        final ShardRouting shardRouting = state.routingTable().index(index).shard(0).replicaShards().get(0);
+        final ShardId shardId = shardRouting.shardId();
+        DiscoveryNode node = state.nodes().get(shardRouting.currentNodeId());
+
+        // simulate the cluster state change on the node
+        ClusterState localState = adaptClusterStateToLocalNode(state, node);
+        ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
+        IndicesClusterStateService indicesCSSvc = createIndicesClusterStateService(node, RecordingIndicesService::new);
+        indicesCSSvc.start();
+        indicesCSSvc.applyClusterState(new ClusterChangedEvent("cluster state change that adds the index", localState, previousLocalState));
+
+        assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+
+        // check that failing unrelated allocation does not remove shard
+        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, new Exception("dummy"));
+        assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+
+        indicesCSSvc.handleRecoveryFailure(shardRouting, false, new Exception("dummy"));
+        assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+    }
+
     public ClusterState randomInitialClusterState(Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
                                                   Supplier<MockIndicesService> indicesServiceSupplier) {
         List<DiscoveryNode> allNodes = new ArrayList<>();
-        DiscoveryNode localNode = createNode(DiscoveryNode.Role.MASTER); // local node is the master
+        DiscoveryNode localNode = createNode(DiscoveryNodeRole.MASTER_ROLE); // local node is the master
         allNodes.add(localNode);
         // at least two nodes that have the data role so that we can allocate shards
-        allNodes.add(createNode(DiscoveryNode.Role.DATA));
-        allNodes.add(createNode(DiscoveryNode.Role.DATA));
+        allNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));
+        allNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             allNodes.add(createNode());
         }
@@ -436,11 +472,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
 
-    protected DiscoveryNode createNode(DiscoveryNode.Role... mustHaveRoles) {
-        Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Sets.newHashSet(DiscoveryNode.Role.values())));
-        for (DiscoveryNode.Role mustHaveRole : mustHaveRoles) {
-            roles.add(mustHaveRole);
-        }
+    protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
+        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        Collections.addAll(roles, mustHaveRoles);
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
             Version.CURRENT);
@@ -467,6 +501,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
+        final NodeClient client = mock(NodeClient.class);
         return new IndicesClusterStateService(
                 settings,
                 indicesService,
@@ -479,10 +514,12 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 null,
                 null,
                 null,
-                null,
                 primaryReplicaSyncer,
-                s -> {},
-                RetentionLeaseSyncer.EMPTY);
+                RetentionLeaseSyncer.EMPTY,
+                client) {
+            @Override
+            protected void updateGlobalCheckpointForShard(final ShardId shardId) {}
+        };
     }
 
     private class RecordingIndicesService extends MockIndicesService {

@@ -165,10 +165,10 @@ https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}
 endif::[]
 
 ifdef::include-xpack[]
+[role="xpack"]
 [[deb-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+==== Enable automatic creation of system indices
 
-{xpack} will try to automatically create a number of indices within Elasticsearch.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
@@ -237,6 +237,13 @@ locations for a Debian-based system:
     on the node. Can hold multiple locations.
   | /var/lib/elasticsearch
   | path.data
+
+| jdk
+  | The bundled Java Development Kit used to run Elasticsearch. Can
+    be overridden by setting the `JAVA_HOME` environment variable
+    in `/etc/default/elasticsearch`.
+  | /usr/share/elasticsearch/jdk
+ d|
 
 | logs
   | Log files location.

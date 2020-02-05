@@ -370,8 +370,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                     aliasAdded = true;
                 }
             }
-            // If we get to this point and we haven't added an alias to the request we need to add one 
-            // or the request will fail so use noAliasAdded to force adding the alias in this case 
+            // If we get to this point and we haven't added an alias to the request we need to add one
+            // or the request will fail so use noAliasAdded to force adding the alias in this case
             if (aliasAdded == false || randomBoolean()) {
                 //one alias pointing to all indices
                 for (String index : indices) {
@@ -382,7 +382,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
 
         for (String index : indices) {
-            client().prepareIndex(index, "type").setSource("field", "value").get();
+            client().prepareIndex(index).setSource("field", "value").get();
         }
         refresh(indices);
     }
@@ -394,10 +394,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
-        // are randomized to return both node clients and transport clients
-        // transport clients do not need to be wrapped since we specify the xpack.security.user setting that sets the default user to be
-        // used for the transport client. If we did not set a default user then the transport client would not even be allowed
-        // to connect
+        // return a node client
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 

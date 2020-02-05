@@ -31,20 +31,9 @@ import java.util.function.UnaryOperator;
  * Upgrades {@link MetaData} on startup on behalf of installed {@link Plugin}s
  */
 public class MetaDataUpgrader {
-    public final UnaryOperator<Map<String, MetaData.Custom>> customMetaDataUpgraders;
-
     public final UnaryOperator<Map<String, IndexTemplateMetaData>> indexTemplateMetaDataUpgraders;
 
-    public MetaDataUpgrader(Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders,
-                            Collection<UnaryOperator<Map<String, IndexTemplateMetaData>>> indexTemplateMetaDataUpgraders) {
-        this.customMetaDataUpgraders = customs -> {
-            Map<String, MetaData.Custom> upgradedCustoms = new HashMap<>(customs);
-            for (UnaryOperator<Map<String, MetaData.Custom>> customMetaDataUpgrader : customMetaDataUpgraders) {
-                upgradedCustoms = customMetaDataUpgrader.apply(upgradedCustoms);
-            }
-            return upgradedCustoms;
-        };
-
+    public MetaDataUpgrader(Collection<UnaryOperator<Map<String, IndexTemplateMetaData>>> indexTemplateMetaDataUpgraders) {
         this.indexTemplateMetaDataUpgraders = templates -> {
             Map<String, IndexTemplateMetaData> upgradedTemplates = new HashMap<>(templates);
             for (UnaryOperator<Map<String, IndexTemplateMetaData>> upgrader : indexTemplateMetaDataUpgraders) {

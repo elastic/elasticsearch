@@ -20,7 +20,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -35,15 +34,5 @@ public abstract class ActionResponse extends TransportResponse {
 
     public ActionResponse(StreamInput in) throws IOException {
         super(in);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -35,12 +36,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * A REST handler that attempts to authenticate a user based on the provided SAML response/assertion.
  */
 public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements RestHandler {
+    private static final Logger logger = LogManager.getLogger();
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestSamlAuthenticateAction.class));
     static class Input {
         String content;
         List<String> ids;
+        String realm;
 
         void setContent(String content) {
             this.content = content;
@@ -49,6 +51,8 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
         void setIds(List<String> ids) {
             this.ids = ids;
         }
+
+        void setRealm(String realm) { this.realm = realm;}
     }
 
     static final ObjectParser<Input, Void> PARSER = new ObjectParser<>("saml_authenticate", Input::new);
@@ -56,6 +60,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
     static {
         PARSER.declareString(Input::setContent, new ParseField("content"));
         PARSER.declareStringArray(Input::setIds, new ParseField("ids"));
+        PARSER.declareStringOrNull(Input::setRealm, new ParseField("realm"));
     }
 
     public RestSamlAuthenticateAction(Settings settings, RestController controller,
@@ -80,7 +85,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
             return channel -> {
                 final byte[] bytes = decodeBase64(input.content);
                 final SamlAuthenticateRequestBuilder requestBuilder =
-                    new SamlAuthenticateRequestBuilder(client).saml(bytes).validRequestIds(input.ids);
+                    new SamlAuthenticateRequestBuilder(client).saml(bytes).validRequestIds(input.ids).authenticatingRealm(input.realm);
                 requestBuilder.execute(new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlAuthenticateResponse response, XContentBuilder builder) throws Exception {

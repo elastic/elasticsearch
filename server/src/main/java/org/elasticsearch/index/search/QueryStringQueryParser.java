@@ -154,6 +154,12 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     @Override
+    public void setEnablePositionIncrements(boolean enable) {
+        super.setEnablePositionIncrements(enable);
+        queryBuilder.setEnablePositionIncrements(enable);
+    }
+
+    @Override
     public void setDefaultOperator(Operator op) {
         super.setDefaultOperator(op);
         queryBuilder.setOccur(op == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);
@@ -423,7 +429,8 @@ public class QueryStringQueryParser extends XQueryParser {
         if (fuzzySlop.image.length() == 1) {
             return getFuzzyQuery(field, termImage, fuzziness.asDistance(termImage));
         }
-        return getFuzzyQuery(field, termImage, Fuzziness.fromString(fuzzySlop.image.substring(1)).asFloat());
+        float distance = Fuzziness.fromString(fuzzySlop.image.substring(1)).asDistance(termImage);
+        return getFuzzyQuery(field, termImage, distance);
     }
 
     @Override

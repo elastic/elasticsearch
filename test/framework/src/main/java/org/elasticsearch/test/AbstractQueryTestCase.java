@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -53,7 +54,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -189,7 +189,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 if (expectedException == false) {
                     throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
                 }
-                assertThat(e.getMessage(), containsString("unknown field [newField], parser not found"));
+                assertThat(e.getMessage(), containsString("unknown field [newField]"));
             }
         }
     }
@@ -421,21 +421,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            SearchContext searchContext = getSearchContext(context);
             /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
             Query firstLuceneQuery = rewritten.toQuery(context);
-            if (isCacheable(firstQuery)) {
-                assertTrue("query was marked as not cacheable in the context but this test indicates it should be cacheable: "
-                        + firstQuery.toString(), context.isCacheable());
-            } else {
-                assertFalse("query was marked as cacheable in the context but this test indicates it should not be cacheable: "
-                        + firstQuery.toString(), context.isCacheable());
-            }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
-            assertLuceneQuery(firstQuery, firstLuceneQuery, searchContext);
+            assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             //remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
             assertTrue(
                     "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
@@ -451,10 +443,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
                         + randomAlphaOfLengthBetween(1, 10));
             }
-            searchContext = getSearchContext(context);
+            context = new QueryShardContext(context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
-            assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
+            assertLuceneQuery(secondQuery, secondLuceneQuery, context);
 
             if (builderGeneratesCacheableQueries()) {
                 assertEquals("two equivalent query builders lead to different lucene queries",
@@ -470,15 +462,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    private QueryBuilder rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
+    protected QueryBuilder rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
         QueryBuilder rewritten = rewriteAndFetch(queryBuilder, rewriteContext);
         // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);
         return rewritten;
-    }
-
-    protected boolean isCacheable(QB queryBuilder) {
-        return true;
     }
 
     /**
@@ -504,11 +492,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Verifies that named queries and boost are properly handled and delegates to
-     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, SearchContext)} for query specific checks.
+     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, QueryShardContext)} for query specific checks.
      */
-    private void assertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException {
+    private void assertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.getQueryShardContext().copyNamedQueries().get(queryBuilder.queryName());
+            Query namedQuery = context.copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }
         if (query != null) {
@@ -532,7 +520,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Contains the query specific checks to be implemented by subclasses.
      */
-    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException;
+    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException;
 
     protected void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
         if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
@@ -805,4 +793,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public boolean isTextField(String fieldName) {
         return fieldName.equals(STRING_FIELD_NAME) || fieldName.equals(STRING_ALIAS_FIELD_NAME);
     }
+
+    /**
+     * Check that a query is generally cacheable. Tests for query builders that are not always cacheable
+     * should overwrite this method and make sure the different cases are always tested
+     */
+    public void testCacheability() throws IOException {
+        QB queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
 }

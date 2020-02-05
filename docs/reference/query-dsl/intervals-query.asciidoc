@@ -1,19 +1,30 @@
 [[query-dsl-intervals-query]]
 === Intervals query
+++++
+<titleabbrev>Intervals</titleabbrev>
+++++
 
-An `intervals` query allows fine-grained control over the order and proximity of
-matching terms.  Matching rules are constructed from a small set of definitions,
-and the rules are then applied to terms from a particular `field`.
+Returns documents based on the order and proximity of matching terms.
+
+The `intervals` query uses *matching rules*, constructed from a small set of
+definitions. These rules are then applied to terms from a specified `field`.
 
 The definitions produce sequences of minimal intervals that span terms in a
-body of text.  These intervals can be further combined and filtered by
+body of text. These intervals can be further combined and filtered by
 parent sources.
 
-The example below will search for the phrase `my favourite food` appearing
-before the terms `hot` and `water` or `cold` and `porridge` in any order, in
-the field `my_text`
 
-[source,js]
+[[intervals-query-ex-request]]
+==== Example request
+
+The following `intervals` search returns documents containing `my
+favorite food` immediately followed by `hot water` or `cold porridge` in the
+`my_text` field.
+
+This search would match a `my_text` value of `my favorite food is cold
+porridge` but not `when it's cold my favorite food is porridge`.
+
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -25,7 +36,7 @@ POST _search
           "intervals" : [
             {
               "match" : {
-                "query" : "my favourite food",
+                "query" : "my favorite food",
                 "max_gaps" : 0,
                 "ordered" : true
               }
@@ -39,90 +50,265 @@ POST _search
               }
             }
           ]
-        },
-        "boost" : 2.0,
-        "_name" : "favourite_food"
+        }
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-In the above example, the text `my favourite food is cold porridge` would
-match because the two intervals matching `my favourite food` and `cold
-porridge` appear in the correct order, but the text `when it's cold my
-favourite food is porridge` would not match, because the interval matching
-`cold porridge` starts before the interval matching `my favourite food`.
+[[intervals-top-level-params]]
+==== Top-level parameters for `intervals`
+[[intervals-rules]]
+`<field>`::
++
+--
+(Required, rule object) Field you wish to search.
+
+The value of this parameter is a rule object used to match documents
+based on matching terms, order, and proximity.
+
+Valid rules include:
+
+* <<intervals-match,`match`>>
+* <<intervals-prefix,`prefix`>>
+* <<intervals-wildcard,`wildcard`>>
+* <<intervals-fuzzy,`fuzzy`>>
+* <<intervals-all_of,`all_of`>>
+* <<intervals-any_of,`any_of`>>
+--
 
 [[intervals-match]]
-==== `match`
+==== `match` rule parameters
 
-The `match` rule matches analyzed text, and takes the following parameters:
+The `match` rule matches analyzed text.
 
-[horizontal]
 `query`::
-The text to match.
+(Required, string) Text you wish to find in the provided `<field>`.
+
 `max_gaps`::
-Specify a maximum number of gaps between the terms in the text.  Terms that
-appear further apart than this will not match. If unspecified, or set to -1,
-then there is no width restriction on the match.  If set to 0 then the terms
-must appear next to each other.
++
+--
+(Optional, integer) Maximum number of positions between the matching terms.
+Terms further apart than this are not considered matches. Defaults to
+`-1`.
+
+If unspecified or set to `-1`, there is no width restriction on the match. If
+set to `0`, the terms must appear next to each other.
+--
+
 `ordered`::
-Whether or not the terms must appear in their specified order.  Defaults to
-`false`
+(Optional, boolean)
+If `true`, matching terms must appear in their specified order. Defaults to
+`false`.
+
 `analyzer`::
-Which analyzer should be used to analyze terms in the `query`.  By
-default, the search analyzer of the top-level field will be used.
+(Optional, string) <<analysis, analyzer>> used to analyze terms in the `query`.
+Defaults to the top-level `<field>`'s analyzer.
+
 `filter`::
-An optional <<interval_filter,interval filter>>
+(Optional, <<interval_filter,interval filter>> rule object) An optional interval
+filter.
+
 `use_field`::
-If specified, then match intervals from this field rather than the top-level field.
-Terms will be analyzed using the search analyzer from this field.  This allows you
-to search across multiple fields as if they were all the same field; for example,
-you could index the same text into stemmed and unstemmed fields, and search for
-stemmed tokens near unstemmed ones.
+(Optional, string) If specified, then match intervals from this
+field rather than the top-level `<field>`. Terms are analyzed using the
+search analyzer from this field. This allows you to search across multiple
+fields as if they were all the same field; for example, you could index the same
+text into stemmed and unstemmed fields, and search for stemmed tokens near
+unstemmed ones.
+
+[[intervals-prefix]]
+==== `prefix` rule parameters
+
+The `prefix` rule matches terms that start with a specified set of characters.
+This prefix can expand to match at most 128 terms. If the prefix matches more
+than 128 terms, {es} returns an error. You can use the
+<<index-prefixes,`index-prefixes`>> option in the field mapping to avoid this
+limit.
+
+`prefix`::
+(Required, string) Beginning characters of terms you wish to find in the
+top-level `<field>`.
+
+`analyzer`::
+(Optional, string) <<analysis, analyzer>> used to normalize the `prefix`.
+Defaults to the top-level `<field>`'s analyzer.
+
+`use_field`::
++
+--
+(Optional, string) If specified, then match intervals from this field rather
+than the top-level `<field>`.
+
+The `prefix` is normalized using the search analyzer from this field, unless a
+separate `analyzer` is specified.
+--
+
+[[intervals-wildcard]]
+==== `wildcard` rule parameters
+
+The `wildcard` rule matches terms using a wildcard pattern. This pattern can
+expand to match at most 128 terms. If the pattern matches more than 128 terms,
+{es} returns an error.
+
+`pattern`::
+(Required, string) Wildcard pattern used to find matching terms.
++
+--
+This parameter supports two wildcard operators:
+
+* `?`, which matches any single character
+* `*`, which can match zero or more characters, including an empty one
+
+WARNING: Avoid beginning patterns with `*` or `?`. This can increase
+the iterations needed to find matching terms and slow search performance.
+--
+`analyzer`::
+(Optional, string) <<analysis, analyzer>> used to normalize the `pattern`.
+Defaults to the top-level `<field>`'s analyzer.
+
+`use_field`::
++
+--
+(Optional, string) If specified, match intervals from this field rather than the
+top-level `<field>`.
+
+The `pattern` is normalized using the search analyzer from this field, unless
+`analyzer` is specified separately.
+--
+
+[[intervals-fuzzy]]
+==== `fuzzy` rule parameters
+
+The `fuzzy` rule matches terms that are similar to the provided term, within an
+edit distance defined by <<fuzziness>>.  If the fuzzy expansion matches more than
+128 terms, {es} returns an error.
+
+`term`::
+(Required, string) The term to match
+
+`prefix_length`::
+(Optional, string) Number of beginning characters left unchanged when creating
+expansions. Defaults to `0`.
+
+`transpositions`::
+(Optional, boolean) Indicates whether edits include transpositions of two
+adjacent characters (ab → ba). Defaults to `true`.
+
+`fuzziness`::
+(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
+for valid values and more information.  Defaults to `auto`.
+
+`analyzer`::
+(Optional, string) <<analysis, analyzer>> used to normalize the `term`.
+Defaults to the top-level `<field>` 's analyzer.
+
+`use_field`::
++
+--
+(Optional, string) If specified, match intervals from this field rather than the
+top-level `<field>`.
+
+The `term` is normalized using the search analyzer from this field, unless
+`analyzer` is specified separately.
+--
 
 [[intervals-all_of]]
-==== `all_of`
+==== `all_of` rule parameters
 
-`all_of` returns returns matches that span a combination of other rules.
+The `all_of` rule returns matches that span a combination of other rules.
 
-[horizontal]
 `intervals`::
-An array of rules to combine.  All rules must produce a match in a
-document for the overall source to match.
+(Required, array of rule objects) An array of rules to combine. All rules must
+produce a match in a document for the overall source to match.
+
 `max_gaps`::
-Specify a maximum number of gaps between the rules.  Combinations that match
-across a distance greater than this will not match.  If set to -1 or
-unspecified, there is no restriction on this distance.  If set to 0, then the
-matches produced by the rules must all appear immediately next to each other.
++
+--
+(Optional, integer) Maximum number of positions between the matching terms.
+Intervals produced by the rules further apart than this are not considered
+matches. Defaults to `-1`.
+
+If unspecified or set to `-1`, there is no width restriction on the match. If
+set to `0`, the terms must appear next to each other.
+--
+
 `ordered`::
-Whether the intervals produced by the rules should appear in the order in
-which they are specified.  Defaults to `false`
+(Optional, boolean) If `true`, intervals produced by the rules should appear in
+the order in which they are specified. Defaults to `false`.
+
 `filter`::
-An optional <<interval_filter,interval filter>>
+(Optional, <<interval_filter,interval filter>> rule object) Rule used to filter
+returned intervals.
 
 [[intervals-any_of]]
-==== `any_of`
+==== `any_of` rule parameters
 
-The `any_of` rule emits intervals produced by any of its sub-rules.
+The `any_of` rule returns intervals produced by any of its sub-rules.
 
-[horizontal]
 `intervals`::
-An array of rules to match
+(Required, array of rule objects) An array of rules to match.
+
 `filter`::
-An optional <<interval_filter,interval filter>>
+(Optional, <<interval_filter,interval filter>> rule object) Rule used to filter
+returned intervals.
 
 [[interval_filter]]
-==== filters
+==== `filter` rule parameters
 
-You can filter intervals produced by any rules by their relation to the
-intervals produced by another rule.  The following example will return
-documents that have the words `hot` and `porridge` within 10 positions
-of each other, without the word `salty` in between:
+The `filter` rule returns intervals based on a query. See
+<<interval-filter-rule-ex>> for an example.
 
-[source,js]
+`after`::
+(Optional, query object) Query used to return intervals that follow an interval
+from the `filter` rule.
+
+`before`::
+(Optional, query object) Query used to return intervals that occur before an
+interval from the `filter` rule.
+
+`contained_by`::
+(Optional, query object) Query used to return intervals contained by an interval
+from the `filter` rule.
+
+`containing`::
+(Optional, query object) Query used to return intervals that contain an interval
+from the `filter` rule.
+
+`not_contained_by`::
+(Optional, query object) Query used to return intervals that are *not*
+contained by an interval from the `filter` rule.
+
+`not_containing`::
+(Optional, query object) Query used to return intervals that do *not* contain
+an interval from the `filter` rule.
+
+`not_overlapping`::
+(Optional, query object) Query used to return intervals that do *not* overlap
+with an interval from the `filter` rule.
+
+`overlapping`::
+(Optional, query object) Query used to return intervals that overlap with an
+interval from the `filter` rule.
+
+`script`::
+(Optional, <<modules-scripting-using, script object>>) Script used to return
+matching documents. This script must return a boolean value, `true` or `false`.
+See <<interval-script-filter>> for an example.
+
+
+[[intervals-query-note]]
+==== Notes
+
+[[interval-filter-rule-ex]]
+===== Filter example
+
+The following search includes a `filter` rule. It returns documents that have
+the words `hot` and `porridge` within 10 positions of each other, without the
+word `salty` in between:
+
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -145,35 +331,15 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
-
-The following filters are available:
-[horizontal]
-`containing`::
-Produces intervals that contain an interval from the filter rule
-`contained_by`::
-Produces intervals that are contained by an interval from the filter rule
-`not_containing`::
-Produces intervals that do not contain an interval from the filter rule
-`not_contained_by`::
-Produces intervals that are not contained by an interval from the filter rule
-`overlapping`::
-Produces intervals that overlap with an interval from the filter rule
-`not_overlapping`::
-Produces intervals that do not overlap with an interval from the filter rule
-`before`::
-Produces intervals that appear before an interval from the filter role
-`after`::
-Produces intervals that appear after an interval from the filter role
 
 [[interval-script-filter]]
-==== Script filters
+===== Script filters
 
-You can also filter intervals based on their start position, end position and
-internal gap count, using a script.  The script has access to an `interval`
-variable, with `start`, `end` and `gaps` methods:
+You can use a script to filter intervals based on their start position, end
+position, and internal gap count. The following `filter` script uses the
+`interval` variable with the `start`, `end`, and `gaps` methods:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -193,18 +359,18 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 
 [[interval-minimization]]
-==== Minimization
+===== Minimization
 
 The intervals query always minimizes intervals, to ensure that queries can
-run in linear time.  This can sometimes cause surprising results, particularly
-when using `max_gaps` restrictions or filters.  For example, take the
+run in linear time. This can sometimes cause surprising results, particularly
+when using `max_gaps` restrictions or filters. For example, take the
 following query, searching for `salty` contained within the phrase `hot
 porridge`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -226,21 +392,20 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-This query will *not* match a document containing the phrase `hot porridge is
+This query does *not* match a document containing the phrase `hot porridge is
 salty porridge`, because the intervals returned by the match query for `hot
 porridge` only cover the initial two terms in this document, and these do not
 overlap the intervals covering `salty`.
 
 Another restriction to be aware of is the case of `any_of` rules that contain
-sub-rules which overlap.  In particular, if one of the rules is a strict
-prefix of the other, then the longer rule will never be matched, which can
-cause surprises when used in combination with `max_gaps`.  Consider the
+sub-rules which overlap. In particular, if one of the rules is a strict
+prefix of the other, then the longer rule can never match, which can
+cause surprises when used in combination with `max_gaps`. Consider the
 following query, searching for `the` immediately followed by `big` or `big bad`,
 immediately followed by `wolf`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -265,16 +430,15 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-Counter-intuitively, this query *will not* match the document `the big bad
-wolf`, because the `any_of` rule in the middle will only produce intervals
+Counter-intuitively, this query does *not* match the document `the big bad
+wolf`, because the `any_of` rule in the middle only produces intervals
 for `big` - intervals for `big bad` being longer than those for `big`, while
-starting at the same position, and so being minimized away.  In these cases,
+starting at the same position, and so being minimized away. In these cases,
 it's better to rewrite the query so that all of the options are explicitly
 laid out at the top level:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -298,4 +462,3 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE

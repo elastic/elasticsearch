@@ -19,14 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -35,7 +35,7 @@ import static java.util.Collections.emptyList;
  */
 public final class SBlock extends AStatement {
 
-    private final List<AStatement> statements;
+    final List<AStatement> statements;
 
     public SBlock(Location location, List<AStatement> statements) {
         super(location);
@@ -44,14 +44,7 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
@@ -68,8 +61,7 @@ public final class SBlock extends AStatement {
             statement.inLoop = inLoop;
             statement.lastSource = lastSource && statement == last;
             statement.lastLoop = (beginLoop || lastLoop) && statement == last;
-
-            statement.analyze(locals);
+            statement.analyze(scriptRoot, scope);
 
             methodEscape = statement.methodEscape;
             loopEscape = statement.loopEscape;
@@ -81,12 +73,18 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    BlockNode write(ClassNode classNode) {
+        BlockNode blockNode = new BlockNode();
+
         for (AStatement statement : statements) {
-            statement.continu = continu;
-            statement.brake = brake;
-            statement.write(writer, globals);
+            blockNode.addStatementNode(statement.write(classNode));
         }
+
+        blockNode.setLocation(location);
+        blockNode.setAllEscape(allEscape);
+        blockNode.setStatementCount(statementCount);
+
+        return blockNode;
     }
 
     @Override

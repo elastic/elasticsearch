@@ -28,19 +28,11 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         CreateApiKeyRequest request = new CreateApiKeyRequest();
 
         ActionRequestValidationException ve = request.validate();
-        assertNotNull(ve);
-        assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name is required"));
+        assertNull(ve);
 
         request.setName(name);
         ve = request.validate();
         assertNull(ve);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> request.setName(""));
-        assertThat(e.getMessage(), containsString("name must not be null or empty"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> request.setName(null));
-        assertThat(e.getMessage(), containsString("name must not be null or empty"));
 
         request.setName(randomAlphaOfLength(257));
         ve = request.validate();
@@ -82,10 +74,16 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         final TimeValue expiration = randomBoolean() ? null :
             TimeValue.parseTimeValue(randomTimeValue(), "test serialization of create api key");
         final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-        final int numDescriptors = randomIntBetween(0, 4);
-        final List<RoleDescriptor> descriptorList = new ArrayList<>();
-        for (int i = 0; i < numDescriptors; i++) {
-            descriptorList.add(new RoleDescriptor("role_" + i, new String[] { "all" }, null, null));
+        boolean nullOrEmptyRoleDescriptors = randomBoolean();
+        final List<RoleDescriptor> descriptorList;
+        if (nullOrEmptyRoleDescriptors) {
+            descriptorList = randomBoolean() ? null : List.of();
+        } else {
+            final int numDescriptors = randomIntBetween(1, 4);
+            descriptorList = new ArrayList<>();
+            for (int i = 0; i < numDescriptors; i++) {
+                descriptorList.add(new RoleDescriptor("role_" + i, new String[] { "all" }, null, null));
+            }
         }
 
         final CreateApiKeyRequest request = new CreateApiKeyRequest();
@@ -95,9 +93,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         if (refreshPolicy != request.getRefreshPolicy() || randomBoolean()) {
             request.setRefreshPolicy(refreshPolicy);
         }
-        if (descriptorList.isEmpty() == false || randomBoolean()) {
-            request.setRoleDescriptors(descriptorList);
-        }
+        request.setRoleDescriptors(descriptorList);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -106,7 +102,11 @@ public class CreateApiKeyRequestTests extends ESTestCase {
                 assertEquals(name, serialized.getName());
                 assertEquals(expiration, serialized.getExpiration());
                 assertEquals(refreshPolicy, serialized.getRefreshPolicy());
-                assertEquals(descriptorList, serialized.getRoleDescriptors());
+                if (nullOrEmptyRoleDescriptors) {
+                    assertThat(serialized.getRoleDescriptors().isEmpty(), is(true));
+                } else {
+                    assertEquals(descriptorList, serialized.getRoleDescriptors());
+                }
             }
         }
     }

@@ -19,15 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.time.ZonedDateTime;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
@@ -43,27 +43,20 @@ final class PSubDefField extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
+        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override
-    void analyze(Locals locals) {
-        actual = expected == null || explicit ? def.class : expected;
-    }
+    DotSubDefNode write(ClassNode classNode) {
+        DotSubDefNode dotSubDefNode = new DotSubDefNode();
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+        dotSubDefNode.setLocation(location);
+        dotSubDefNode.setExpressionType(actual);
+        dotSubDefNode.setValue(value);
 
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(actual), org.objectweb.asm.Type.getType(Object.class));
-        writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
-    }
-
-    @Override
-    int accessElementCount() {
-        return 1;
+        return dotSubDefNode;
     }
 
     @Override
@@ -74,29 +67,6 @@ final class PSubDefField extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         this.actual = actual;
-    }
-
-    @Override
-    void setup(MethodWriter writer, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(actual), org.objectweb.asm.Type.getType(Object.class));
-        writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-
-        org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(
-            org.objectweb.asm.Type.getType(void.class), org.objectweb.asm.Type.getType(Object.class), MethodWriter.getType(actual));
-        writer.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 
     @Override

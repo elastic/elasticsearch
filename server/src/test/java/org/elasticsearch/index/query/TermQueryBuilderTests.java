@@ -27,7 +27,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -91,9 +90,9 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)));
-        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
+        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
 
@@ -173,5 +172,19 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
-    }
+    }   
+
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", "does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }   
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", getIndex().getName());
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+    }      
 }

@@ -19,7 +19,6 @@
 package org.elasticsearch.client.benchmark;
 
 import org.elasticsearch.client.benchmark.rest.RestClientBenchmark;
-import org.elasticsearch.client.benchmark.transport.TransportClientBenchmark;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.util.Arrays;
@@ -30,9 +29,6 @@ public class BenchmarkMain {
         String type = args[0];
         AbstractBenchmark<?> benchmark = null;
         switch (type) {
-            case "transport":
-                benchmark = new TransportClientBenchmark();
-                break;
             case "rest":
                 benchmark = new RestClientBenchmark();
                 break;

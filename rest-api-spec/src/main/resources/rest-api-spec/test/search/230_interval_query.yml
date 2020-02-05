@@ -384,3 +384,64 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "4" }
 
+---
+"Test prefix":
+  - skip:
+      version: " - 7.2.99"
+      reason: "Implemented in 7.3"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - prefix:
+                        prefix: out
+  - match: { hits.total.value: 3 }
+
+---
+"Test wildcard":
+  - skip:
+      version: " - 7.2.99"
+      reason: "Implemented in 7.3"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - wildcard:
+                        pattern: out?ide
+  - match: { hits.total.value: 3 }
+
+---
+"Test fuzzy match":
+  - skip:
+      version: " - 7.5.99"
+      reason: "Implemented in 7.6"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - fuzzy:
+                        term: cald
+                    - prefix:
+                        prefix: out
+  - match: { hits.total.value: 3 }
+
+

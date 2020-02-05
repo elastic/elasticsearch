@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Commands on OGC data
 //
@@ -19,18 +21,18 @@ address              | VARCHAR   | text
 address.keyword      | VARCHAR   | keyword
 aliases              | VARCHAR   | text
 aliases.keyword      | VARCHAR   | keyword
-boundary             | GEOMETRY  | geo_shape
-centerline           | GEOMETRY  | geo_shape
-centerlines          | GEOMETRY  | geo_shape
+boundary             | GEOMETRY  | shape
+centerline           | GEOMETRY  | shape
+centerlines          | GEOMETRY  | shape
 fid                  | INTEGER   | integer
-footprint            | GEOMETRY  | geo_shape
+footprint            | GEOMETRY  | shape
 name                 | VARCHAR   | text
 name.keyword         | VARCHAR   | keyword
-neatline             | GEOMETRY  | geo_shape
+neatline             | GEOMETRY  | shape
 num_lanes            | INTEGER   | integer
 ogc_type             | VARCHAR   | keyword
-position             | GEOMETRY  | geo_shape
-shore                | GEOMETRY  | geo_shape
-shores               | GEOMETRY  | geo_shape
+position             | GEOMETRY  | shape
+shore                | GEOMETRY  | shape
+shores               | GEOMETRY  | shape
 type                 | VARCHAR   | keyword
 ;

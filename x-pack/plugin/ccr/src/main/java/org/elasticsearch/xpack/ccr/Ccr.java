@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.ccr;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
+import org.elasticsearch.action.RequestValidators;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.ccr.action.ShardFollowTaskCleaner;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.ccr.action.TransportFollowInfoAction;
 import org.elasticsearch.xpack.ccr.action.TransportFollowStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportForgetFollowerAction;
 import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportPauseFollowAction;
 import org.elasticsearch.xpack.ccr.action.TransportPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportPutFollowAction;
@@ -79,14 +82,17 @@ import org.elasticsearch.xpack.ccr.rest.RestFollowInfoAction;
 import org.elasticsearch.xpack.ccr.rest.RestFollowStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestForgetFollowerAction;
 import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.rest.RestPauseAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestPauseFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestPutFollowAction;
+import org.elasticsearch.xpack.ccr.rest.RestResumeAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
@@ -94,6 +100,7 @@ import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -177,16 +184,18 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);
         this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
+            ccrLicenseChecker,
+            restoreSourceService,
+            new CcrRepositoryManager(settings, clusterService, client),
+            new ShardFollowTaskCleaner(clusterService, threadPool, client),
+            new AutoFollowCoordinator(
+                settings,
+                client,
+                clusterService,
                 ccrLicenseChecker,
-                restoreSourceService,
-                new CcrRepositoryManager(settings, clusterService, client),
-                new AutoFollowCoordinator(
-                        settings,
-                        client,
-                        clusterService,
-                        ccrLicenseChecker,
-                        threadPool::relativeTimeInMillis,
-                        threadPool::absoluteTimeInMillis));
+                threadPool::relativeTimeInMillis,
+                threadPool::absoluteTimeInMillis,
+                threadPool.executor(Ccr.CCR_THREAD_POOL_NAME)));
     }
 
     @Override
@@ -198,8 +207,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.CCR, CCRUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.CCR, CCRInfoTransportAction.class);
         if (enabled == false) {
-            return emptyList();
+            return Arrays.asList(usageAction, infoAction);
         }
 
         return Arrays.asList(
@@ -229,8 +240,11 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 new ActionHandler<>(DeleteAutoFollowPatternAction.INSTANCE, TransportDeleteAutoFollowPatternAction.class),
                 new ActionHandler<>(PutAutoFollowPatternAction.INSTANCE, TransportPutAutoFollowPatternAction.class),
                 new ActionHandler<>(GetAutoFollowPatternAction.INSTANCE, TransportGetAutoFollowPatternAction.class),
+                new ActionHandler<>(ActivateAutoFollowPatternAction.INSTANCE, TransportActivateAutoFollowPatternAction.class),
                 // forget follower action
-                new ActionHandler<>(ForgetFollowerAction.INSTANCE, TransportForgetFollowerAction.class));
+                new ActionHandler<>(ForgetFollowerAction.INSTANCE, TransportForgetFollowerAction.class),
+                usageAction,
+                infoAction);
     }
 
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
@@ -243,20 +257,22 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
         return Arrays.asList(
                 // stats API
-                new RestFollowStatsAction(settings, restController),
-                new RestCcrStatsAction(settings, restController),
-                new RestFollowInfoAction(settings, restController),
+                new RestFollowStatsAction(restController),
+                new RestCcrStatsAction(restController),
+                new RestFollowInfoAction(restController),
                 // follow APIs
-                new RestPutFollowAction(settings, restController),
-                new RestResumeFollowAction(settings, restController),
-                new RestPauseFollowAction(settings, restController),
-                new RestUnfollowAction(settings, restController),
+                new RestPutFollowAction(restController),
+                new RestResumeFollowAction(restController),
+                new RestPauseFollowAction(restController),
+                new RestUnfollowAction(restController),
                 // auto-follow APIs
-                new RestDeleteAutoFollowPatternAction(settings, restController),
-                new RestPutAutoFollowPatternAction(settings, restController),
-                new RestGetAutoFollowPatternAction(settings, restController),
+                new RestDeleteAutoFollowPatternAction(restController),
+                new RestPutAutoFollowPatternAction(restController),
+                new RestGetAutoFollowPatternAction(restController),
+                new RestPauseAutoFollowPatternAction(restController),
+                new RestResumeAutoFollowPatternAction(restController),
                 // forget follower API
-                new RestForgetFollowerAction(settings, restController));
+                new RestForgetFollowerAction(restController));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -323,9 +339,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                                   ThreadPool threadPool) {
+                                                                   ClusterService clusterService) {
         Repository.Factory repositoryFactory =
-            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get(), threadPool);
+            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get(),
+                clusterService.getClusterApplierService().threadPool());
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
 
@@ -336,16 +353,15 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
     }
 
-    @Override
-    public Collection<Module> createGuiceModules() {
-        return Collections.singleton(b -> XPackPlugin.bindFeatureSet(b, CCRFeatureSet.class));
-    }
-
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
-    public Collection<MappingRequestValidator> mappingRequestValidators() {
+    public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
         return Collections.singletonList(CcrRequests.CCR_PUT_MAPPING_REQUEST_VALIDATOR);
     }
 
+    @Override
+    public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
+        return Collections.singletonList(CcrRequests.CCR_INDICES_ALIASES_REQUEST_VALIDATOR);
+    }
 }

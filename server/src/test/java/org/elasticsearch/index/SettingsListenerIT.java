@@ -18,14 +18,22 @@
  */
 package org.elasticsearch.index;
 
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -60,8 +68,11 @@ public class SettingsListenerIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Module> createGuiceModules() {
-            return Collections.<Module>singletonList(new SettingsListenerModule(service));
+        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                                   NamedXContentRegistry xContentRegistry, Environment environment,
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+            return Collections.singletonList(service);
         }
     }
 

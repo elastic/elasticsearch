@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -87,13 +89,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -156,7 +156,7 @@ public class ExecutionServiceTests extends ESTestCase {
         parser = mock(WatchParser.class);
 
         DiscoveryNode discoveryNode = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(asList(DiscoveryNode.Role.values())), Version.CURRENT);
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
@@ -228,7 +228,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.type()).thenReturn("MY_AWESOME_TYPE");
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
 
         WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
@@ -314,7 +314,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
         WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
@@ -379,7 +379,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
         WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
@@ -443,7 +443,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
         WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
@@ -521,7 +521,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.logger()).thenReturn(logger);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
 
         WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
@@ -601,7 +601,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
         ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
 
@@ -650,7 +650,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
         ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
 
@@ -713,7 +713,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
         ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
 
@@ -770,7 +770,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
         when(action.logger()).thenReturn(logger);
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
         ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
 
@@ -818,7 +818,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableCondition actionCondition = mock(ExecutableCondition.class);
         ExecutableTransform actionTransform = mock(ExecutableTransform.class);
         ExecutableAction action = mock(ExecutableAction.class);
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action, null, null);
 
         ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
@@ -947,7 +947,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.type()).thenReturn("MY_AWESOME_TYPE");
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, null, null, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, null, null, action, null, null);
 
         WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
@@ -1099,7 +1099,8 @@ public class ExecutionServiceTests extends ESTestCase {
             }
 
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            future.onResponse(new UpdateResponse());
+            future.onResponse(new UpdateResponse(null, new ShardId("test", "test", 0), "test", 0, 0, 0,
+                DocWriteResponse.Result.CREATED));
             return future;
         }).when(client).update(any());
 
@@ -1217,7 +1218,7 @@ public class ExecutionServiceTests extends ESTestCase {
                 listener.onResponse(response);
             } else {
                 GetResult notFoundResult =
-                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0,
+                    new GetResult(request.index(), request.id(), UNASSIGNED_SEQ_NO, 0,
                         -1, false, null, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }
@@ -1233,7 +1234,7 @@ public class ExecutionServiceTests extends ESTestCase {
                 listener.onFailure(e);
             } else {
                 GetResult notFoundResult =
-                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1,
+                    new GetResult(request.index(), request.id(), UNASSIGNED_SEQ_NO, 0, -1,
                         false, null, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }

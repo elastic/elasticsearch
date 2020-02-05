@@ -82,19 +82,28 @@ public class RunningStats implements Writeable, Cloneable {
         // read doc count
         docCount = (Long)in.readGenericValue();
         // read fieldSum
-        fieldSum = (HashMap<String, Double>)in.readGenericValue();
+        fieldSum = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // counts
-        counts = (HashMap<String, Long>)in.readGenericValue();
+        counts = convertIfNeeded((Map<String, Long>)in.readGenericValue());
         // means
-        means = (HashMap<String, Double>)in.readGenericValue();
+        means = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // variances
-        variances = (HashMap<String, Double>)in.readGenericValue();
+        variances = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // skewness
-        skewness = (HashMap<String, Double>)in.readGenericValue();
+        skewness = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // kurtosis
-        kurtosis = (HashMap<String, Double>)in.readGenericValue();
+        kurtosis = convertIfNeeded((Map<String, Double>)in.readGenericValue());
         // read covariances
-        covariances = (HashMap<String, HashMap<String, Double>>)in.readGenericValue();
+        covariances = convertIfNeeded((Map<String, HashMap<String, Double>>)in.readGenericValue());
+    }
+
+    // Convert Map to HashMap if it isn't
+    private static <K, V> HashMap<K, V> convertIfNeeded(Map<K,V> map) {
+        if (map instanceof HashMap) {
+            return (HashMap<K, V>) map;
+        } else {
+            return new HashMap<>(map);
+        }
     }
 
     @Override
@@ -146,7 +155,7 @@ public class RunningStats implements Writeable, Cloneable {
             deltas.put(fieldName, fieldValue * docCount - fieldSum.get(fieldName));
 
             // update running mean, variance, skewness, kurtosis
-            if (means.containsKey(fieldName) == true) {
+            if (means.containsKey(fieldName)) {
                 // update running means
                 m1 = means.get(fieldName);
                 d = fieldValue - m1;
@@ -185,7 +194,7 @@ public class RunningStats implements Writeable, Cloneable {
             dR = deltas.get(fieldName);
             HashMap<String, Double> cFieldVals = (covariances.get(fieldName) != null) ? covariances.get(fieldName) : new HashMap<>();
             for (String cFieldName : cFieldNames) {
-                if (cFieldVals.containsKey(cFieldName) == true) {
+                if (cFieldVals.containsKey(cFieldName)) {
                     newVal = cFieldVals.get(cFieldName) + 1.0 / (docCount * (docCount - 1.0)) * dR * deltas.get(cFieldName);
                     cFieldVals.put(cFieldName, newVal);
                 } else {
@@ -215,7 +224,7 @@ public class RunningStats implements Writeable, Cloneable {
                 this.variances.put(fieldName, other.variances.get(fieldName).doubleValue());
                 this.skewness.put(fieldName , other.skewness.get(fieldName).doubleValue());
                 this.kurtosis.put(fieldName, other.kurtosis.get(fieldName).doubleValue());
-                if (other.covariances.containsKey(fieldName) == true) {
+                if (other.covariances.containsKey(fieldName)) {
                     this.covariances.put(fieldName, other.covariances.get(fieldName));
                 }
                 this.docCount = other.docCount;

@@ -1,4 +1,4 @@
- /*
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -17,24 +17,24 @@
  * under the License.
  */
 
-
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.standalone-test'
 
-integTestCluster {
-    /**
-     * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch 
-     * can successfully startup.
-     */
-    extraConfigFile 'log4j2.properties', 'custom-log4j2.properties'
+testClusters.integTest {
+  /**
+   * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch
+   * can successfully startup.
+   */
+  extraConfigFile 'log4j2.properties', file('custom-log4j2.properties')
 }
 
-integTestRunner {
-    nonInputProperties.systemProperty 'tests.logfile',
-            "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_server.log"
+integTest.runner {
+  nonInputProperties.systemProperty 'tests.logfile',
+    "${-> testClusters.integTest.singleNode().getServerLog().absolutePath.replaceAll(".json", ".log")}"
 }
 
 test {
-    systemProperty 'tests.security.manager', 'false'
+  systemProperty 'tests.security.manager', 'false'
 }

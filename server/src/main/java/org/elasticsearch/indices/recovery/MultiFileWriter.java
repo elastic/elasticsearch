@@ -27,9 +27,11 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,10 +41,12 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class MultiFileWriter implements Releasable {
+public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
+        super("multi_file_writer");
         this.store = store;
         this.indexState = indexState;
         this.tempFilePrefix = tempFilePrefix;
@@ -51,6 +55,7 @@ public class MultiFileWriter implements Releasable {
     }
 
     private final Runnable ensureOpen;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Logger logger;
     private final Store store;
     private final RecoveryState.Index indexState;
@@ -64,6 +69,7 @@ public class MultiFileWriter implements Releasable {
 
     public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content, boolean lastChunk)
         throws IOException {
+        assert Transports.assertNotTransportThread("multi_file_writer");
         final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
         writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
     }
@@ -138,6 +144,13 @@ public class MultiFileWriter implements Releasable {
 
     @Override
     public void close() {
+        if (closed.compareAndSet(false, true)) {
+            decRef();
+        }
+    }
+
+    @Override
+    protected void closeInternal() {
         fileChunkWriters.clear();
         // clean open index outputs
         Iterator<Map.Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
@@ -202,7 +215,7 @@ public class MultiFileWriter implements Releasable {
                     assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
                     lastPosition += chunk.content.length();
                     if (chunk.lastChunk) {
-                        assert pendingChunks.isEmpty() == true : "still have pending chunks [" + pendingChunks + "]";
+                        assert pendingChunks.isEmpty() : "still have pending chunks [" + pendingChunks + "]";
                         fileChunkWriters.remove(chunk.md.name());
                         assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
                     }

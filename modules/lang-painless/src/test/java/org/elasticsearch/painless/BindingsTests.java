@@ -103,9 +103,9 @@ public class BindingsTests extends ScriptTestCase {
 
         InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);
         WhitelistInstanceBinding getter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "setInstanceBindingValue", "void", Collections.singletonList("int"));
+                "setInstanceBindingValue", "void", Collections.singletonList("int"), Collections.emptyList());
         WhitelistInstanceBinding setter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "getInstanceBindingValue", "int", Collections.emptyList());
+                "getInstanceBindingValue", "int", Collections.emptyList(), Collections.emptyList());
         List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
         instanceBindingsList.add(getter);
         instanceBindingsList.add(setter);

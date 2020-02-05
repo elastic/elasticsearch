@@ -24,7 +24,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -53,8 +52,9 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -62,6 +62,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -119,7 +120,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private AutodetectCommunicator autodetectCommunicator;
     private AutodetectProcessFactory autodetectFactory;
     private NormalizerFactory normalizerFactory;
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
     private ClusterState clusterState;
     private ClusterService clusterService;
     private NativeStorageProvider nativeStorageProvider;
@@ -144,15 +145,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
-        when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(mock(JobResultsPersister.Builder.class));
+        when(jobResultsPersister.bulkPersisterBuilder(any(), any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         autodetectCommunicator = mock(AutodetectCommunicator.class);
         autodetectFactory = mock(AutodetectProcessFactory.class);
         normalizerFactory = mock(NormalizerFactory.class);
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings =
-            new ClusterSettings(Settings.EMPTY, Collections.singleton(MachineLearning.MAX_OPEN_JOBS_PER_NODE));
+            new ClusterSettings(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                    ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         MetaData metaData = mock(MetaData.class);
         SortedMap<String, AliasOrIndex> aliasOrIndexSortedMap = new TreeMap<>();
@@ -335,9 +338,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(0, manager.numberOfOpenJobs());
     }
 
-    // DEBUG logging makes it possible to see exactly how the two threads
-    // interleaved in the AutodetectProcessManager.close() call
-    @TestLogging("org.elasticsearch.xpack.ml.job.process.autodetect:DEBUG")
     public void testCanCloseClosingJob() throws Exception {
         AtomicInteger numberOfCommunicatorCloses = new AtomicInteger(0);
         doAnswer(invocationOnMock -> {

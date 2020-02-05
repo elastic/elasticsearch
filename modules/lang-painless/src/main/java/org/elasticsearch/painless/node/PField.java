@@ -19,19 +19,19 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -53,43 +53,38 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        prefix.analyze(locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        prefix.analyze(scriptRoot, scope);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        prefix = prefix.cast(scriptRoot, scope);
 
         if (prefix.actual.isArray()) {
             sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            PainlessField field = locals.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value);
+            PainlessField field = scriptRoot.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value);
 
             if (field == null) {
                 PainlessMethod getter;
                 PainlessMethod setter;
 
-                getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
                         "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter == null) {
-                    getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                    getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
                             "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
                 }
 
-                setter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
                         "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter != null || setter != null) {
                     sub = new PSubShortcut(location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
-                    index.analyze(locals);
+                    index.analyze(scriptRoot, scope);
 
                     if (Map.class.isAssignableFrom(prefix.actual)) {
                         sub = new PSubMapShortcut(location, prefix.actual, index);
@@ -117,14 +112,21 @@ public final class PField extends AStoreable {
         sub.read = read;
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(locals);
+        sub.analyze(scriptRoot, scope);
         actual = sub.actual;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.write(writer, globals);
+    DotNode write(ClassNode classNode) {
+        DotNode dotNode = new DotNode();
+
+        dotNode.setLeftNode(prefix.write(classNode));
+        dotNode.setRightNode(sub.write(classNode));
+
+        dotNode.setLocation(location);
+        dotNode.setExpressionType(actual);
+
+        return dotNode;
     }
 
     @Override
@@ -136,27 +138,6 @@ public final class PField extends AStoreable {
     void updateActual(Class<?> actual) {
         sub.updateActual(actual);
         this.actual = actual;
-    }
-
-    @Override
-    int accessElementCount() {
-        return sub.accessElementCount();
-    }
-
-    @Override
-    void setup(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.setup(writer, globals);
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
-        sub.load(writer, globals);
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        sub.store(writer, globals);
     }
 
     @Override

@@ -20,14 +20,15 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
 
 
-public class PersistentTasksExecutorResponseTests extends AbstractStreamableTestCase<PersistentTaskResponse> {
+public class PersistentTasksExecutorResponseTests extends AbstractWireSerializingTestCase<PersistentTaskResponse> {
 
     @Override
     protected PersistentTaskResponse createTestInstance() {
@@ -37,13 +38,13 @@ public class PersistentTasksExecutorResponseTests extends AbstractStreamableTest
                             new TestPersistentTasksPlugin.TestParams("test"),
                             randomLong(), PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT));
         } else {
-            return new PersistentTaskResponse(null);
+            return new PersistentTaskResponse((PersistentTask<?>) null);
         }
     }
 
     @Override
-    protected PersistentTaskResponse createBlankInstance() {
-        return new PersistentTaskResponse();
+    protected Writeable.Reader<PersistentTaskResponse> instanceReader() {
+        return PersistentTaskResponse::new;
     }
 
     @Override

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BraceSubNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store.
@@ -43,28 +43,23 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        index.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         index.expected = int.class;
-        index.analyze(locals);
-        index = index.cast(locals);
+        index.analyze(scriptRoot, scope);
+        index = index.cast(scriptRoot, scope);
 
         actual = clazz.getComponentType();
     }
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        setup(writer, globals);
-        load(writer, globals);
-    }
+    BraceSubNode write(ClassNode classNode) {
+        BraceSubNode braceSubNode = new BraceSubNode();
 
-    @Override
-    int accessElementCount() {
-        return 2;
+        braceSubNode.setChildNode(index.write(classNode));
+
+        braceSubNode.setLocation(location);
+        braceSubNode.setExpressionType(actual);
+
+        return braceSubNode;
     }
 
     @Override
@@ -75,24 +70,6 @@ final class PSubBrace extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void setup(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
-        writeIndexFlip(writer, MethodWriter::arrayLength);
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayLoad(MethodWriter.getType(actual));
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayStore(MethodWriter.getType(actual));
     }
 
     @Override

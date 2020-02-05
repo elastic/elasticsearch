@@ -23,14 +23,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -77,10 +76,7 @@ public class ShardVersioningTests extends ESAllocationTestCase {
         }
 
         logger.info("start all the primary shards for test1, replicas will start initializing");
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState("test1", INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.getRoutingNodes();
+        routingTable = startInitializingShardsAndReroute(strategy, clusterState, "test1").routingTable();
 
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
             assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));

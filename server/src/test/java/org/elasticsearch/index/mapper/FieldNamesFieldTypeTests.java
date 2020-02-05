@@ -24,6 +24,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.junit.Before;
@@ -63,10 +64,11 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fullName("_field_names")).thenReturn(fieldNamesFieldType);
         when(mapperService.fullName("field_name")).thenReturn(fieldType);
-        when(mapperService.simpleMatchToFullName("field_name")).thenReturn(Collections.singletonList("field_name"));
+        when(mapperService.simpleMatchToFullName("field_name")).thenReturn(Collections.singleton("field_name"));
 
         QueryShardContext queryShardContext = new QueryShardContext(0,
-                indexSettings, null, null, mapperService, null, null, null, null, null, null, () -> 0L, null);
+                indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService,
+                null, null, null, null, null, null, () -> 0L, null, null);
         fieldNamesFieldType.setEnabled(true);
         Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);

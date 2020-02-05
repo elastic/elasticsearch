@@ -13,6 +13,7 @@ SELECT select_expr [, ...]
 [ HAVING condition]
 [ ORDER BY expression [ ASC | DESC ] [, ...] ]
 [ LIMIT [ count ] ]
+[ PIVOT ( aggregation_expr FOR column IN ( value [ [ AS ] alias ] [, ...] ) ) ]
 ----
 
 .Description
@@ -235,7 +236,7 @@ The `HAVING` clause can be used _only_ along aggregate functions (and thus `GROU
 
 [source, sql]
 ----
-GROUP BY condition
+HAVING condition
 ----
 
 where:
@@ -336,7 +337,7 @@ Further more, it is possible to order groups based on aggregations of their valu
 include-tagged::{sql-specs}/docs/docs.csv-spec[orderByAgg]
 ----
 
-IMPORTANT: Ordering by aggregation is possible for up to 512 entries for memory consumption reasons.
+IMPORTANT: Ordering by aggregation is possible for up to *10000* entries for memory consumption reasons.
 In cases where the results pass this threshold, use <<sql-syntax-limit,`LIMIT`>> to reduce the number
 of results.
 
@@ -391,3 +392,54 @@ To return
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[limitBasic]
 ----
+
+[[sql-syntax-pivot]]
+==== PIVOT
+
+The `PIVOT` clause performs a cross tabulation on the results of the query: it aggregates the results and rotates rows into columns. The rotation is done by turning unique values from one column in the expression - the pivoting column - into multiple columns in the output. The column values are aggregations on the remaining columns specified in the expression.
+
+The clause can be broken down in three parts: the aggregation, the `FOR`- and the `IN`-subclause.
+
+The `aggregation_expr` subclause specifies an expression containing an <<sql-functions-aggs, aggregation function>> to be applied on one of the source columns. Only one aggregation can be provided, currently.
+
+The `FOR`-subclause specifies the pivoting column: the distinct values of this column will become the candidate set of values to be rotated.
+
+The `IN`-subclause defines a filter: the intersection between the set provided here and the candidate set from the `FOR`-subclause will be rotated to become the headers of the columns appended to the end result. The filter can not be a subquery, one must provide here literal values, obtained in advance.
+
+The pivoting operation will perform an implicit <<sql-syntax-group-by, GROUP BY>> on all source columns not specified in the `PIVOT` clause, along with the values filtered through the `IN`-clause. Consider the following statement:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[sumWithoutSubquery]
+----
+
+The query execution could logically be broken down in the following steps:
+
+. a <<sql-syntax-group-by, GROUP BY>> on the column in the `FOR`-clause: `languages`;
+. the resulting values are filtered through the set provided in the `IN`-clause;
+. the now filtered column is pivoted to form the headers of the two additional columns appended to the result: `1` and `2`;
+. a <<sql-syntax-group-by, GROUP BY>> on all columns of the source table `test_emp`, except `salary` (part of the aggregation subclause) and `languages` (part of the `FOR`-clause);
+. the values in these appended columns are the `SUM` aggregations of `salary`, grouped by the respective language.
+
+
+The table-value expression to cross-tabulate can also be the result of a subquery:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[averageWithOneValue]
+----
+
+The pivoted columns can be aliased (and quoting is required to accommodate white spaces), with or without a supporting `AS` token:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[averageWithTwoValuesAndAlias]
+----
+
+The resulting cross tabulation can further have the <<sql-syntax-order-by,ORDER BY>> and <<sql-syntax-limit, LIMIT>> clauses applied:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[averageWithOneValueAndOrder]
+----
+

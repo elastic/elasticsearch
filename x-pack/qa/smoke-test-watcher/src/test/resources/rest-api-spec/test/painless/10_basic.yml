@@ -1,5 +1,6 @@
 ---
 "Test execute watch api":
+
   - do:
       cluster.health:
           wait_for_status: green
@@ -123,6 +124,7 @@
 
 ---
 "Test execute watch api with rest_total_hits_as_int":
+
   - do:
       cluster.health:
         wait_for_status: green

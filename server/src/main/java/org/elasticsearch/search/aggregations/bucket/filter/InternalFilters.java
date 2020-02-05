@@ -87,21 +87,6 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             return aggregations;
         }
 
-        InternalBucket reduce(List<InternalBucket> buckets, ReduceContext context) {
-            InternalBucket reduced = null;
-            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-            for (InternalBucket bucket : buckets) {
-                if (reduced == null) {
-                    reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations, bucket.keyed);
-                } else {
-                    reduced.docCount += bucket.docCount;
-                }
-                aggregationsList.add(bucket.aggregations);
-            }
-            reduced.aggregations = InternalAggregations.reduce(aggregationsList, context);
-            return reduced;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (keyed) {
@@ -204,7 +189,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<List<InternalBucket>> bucketsList = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalFilters filters = (InternalFilters) aggregation;
@@ -227,8 +212,25 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, pipelineAggregators(),
                 getMetaData());
         for (List<InternalBucket> sameRangeList : bucketsList) {
-            reduced.buckets.add((sameRangeList.get(0)).reduce(sameRangeList, reduceContext));
+            reduced.buckets.add(reduceBucket(sameRangeList, reduceContext));
         }
+        return reduced;
+    }
+
+    @Override
+    protected InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        InternalBucket reduced = null;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        for (InternalBucket bucket : buckets) {
+            if (reduced == null) {
+                reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations, bucket.keyed);
+            } else {
+                reduced.docCount += bucket.docCount;
+            }
+            aggregationsList.add(bucket.aggregations);
+        }
+        reduced.aggregations = InternalAggregations.reduce(aggregationsList, context);
         return reduced;
     }
 
@@ -251,12 +253,16 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(buckets, keyed);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, keyed);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalFilters that = (InternalFilters) obj;
         return Objects.equals(buckets, that.buckets)
                 && Objects.equals(keyed, that.keyed);

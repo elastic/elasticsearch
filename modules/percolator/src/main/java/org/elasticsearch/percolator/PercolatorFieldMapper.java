@@ -66,7 +66,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -434,10 +434,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         ParseContext.Document doc = context.doc();
         FieldType pft = (FieldType) this.fieldType();
         QueryAnalyzer.Result result;
-        try {
-            Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
-            result = QueryAnalyzer.analyze(query, indexVersion);
-        } catch (QueryAnalyzer.UnsupportedQueryException e) {
+        Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        result = QueryAnalyzer.analyze(query, indexVersion);
+        if (result == QueryAnalyzer.Result.UNKNOWN) {
             doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
             return;
         }
@@ -455,7 +454,6 @@ public class PercolatorFieldMapper extends FieldMapper {
             }
         }
 
-        Version indexVersionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
         if (result.matchAllDocs) {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
             if (result.verified) {

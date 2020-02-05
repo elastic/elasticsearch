@@ -34,7 +34,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
@@ -53,7 +53,9 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -72,6 +74,7 @@ public abstract class MappedFieldType extends FieldType {
     private Object nullValue;
     private String nullValueAsString; // for sending null value to _all field
     private boolean eagerGlobalOrdinals;
+    private Map<String, String> meta;
 
     protected MappedFieldType(MappedFieldType ref) {
         super(ref);
@@ -85,6 +88,7 @@ public abstract class MappedFieldType extends FieldType {
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
+        this.meta = ref.meta;
     }
 
     public MappedFieldType() {
@@ -94,18 +98,21 @@ public abstract class MappedFieldType extends FieldType {
         setOmitNorms(false);
         setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
         setBoost(1.0f);
+        meta = Collections.emptyMap();
     }
 
     @Override
     public abstract MappedFieldType clone();
 
-    /** Return a fielddata builder for this field
-     *  @throws IllegalArgumentException if the fielddata is not supported on this type.
-     *  An IllegalArgumentException is needed in order to return an http error 400
-     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+    /**
+     * Return a fielddata builder for this field
      *
      * @param fullyQualifiedIndexName the name of the index this field-data is build for
-     * */
+     *
+     * @throws IllegalArgumentException if the fielddata is not supported on this type.
+     * An IllegalArgumentException is needed in order to return an http error 400
+     * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     */
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
@@ -124,13 +131,14 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
             Objects.equals(nullValueAsString, fieldType.nullValueAsString) &&
-            Objects.equals(similarity, fieldType.similarity);
+            Objects.equals(similarity, fieldType.similarity) &&
+            Objects.equals(meta, fieldType.meta);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
+            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString, meta);
     }
 
     // TODO: we need to override freeze() and add safety checks that all settings are actually set
@@ -390,7 +398,8 @@ public abstract class MappedFieldType extends FieldType {
     /**
      * Create an {@link IntervalsSource} to be used for proximity queries
      */
-    public IntervalsSource intervals(String query, int max_gaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
+    public IntervalsSource intervals(String query, int max_gaps, boolean ordered,
+                                     NamedAnalyzer analyzer, boolean prefix) throws IOException {
         throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
@@ -487,4 +496,18 @@ public abstract class MappedFieldType extends FieldType {
         return ((TermQuery) termQuery).getTerm();
     }
 
+    /**
+     * Get the metadata associated with this field.
+     */
+    public Map<String, String> meta() {
+        return meta;
+    }
+
+    /**
+     * Associate metadata with this field.
+     */
+    public void setMeta(Map<String, String> meta) {
+        checkIfFrozen();
+        this.meta = Map.copyOf(Objects.requireNonNull(meta));
+    }
 }

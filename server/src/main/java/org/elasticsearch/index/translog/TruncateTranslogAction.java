@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
@@ -63,6 +64,7 @@ public class TruncateTranslogAction {
     }
 
     public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
+                                                                                     ClusterState clusterState,
                                                                                      Directory indexDirectory) throws IOException {
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
@@ -83,7 +85,7 @@ public class TruncateTranslogAction {
             throw new ElasticsearchException("shard must have a valid translog UUID but got: [null]");
         }
 
-        final boolean clean = isTranslogClean(shardPath, translogUUID);
+        final boolean clean = isTranslogClean(shardPath, clusterState, translogUUID);
 
         if (clean) {
             return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CLEAN, null);
@@ -166,36 +168,36 @@ public class TruncateTranslogAction {
         IOUtils.fsync(translogPath, true);
     }
 
-    private boolean isTranslogClean(ShardPath shardPath, String translogUUID) throws IOException {
+    private boolean isTranslogClean(ShardPath shardPath, ClusterState clusterState, String translogUUID) throws IOException {
         // perform clean check of translog instead of corrupted marker file
-        boolean clean = true;
         try {
             final Path translogPath = shardPath.resolveTranslog();
             final long translogGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            final IndexMetaData indexMetaData =
-                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardPath.getDataPath().getParent());
+            final IndexMetaData indexMetaData = clusterState.metaData().getIndexSafe(shardPath.getShardId().getIndex());
             final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
             final TranslogConfig translogConfig = new TranslogConfig(shardPath.getShardId(), translogPath,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
             long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardPath.getShardId().id());
-            final TranslogDeletionPolicy translogDeletionPolicy =
-                new TranslogDeletionPolicy(indexSettings.getTranslogRetentionSize().getBytes(),
-                    indexSettings.getTranslogRetentionAge().getMillis());
+            final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
             try (Translog translog = new Translog(translogConfig, translogUUID,
-                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm);
+                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
                  Translog.Snapshot snapshot = translog.newSnapshot()) {
+                //noinspection StatementWithEmptyBody we are just checking that we can iterate through the whole snapshot
                 while (snapshot.next() != null) {
-                    // just iterate over snapshot
                 }
+                // We open translog to check for corruption, do not clean anything.
+                translogDeletionPolicy.setTranslogGenerationOfLastCommit(translog.getMinFileGeneration());
+                translogDeletionPolicy.setMinTranslogGenerationForRecovery(translog.getMinFileGeneration());
             }
+            return true;
         } catch (TranslogCorruptedException e) {
-            clean = false;
+            return false;
         }
-        return clean;
     }
 
     /** Write a checkpoint file to the given location with the given generation */
-    static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration, long globalCheckpoint) throws IOException {
+    private static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration, long globalCheckpoint)
+            throws IOException {
         Checkpoint emptyCheckpoint = Checkpoint.emptyTranslogCheckpoint(translogLength, translogGeneration,
             globalCheckpoint, translogGeneration);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
@@ -234,7 +236,7 @@ public class TruncateTranslogAction {
     }
 
     /** Return a Set of all files in a given directory */
-    public static Set<Path> filesInDirectory(Path directory) throws IOException {
+    private static Set<Path> filesInDirectory(Path directory) throws IOException {
         Set<Path> files = new TreeSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
             for (Path file : stream) {

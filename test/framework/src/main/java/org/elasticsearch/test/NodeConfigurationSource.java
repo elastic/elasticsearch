@@ -37,11 +37,6 @@ public abstract class NodeConfigurationSource {
         public Path nodeConfigPath(int nodeOrdinal) {
             return null;
         }
-
-        @Override
-        public Settings transportClientSettings() {
-            return Settings.EMPTY;
-        }
     };
 
     /**
@@ -55,14 +50,4 @@ public abstract class NodeConfigurationSource {
     public Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.emptyList();
     }
-
-    public Settings transportClientSettings() {
-        return Settings.EMPTY;
-    }
-
-    /** Returns plugins that should be loaded in the transport client */
-    public Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.emptyList();
-    }
-
 }

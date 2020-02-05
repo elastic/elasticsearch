@@ -22,7 +22,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,13 +39,25 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A field highlighted with its highlighted fragments.
  */
-public class HighlightField implements ToXContentFragment, Streamable {
+public class HighlightField implements ToXContentFragment, Writeable {
 
     private String name;
 
     private Text[] fragments;
 
-    HighlightField() {
+    public HighlightField(StreamInput in) throws IOException {
+        name = in.readString();
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            if (size == 0) {
+                fragments = Text.EMPTY_ARRAY;
+            } else {
+                fragments = new Text[size];
+                for (int i = 0; i < size; i++) {
+                    fragments[i] = in.readText();
+                }
+            }
+        }
     }
 
     public HighlightField(String name, Text[] fragments) {
@@ -84,28 +96,6 @@ public class HighlightField implements ToXContentFragment, Streamable {
     @Override
     public String toString() {
         return "[" + name + "], fragments[" + Arrays.toString(fragments) + "]";
-    }
-
-    public static HighlightField readHighlightField(StreamInput in) throws IOException {
-        HighlightField field = new HighlightField();
-        field.readFrom(in);
-        return field;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            if (size == 0) {
-                fragments = Text.EMPTY_ARRAY;
-            } else {
-                fragments = new Text[size];
-                for (int i = 0; i < size; i++) {
-                    fragments[i] = in.readText();
-                }
-            }
-        }
     }
 
     @Override

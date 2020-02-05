@@ -19,10 +19,11 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.RandomSearchRequestGenerator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,16 +32,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public class SearchTemplateRequestTests extends AbstractStreamableTestCase<SearchTemplateRequest> {
-
-    @Override
-    protected SearchTemplateRequest createBlankInstance() {
-        return new SearchTemplateRequest();
-    }
+public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<SearchTemplateRequest> {
 
     @Override
     protected SearchTemplateRequest createTestInstance() {
         return createRandomRequest();
+    }
+
+    @Override
+    protected Writeable.Reader<SearchTemplateRequest> instanceReader() {
+        return SearchTemplateRequest::new;
     }
 
     @Override
@@ -63,8 +64,8 @@ public class SearchTemplateRequestTests extends AbstractStreamableTestCase<Searc
         mutators.add(request -> request.setExplain(!request.isExplain()));
         mutators.add(request -> request.setSimulate(!request.isSimulate()));
 
-        mutators.add(request -> request.setRequest(
-            RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource)));
+        mutators.add(request -> request.setRequest(randomValueOtherThan(request.getRequest(),
+                () -> RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource))));
 
         SearchTemplateRequest mutatedInstance = copyInstance(instance);
         Consumer<SearchTemplateRequest> mutator = randomFrom(mutators);

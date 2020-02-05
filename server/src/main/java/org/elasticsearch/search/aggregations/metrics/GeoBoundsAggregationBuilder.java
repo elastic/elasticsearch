@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -32,8 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -56,7 +56,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     private boolean wrapLongitude = true;
 
     public GeoBoundsAggregationBuilder(String name) {
-        super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
     protected GeoBoundsAggregationBuilder(GeoBoundsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -73,7 +73,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
      * Read from a stream.
      */
     public GeoBoundsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(in, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         wrapLongitude = in.readBoolean();
     }
 
@@ -98,9 +98,9 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected GeoBoundsAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, context, parent, subFactoriesBuilder, metaData);
+    protected GeoBoundsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource.GeoPoint> config,
+                                                    AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -110,12 +110,15 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(wrapLongitude);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), wrapLongitude);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         GeoBoundsAggregationBuilder other = (GeoBoundsAggregationBuilder) obj;
         return Objects.equals(wrapLongitude, other.wrapLongitude);
     }

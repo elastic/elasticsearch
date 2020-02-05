@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
@@ -21,15 +20,16 @@ import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ccr.LocalIndexFollowingIT.getIndexSettings;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 /*
@@ -78,8 +78,7 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
     }
 
     public void testFollowStatsApiFollowerIndexFiltering() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(1, 0, Collections.emptyMap());
         assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader1");
         assertAcked(client().admin().indices().prepareCreate("leader2").setSource(leaderIndexSettings, XContentType.JSON));
@@ -129,8 +128,7 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
             () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
         assertThat(e.getMessage(), equalTo("No shard follow tasks for follower indices [follower1]"));
 
-        final String leaderIndexSettings = getIndexSettings(1, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(1, 0, Collections.emptyMap());
         assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader1");
 
@@ -149,9 +147,8 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
     }
 
-    public void testFollowStatsApiIncludeShardFollowStatsWithRemovedFollowerIndex() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+    public void testFollowStatsApiWithDeletedFollowerIndex() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, 0, Collections.emptyMap());
         assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader1");
 
@@ -171,23 +168,15 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
 
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest("follower1")).actionGet());
 
-        statsRequest = new FollowStatsAction.StatsRequest();
-        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
-        assertThat(response.getStatsResponses().size(), equalTo(1));
-        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
-
-        statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower1"});
-        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
-        assertThat(response.getStatsResponses().size(), equalTo(1));
-        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
-
-        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
+        assertBusy(() -> {
+            FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
+            FollowStatsAction.StatsResponses statsResponse = client().execute(FollowStatsAction.INSTANCE, request).actionGet();
+            assertThat(statsResponse.getStatsResponses(), hasSize(0));
+        });
     }
 
     public void testFollowStatsApiIncludeShardFollowStatsWithClosedFollowerIndex() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(1, 0, Collections.emptyMap());
         assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader1");
 

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestController;
@@ -51,8 +50,7 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.ge
 public class RestTasksAction extends AbstractCatAction {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestTasksAction(Settings settings, RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
-        super(settings);
+    public RestTasksAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
         controller.registerHandler(GET, "/_cat/tasks", this);
         this.nodesInCluster = nodesInCluster;
     }

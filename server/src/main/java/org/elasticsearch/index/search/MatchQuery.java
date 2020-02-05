@@ -59,6 +59,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
@@ -235,10 +236,18 @@ public class MatchQuery {
         if (fieldType == null) {
             return newUnmappedFieldQuery(fieldName);
         }
+        Set<String> fields = context.simpleMatchToIndexNames(fieldName);
+        if (fields.contains(fieldName)) {
+            assert fields.size() == 1;
+            // this field is a concrete field or an alias so we use the
+            // field type name directly
+            fieldName = fieldType.name();
+        }
+
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
         assert analyzer != null;
 
-        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
+        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
 
         /*
          * If a keyword analyzer is used, we know that further analysis isn't
@@ -248,9 +257,9 @@ public class MatchQuery {
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(fieldName, value.toString());
-            if ((fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)
-                && type == Type.BOOLEAN_PREFIX) {
-                return builder.newPrefixQuery(fieldName, term);
+            if (type == Type.BOOLEAN_PREFIX
+                    && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
+                return builder.newPrefixQuery(term);
             } else {
                 return builder.newTermQuery(term);
             }
@@ -316,15 +325,16 @@ public class MatchQuery {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        MatchQueryBuilder(Analyzer analyzer, MappedFieldType fieldType) {
+        MatchQueryBuilder(Analyzer analyzer, MappedFieldType fieldType,
+                            boolean enablePositionIncrements, boolean autoGenerateSynonymsPhraseQuery) {
             super(analyzer);
             this.fieldType = fieldType;
+            setEnablePositionIncrements(enablePositionIncrements);
             if (hasPositions(fieldType)) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
             }
-            setEnablePositionIncrements(enablePositionIncrements);
         }
 
         @Override
@@ -467,8 +477,8 @@ public class MatchQuery {
             }
             SpanQuery[] spanQueries = new SpanQuery[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                spanQueries[i] = isPrefix ? new SpanTermQuery(terms[i]) :
-                    fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context);
+                spanQueries[i] = isPrefix ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context) :
+                    new SpanTermQuery(terms[i]);
             }
             return new SpanOrQuery(spanQueries);
         }
@@ -539,12 +549,12 @@ public class MatchQuery {
         /**
          * Builds a new prefix query instance.
          */
-        protected Query newPrefixQuery(String field, Term term) {
+        protected Query newPrefixQuery(Term term) {
             try {
                 return fieldType.prefixQuery(term.text(), null, context);
             } catch (RuntimeException e) {
                 if (lenient) {
-                    return newLenientFieldQuery(field, e);
+                    return newLenientFieldQuery(term.field(), e);
                 }
                 throw e;
             }
@@ -561,7 +571,7 @@ public class MatchQuery {
             final Term term = new Term(field, termAtt.getBytesRef());
             int lastOffset = offsetAtt.endOffset();
             stream.end();
-            return isPrefix && lastOffset == offsetAtt.endOffset() ? newPrefixQuery(field, term) : newTermQuery(term);
+            return isPrefix && lastOffset == offsetAtt.endOffset() ? newPrefixQuery(term) : newTermQuery(term);
         }
 
         private void add(BooleanQuery.Builder q, String field, List<Term> current, BooleanClause.Occur operator, boolean isPrefix) {
@@ -570,7 +580,7 @@ public class MatchQuery {
             }
             if (current.size() == 1) {
                 if (isPrefix) {
-                    q.add(newPrefixQuery(field, current.get(0)), operator);
+                    q.add(newPrefixQuery(current.get(0)), operator);
                 } else {
                     q.add(newTermQuery(current.get(0)), operator);
                 }
@@ -687,7 +697,7 @@ public class MatchQuery {
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
                     if (terms.length == 1) {
-                        queryPos = usePrefix ? newPrefixQuery(field, terms[0]) : newTermQuery(terms[0]);
+                        queryPos = usePrefix ? newPrefixQuery(terms[0]) : newTermQuery(terms[0]);
                     } else {
                         // We don't apply prefix on synonyms
                         queryPos = newSynonymQuery(terms);

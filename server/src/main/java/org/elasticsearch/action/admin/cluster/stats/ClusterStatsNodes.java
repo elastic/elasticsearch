@@ -21,11 +21,11 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
@@ -49,6 +49,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterStatsNodes implements ToXContentFragment {
@@ -63,6 +66,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final NetworkTypes networkTypes;
     private final DiscoveryTypes discoveryTypes;
     private final PackagingTypes packagingTypes;
+    private final IngestStats ingestStats;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -96,6 +100,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.networkTypes = new NetworkTypes(nodeInfos);
         this.discoveryTypes = new DiscoveryTypes(nodeInfos);
         this.packagingTypes = new PackagingTypes(nodeInfos);
+        this.ingestStats = new IngestStats(nodeStats);
     }
 
     public Counts getCounts() {
@@ -177,6 +182,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
         discoveryTypes.toXContent(builder, params);
 
         packagingTypes.toXContent(builder, params);
+
+        ingestStats.toXContent(builder, params);
+
         return builder;
     }
 
@@ -186,27 +194,27 @@ public class ClusterStatsNodes implements ToXContentFragment {
         private final int total;
         private final Map<String, Integer> roles;
 
-        private Counts(List<NodeInfo> nodeInfos) {
-            this.roles = new HashMap<>();
-            for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
-                this.roles.put(role.getRoleName(), 0);
+        private Counts(final List<NodeInfo> nodeInfos) {
+            // TODO: do we need to report zeros?
+            final Map<String, Integer> roles = new HashMap<>(DiscoveryNode.getPossibleRoleNames().size());
+            roles.put(COORDINATING_ONLY, 0);
+            for (final String possibleRoleName : DiscoveryNode.getPossibleRoleNames()) {
+                roles.put(possibleRoleName, 0);
             }
-            this.roles.put(COORDINATING_ONLY, 0);
 
             int total = 0;
-            for (NodeInfo nodeInfo : nodeInfos) {
+            for (final NodeInfo nodeInfo : nodeInfos) {
                 total++;
                 if (nodeInfo.getNode().getRoles().isEmpty()) {
-                    Integer count = roles.get(COORDINATING_ONLY);
-                    roles.put(COORDINATING_ONLY, ++count);
+                    roles.merge(COORDINATING_ONLY, 1, Integer::sum);
                 } else {
-                    for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
-                        Integer count = roles.get(role.getRoleName());
-                        roles.put(role.getRoleName(), ++count);
+                    for (DiscoveryNodeRole role : nodeInfo.getNode().getRoles()) {
+                        roles.merge(role.roleName(), 1, Integer::sum);
                     }
                 }
             }
             this.total = total;
+            this.roles = Map.copyOf(roles);
         }
 
         public int getTotal() {
@@ -225,7 +233,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         public XContentBuilder toXContent(XContentBuilder builder, Params params)
                 throws IOException {
             builder.field(Fields.TOTAL, total);
-            for (Map.Entry<String, Integer> entry : roles.entrySet()) {
+            for (Map.Entry<String, Integer> entry : new TreeMap<>(roles).entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             return builder;
@@ -684,6 +692,70 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 }
             }
             builder.endArray();
+            return builder;
+        }
+
+    }
+
+    static class IngestStats implements ToXContentFragment {
+
+        final int pipelineCount;
+        final SortedMap<String, long[]> stats;
+
+        IngestStats(final List<NodeStats> nodeStats) {
+            Set<String> pipelineIds = new HashSet<>();
+            SortedMap<String, long[]> stats = new TreeMap<>();
+            for (NodeStats nodeStat : nodeStats) {
+                if (nodeStat.getIngestStats() != null) {
+                    for (Map.Entry<String,
+                            List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat.getIngestStats()
+                            .getProcessorStats().entrySet()) {
+                        pipelineIds.add(processorStats.getKey());
+                        for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
+                            stats.compute(stat.getType(), (k, v) -> {
+                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
+                                if (v == null) {
+                                    return new long[] {
+                                        nodeIngestStats.getIngestCount(),
+                                        nodeIngestStats.getIngestFailedCount(),
+                                        nodeIngestStats.getIngestCurrent(),
+                                        nodeIngestStats.getIngestTimeInMillis()
+                                    };
+                                } else {
+                                    v[0] += nodeIngestStats.getIngestCount();
+                                    v[1] += nodeIngestStats.getIngestFailedCount();
+                                    v[2] += nodeIngestStats.getIngestCurrent();
+                                    v[3] += nodeIngestStats.getIngestTimeInMillis();
+                                    return v;
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            this.pipelineCount = pipelineIds.size();
+            this.stats = Collections.unmodifiableSortedMap(stats);
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.startObject("ingest");
+            {
+                builder.field("number_of_pipelines", pipelineCount);
+                builder.startObject("processor_stats");
+                for (Map.Entry<String, long[]> stat : stats.entrySet()) {
+                    long[] statValues = stat.getValue();
+                    builder.startObject(stat.getKey());
+                    builder.field("count", statValues[0]);
+                    builder.field("failed", statValues[1]);
+                    builder.field("current", statValues[2]);
+                    builder.humanReadableField("time_in_millis", "time",
+                        new TimeValue(statValues[3], TimeUnit.MILLISECONDS));
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
             return builder;
         }
 

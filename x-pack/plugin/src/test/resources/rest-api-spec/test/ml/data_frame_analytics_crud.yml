@@ -1,0 +1,1922 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: index-source
+
+---
+"Test get-all and get-all-stats given no analytics exist":
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "_all"
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "_all"
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "*"
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "*"
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+---
+"Test put valid config with default outlier detection, query, and filter":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection-with-query"
+        body: >
+          {
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }},
+              "_source": [ "obj1.*", "obj2.*" ]
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "analyzed_fields": [ "obj1.*", "obj2.*" ]
+          }
+  - match: { id: "simple-outlier-detection-with-query" }
+  - match: { source.index: ["index-source"] }
+  - match: { source.query: {"term" : { "user" : "Kimchy"} } }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "outlier_detection":{
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }}
+  - match: { analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - is_true: create_time
+  - is_true: version
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "simple-outlier-detection-with-query"
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "simple-outlier-detection-with-query" }
+  - match: { data_frame_analytics.0.source.index: ["index-source"] }
+  - match: { data_frame_analytics.0.source.query: {"term" : { "user" : "Kimchy"} } }
+  - match: { data_frame_analytics.0.dest.index: "index-dest" }
+  - match: { data_frame_analytics.0.analysis: {
+    "outlier_detection":{
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }}
+  - match: { data_frame_analytics.0.analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - is_true: data_frame_analytics.0.create_time
+  - is_true: data_frame_analytics.0.version
+
+---
+"Test put config with security headers in the body":
+  - do:
+      catch: /unknown field \[headers\]/
+      ml.put_data_frame_analytics:
+        id: "data_frame_with_header"
+        body:  >
+          {
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }}
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "headers":{ "a_security_header" : "secret" }
+          }
+
+---
+"Test put config with create_time in the body":
+
+  - do:
+      catch: /unknown field \[create_time\]/
+      ml.put_data_frame_analytics:
+        id: "data_frame_with_create_time"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "create_time": 123456789
+          }
+
+---
+"Test put config with version in the body":
+
+  - do:
+      catch: /unknown field \[version\]/
+      ml.put_data_frame_analytics:
+        id: "data_frame_with_version"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "version": "7.3.0"
+          }
+
+---
+"Test put valid config with default outlier detection":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "simple-outlier-detection" }
+  - match: { source.index: ["index-source"] }
+  - match: { source.query: {"match_all" : {} } }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "outlier_detection":{
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put valid config with custom outlier detection":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "custom-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection":{
+                "n_neighbors": 5,
+                "method": "lof",
+                "feature_influence_threshold": 0.0,
+                "compute_feature_influence": false,
+                "outlier_fraction": 0.95,
+                "standardization_enabled": false
+              }
+            }
+          }
+  - match: { id: "custom-outlier-detection" }
+  - match: { source.index: ["index-source"] }
+  - match: { source.query: {"match_all" : {} } }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "outlier_detection":{
+      "n_neighbors": 5,
+      "method": "lof",
+      "feature_influence_threshold": 0.0,
+      "compute_feature_influence": false,
+      "outlier_fraction": 0.95,
+      "standardization_enabled": false
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put config with inconsistent body/param ids":
+
+  - do:
+      catch: /Inconsistent id; 'body_id' specified in the body differs from 'url_id' specified as a URL argument/
+      ml.put_data_frame_analytics:
+        id: "url_id"
+        body: >
+          {
+            "id": "body_id",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with invalid id":
+
+  - do:
+      catch: /Invalid id*/
+      ml.put_data_frame_analytics:
+        id: "this id contains spaces"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with invalid dest index name":
+
+  - do:
+      catch: /Invalid index name \[<script>Foo\]*/
+      ml.put_data_frame_analytics:
+        id: "config-with-invalid-dest-index"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "<script>Foo"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given dest index contains uppercase chars":
+
+  - do:
+      catch: /.*Validation Failed.* Destination index \[Foo\] must be lowercase;.*/
+      ml.put_data_frame_analytics:
+        id: "config-given-dest-index-uppercase"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "Foo"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with pattern dest index name":
+
+  - do:
+      catch: /Invalid index name \[foo\*\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-invalid-dest-index"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "foo*"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with missing concrete source index":
+
+  - do:
+      catch: /.*Validation Failed.* no such index \[missing\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-missing-concrete-source-index"
+        body: >
+          {
+            "source": {
+              "index": "missing"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with missing wildcard source index":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "config-with-missing-wildcard-source-index"
+        body: >
+          {
+            "source": {
+              "index": "missing*"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "config-with-missing-wildcard-source-index" }
+
+---
+"Test put config with dest index same as source index":
+
+  - do:
+      catch: /.*Validation Failed.* Destination index \[index-source\] is included in source expression \[index-source\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-same-source-dest-index"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-source"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with dest index matching multiple indices":
+
+  - do:
+      indices.create:
+        index: multiple-dest-index-1
+
+  - do:
+      indices.create:
+        index: multiple-dest-index-2
+
+  - do:
+      indices.put_alias:
+        index: multiple-dest-index-1
+        name: multiple-dest-index
+
+  - do:
+      indices.put_alias:
+        index: multiple-dest-index-2
+        name: multiple-dest-index
+
+  - do:
+      catch: /.*Validation Failed.* no write index is defined for alias \[multiple-dest-index\].*/
+      ml.put_data_frame_analytics:
+        id: "config-with-dest-index-matching-multiple-indices"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "multiple-dest-index"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with dest index included in source via alias":
+
+  - do:
+      indices.create:
+        index: another-source-index
+
+  - do:
+      indices.put_alias:
+        index: another-source-index
+        name: dest-alias
+
+  - do:
+      catch: /.*Validation Failed.* Destination index \[another-source-index\] is included in source expression \[another-source-index\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-dest-index-included-in-source-via-alias"
+        body: >
+          {
+            "source": {
+              "index": "another-source-index"
+            },
+            "dest": {
+              "index": "dest-alias"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with remote source index":
+
+  - do:
+      catch: /.*Validation Failed.* remote source indices are not supported/
+      ml.put_data_frame_analytics:
+        id: "config-with-missing-concrete-source-index"
+        body: >
+          {
+            "source": {
+              "index": "remote_cluster:foo"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with unknown top level field":
+
+  - do:
+      catch: /unknown field \[unknown_field\]/
+      ml.put_data_frame_analytics:
+        id: "unknown_field"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "unknown_field": 42
+          }
+
+---
+"Test put config with unknown field in outlier detection analysis":
+
+  - do:
+      catch: /unknown field \[unknown_field\]/
+      ml.put_data_frame_analytics:
+        id: "unknown_field"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{"unknown_field":42}}
+          }
+
+---
+"Test put config given missing source":
+
+  - do:
+      catch: /\[source\] must not be null/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given source with empty index array":
+
+  - do:
+      catch: /source\.index must specify at least one index/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": []
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given source with empty string in index array":
+
+  - do:
+      catch: /source\.index must contain non-null and non-empty strings/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": [""]
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given source without index":
+
+  - do:
+      catch: /Required \[index\]/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given missing dest":
+
+  - do:
+      catch: /\[dest\] must not be null/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given dest with empty index":
+
+  - do:
+      catch: /\[index\] must be non-empty/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": ""
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given dest without index":
+
+  - do:
+      catch: /Required \[index\]/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given missing analysis":
+
+  - do:
+      catch: /\[analysis\] must not be null/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            }
+          }
+
+---
+"Test put config given empty analysis":
+
+  - do:
+      catch: /parsing_exception/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {}
+          }
+
+---
+"Test get given multiple analytics":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-foo-1_dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-2"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-foo-2_dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "foo-2" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "bar"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-bar_dest"
+            },
+            "analysis": {
+              "regression":{
+                "dependent_variable": "to_predict"
+              }
+            }
+          }
+  - match: { id: "bar" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "*"
+  - match: { count: 3 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.1.id: "foo-1" }
+  - match: { data_frame_analytics.2.id: "foo-2" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "foo-*"
+  - match: { count: 2 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.1.id: "foo-2" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "bar"
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "bar" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        from: 1
+  - match: { count: 3 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.1.id: "foo-2" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        size: 2
+  - match: { count: 3 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.1.id: "foo-1" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        from: 1
+        size: 1
+  - match: { count: 3 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+
+---
+"Test get given missing analytics":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics:
+        id: "missing-analytics"
+
+---
+"Test get given missing analytics and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics:
+        id: "missing-analytics"
+        allow_no_match: false
+
+---
+"Test get given expression without matches and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics:
+        id: "missing-analytics*"
+        allow_no_match: false
+
+---
+"Test get given expression without matches and allow_no_match is true":
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "missing-analytics*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+---
+"Test get stats given missing analytics":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics_stats:
+        id: "missing-analytics"
+
+---
+"Test get stats given missing analytics and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics_stats:
+        id: "missing-analytics"
+        allow_no_match: false
+
+---
+"Test get stats given expression without matches and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics_stats:
+        id: "missing-analytics*"
+        allow_no_match: false
+
+---
+"Test get stats given expression without matches and allow_no_match is true":
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "missing-analytics*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+---
+"Test get stats given multiple analytics":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-foo-1_dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-2"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-foo-2_dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "foo-2" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "bar"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-bar_dest"
+            },
+            "analysis": {
+              "regression":{
+                "dependent_variable": "to_predict"
+              }
+            }
+          }
+  - match: { id: "bar" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "*"
+  - match: { count: 3 }
+  - length: { data_frame_analytics : 3 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.1.id: "foo-1" }
+  - match: { data_frame_analytics.1.state: "stopped" }
+  - match: { data_frame_analytics.2.id: "foo-2" }
+  - match: { data_frame_analytics.2.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-*"
+  - match: { count: 2 }
+  - length: { data_frame_analytics : 2 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.1.id: "foo-2" }
+  - match: { data_frame_analytics.1.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "bar"
+  - match: { count: 1 }
+  - length: { data_frame_analytics : 1 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        from: 2
+  - match: { count: 3 }
+  - length: { data_frame_analytics : 1 }
+  - match: { data_frame_analytics.0.id: "foo-2" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        size: 2
+  - match: { count: 3 }
+  - length: { data_frame_analytics : 2 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.1.id: "foo-1" }
+  - match: { data_frame_analytics.1.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        from: 1
+        size: 1
+  - match: { count: 3 }
+  - length: { data_frame_analytics : 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+
+---
+"Test delete given stopped config":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      ml.delete_data_frame_analytics:
+        id: "foo"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics:
+        id: "foo"
+
+---
+"Test delete given missing config":
+
+  - do:
+      catch: missing
+      ml.delete_data_frame_analytics:
+        id: "missing_config"
+
+---
+"Test delete given config and state documents":
+  - skip:
+      features: headers
+  - do:
+      ml.put_data_frame_analytics:
+        id: "delete_foo"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"regression":{
+                "dependent_variable": "to_predict"
+            }}
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: "delete_foo_regression_state#1"
+        body: >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: "data_frame_analytics-delete_foo-progress"
+        body: >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: .ml-state
+
+  - do:
+      search:
+        index: .ml-state
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "data_frame_analytics-delete_foo-progress"
+                    - "delete_foo_regression_state#1"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      ml.delete_data_frame_analytics:
+        id: "delete_foo"
+  - match: { acknowledged: true }
+
+  - do:
+      search:
+        index: .ml-state*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "data_frame_analytics-delete_foo-progress"
+                    - "delete_foo_regression_state#1"
+  - match: { hits.total.value: 0 }
+
+---
+"Test max model memory limit":
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.ml.max_model_memory_limit: "20mb"
+  - match: {transient.xpack.ml.max_model_memory_limit: "20mb"}
+
+  # Explicit request higher than limit is an error
+  - do:
+      catch: /model_memory_limit \[8gb\] must be less than the value of the xpack.ml.max_model_memory_limit setting \[20mb\]/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection-with-query"
+        body: >
+          {
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }}
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "model_memory_limit": "8gb",
+            "analyzed_fields": [ "obj1.*", "obj2.*" ]
+          }
+
+  # Request using default higher than limit gets silently capped
+  - do:
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection-with-query"
+        body: >
+          {
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }}
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "analyzed_fields": [ "obj1.*", "obj2.*" ]
+          }
+  - match: { id: "simple-outlier-detection-with-query" }
+  - match: { source.index: ["index-source"] }
+  - match: { source.query: {"term" : { "user" : "Kimchy"} } }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "outlier_detection":{
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }}
+  - match: { analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - match: { model_memory_limit: "20mb" }
+
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.ml.max_model_memory_limit: null
+  - match: {transient: {}}
+
+---
+"Test put outlier_detection given n_neighbors is negative":
+
+  - do:
+      catch: /\[n_neighbors\] must be a positive integer/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-n_neighbors"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "n_neighbors": -1
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given n_neighbors is zero":
+
+  - do:
+      catch: /\[n_neighbors\] must be a positive integer/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-zero-n_neighbors"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "n_neighbors": 0
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given feature_influence_threshold is negative":
+
+  - do:
+      catch: /\[feature_influence_threshold\] must be in \[0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-feature_influence_threshold"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "feature_influence_threshold": -0.001
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given feature_influence_threshold is greater than one":
+
+  - do:
+      catch: /\[feature_influence_threshold\] must be in \[0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-feature_influence_threshold"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "feature_influence_threshold": 1.001
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given outlier_fraction is negative":
+
+  - do:
+      catch: /\[outlier_fraction\] must be in \[0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-outlier_fraction"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "outlier_fraction": -0.001
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given outlier_fraction is greater than one":
+
+  - do:
+      catch: /\[outlier_fraction\] must be in \[0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-outlier_fraction"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "outlier_fraction": 1.001
+              }
+            }
+          }
+
+---
+"Test put regression given dependent_variable is not defined":
+
+  - do:
+      catch: /parse_exception/
+      ml.put_data_frame_analytics:
+        id: "regression-without-dependent-variable"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {}
+            }
+          }
+
+---
+"Test put regression given negative lambda":
+
+  - do:
+      catch: /\[lambda\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "regression-negative-lambda"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "lambda": -1.0
+              }
+            }
+          }
+
+---
+"Test put regression given negative gamma":
+
+  - do:
+      catch: /\[gamma\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "regression-negative-gamma"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "gamma": -1.0
+              }
+            }
+          }
+
+---
+"Test put regression given eta less than 1e-3":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "regression-eta-greater-less-than-valid"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "eta": 0.0009
+              }
+            }
+          }
+
+---
+"Test put regression given eta greater than one":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "regression-eta-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "eta": 1.00001
+              }
+            }
+          }
+
+---
+"Test put regression given maximum_number_trees is zero":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "regression-maximum-number-trees-is-zero"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 0
+              }
+            }
+          }
+
+---
+"Test put regression given maximum_number_trees is greater than 2k":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "regression-maximum-number-trees-greater-than-2k"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 2001
+              }
+            }
+          }
+
+---
+"Test put regression given feature_bag_fraction is negative":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "regression-feature-bag-fraction-is-negative"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": -0.0001
+              }
+            }
+          }
+
+---
+"Test put regression given feature_bag_fraction is greater than one":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "regression-feature-bag-fraction-is-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": 1.0001
+              }
+            }
+          }
+
+---
+"Test put regression given training_percent is less than one":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "regression-training-percent-is-less-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "training_percent": 0.999
+              }
+            }
+          }
+
+---
+"Test put regression given training_percent is greater than hundred":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "regression-training-percent-is-greater-than-hundred"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "training_percent": 100.1
+              }
+            }
+          }
+
+---
+"Test put regression given valid":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "valid-regression"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "lambda": 3.14,
+                "gamma": 0.42,
+                "eta": 0.5,
+                "maximum_number_trees": 400,
+                "feature_bag_fraction": 0.3,
+                "training_percent": 60.3,
+                "randomize_seed": 42
+              }
+            }
+          }
+  - match: { id: "valid-regression" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "regression":{
+      "dependent_variable": "foo",
+      "lambda": 3.14,
+      "gamma": 0.42,
+      "eta": 0.5,
+      "maximum_number_trees": 400,
+      "feature_bag_fraction": 0.3,
+      "prediction_field_name": "foo_prediction",
+      "training_percent": 60.3,
+      "randomize_seed": 42
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put classification given dependent_variable is not defined":
+
+  - do:
+      catch: /parse_exception/
+      ml.put_data_frame_analytics:
+        id: "classification-without-dependent-variable"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {}
+            }
+          }
+
+---
+"Test put classification given negative lambda":
+
+  - do:
+      catch: /\[lambda\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "classification-negative-lambda"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "lambda": -1.0
+              }
+            }
+          }
+
+---
+"Test put classification given negative gamma":
+
+  - do:
+      catch: /\[gamma\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "classification-negative-gamma"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "gamma": -1.0
+              }
+            }
+          }
+
+---
+"Test put classification given eta less than 1e-3":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-eta-greater-less-than-valid"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "eta": 0.0009
+              }
+            }
+          }
+
+---
+"Test put classification given eta greater than one":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-eta-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "eta": 1.00001
+              }
+            }
+          }
+
+---
+"Test put classification given maximum_number_trees is zero":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-maximum-number-trees-is-zero"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 0
+              }
+            }
+          }
+
+---
+"Test put classification given maximum_number_trees is greater than 2k":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-maximum-number-trees-greater-than-2k"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 2001
+              }
+            }
+          }
+
+---
+"Test put classification given feature_bag_fraction is negative":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-feature-bag-fraction-is-negative"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": -0.0001
+              }
+            }
+          }
+
+---
+"Test put classification given feature_bag_fraction is greater than one":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-feature-bag-fraction-is-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": 1.0001
+              }
+            }
+          }
+
+---
+"Test put classification given num_top_classes is less than zero":
+
+  - do:
+      catch: /\[num_top_classes\] must be an integer in \[0, 1000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-less-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "num_top_classes": -1
+              }
+            }
+          }
+
+---
+"Test put classification given num_top_classes is greater than 1k":
+
+  - do:
+      catch: /\[num_top_classes\] must be an integer in \[0, 1000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-greater-than-hundred"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "num_top_classes": 1001
+              }
+            }
+          }
+
+---
+"Test put classification given training_percent is less than one":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-less-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "training_percent": 0.999
+              }
+            }
+          }
+
+---
+"Test put classification given training_percent is greater than hundred":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-greater-than-hundred"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "training_percent": 100.1
+              }
+            }
+          }
+
+---
+"Test put classification given valid":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "valid-classification"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "lambda": 3.14,
+                "gamma": 0.42,
+                "eta": 0.5,
+                "maximum_number_trees": 400,
+                "feature_bag_fraction": 0.3,
+                "training_percent": 60.3,
+                "randomize_seed": 24
+              }
+            }
+          }
+  - match: { id: "valid-classification" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "classification":{
+      "dependent_variable": "foo",
+      "lambda": 3.14,
+      "gamma": 0.42,
+      "eta": 0.5,
+      "maximum_number_trees": 400,
+      "feature_bag_fraction": 0.3,
+      "prediction_field_name": "foo_prediction",
+      "training_percent": 60.3,
+      "randomize_seed": 24,
+      "num_top_classes": 2
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put with description":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "with-description"
+        body: >
+          {
+            "description": "This is a described config",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "randomize_seed": 42
+              }
+            }
+          }
+  - match: { id: "with-description" }
+  - match: { description: "This is a described config" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "regression":{
+      "dependent_variable": "foo",
+      "prediction_field_name": "foo_prediction",
+      "training_percent": 100.0,
+      "randomize_seed": 42
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put config given analyzed_fields include field excluded by source":
+
+  - do:
+      catch: /field \[excluded\] is included in \[analyzed_fields\] but not in \[source._source\]/
+      ml.put_data_frame_analytics:
+        id: "analyzed_fields-include-field-excluded-by-source"
+        body: >
+          {
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }},
+              "_source": {
+                "excludes": ["excluded"]
+              }
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "analyzed_fields": {
+              "includes": ["excluded"]
+            }
+          }

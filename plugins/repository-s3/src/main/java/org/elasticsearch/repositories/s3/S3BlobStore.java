@@ -68,6 +68,10 @@ class S3BlobStore implements BlobStore {
         return service.client(repositoryMetaData);
     }
 
+    int getMaxRetries() {
+        return service.settings(repositoryMetaData).maxRetries;
+    }
+
     public String bucket() {
         return bucket;
     }

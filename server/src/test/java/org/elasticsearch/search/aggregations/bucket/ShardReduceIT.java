@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardReduceIT extends ESIntegTestCase {
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
-        return client().prepareIndex("idx", "type").setSource(jsonBuilder()
+        return client().prepareIndex("idx").setSource(jsonBuilder()
                 .startObject()
                 .field("value", value)
                 .field("ip", "10.0.0." + value)
@@ -79,7 +79,7 @@ public class ShardReduceIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested", "ip", "type=ip",
+                .setMapping("nested", "type=nested", "ip", "type=ip",
                         "location", "type=geo_point", "term-s", "type=keyword"));
 
         indexRandom(true,

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -199,7 +200,40 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString(id));
     }
 
-    public void testPostIndexRemoveTriggerOnException() throws Exception {
+    public void testPostIndexRemoveTriggerOnDocumentRelatedException() throws Exception {
+        when(operation.id()).thenReturn("_id");
+        when(result.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(result.getFailure()).thenReturn(new RuntimeException());
+        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
+
+        listener.postIndex(shardId, operation, result);
+        verify(triggerService).remove(eq("_id"));
+    }
+
+    public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreOtherEngineResultTypes() throws Exception {
+        List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
+        types.remove(Engine.Result.Type.FAILURE);
+
+        when(operation.id()).thenReturn("_id");
+        when(result.getResultType()).thenReturn(randomFrom(types));
+        when(result.getFailure()).thenReturn(new RuntimeException());
+        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
+
+        listener.postIndex(shardId, operation, result);
+        verifyZeroInteractions(triggerService);
+    }
+
+    public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreNonWatcherDocument() throws Exception {
+        when(operation.id()).thenReturn("_id");
+        when(result.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(result.getFailure()).thenReturn(new RuntimeException());
+        when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(4));
+
+        listener.postIndex(shardId, operation, result);
+        verifyZeroInteractions(triggerService);
+    }
+
+    public void testPostIndexRemoveTriggerOnEngineLevelException() throws Exception {
         when(operation.id()).thenReturn("_id");
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
@@ -207,7 +241,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         verify(triggerService).remove(eq("_id"));
     }
 
-    public void testPostIndexDontInvokeForOtherDocuments() throws Exception {
+    public void testPostIndexRemoveTriggerOnEngineLevelException_ignoreNonWatcherDocument() throws Exception {
         when(operation.id()).thenReturn("_id");
         when(shardId.getIndexName()).thenReturn("anything");
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
@@ -432,14 +466,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         DiscoveryNode node1 = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(),
                 Collections.emptyMap(), new HashSet<>(Collections.singletonList(
-                        randomFrom(DiscoveryNode.Role.INGEST, DiscoveryNode.Role.MASTER))),
+                        randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))),
                 Version.CURRENT);
 
         DiscoveryNode node2 = new DiscoveryNode("node_2", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(Collections.singletonList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+                new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
 
         DiscoveryNode node3 = new DiscoveryNode("node_3", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(Collections.singletonList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+                new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
 
         IndexMetaData.Builder indexMetaDataBuilder = createIndexBuilder(Watch.INDEX, 1 ,0);
 
@@ -698,6 +732,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     private static DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(asList(DiscoveryNode.Role.values())), Version.CURRENT);
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
     }
 }

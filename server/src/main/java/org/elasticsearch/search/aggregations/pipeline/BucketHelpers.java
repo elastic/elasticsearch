@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -52,7 +53,7 @@ public class BucketHelpers {
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "skip": empty buckets will simply be ignored
      */
-    public enum GapPolicy {
+    public enum GapPolicy implements Writeable {
         INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
 
         /**
@@ -95,6 +96,7 @@ public class BucketHelpers {
         /**
          * Serialize the GapPolicy to the output stream
          */
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(id);
         }

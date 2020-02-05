@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -36,6 +37,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -44,7 +46,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -91,6 +93,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -115,6 +118,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -126,9 +130,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class JobResultsProvider {
@@ -292,7 +294,7 @@ public class JobResultsProvider {
             // This assumes the requested mapping will be merged with mappings from the template,
             // and may need to be revisited if template merging is ever refactored
             try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(termFields)) {
-                createIndexRequest.mapping(SINGLE_MAPPING_NAME, termFieldsMapping);
+                createIndexRequest.mapping(termFieldsMapping);
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(
@@ -300,19 +302,17 @@ public class JobResultsProvider {
                             e -> {
                                 // Possible that the index was created while the request was executing,
                                 // so we need to handle that possibility
-                                if (e instanceof ResourceAlreadyExistsException) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                                     LOGGER.info("Index already exists");
                                     // Add the term field mappings and alias.  The complication is that the state at the
                                     // beginning of the operation doesn't have any knowledge of the index, as it's only
                                     // just been created.  So we need yet another operation to get the mappings for it.
                                     getLatestIndexMappings(indexName, ActionListener.wrap(
                                         response -> {
-                                            // Expect one index and one type.  If this is not the case then it means the
+                                            // Expect one index.  If this is not the case then it means the
                                             // index has been deleted almost immediately after being created, and this is
                                             // so unlikely that it's reasonable to fail the whole operation.
-                                            ImmutableOpenMap<String, MappingMetaData> indexMappings =
-                                                response.getMappings().iterator().next().value;
-                                            MappingMetaData typeMappings = indexMappings.iterator().next().value;
+                                            MappingMetaData typeMappings = response.getMappings().iterator().next().value;
                                             addTermsAndAliases(typeMappings, indexName, termFields, createAliasListener);
                                         },
                                         finalListener::onFailure
@@ -344,7 +344,7 @@ public class JobResultsProvider {
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
             listener.onFailure(new IllegalArgumentException(message));
         } else {
-            updateIndexMappingWithTermFields(indexName, mapping.type(), termFields, listener);
+            updateIndexMappingWithTermFields(indexName, termFields, listener);
         }
     }
 
@@ -374,12 +374,11 @@ public class JobResultsProvider {
         return count;
     }
 
-    private void updateIndexMappingWithTermFields(String indexName, String mappingType, Collection<String> termFields,
+    private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields,
                                                   ActionListener<Boolean> listener) {
         // Put the whole mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(mappingType, termFields)) {
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
-                    .setType(mappingType)
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -417,6 +416,114 @@ public class JobResultsProvider {
                 .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
     }
 
+    /**
+     * Get the job's timing stats
+     *
+     * @param jobId The job id
+     */
+    public void timingStats(String jobId, Consumer<TimingStats> handler, Consumer<Exception> errorHandler) {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        searchSingleResult(
+            jobId,
+            TimingStats.TYPE.getPreferredName(),
+            createLatestTimingStatsSearch(indexName, jobId),
+            TimingStats.PARSER,
+            result -> handler.accept(result.result),
+            errorHandler,
+            () -> new TimingStats(jobId));
+    }
+
+    private SearchRequestBuilder createLatestTimingStatsSearch(String indexName, String jobId) {
+        return client.prepareSearch(indexName)
+            .setSize(1)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId)))
+            .addSort(SortBuilders.fieldSort(TimingStats.BUCKET_COUNT.getPreferredName()).order(SortOrder.DESC));
+    }
+
+    public void datafeedTimingStats(List<String> jobIds, Consumer<Map<String, DatafeedTimingStats>> handler,
+                                    Consumer<Exception> errorHandler) {
+        if (jobIds.isEmpty()) {
+            handler.accept(Map.of());
+            return;
+        }
+        MultiSearchRequestBuilder msearchRequestBuilder = client.prepareMultiSearch();
+        for (String jobId : jobIds) {
+            String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+            msearchRequestBuilder.add(createLatestDatafeedTimingStatsSearch(indexName, jobId));
+        }
+        MultiSearchRequest msearchRequest = msearchRequestBuilder.request();
+
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            msearchRequest,
+            ActionListener.<MultiSearchResponse>wrap(
+                msearchResponse -> {
+                    Map<String, DatafeedTimingStats> timingStatsByJobId = new HashMap<>();
+                    for (int i = 0; i < msearchResponse.getResponses().length; i++) {
+                        String jobId = jobIds.get(i);
+                        MultiSearchResponse.Item itemResponse = msearchResponse.getResponses()[i];
+                        if (itemResponse.isFailure()) {
+                            errorHandler.accept(itemResponse.getFailure());
+                        } else {
+                            SearchResponse searchResponse = itemResponse.getResponse();
+                            ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                            int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                            if (shardFailures != null && shardFailures.length > 0) {
+                                LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
+                                errorHandler.accept(
+                                    new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                            } else if (unavailableShards > 0) {
+                                errorHandler.accept(
+                                    new ElasticsearchException(
+                                        "[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                            } else {
+                                SearchHits hits = searchResponse.getHits();
+                                long hitsCount = hits.getHits().length;
+                                if (hitsCount == 0) {
+                                    SearchRequest searchRequest = msearchRequest.requests().get(i);
+                                    LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
+                                } else if (hitsCount > 1) {
+                                    SearchRequest searchRequest = msearchRequest.requests().get(i);
+                                    LOGGER.debug("Found multiple hits for [{}]", new Object[]{searchRequest.indices()});
+                                } else {
+                                    assert hitsCount == 1;
+                                    SearchHit hit = hits.getHits()[0];
+                                    DatafeedTimingStats timingStats = parseSearchHit(hit, DatafeedTimingStats.PARSER, errorHandler);
+                                    timingStatsByJobId.put(jobId, timingStats);
+                                }
+                            }
+                        }
+                    }
+                    handler.accept(timingStatsByJobId);
+                },
+                errorHandler
+            ),
+            client::multiSearch);
+    }
+
+    public void datafeedTimingStats(String jobId, Consumer<DatafeedTimingStats> handler, Consumer<Exception> errorHandler) {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        searchSingleResult(
+            jobId,
+            DatafeedTimingStats.TYPE.getPreferredName(),
+            createLatestDatafeedTimingStatsSearch(indexName, jobId),
+            DatafeedTimingStats.PARSER,
+            result -> handler.accept(result.result),
+            errorHandler,
+            () -> new DatafeedTimingStats(jobId));
+    }
+
+    private SearchRequestBuilder createLatestDatafeedTimingStatsSearch(String indexName, String jobId) {
+        return client.prepareSearch(indexName)
+            .setSize(1)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)))
+            .addSort(SortBuilders.fieldSort(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
+                .unmappedType("double").order(SortOrder.DESC));
+    }
+
     public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
 
         String jobId = job.getId();
@@ -443,6 +550,7 @@ public class JobResultsProvider {
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))
                 .add(createLatestModelSizeStatsSearch(resultsIndex))
+                .add(createLatestTimingStatsSearch(resultsIndex, jobId))
                 // These next two document IDs never need to be the legacy ones due to the rule
                 // that you cannot open a 5.4 job in a subsequent version of the product
                 .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
@@ -499,11 +607,13 @@ public class JobResultsProvider {
                 .setRouting(id);
     }
 
-    private void parseAutodetectParamSearchHit(String jobId, AutodetectParams.Builder paramsBuilder, SearchHit hit,
+    private static void parseAutodetectParamSearchHit(String jobId, AutodetectParams.Builder paramsBuilder, SearchHit hit,
                                                Consumer<Exception> errorHandler) {
         String hitId = hit.getId();
         if (DataCounts.documentId(jobId).equals(hitId)) {
             paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER, errorHandler));
+        } else if (TimingStats.documentId(jobId).equals(hitId)) {
+            paramsBuilder.setTimingStats(parseSearchHit(hit, TimingStats.PARSER, errorHandler));
         } else if (hitId.startsWith(ModelSizeStats.documentIdPrefix(jobId))) {
             ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.LENIENT_PARSER, errorHandler);
             paramsBuilder.setModelSizeStats(modelSizeStats == null ? null : modelSizeStats.build());
@@ -519,7 +629,7 @@ public class JobResultsProvider {
         }
     }
 
-    private <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser,
+    private static <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser,
                                     Consumer<Exception> errorHandler) {
         BytesReference source = hit.getSourceRef();
         try (InputStream stream = source.streamInput();
@@ -605,7 +715,7 @@ public class JobResultsProvider {
      * @return a bucket {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Bucket> newBatchedBucketsIterator(String jobId) {
-        return new BatchedBucketsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedBucketsIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -617,7 +727,7 @@ public class JobResultsProvider {
      * @return a record {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<AnomalyRecord> newBatchedRecordsIterator(String jobId) {
-        return new BatchedRecordsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedRecordsIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -814,7 +924,7 @@ public class JobResultsProvider {
      * @return an influencer {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Influencer> newBatchedInfluencersIterator(String jobId) {
-        return new BatchedInfluencersIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedInfluencersIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -1074,7 +1184,7 @@ public class JobResultsProvider {
                 .sortDescending(true).from(BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE - 1).size(1)
                 .includeInterim(false);
         bucketsViaInternalClient(jobId, bucketQuery, bucketHandler, e -> {
-            if (e instanceof ResourceNotFoundException) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 handler.accept(0L);
             } else {
                 errorHandler.accept(e);
@@ -1322,7 +1432,7 @@ public class JobResultsProvider {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
                 } else {
                     listener.onFailure(e);

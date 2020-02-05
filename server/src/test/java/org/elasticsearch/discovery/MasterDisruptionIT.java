@@ -36,7 +36,6 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -50,7 +49,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests relating to the loss of the master.
  */
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
@@ -94,11 +92,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * This test isolates the master from rest of the cluster, waits for a new master to be elected, restores the partition
      * and verifies that all node agree on the new cluster state
      */
-    @TestLogging(
-            "_root:DEBUG,"
-                    + "org.elasticsearch.cluster.service:TRACE,"
-                    + "org.elasticsearch.gateway:TRACE,"
-                    + "org.elasticsearch.indices.store:TRACE")
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 
@@ -196,7 +189,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(30));
 
 
         logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
@@ -235,7 +228,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
@@ -244,16 +237,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     }
 
-    @TestLogging(
-        "_root:DEBUG,"
-            + "org.elasticsearch.action.bulk:TRACE,"
-            + "org.elasticsearch.action.get:TRACE,"
-            + "org.elasticsearch.cluster.service:TRACE,"
-            + "org.elasticsearch.discovery:TRACE,"
-            + "org.elasticsearch.indices.cluster:TRACE,"
-            + "org.elasticsearch.indices.recovery:TRACE,"
-            + "org.elasticsearch.index.seqno:TRACE,"
-            + "org.elasticsearch.index.shard:TRACE")
     public void testMappingTimeout() throws Exception {
         startCluster(3);
         createIndex("test", Settings.builder()
@@ -263,7 +246,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         .build());
 
         // create one field
-        index("test", "doc", "1", "{ \"f\": 1 }");
+        index("test", "1", "{ \"f\": 1 }");
 
         ensureGreen();
 
@@ -276,9 +259,9 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         disruption.startDisrupting();
 
         BulkRequestBuilder bulk = client().prepareBulk();
-        bulk.add(client().prepareIndex("test", "doc", "2").setSource("{ \"f\": 1 }", XContentType.JSON));
-        bulk.add(client().prepareIndex("test", "doc", "3").setSource("{ \"g\": 1 }", XContentType.JSON));
-        bulk.add(client().prepareIndex("test", "doc", "4").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test").setId("2").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test").setId("3").setSource("{ \"g\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test").setId("4").setSource("{ \"f\": 1 }", XContentType.JSON));
         BulkResponse bulkResponse = bulk.get();
         assertTrue(bulkResponse.hasFailures());
 

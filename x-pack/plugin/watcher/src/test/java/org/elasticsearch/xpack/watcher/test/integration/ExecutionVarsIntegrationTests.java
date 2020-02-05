@@ -6,13 +6,14 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
@@ -108,9 +109,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
     }
 
     public void testVars() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch(watchId).setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId).setSource(watchBuilder()
                 .trigger(schedule(cron("0/1 * * * * ?")))
                 .input(simpleInput("value", 5))
                 .condition(new ScriptCondition(
@@ -172,9 +171,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
     }
 
     public void testVarsManual() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch(watchId).setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId).setSource(watchBuilder()
                 .trigger(schedule(cron("0/1 * * * * ? 2020")))
                 .input(simpleInput("value", 5))
                 .condition(new ScriptCondition(
@@ -195,8 +192,8 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
 
         boolean debug = randomBoolean();
 
-        ExecuteWatchResponse executeWatchResponse = watcherClient
-                .prepareExecuteWatch(watchId)
+        ExecuteWatchResponse executeWatchResponse = new ExecuteWatchRequestBuilder(client())
+                .setId(watchId)
                 .setDebug(debug)
                 .get();
         assertThat(executeWatchResponse.getRecordId(), notNullValue());

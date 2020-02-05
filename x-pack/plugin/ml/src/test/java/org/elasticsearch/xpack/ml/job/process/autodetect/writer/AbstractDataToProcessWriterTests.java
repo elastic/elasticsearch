@@ -109,7 +109,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
 
     public void testTokenizeForCategorization() throws IOException {
         CategorizationAnalyzerConfig defaultConfig = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null);
-        try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, defaultConfig)) {
+        try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, defaultConfig)) {
 
             assertEquals("sol13m-8608.1.p2ps,Info,Source,AES_SERVICE2,on,has,shut,down",
                     AbstractDataToProcessWriter.tokenizeForCategorization(categorizationAnalyzer, "p2ps",

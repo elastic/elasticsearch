@@ -22,10 +22,10 @@ package org.elasticsearch.persistent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -74,7 +74,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -217,10 +217,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             return minVersion;
         }
 
-        @Override
-        public Optional<String> getRequiredFeature() {
-            return feature;
-        }
     }
 
     public static class State implements PersistentTaskState {
@@ -334,10 +330,15 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 AtomicInteger phase = new AtomicInteger();
                 while (true) {
                     // wait for something to happen
-                    assertTrue(awaitBusy(() -> testTask.isCancelled() ||
-                                    testTask.getOperation() != null ||
-                                    clusterService.lifecycleState() != Lifecycle.State.STARTED,   // speedup finishing on closed nodes
-                            30, TimeUnit.SECONDS)); // This can take a while during large cluster restart
+                    try {
+                        assertBusy(() -> assertTrue(testTask.isCancelled() ||
+                                testTask.getOperation() != null ||
+                                clusterService.lifecycleState() != Lifecycle.State.STARTED),   // speedup finishing on closed nodes
+                            45, TimeUnit.SECONDS); // This can take a while during large cluster restart
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+
                     if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
                         return;
                     }
@@ -395,23 +396,13 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class TestTaskAction extends Action<TestTasksResponse> {
+    public static class TestTaskAction extends ActionType<TestTasksResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/persistent/task_test";
 
         private TestTaskAction() {
-            super(NAME);
-        }
-
-        @Override
-        public TestTasksResponse newResponse() {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
-        public Writeable.Reader<TestTasksResponse> getResponseReader() {
-            return TestTasksResponse::new;
+            super(NAME, TestTasksResponse::new);
         }
     }
 

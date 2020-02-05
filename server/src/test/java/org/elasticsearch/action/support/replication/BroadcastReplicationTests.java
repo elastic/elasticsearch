@@ -103,7 +103,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         broadcastReplicationAction = new TestBroadcastReplicationAction(clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), null);
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver());
     }
 
     @Override
@@ -125,7 +125,7 @@ public class BroadcastReplicationTests extends ESTestCase {
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest(index), response);
+        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             if (randomBoolean()) {
                 shardRequests.v2().onFailure(new NoShardAvailableActionException(shardRequests.v1()));
@@ -145,7 +145,7 @@ public class BroadcastReplicationTests extends ESTestCase {
                 ShardRoutingState.STARTED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest(index), response);
+        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             ReplicationResponse replicationResponse = new ReplicationResponse();
             replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(1, 1));
@@ -161,7 +161,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         setState(clusterService, stateWithAssignedPrimariesAndOneReplica(index, numShards));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index), response);
+        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest().indices(index), response);
         int succeeded = 0;
         int failed = 0;
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
@@ -213,10 +213,9 @@ public class BroadcastReplicationTests extends ESTestCase {
             ConcurrentCollections.newConcurrentSet();
 
         TestBroadcastReplicationAction(ClusterService clusterService, TransportService transportService,
-                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> action) {
+                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
             super("internal:test-broadcast-replication-action", DummyBroadcastRequest::new, clusterService, transportService,
-                    actionFilters, indexNameExpressionResolver, action);
+                    null, actionFilters, indexNameExpressionResolver, null);
         }
 
         @Override
@@ -256,7 +255,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             TransportBroadcastReplicationAction<DummyBroadcastRequest, BroadcastResponse, ?, ?> broadcastAction,
             DummyBroadcastRequest request) {
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastAction.execute(request, response);
+        ActionTestUtils.execute(broadcastAction, null, request, response);
         return response.actionGet("5s");
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -121,17 +122,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return FACTORY;
         }
 
-        Bucket reduce(List<Bucket> ranges, ReduceContext context) {
-            long docCount = 0;
-            List<InternalAggregations> aggregationsList = new ArrayList<>(ranges.size());
-            for (Bucket range : ranges) {
-                docCount += range.docCount;
-                aggregationsList.add(range.aggregations);
-            }
-            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return getFactory().createBucket(key, from, to, docCount, aggs, keyed, format);
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (keyed) {
@@ -199,7 +189,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
         public ValuesSourceType getValueSourceType() {
-            return ValuesSourceType.NUMERIC;
+            return CoreValuesSourceType.NUMERIC;
         }
 
         public ValueType getValueType() {
@@ -298,25 +288,39 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @SuppressWarnings("unchecked")
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
-        List<Bucket>[] rangeList = new List[ranges.size()];
+        List<B>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {
             rangeList[i] = new ArrayList<>();
         }
         for (InternalAggregation aggregation : aggregations) {
             InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
             int i = 0;
-            for (Bucket range : ranges.ranges) {
+            for (B range : ranges.ranges) {
                 rangeList[i++].add(range);
             }
         }
 
         final List<B> ranges = new ArrayList<>();
         for (int i = 0; i < this.ranges.size(); ++i) {
-            ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext));
+            ranges.add((B) reduceBucket(rangeList[i], reduceContext));
         }
         return getFactory().create(name, ranges, format, keyed, pipelineAggregators(), getMetaData());
+    }
+
+    @Override
+    protected B reduceBucket(List<B> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        long docCount = 0;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        for (Bucket bucket : buckets) {
+            docCount += bucket.docCount;
+            aggregationsList.add(bucket.aggregations);
+        }
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        Bucket prototype = buckets.get(0);
+        return getFactory().createBucket(prototype.key, prototype.from, prototype.to, docCount, aggs, keyed, format);
     }
 
     @Override
@@ -338,12 +342,16 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(ranges, format, keyed);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), ranges, format, keyed);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalRange<?,?> that = (InternalRange<?,?>) obj;
         return Objects.equals(ranges, that.ranges)
                 && Objects.equals(format, that.format)

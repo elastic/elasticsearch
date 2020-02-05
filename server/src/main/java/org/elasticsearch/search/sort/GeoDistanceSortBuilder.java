@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -28,6 +27,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -35,7 +35,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -53,7 +52,6 @@ import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -64,14 +62,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.search.sort.FieldSortBuilder.validateMissingNestedPath;
+import static org.elasticsearch.search.sort.FieldSortBuilder.validateMaxChildrenExistOnlyInTopLevelNestedSort;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * A geo distance based sorting on a geo point like field.
  */
 public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GeoDistanceSortBuilder.class));
 
     public static final String NAME = "_geo_distance";
     public static final String ALTERNATIVE_NAME = "_geoDistance";
@@ -90,8 +88,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private DistanceUnit unit = DistanceUnit.DEFAULT;
 
     private SortMode sortMode = null;
-    private QueryBuilder nestedFilter;
-    private String nestedPath;
 
     private NestedSortBuilder nestedSort;
 
@@ -150,8 +146,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         this.unit = original.unit;
         this.order = original.order;
         this.sortMode = original.sortMode;
-        this.nestedFilter = original.nestedFilter;
-        this.nestedPath = original.nestedPath;
         this.validation = original.validation;
         this.nestedSort = original.nestedSort;
         this.ignoreUnmapped = original.ignoreUnmapped;
@@ -168,8 +162,13 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         unit = DistanceUnit.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        nestedPath = in.readOptionalString();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
+                throw new IOException("the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " +
+                    "please use [nested] instead");
+            }
+
+        }
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         validation = GeoValidationMethod.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
@@ -183,8 +182,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         unit.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        out.writeOptionalNamedWriteable(nestedFilter);
-        out.writeOptionalString(nestedPath);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeOptionalNamedWriteable(null);
+            out.writeOptionalString(null);
+        }
         out.writeOptionalWriteable(nestedSort);
         validation.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
@@ -289,59 +290,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
-     * Sets the nested filter that the nested objects should match with in order to
-     * be taken into account for sorting.
-     *
-     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)}
-     *             and retrieve with {@link #getNestedSort()}
-     **/
-   @Deprecated
-    public GeoDistanceSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
-       if (this.nestedSort != null) {
-           throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
-       }
-        this.nestedFilter = nestedFilter;
-        return this;
-    }
-
-    /**
-     * Returns the nested filter that the nested objects should match with in order to be taken into account
-     * for sorting.
-     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)}
-     *             and retrieve with {@link #getNestedSort()}
-     **/
-    @Deprecated
-    public QueryBuilder getNestedFilter() {
-        return this.nestedFilter;
-    }
-
-    /**
-     * Sets the nested path if sorting occurs on a field that is inside a nested object. By default when sorting on a
-     * field inside a nested object, the nearest upper nested object is selected as nested path.
-     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)}
-     *             and retrieve with {@link #getNestedSort()}
-     **/
-    @Deprecated
-    public GeoDistanceSortBuilder setNestedPath(String nestedPath) {
-        if (this.nestedSort != null) {
-            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
-        }
-        this.nestedPath = nestedPath;
-        return this;
-    }
-
-    /**
-     * Returns the nested path if sorting occurs on a field that is inside a nested object. By default when sorting on a
-     * field inside a nested object, the nearest upper nested object is selected as nested path.
-     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)}
-     *             and retrieve with {@link #getNestedSort()}
-     **/
-    @Deprecated
-    public String getNestedPath() {
-        return this.nestedPath;
-    }
-
-    /**
      * Returns the {@link NestedSortBuilder}
      */
     public NestedSortBuilder getNestedSort() {
@@ -355,9 +303,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      * order to be taken into account for sorting.
      */
     public GeoDistanceSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
-        if (this.nestedFilter != null || this.nestedPath != null) {
-            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
-        }
         this.nestedSort = nestedSort;
         return this;
     }
@@ -393,12 +338,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             builder.field(SORTMODE_FIELD.getPreferredName(), sortMode);
         }
 
-        if (nestedPath != null) {
-            builder.field(NESTED_PATH_FIELD.getPreferredName(), nestedPath);
-        }
-        if (nestedFilter != null) {
-            builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, params);
-        }
         if (nestedSort != null) {
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
         }
@@ -432,8 +371,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 Objects.equals(unit, other.unit) &&
                 Objects.equals(sortMode, other.sortMode) &&
                 Objects.equals(order, other.order) &&
-                Objects.equals(nestedFilter, other.nestedFilter) &&
-                Objects.equals(nestedPath, other.nestedPath) &&
                 Objects.equals(validation, other.validation) &&
                 Objects.equals(nestedSort, other.nestedSort) &&
                 ignoreUnmapped == other.ignoreUnmapped;
@@ -442,8 +379,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     @Override
     public int hashCode() {
         return Objects.hash(this.fieldName, this.points, this.geoDistance,
-                this.unit, this.sortMode, this.order, this.nestedFilter,
-                this.nestedPath, this.validation, this.nestedSort, this.ignoreUnmapped);
+                this.unit, this.sortMode, this.order, this.validation, this.nestedSort, this.ignoreUnmapped);
     }
 
     /**
@@ -463,8 +399,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         GeoDistance geoDistance = GeoDistance.ARC;
         SortOrder order = SortOrder.ASC;
         SortMode sortMode = null;
-        QueryBuilder nestedFilter = null;
-        String nestedPath = null;
         NestedSortBuilder nestedSort = null;
         GeoValidationMethod validation = null;
         boolean ignoreUnmapped = false;
@@ -479,10 +413,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecated("[nested_filter] has been deprecated in favour of the [nested] parameter");
-                    nestedFilter = parseInnerQueryBuilder(parser);
-                } else if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     nestedSort = NestedSortBuilder.fromXContent(parser);
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -509,9 +440,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     validation = GeoValidationMethod.fromString(parser.text());
                 } else if (SORTMODE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     sortMode = SortMode.fromString(parser.text());
-                } else if (NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecated("[nested_path] has been deprecated in favour of the [nested] parameter");
-                    nestedPath = parser.text();
                 } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
                 } else if (token == Token.VALUE_STRING){
@@ -549,10 +477,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (sortMode != null) {
             result.sortMode(sortMode);
         }
-        if (nestedFilter != null) {
-            result.setNestedFilter(nestedFilter);
-        }
-        result.setNestedPath(nestedPath);
         if (nestedSort != null) {
             result.setNestedSort(nestedSort);
         }
@@ -610,16 +534,12 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         }
         final IndexGeoPointFieldData geoIndexFieldData = context.getForField(fieldType);
 
-        final Nested nested;
+        Nested nested = null;
         if (nestedSort != null) {
-            if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
-                throw new QueryShardException(context,
-                    "max_children is only supported on last level of nested sort");
-            }
-            // new nested sorts takes priority
+            validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
             nested = resolveNested(context, nestedSort);
         } else {
-            nested = resolveNested(context, nestedPath, nestedFilter);
+            validateMissingNestedPath(context, fieldName);
         }
 
         if (geoIndexFieldData.getClass() == LatLonPointDVIndexFieldData.class // only works with 5.x geo_point
@@ -698,21 +618,13 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
     @Override
     public GeoDistanceSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        if (nestedFilter == null && nestedSort == null) {
+        if (nestedSort == null) {
             return this;
         }
-        if (nestedFilter != null) {
-            QueryBuilder rewrite = nestedFilter.rewrite(ctx);
-            if (nestedFilter == rewrite) {
-                return this;
-            }
-            return new GeoDistanceSortBuilder(this).setNestedFilter(rewrite);
-        } else {
-            NestedSortBuilder rewrite = nestedSort.rewrite(ctx);
-            if (nestedSort == rewrite) {
-                return this;
-            }
-            return new GeoDistanceSortBuilder(this).setNestedSort(rewrite);
+        NestedSortBuilder rewrite = nestedSort.rewrite(ctx);
+        if (nestedSort == rewrite) {
+            return this;
         }
+        return new GeoDistanceSortBuilder(this).setNestedSort(rewrite);
     }
 }

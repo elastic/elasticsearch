@@ -15,6 +15,13 @@ err_exit() {
     exit 1
 }
 
+# source the default env file
+if [ -f "${path.env}" ]; then
+    . "${path.env}"
+else
+  ES_PATH_CONF="${path.conf}"
+fi
+
 case "$1" in
 
     # Debian ####################################################

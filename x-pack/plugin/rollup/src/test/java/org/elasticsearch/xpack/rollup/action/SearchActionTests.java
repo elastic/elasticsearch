@@ -84,10 +84,9 @@ public class SearchActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        IndicesModule indicesModule = new IndicesModule(emptyList());
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(indicesModule.getNamedWriteables());
+        entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
     }
@@ -579,10 +578,8 @@ public class SearchActionTests extends ESTestCase {
                                 Collections.singletonMap(RollupField.ROLLUP_META,
                                         Collections.singletonMap(jobName, job)))));
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-        mappings.put(RollupField.TYPE_NAME, mappingMeta);
         IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-        when(meta.getMappings()).thenReturn(mappings.build());
+        when(meta.mapping()).thenReturn(mappingMeta);
 
         ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(1);
         metaMap.put("foo", meta);
@@ -623,10 +620,8 @@ public class SearchActionTests extends ESTestCase {
                                 Collections.singletonMap(RollupField.ROLLUP_META,
                                         Collections.singletonMap(jobName, job)))));
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-        mappings.put(RollupField.TYPE_NAME, mappingMeta);
         IndexMetaData indexMeta = Mockito.mock(IndexMetaData.class);
-        when(indexMeta.getMappings()).thenReturn(mappings.build());
+        when(indexMeta.mapping()).thenReturn(mappingMeta);
 
         ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(1);
         metaMap.put("foo", indexMeta);
@@ -687,10 +682,8 @@ public class SearchActionTests extends ESTestCase {
                                 Collections.singletonMap(RollupField.ROLLUP_META,
                                         Collections.singletonMap(jobName, job)))));
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-        mappings.put(RollupField.TYPE_NAME, mappingMeta);
         IndexMetaData indexMeta = Mockito.mock(IndexMetaData.class);
-        when(indexMeta.getMappings()).thenReturn(mappings.build());
+        when(indexMeta.mapping()).thenReturn(mappingMeta);
 
         ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(2);
         metaMap.put("foo", indexMeta);
@@ -723,17 +716,13 @@ public class SearchActionTests extends ESTestCase {
                                 Collections.singletonMap(RollupField.ROLLUP_META,
                                         Collections.singletonMap(jobName, job)))));
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-        mappings.put(RollupField.TYPE_NAME, mappingMeta);
         IndexMetaData indexMeta = Mockito.mock(IndexMetaData.class);
-        when(indexMeta.getMappings()).thenReturn(mappings.build());
+        when(indexMeta.mapping()).thenReturn(mappingMeta);
 
         MappingMetaData liveMappingMetadata = new MappingMetaData("bar", Collections.emptyMap());
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> liveMappings = ImmutableOpenMap.builder(1);
-        liveMappings.put("bar", liveMappingMetadata);
         IndexMetaData liveIndexMeta = Mockito.mock(IndexMetaData.class);
-        when(liveIndexMeta.getMappings()).thenReturn(liveMappings.build());
+        when(liveIndexMeta.mapping()).thenReturn(liveMappingMetadata);
 
         ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(2);
         metaMap.put("foo", indexMeta);

@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
 
@@ -32,23 +33,33 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.chrono.ChronoZonedDateTime;
+import java.time.chrono.Chronology;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
+import java.time.temporal.Temporal;
+import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjuster;
 import java.time.temporal.TemporalAmount;
 import java.time.temporal.TemporalField;
+import java.time.temporal.TemporalQuery;
 import java.time.temporal.TemporalUnit;
-import java.time.temporal.WeekFields;
+import java.time.temporal.ValueRange;
 import java.util.Locale;
 import java.util.Objects;
 
 /**
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
  */
-public class JodaCompatibleZonedDateTime {
+public class JodaCompatibleZonedDateTime
+        implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
+    
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
@@ -79,9 +90,15 @@ public class JodaCompatibleZonedDateTime {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        JodaCompatibleZonedDateTime that = (JodaCompatibleZonedDateTime) o;
-        return Objects.equals(dt, that.dt);
+        if (o == null)return false;
+        if (o.getClass() == JodaCompatibleZonedDateTime.class) {
+            JodaCompatibleZonedDateTime that = (JodaCompatibleZonedDateTime) o;
+            return Objects.equals(dt, that.dt);
+        } else if (o.getClass() == ZonedDateTime.class) {
+            ZonedDateTime that = (ZonedDateTime) o;
+            return Objects.equals(dt, that);
+        }
+        return false;
     }
 
     @Override
@@ -94,16 +111,74 @@ public class JodaCompatibleZonedDateTime {
         return DATE_FORMATTER.format(dt);
     }
 
-    public boolean isAfter(JodaCompatibleZonedDateTime o) {
-        return dt.isAfter(o.getZonedDateTime());
+    @Override
+    public String format(DateTimeFormatter formatter) {
+        return dt.format(formatter);
     }
 
-    public boolean isBefore(JodaCompatibleZonedDateTime o) {
-        return dt.isBefore(o.getZonedDateTime());
+    @Override
+    public ValueRange range(TemporalField field) {
+        return dt.range(field);
     }
 
-    public boolean isEqual(JodaCompatibleZonedDateTime o) {
-        return dt.isEqual(o.getZonedDateTime());
+    @Override
+    public int get(TemporalField field) {
+        return dt.get(field);
+    }
+
+    @Override
+    public long getLong(TemporalField field) {
+        return dt.getLong(field);
+    }
+
+    @Override
+    public Chronology getChronology() {
+        return dt.getChronology();
+    }
+
+    @Override
+    public ZoneOffset getOffset() {
+        return dt.getOffset();
+    }
+
+    @Override
+    public boolean isSupported(TemporalField field) {
+        return dt.isSupported(field);
+    }
+
+    @Override
+    public boolean isSupported(TemporalUnit unit) {
+        return dt.isSupported(unit);
+    }
+
+    @Override
+    public long toEpochSecond() {
+        return dt.toEpochSecond();
+    }
+
+    @Override
+    public int compareTo(ChronoZonedDateTime<?> other) {
+        return dt.compareTo(other);
+    }
+
+    @Override
+    public boolean isBefore(ChronoZonedDateTime<?> other) {
+        return dt.isBefore(other);
+    }
+
+    @Override
+    public boolean isAfter(ChronoZonedDateTime<?> other) {
+        return dt.isAfter(other);
+    }
+
+    @Override
+    public boolean isEqual(ChronoZonedDateTime<?> other) {
+        return dt.isEqual(other);
+    }
+
+    @Override
+    public LocalTime toLocalTime() {
+        return dt.toLocalTime();
     }
 
     public int getDayOfMonth() {
@@ -118,10 +193,12 @@ public class JodaCompatibleZonedDateTime {
         return dt.getHour();
     }
 
+    @Override
     public LocalDate toLocalDate() {
         return dt.toLocalDate();
     }
 
+    @Override
     public LocalDateTime toLocalDateTime() {
         return dt.toLocalDateTime();
     }
@@ -150,16 +227,29 @@ public class JodaCompatibleZonedDateTime {
         return dt.getYear();
     }
 
+    @Override
     public ZoneId getZone() {
         return dt.getZone();
     }
 
+    @Override
     public ZonedDateTime minus(TemporalAmount delta) {
         return dt.minus(delta);
     }
 
+    @Override
     public ZonedDateTime minus(long amount, TemporalUnit unit) {
         return dt.minus(amount, unit);
+    }
+
+    @Override
+    public <R> R query(TemporalQuery<R> query) {
+        return dt.query(query);
+    }
+
+    @Override
+    public long until(Temporal temporal, TemporalUnit temporalUnit) {
+        return dt.until(temporal, temporalUnit);
     }
 
     public ZonedDateTime minusYears(long amount) {
@@ -194,10 +284,12 @@ public class JodaCompatibleZonedDateTime {
         return dt.minusNanos(amount);
     }
 
+    @Override
     public ZonedDateTime plus(TemporalAmount amount) {
         return dt.plus(amount);
     }
 
+    @Override
     public ZonedDateTime plus(long amount,TemporalUnit unit) {
         return dt.plus(amount, unit);
     }
@@ -234,6 +326,7 @@ public class JodaCompatibleZonedDateTime {
         return dt.plusYears(amount);
     }
 
+    @Override
     public Instant toInstant() {
         return dt.toInstant();
     }
@@ -247,10 +340,12 @@ public class JodaCompatibleZonedDateTime {
         return dt.truncatedTo(unit);
     }
 
+    @Override
     public ZonedDateTime with(TemporalAdjuster adjuster) {
         return dt.with(adjuster);
     }
 
+    @Override
     public ZonedDateTime with(TemporalField field, long newValue) {
         return dt.with(field, newValue);
     }
@@ -263,6 +358,7 @@ public class JodaCompatibleZonedDateTime {
         return dt.withDayOfYear(value);
     }
 
+    @Override
     public ZonedDateTime withEarlierOffsetAtOverlap() {
         return dt.withEarlierOffsetAtOverlap();
     }
@@ -275,6 +371,7 @@ public class JodaCompatibleZonedDateTime {
         return dt.withHour(value);
     }
 
+    @Override
     public ZonedDateTime withLaterOffsetAtOverlap() {
         return dt.withLaterOffsetAtOverlap();
     }
@@ -299,10 +396,12 @@ public class JodaCompatibleZonedDateTime {
         return dt.withYear(value);
     }
 
+    @Override
     public ZonedDateTime withZoneSameLocal(ZoneId zone) {
         return dt.withZoneSameLocal(zone);
     }
 
+    @Override
     public ZonedDateTime withZoneSameInstant(ZoneId zone) {
         return dt.withZoneSameInstant(zone);
     }
@@ -375,14 +474,14 @@ public class JodaCompatibleZonedDateTime {
 
     @Deprecated
     public int getWeekOfWeekyear() {
-        logDeprecatedMethod("getWeekOfWeekyear()", "get(WeekFields.ISO.weekOfWeekBasedYear())");
-        return dt.get(WeekFields.ISO.weekOfWeekBasedYear());
+        logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear())");
+        return dt.get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear());
     }
 
     @Deprecated
     public int getWeekyear() {
-        logDeprecatedMethod("getWeekyear()", "get(WeekFields.ISO.weekBasedYear())");
-        return dt.get(WeekFields.ISO.weekBasedYear());
+        logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekBasedYear())");
+        return dt.get(DateFormatters.WEEK_FIELDS.weekBasedYear());
     }
 
     @Deprecated

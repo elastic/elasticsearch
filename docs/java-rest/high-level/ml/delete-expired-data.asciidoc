@@ -4,6 +4,7 @@
 :request: DeleteExpiredRequest
 :response: DeleteExpiredResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete Expired Data API
 Delete expired {ml} data.

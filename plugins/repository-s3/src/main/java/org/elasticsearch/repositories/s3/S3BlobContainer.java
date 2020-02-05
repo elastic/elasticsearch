@@ -21,46 +21,50 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Map.entry;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
 import static org.elasticsearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 
 class S3BlobContainer extends AbstractBlobContainer {
+
+    private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
 
     /**
      * Maximum number of deletes in a {@link DeleteObjectsRequest}.
@@ -78,28 +82,8 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            return SocketAccess.doPrivileged(() -> clientReference.client().doesObjectExist(blobStore.bucket(), buildKey(blobName)));
-        } catch (final Exception e) {
-            throw new BlobStoreException("Failed to check if blob [" + blobName +"] exists", e);
-        }
-    }
-
-    @Override
     public InputStream readBlob(String blobName) throws IOException {
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(blobStore.bucket(),
-                    buildKey(blobName)));
-            return s3Object.getObjectContent();
-        } catch (final AmazonClientException e) {
-            if (e instanceof AmazonS3Exception) {
-                if (404 == ((AmazonS3Exception) e).getStatusCode()) {
-                    throw new NoSuchFileException("Blob object [" + blobName + "] not found: " + e.getMessage());
-                }
-            }
-            throw e;
-        }
+        return new S3RetryingInputStream(blobStore, buildKey(blobName));
     }
 
     /**
@@ -107,8 +91,9 @@ class S3BlobContainer extends AbstractBlobContainer {
      */
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
         SocketAccess.doPrivilegedIOException(() -> {
-            if (blobSize <= blobStore.bufferSizeInBytes()) {
+            if (blobSize <= getLargeBlobThresholdInBytes()) {
                 executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize);
             } else {
                 executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize);
@@ -117,22 +102,70 @@ class S3BlobContainer extends AbstractBlobContainer {
         });
     }
 
+    // package private for testing
+    long getLargeBlobThresholdInBytes() {
+        return blobStore.bufferSizeInBytes();
+    }
+
     @Override
     public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        deleteBlobIgnoringIfNotExists(blobName);
+    public DeleteResult delete() throws IOException {
+        final AtomicLong deletedBlobs = new AtomicLong();
+        final AtomicLong deletedBytes = new AtomicLong();
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            ObjectListing prevListing = null;
+            while (true) {
+                ObjectListing list;
+                if (prevListing != null) {
+                    final ObjectListing finalPrevListing = prevListing;
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
+                } else {
+                    final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
+                    listObjectsRequest.setBucketName(blobStore.bucket());
+                    listObjectsRequest.setPrefix(keyPath);
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
+                }
+                final List<String> blobsToDelete = new ArrayList<>();
+                    list.getObjectSummaries().forEach(s3ObjectSummary -> {
+                        deletedBlobs.incrementAndGet();
+                        deletedBytes.addAndGet(s3ObjectSummary.getSize());
+                        blobsToDelete.add(s3ObjectSummary.getKey());
+                    });
+                if (list.isTruncated()) {
+                    doDeleteBlobs(blobsToDelete, false);
+                    prevListing = list;
+                } else {
+                    final List<String> lastBlobsToDelete = new ArrayList<>(blobsToDelete);
+                    lastBlobsToDelete.add(keyPath);
+                    doDeleteBlobs(lastBlobsToDelete, false);
+                    break;
+                }
+            }
+        } catch (final AmazonClientException e) {
+            throw new IOException("Exception when deleting blob container [" + keyPath + "]", e);
+        }
+        return new DeleteResult(deletedBlobs.get(), deletedBytes.get());
     }
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        doDeleteBlobs(blobNames, true);
+    }
+
+    private void doDeleteBlobs(List<String> blobNames, boolean relative) throws IOException {
         if (blobNames.isEmpty()) {
             return;
         }
-        final Set<String> outstanding = blobNames.stream().map(this::buildKey).collect(Collectors.toSet());
+        final Set<String> outstanding;
+        if (relative) {
+            outstanding = blobNames.stream().map(this::buildKey).collect(Collectors.toSet());
+        } else {
+            outstanding = new HashSet<>(blobNames);
+        }
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
             final List<DeleteObjectsRequest> deleteRequests = new ArrayList<>();
@@ -161,6 +194,10 @@ class S3BlobContainer extends AbstractBlobContainer {
                         outstanding.removeAll(keysInRequest);
                         outstanding.addAll(
                             e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getKey).collect(Collectors.toSet()));
+                        logger.warn(
+                            () -> new ParameterizedMessage("Failed to delete some blobs {}", e.getErrors()
+                                .stream().map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]")
+                                .collect(Collectors.toList())), e);
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
                     } catch (AmazonClientException e) {
                         // The AWS client threw any unexpected exception and did not execute the request at all so we do not
@@ -183,44 +220,13 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            // There is no way to know if an non-versioned object existed before the deletion
-            SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObject(blobStore.bucket(), buildKey(blobName)));
-        } catch (final AmazonClientException e) {
-            throw new IOException("Exception when deleting blob [" + blobName + "]", e);
-        }
-    }
-
-    @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
-        final var entries = new ArrayList<Map.Entry<String, BlobMetaData>>();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            ObjectListing prevListing = null;
-            while (true) {
-                ObjectListing list;
-                if (prevListing != null) {
-                    final ObjectListing finalPrevListing = prevListing;
-                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
-                } else {
-                    if (blobNamePrefix != null) {
-                        list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(blobStore.bucket(),
-                                buildKey(blobNamePrefix)));
-                    } else {
-                        list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(blobStore.bucket(), keyPath));
-                    }
-                }
-                for (final S3ObjectSummary summary : list.getObjectSummaries()) {
-                    final String name = summary.getKey().substring(keyPath.length());
-                    entries.add(entry(name, new PlainBlobMetaData(name, summary.getSize())));
-                }
-                if (list.isTruncated()) {
-                    prevListing = list;
-                } else {
-                    break;
-                }
-            }
-            return Maps.ofEntries(entries);
+            return executeListing(clientReference, listObjectsRequest(blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix)))
+                .stream()
+                .flatMap(listing -> listing.getObjectSummaries().stream())
+                .map(summary -> new PlainBlobMetaData(summary.getKey().substring(keyPath.length()), summary.getSize()))
+                .collect(Collectors.toMap(PlainBlobMetaData::name, Function.identity()));
         } catch (final AmazonClientException e) {
             throw new IOException("Exception when listing blobs by prefix [" + blobNamePrefix + "]", e);
         }
@@ -229,6 +235,55 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
+    }
+
+    @Override
+    public Map<String, BlobContainer> children() throws IOException {
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            return executeListing(clientReference, listObjectsRequest(keyPath)).stream().flatMap(listing -> {
+                    assert listing.getObjectSummaries().stream().noneMatch(s -> {
+                        for (String commonPrefix : listing.getCommonPrefixes()) {
+                            if (s.getKey().substring(keyPath.length()).startsWith(commonPrefix)) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }) : "Response contained children for listed common prefixes.";
+                    return listing.getCommonPrefixes().stream();
+                })
+                .map(prefix -> prefix.substring(keyPath.length()))
+                .filter(name -> name.isEmpty() == false)
+                // Stripping the trailing slash off of the common prefix
+                .map(name -> name.substring(0, name.length() - 1))
+                .collect(Collectors.toMap(Function.identity(), name -> blobStore.blobContainer(path().add(name))));
+        } catch (final AmazonClientException e) {
+            throw new IOException("Exception when listing children of [" + path().buildAsString() + ']', e);
+        }
+    }
+
+    private static List<ObjectListing> executeListing(AmazonS3Reference clientReference, ListObjectsRequest listObjectsRequest) {
+        final List<ObjectListing> results = new ArrayList<>();
+        ObjectListing prevListing = null;
+        while (true) {
+            ObjectListing list;
+            if (prevListing != null) {
+                final ObjectListing finalPrevListing = prevListing;
+                list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
+            } else {
+                list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
+            }
+            results.add(list);
+            if (list.isTruncated()) {
+                prevListing = list;
+            } else {
+                break;
+            }
+        }
+        return results;
+    }
+
+    private ListObjectsRequest listObjectsRequest(String keyPath) {
+        return new ListObjectsRequest().withBucketName(blobStore.bucket()).withPrefix(keyPath).withDelimiter("/");
     }
 
     private String buildKey(String blobName) {
@@ -277,15 +332,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                                 final InputStream input,
                                 final long blobSize) throws IOException {
 
-        if (blobSize > MAX_FILE_SIZE_USING_MULTIPART.getBytes()) {
-            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
-                                                + "] can't be larger than " + MAX_FILE_SIZE_USING_MULTIPART);
-        }
-        if (blobSize < MIN_PART_SIZE_USING_MULTIPART.getBytes()) {
-            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
-                                               + "] can't be smaller than " + MIN_PART_SIZE_USING_MULTIPART);
-        }
-
+        ensureMultiPartUploadSize(blobSize);
         final long partSize = blobStore.bufferSizeInBytes();
         final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
 
@@ -359,6 +406,18 @@ class S3BlobContainer extends AbstractBlobContainer {
                     SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortRequest));
                 }
             }
+        }
+    }
+
+    // non-static, package private for testing
+    void ensureMultiPartUploadSize(final long blobSize) {
+        if (blobSize > MAX_FILE_SIZE_USING_MULTIPART.getBytes()) {
+            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
+                + "] can't be larger than " + MAX_FILE_SIZE_USING_MULTIPART);
+        }
+        if (blobSize < MIN_PART_SIZE_USING_MULTIPART.getBytes()) {
+            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
+                + "] can't be smaller than " + MIN_PART_SIZE_USING_MULTIPART);
         }
     }
 

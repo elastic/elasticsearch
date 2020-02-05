@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
@@ -50,8 +51,7 @@ public final class RandomCreateIndexGenerator {
         CreateIndexRequest request = new CreateIndexRequest(index);
         randomAliases(request);
         if (randomBoolean()) {
-            String type = randomAlphaOfLength(5);
-            request.mapping(type, randomMapping(type));
+            request.mapping(randomMapping(MapperService.SINGLE_MAPPING_NAME));
         }
         if (randomBoolean()) {
             request.settings(randomIndexSettings());

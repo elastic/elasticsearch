@@ -113,9 +113,4 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     public ActionRequestValidationException validate() {
         return null;
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

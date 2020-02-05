@@ -30,11 +30,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * This search phase is an optional phase that will be executed once all hits are fetched from the shards that executes
@@ -44,14 +42,13 @@ import java.util.function.Function;
 final class ExpandSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;
     private final InternalSearchResponse searchResponse;
-    private final Function<InternalSearchResponse, SearchPhase> nextPhaseFactory;
+    private final String scrollId;
 
-    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse,
-                      Function<InternalSearchResponse, SearchPhase> nextPhaseFactory) {
+    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, String scrollId) {
         super("expand");
         this.context = context;
         this.searchResponse = searchResponse;
-        this.nextPhaseFactory = nextPhaseFactory;
+        this.scrollId = scrollId;
     }
 
     /**
@@ -65,7 +62,7 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() throws IOException {
+    public void run() {
         if (isCollapseRequest() && searchResponse.hits().getHits().length > 0) {
             SearchRequest searchRequest = context.getRequest();
             CollapseBuilder collapseBuilder = searchRequest.source().collapse();
@@ -113,11 +110,11 @@ final class ExpandSearchPhase extends SearchPhase {
                             hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                         }
                     }
-                    context.executeNextPhase(this, nextPhaseFactory.apply(searchResponse));
+                    context.sendSearchResponse(searchResponse, scrollId);
                 }, context::onFailure)
             );
         } else {
-            context.executeNextPhase(this, nextPhaseFactory.apply(searchResponse));
+            context.sendSearchResponse(searchResponse, scrollId);
         }
     }
 

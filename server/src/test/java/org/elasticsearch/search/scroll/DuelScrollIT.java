@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -100,7 +101,7 @@ public class DuelScrollIT extends ESIntegTestCase {
 
 
     private TestContext create(SearchType... searchTypes) throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+        assertAcked(prepareCreate("index").setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("field1")
                     .field("type", "long")
                 .endObject()
@@ -132,7 +133,7 @@ public class DuelScrollIT extends ESIntegTestCase {
 
         for (int i = 1; i <= numDocs; i++) {
             IndexRequestBuilder indexRequestBuilder = client()
-                    .prepareIndex("index", "type", String.valueOf(i));
+                    .prepareIndex("index").setId(String.valueOf(i));
             if (missingDocs.contains(i)) {
                 indexRequestBuilder.setSource("x", "y");
             } else {
@@ -163,9 +164,13 @@ public class DuelScrollIT extends ESIntegTestCase {
             }
         } else {
             if (randomBoolean()) {
-                sort = SortBuilders.fieldSort("nested.field3").missing(1);
+                sort = SortBuilders.fieldSort("nested.field3")
+                    .setNestedSort(new NestedSortBuilder("nested"))
+                    .missing(1);
             } else {
-                sort = SortBuilders.fieldSort("nested.field4").missing("1");
+                sort = SortBuilders.fieldSort("nested.field4")
+                    .setNestedSort(new NestedSortBuilder("nested"))
+                    .missing("1");
             }
         }
         sort.order(randomBoolean() ? SortOrder.ASC : SortOrder.DESC);
@@ -207,7 +212,7 @@ public class DuelScrollIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("test", "type", Integer.toString(i)).setSource("foo", random().nextBoolean());
+            builders[i] = client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", random().nextBoolean());
         }
         indexRandom(true, builders);
         return numDocs;

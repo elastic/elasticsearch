@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -64,7 +64,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     public void testAutoQueueSizingUp() throws Exception {
@@ -93,7 +92,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     public void testAutoQueueSizingDown() throws Exception {
@@ -121,7 +119,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     public void testAutoQueueSizingWithMin() throws Exception {
@@ -151,10 +148,8 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
-    @TestLogging("org.elasticsearch.common.util.concurrent:DEBUG")
     public void testAutoQueueSizingWithMax() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         ResizableBlockingQueue<Runnable> queue =
@@ -182,7 +177,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     public void testExecutionEWMACalculation() throws Exception {
@@ -223,7 +217,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
 
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     /** Use a runnable wrapper that simulates a task with unknown failures. */
@@ -245,7 +238,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         executeTask(executor, 1);
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     private Function<Runnable, WrappedRunnable> fastWrapper() {

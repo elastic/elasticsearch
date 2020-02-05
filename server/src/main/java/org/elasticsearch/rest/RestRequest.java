@@ -40,6 +40,7 @@ import org.elasticsearch.http.HttpRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -63,8 +64,9 @@ public class RestRequest implements ToXContent.Params {
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
-    private final HttpRequest httpRequest;
     private final HttpChannel httpChannel;
+
+    private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
 
@@ -94,6 +96,15 @@ public class RestRequest implements ToXContent.Params {
     protected RestRequest(RestRequest restRequest) {
         this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
             restRequest.getHttpRequest(), restRequest.getHttpChannel());
+    }
+
+    /**
+     * Invoke {@link HttpRequest#releaseAndCopy()} on the http request in this instance and replace a pooled http request
+     * with an unpooled copy. This is supposed to be used before passing requests to {@link RestHandler} instances that can not safely
+     * handle http requests that use pooled buffers as determined by {@link RestHandler#allowsUnsafeBuffers()}.
+     */
+    void ensureSafeBuffers() {
+        httpRequest = httpRequest.releaseAndCopy();
     }
 
     /**
@@ -153,6 +164,12 @@ public class RestRequest implements ToXContent.Params {
         GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT
     }
 
+    /**
+     * Returns the HTTP method used in the REST request.
+     *
+     * @return the {@link Method} used in the REST request
+     * @throws IllegalArgumentException if the HTTP method is invalid
+     */
     public Method method() {
         return httpRequest.method();
     }
@@ -179,15 +196,15 @@ public class RestRequest implements ToXContent.Params {
     }
 
     public boolean hasContent() {
-        return content(false).length() > 0;
+        return contentLength() > 0;
+    }
+
+    public int contentLength() {
+        return httpRequest.content().length();
     }
 
     public BytesReference content() {
-        return content(true);
-    }
-
-    protected BytesReference content(final boolean contentConsumed) {
-        this.contentConsumed = this.contentConsumed | contentConsumed;
+        this.contentConsumed = true;
         return httpRequest.content();
     }
 
@@ -242,13 +259,6 @@ public class RestRequest implements ToXContent.Params {
         return xContentType.get();
     }
 
-    /**
-     * Sets the {@link XContentType}
-     */
-    final void setXContentType(XContentType xContentType) {
-        this.xContentType.set(xContentType);
-    }
-
     public HttpChannel getHttpChannel() {
         return httpChannel;
     }
@@ -288,7 +298,7 @@ public class RestRequest implements ToXContent.Params {
      * @return the list of currently consumed parameters.
      */
     List<String> consumedParams() {
-        return consumedParams.stream().collect(Collectors.toList());
+        return new ArrayList<>(consumedParams);
     }
 
     /**

@@ -15,8 +15,9 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
@@ -55,7 +56,7 @@ public abstract class SourceGenerator {
         final SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(finalQuery);
 
-        SqlSourceBuilder sortBuilder = new SqlSourceBuilder();
+        QlSourceBuilder sortBuilder = new QlSourceBuilder();
         // Iterate through all the columns requested, collecting the fields that
         // need to be retrieved from the result documents
 
@@ -76,13 +77,21 @@ public abstract class SourceGenerator {
         // set page size
         if (size != null) {
             int sz = container.limit() > 0 ? Math.min(container.limit(), size) : size;
+            // now take into account the the minimum page (if set)
+            // that is, return the multiple of the minimum page size closer to the set size
+            int minSize = container.minPageSize();
+            sz = minSize > 0 ? (Math.max(sz / minSize, 1) * minSize) : sz;
 
             if (source.size() == -1) {
                 source.size(sz);
             }
-            // limit the composite aggs only for non-local sorting
-            if (aggBuilder instanceof CompositeAggregationBuilder && container.sortingColumns().isEmpty()) {
-                ((CompositeAggregationBuilder) aggBuilder).size(sz);
+            if (aggBuilder instanceof CompositeAggregationBuilder) {
+                // limit the composite aggs only for non-local sorting
+                if (container.sortingColumns().isEmpty()) {
+                    ((CompositeAggregationBuilder) aggBuilder).size(sz);
+                } else {
+                    ((CompositeAggregationBuilder) aggBuilder).size(size);
+                }
             }
         }
 
@@ -114,12 +123,12 @@ public abstract class SourceGenerator {
 
                     sortBuilder = fieldSort(fa.name())
                             .missing(as.missing().position())
-                            .unmappedType(fa.dataType().esType);
+                            .unmappedType(fa.dataType().esType());
                     
                     if (fa.isNested()) {
                         FieldSortBuilder fieldSort = fieldSort(fa.name())
                                 .missing(as.missing().position())
-                                .unmappedType(fa.dataType().esType);
+                                .unmappedType(fa.dataType().esType());
 
                         NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();
@@ -156,8 +165,8 @@ public abstract class SourceGenerator {
         }
     }
 
-    private static void optimize(SqlSourceBuilder sqlSource, SearchSourceBuilder builder) {
-        if (sqlSource.sourceFields.isEmpty()) {
+    private static void optimize(QlSourceBuilder sqlSource, SearchSourceBuilder builder) {
+        if (sqlSource.noSource()) {
             disableSource(builder);
         }
     }

@@ -1,4 +1,6 @@
-import static org.elasticsearch.gradle.Distribution.DEFAULT
+import org.elasticsearch.gradle.info.BuildParams
+
+import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -23,27 +25,35 @@ apply plugin: 'elasticsearch.docs-test'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'reference/ml/transforms.asciidoc',
-        'reference/ml/apis/delete-calendar-event.asciidoc',
-        'reference/ml/apis/get-bucket.asciidoc',
-        'reference/ml/apis/get-category.asciidoc',
-        'reference/ml/apis/get-influencer.asciidoc',
-        'reference/ml/apis/get-job-stats.asciidoc',
-        'reference/ml/apis/get-overall-buckets.asciidoc',
-        'reference/ml/apis/get-record.asciidoc',
-        'reference/ml/apis/get-snapshot.asciidoc',
-        'reference/ml/apis/post-data.asciidoc',
-        'reference/ml/apis/revert-snapshot.asciidoc',
-        'reference/ml/apis/update-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/transforms.asciidoc',
+  'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-job.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+  'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
 ]
 
 testClusters.integTest {
-  if (singleNode().distribution == DEFAULT) {
+  if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'indices.lifecycle.history_index_enabled', 'false'
+    if (BuildParams.isSnapshotBuild()) {
+      setting 'xpack.autoscaling.enabled', 'true'
+      setting 'xpack.eql.enabled', 'true'
+    }
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
   }
@@ -58,6 +68,9 @@ testClusters.integTest {
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+  // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+  systemProperty 'es.transport.cname_in_publish_address', 'true'
 }
 
 // build the cluster with all plugins
@@ -65,6 +78,10 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
   /* Skip repositories. We just aren't going to be able to test them so it
    * doesn't make sense to waste time installing them. */
   if (subproj.path.startsWith(':plugins:repository-')) {
+    return
+  }
+  // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
+  if (subproj.path.startsWith(':plugins:ingest-attachment') && Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
     return
   }
   // FIXME
@@ -81,13 +98,23 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
+  exclude 'build-idea'
+  exclude 'build-eclipse'
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
+  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+    // We don't install/support this plugin in FIPS 140
+    exclude 'plugins/ingest-attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    exclude 'reference/cat/plugins.asciidoc'
+  }
 }
 
 listSnippets.docs = buildRestTests.docs
+
+listConsoleCandidates.docs = buildRestTests.docs
 
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
@@ -112,20 +139,20 @@ Closure setupTwitter = { String name, int count ->
           index: twitter
           refresh: true
           body: |'''
-    for (int i = 0; i < count; i++) {
-      String user, text
-      if (i == 0) {
-        user = 'kimchy'
-        text = 'trying out Elasticsearch'
-      } else {
-        user = 'test'
-        text = "some message with the number $i"
-      }
-      buildRestTests.setups[name] += """
+  for (int i = 0; i < count; i++) {
+    String user, text
+    if (i == 0) {
+      user = 'kimchy'
+      text = 'trying out Elasticsearch'
+    } else {
+      user = 'test'
+      text = "some message with the number $i"
+    }
+    buildRestTests.setups[name] += """
             {"index":{"_id": "$i"}}
             {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
-    }
   }
+}
 setupTwitter('twitter', 5)
 setupTwitter('big_twitter', 120)
 setupTwitter('huge_twitter', 1200)
@@ -173,7 +200,7 @@ buildRestTests.setups['ledger'] = '''
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
             {"index":{}}
-            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "decription": "another thing"}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "description": "another thing"}
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
             {"index":{}}
@@ -213,6 +240,42 @@ buildRestTests.setups['sales'] = '''
             {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
             {"index":{}}
             {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}'''
+
+// Used by cumulative cardinality aggregation docs
+buildRestTests.setups['user_hits'] = '''
+  - do:
+        indices.create:
+          index: user_hits
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                user_id:
+                  type: keyword
+                timestamp:
+                  type: date
+  - do:
+        bulk:
+          index: user_hits
+          refresh: true
+          body: |
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "3"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
+
 
 // Dummy bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
@@ -461,7 +524,7 @@ buildRestTests.setups['latency'] = '''
 for (int i = 0; i < 100; i++) {
   def value = i
   if (i % 10) {
-    value = i*10
+    value = i * 10
   }
   buildRestTests.setups['latency'] += """
             {"index":{}}
@@ -508,14 +571,12 @@ for (int i = 0; i < 5; i++) {
 buildRestTests.setups['library'] = '''
   - do:
         indices.create:
-          include_type_name: true
           index: library
           body:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              book:
                 properties:
                   name:
                     type: text
@@ -534,7 +595,6 @@ buildRestTests.setups['library'] = '''
   - do:
         bulk:
           index: library
-          type: book
           refresh: true
           body: |
             {"index":{"_id": "Leviathan Wakes"}}
@@ -883,7 +943,6 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
   - do:
         bulk:
           index: farequote
-          type: metric
           refresh: true
           body: |
             {"index": {"_id":"1"}}
@@ -922,7 +981,7 @@ buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_j
           "job_id":"farequote",
           "indexes":"farequote"
           }
-'''          
+'''
 buildRestTests.setups['server_metrics_index'] = '''
   - do:
         indices.create:
@@ -932,18 +991,16 @@ buildRestTests.setups['server_metrics_index'] = '''
               number_of_shards: 1
               number_of_replicas: 0
             mappings:
-              metric:
-                properties:
-                  timestamp:
-                    type: date
-                  total:
-                    type: long
+              properties:
+                timestamp:
+                  type: date
+                total:
+                  type: long
 '''
 buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_metrics_index'] + '''
   - do:
         bulk:
           index: server-metrics
-          type: metric
           refresh: true
           body: |
             {"index": {"_id":"1177"}}
@@ -999,6 +1056,29 @@ buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metr
             }
           }
 '''
+buildRestTests.setups['server_metrics_job-raw'] = buildRestTests.setups['server_metrics_data'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/anomaly_detectors/total-requests
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
 buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
   - do:
       ml.put_datafeed:
@@ -1009,10 +1089,27 @@ buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server
           "indexes":"server-metrics"
           }
 '''
+buildRestTests.setups['server_metrics_datafeed-raw'] = buildRestTests.setups['server_metrics_job-raw'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/datafeeds/datafeed-total-requests
+        body:  >
+          {
+          "job_id":"total-requests",
+          "indexes":"server-metrics"
+          }
+'''
 buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
   - do:
       ml.open_job:
         job_id: "total-requests"
+'''
+buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
+  - do:
+      raw:
+        method: POST 
+        path: _ml/anomaly_detectors/total-requests/_open
 '''
 buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
   - do:
@@ -1084,7 +1181,6 @@ buildRestTests.setups['reviews'] = '''
             {"index": {"_id": "2"}}
             {"product": "widget-foo", "rating": 5}
 '''
-
 buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
   - do:
       cluster.put_settings:
@@ -1137,3 +1233,124 @@ buildRestTests.setups['seats'] = '''
             {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
             {"index":{"_id": "4"}}
             {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
+buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
+  - do:
+        indices.create:
+          index: kibana_sample_data_ecommerce
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+'''
+buildRestTests.setups['add_timestamp_pipeline'] = '''
+  - do:
+      ingest.put_pipeline:
+        id: "add_timestamp_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "@timestamp",
+                  "value" : "{{_ingest.timestamp}}"
+                }
+              }
+            ]
+          }
+'''
+buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + buildRestTests.setups['add_timestamp_pipeline']  + '''
+  - do:
+      raw:
+        method: PUT
+        path: _transform/simple-kibana-ecomm-pivot
+        body:  >
+          {
+            "source": {
+              "index": "kibana_sample_data_ecommerce",
+              "query": {
+                "term": {
+                  "geoip.continent_name": {
+                    "value": "Asia"
+                  }
+                }
+              }
+            },
+            "pivot": {
+              "group_by": {
+                "customer_id": {
+                  "terms": {
+                    "field": "customer_id"
+                  }
+                }
+              },
+              "aggregations": {
+                "max_price": {
+                  "max": {
+                    "field": "taxful_total_price"
+                  }
+                }
+              }
+            },
+            "description": "Maximum priced ecommerce data",
+            "dest": {
+              "index": "kibana_sample_data_ecommerce_transform",
+              "pipeline": "add_timestamp_pipeline"
+            },
+            "frequency": "5m",
+            "sync": {
+              "time": {
+                "field": "order_date",
+                "delay": "60s"
+              }
+            }
+          }
+'''
+buildRestTests.setups['setup_logdata'] = '''
+  - do:
+        indices.create:
+          index: logdata
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: logdata
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}
+'''
+buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + '''
+  - do:
+      ml.put_data_frame_analytics:
+        id: "loganalytics"
+        body:  >
+          {
+            "source": { 
+              "index": "logdata"
+              },
+            "dest": {
+              "index": "logdata_out"
+              },
+            "analysis": {
+              "outlier_detection": {}
+            }
+          }
+'''
+// Used by snapshot lifecycle management docs
+buildRestTests.setups['setup-repository'] = '''
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+'''

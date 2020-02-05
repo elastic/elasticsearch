@@ -109,8 +109,7 @@ public class AnalyzeRequestTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             request.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                AnalyzeAction.Request serialized = new AnalyzeAction.Request();
-                serialized.readFrom(in);
+                AnalyzeAction.Request serialized = new AnalyzeAction.Request(in);
                 assertArrayEquals(request.text(), serialized.text());
                 assertEquals(request.tokenizer().name, serialized.tokenizer().name);
                 assertEquals(request.tokenFilters().get(0).name, serialized.tokenFilters().get(0).name);

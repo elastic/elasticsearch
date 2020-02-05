@@ -27,8 +27,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Supplier;
-
 /**
  * A base class for read operations that needs to be performed on the master node.
  * Can also be executed on the local node if needed.
@@ -38,21 +36,8 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
 
     protected TransportMasterNodeReadAction(String actionName, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        this(actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
-    }
-
-    protected TransportMasterNodeReadAction(String actionName, TransportService transportService,
-                                            ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                             Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
         this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
-    }
-
-    protected TransportMasterNodeReadAction(String actionName, boolean checkSizeLimit, TransportService transportService,
-                                            ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(actionName, checkSizeLimit, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver,request);
     }
 
     protected TransportMasterNodeReadAction(String actionName, boolean checkSizeLimit, TransportService transportService,

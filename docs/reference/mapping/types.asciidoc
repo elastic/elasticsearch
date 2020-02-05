@@ -17,8 +17,6 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 
 [float]
 === Complex datatypes
-
-<<array>>::     Array support does not require a dedicated `type`
 <<object>>::    `object` for single JSON objects
 <<nested>>::    `nested` for arrays of JSON objects
 
@@ -32,8 +30,9 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 === Specialised datatypes
 
 <<ip>>::            `ip` for IPv4 and IPv6 addresses
-<<search-suggesters-completion,Completion datatype>>::
+<<completion-suggester,Completion datatype>>::
                     `completion` to provide auto-complete suggestions
+
 <<token-count>>::   `token_count` to count the number of tokens in a string
 {plugins}/mapper-murmur3.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
 {plugins}/mapper-annotated-text.html[`mapper-annotated-text`]:: `annotated-text` to index text containing special markup (typically used for identifying named entities)
@@ -42,17 +41,28 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 
 <<parent-join>>::   Defines parent/child relation for documents within the same index
 
-<<alias>>::         Defines an alias to an existing field.
-
 <<rank-feature>>::  Record numeric feature to boost hits at query time.
 
 <<rank-features>>:: Record numeric features to boost hits at query time.
 
 <<dense-vector>>::   Record dense vectors of float values.
 
-<<sparse-vector>>::   Record sparse vectors of float values.
-
 <<search-as-you-type>>:: A text-like field optimized for queries to implement as-you-type completion
+
+<<alias>>::         Defines an alias to an existing field.
+
+<<flattened>>:: Allows an entire JSON object to be indexed as a single field.
+
+<<shape>>:: `shape` for arbitrary cartesian geometries.
+
+<<histogram>>:: `histogram` for pre-aggregated numerical values for percentiles aggregations.
+
+[float]
+[[types-array-handling]]
+=== Arrays
+In {es}, arrays do not require a dedicated field datatype. Any field can contain
+zero or more values by default, however, all values in the array must be of the
+same datatype. See <<array>>.
 
 [float]
 === Multi-fields
@@ -74,19 +84,25 @@ include::types/array.asciidoc[]
 
 include::types/binary.asciidoc[]
 
-include::types/range.asciidoc[]
-
 include::types/boolean.asciidoc[]
 
 include::types/date.asciidoc[]
 
 include::types/date_nanos.asciidoc[]
 
+include::types/dense-vector.asciidoc[]
+
+include::types/histogram.asciidoc[]
+
+include::types/flattened.asciidoc[]
+
 include::types/geo-point.asciidoc[]
 
 include::types/geo-shape.asciidoc[]
 
 include::types/ip.asciidoc[]
+
+include::types/parent-join.asciidoc[]
 
 include::types/keyword.asciidoc[]
 
@@ -96,20 +112,18 @@ include::types/numeric.asciidoc[]
 
 include::types/object.asciidoc[]
 
-include::types/text.asciidoc[]
-
-include::types/token-count.asciidoc[]
-
 include::types/percolator.asciidoc[]
 
-include::types/parent-join.asciidoc[]
+include::types/range.asciidoc[]
 
 include::types/rank-feature.asciidoc[]
 
 include::types/rank-features.asciidoc[]
 
-include::types/dense-vector.asciidoc[]
-
-include::types/sparse-vector.asciidoc[]
-
 include::types/search-as-you-type.asciidoc[]
+
+include::types/text.asciidoc[]
+
+include::types/token-count.asciidoc[]
+
+include::types/shape.asciidoc[]

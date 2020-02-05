@@ -38,8 +38,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
 
-    public RestClusterUpdateSettingsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestClusterUpdateSettingsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_cluster/settings", this);
     }
 

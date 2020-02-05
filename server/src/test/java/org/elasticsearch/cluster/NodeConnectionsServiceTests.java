@@ -25,12 +25,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -51,7 +51,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -80,7 +79,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private List<DiscoveryNode> generateNodes() {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
-            Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
+            Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
             nodes.add(new DiscoveryNode("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
                 roles, Version.CURRENT));
         }
@@ -132,7 +131,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 service.connectToNodes(nodes, () -> future.onResponse(null));
                 future.actionGet();
                 if (isDisrupting == false) {
-                    assertConnected(nodes);
+                    assertConnected(transportService, nodes);
                 }
                 service.disconnectFromNodesExcept(nodes);
 
@@ -169,6 +168,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         final DeterministicTaskQueue deterministicTaskQueue
             = new DeterministicTaskQueue(builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
+
+        MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
+        TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
+        transportService.start();
+        transportService.acceptIncomingRequests();
 
         final NodeConnectionsService service
             = new NodeConnectionsService(settings.build(), deterministicTaskQueue.getThreadPool(), transportService);
@@ -212,7 +216,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         transport.randomConnectionExceptions = false;
         logger.info("renewing connections");
         runTasksUntil(deterministicTaskQueue, maxDisconnectionTime + reconnectIntervalMillis);
-        assertConnectedExactlyToNodes(targetNodes);
+        assertConnectedExactlyToNodes(transportService, targetNodes);
     }
 
     public void testOnlyBlocksOnConnectionsToNewNodes() throws Exception {
@@ -254,8 +258,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             expectThrows(ElasticsearchTimeoutException.class, () -> future3.actionGet(timeValueMillis(scaledRandomIntBetween(1, 1000))));
 
             // once the connection is unblocked we successfully connect to it.
+            connectionBarrier.await(10, TimeUnit.SECONDS);
             nodeConnectionBlocks.clear();
-            connectionBarrier.await(0, TimeUnit.SECONDS);
             future3.actionGet();
             assertConnectedExactlyToNodes(nodes01);
 
@@ -287,8 +291,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             future6.actionGet(); // completed even though the connection attempt is still blocked
             assertConnectedExactlyToNodes(nodes1);
 
-            nodeConnectionBlocks.clear();
             connectionBarrier.await(10, TimeUnit.SECONDS);
+            nodeConnectionBlocks.clear();
             ensureConnections(service);
             assertConnectedExactlyToNodes(nodes1);
         } finally {
@@ -315,11 +319,15 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     }
 
     private void assertConnectedExactlyToNodes(DiscoveryNodes discoveryNodes) {
-        assertConnected(discoveryNodes);
+        assertConnectedExactlyToNodes(transportService, discoveryNodes);
+    }
+
+    private void assertConnectedExactlyToNodes(TransportService transportService, DiscoveryNodes discoveryNodes) {
+        assertConnected(transportService, discoveryNodes);
         assertThat(transportService.getConnectionManager().size(), equalTo(discoveryNodes.getSize()));
     }
 
-    private void assertConnected(Iterable<DiscoveryNode> nodes) {
+    private void assertConnected(TransportService transportService, Iterable<DiscoveryNode> nodes) {
         for (DiscoveryNode node : nodes) {
             assertTrue("not connected to " + node, transportService.nodeConnected(node));
         }
@@ -329,8 +337,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        this.threadPool = new TestThreadPool(getClass().getName());
-        this.transport = new MockTransport();
+        ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        this.threadPool = threadPool;
+        this.transport = new MockTransport(threadPool);
         nodeConnectionBlocks = newConcurrentMap();
         transportService = new TestTransportService(transport, threadPool);
         transportService.start();
@@ -355,32 +364,43 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public HandshakeResponse handshake(Transport.Connection connection, long timeout, Predicate<ClusterName> clusterNamePredicate) {
-            return new HandshakeResponse(connection.getNode(), new ClusterName(""), Version.CURRENT);
+        public void handshake(Transport.Connection connection, long timeout, Predicate<ClusterName> clusterNamePredicate,
+                              ActionListener<HandshakeResponse> listener) {
+            listener.onResponse(new HandshakeResponse(connection.getNode(), new ClusterName(""), Version.CURRENT));
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+        public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
             final CheckedRunnable<Exception> connectionBlock = nodeConnectionBlocks.get(node);
             if (connectionBlock != null) {
-                try {
-                    connectionBlock.run();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                getThreadPool().generic().execute(() -> {
+                        try {
+                            connectionBlock.run();
+                            super.connectToNode(node, listener);
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+            } else {
+                super.connectToNode(node, listener);
             }
-            super.connectToNode(node);
         }
     }
 
     private final class MockTransport implements Transport {
         private ResponseHandlers responseHandlers = new ResponseHandlers();
         private volatile boolean randomConnectionExceptions = false;
+        private final ThreadPool threadPool;
+
+        MockTransport(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+        }
 
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public RequestHandlerRegistry getRequestHandler(String action) {
             return null;
@@ -388,6 +408,10 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         @Override
         public void setMessageListener(TransportMessageListener listener) {
+        }
+
+        @Override
+        public void setLocalNode(DiscoveryNode localNode) {
         }
 
         @Override
@@ -406,7 +430,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
             if (profile == null && randomConnectionExceptions && randomBoolean()) {
                 threadPool.generic().execute(() -> listener.onFailure(new ConnectTransportException(node, "simulated")));
             } else {
@@ -435,8 +459,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     }
                 }));
             }
-            return () -> {
-            };
         }
 
         @Override

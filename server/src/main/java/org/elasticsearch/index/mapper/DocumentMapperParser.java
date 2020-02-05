@@ -64,16 +64,12 @@ public class DocumentMapperParser {
         this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
     }
 
-    public Mapper.TypeParser.ParserContext parserContext(String type) {
-        return new Mapper.TypeParser.ParserContext(type, similarityService::getSimilarity, mapperService,
+    public Mapper.TypeParser.ParserContext parserContext() {
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
                 typeParsers::get, indexVersionCreated, queryShardContextSupplier);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        return parse(type, source, null);
-    }
-
-    public DocumentMapper parse(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
             Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
@@ -84,24 +80,16 @@ public class DocumentMapperParser {
         if (mapping == null) {
             mapping = new HashMap<>();
         }
-        return parse(type, mapping, defaultSource);
+        return parse(type, mapping);
     }
 
     @SuppressWarnings({"unchecked"})
-    private DocumentMapper parse(String type, Map<String, Object> mapping, String defaultSource) throws MapperParsingException {
+    private DocumentMapper parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
 
-        if (defaultSource != null) {
-            Tuple<String, Map<String, Object>> t = extractMapping(MapperService.DEFAULT_MAPPING, defaultSource);
-            if (t.v2() != null) {
-                XContentHelper.mergeDefaults(mapping, t.v2());
-            }
-        }
-
-
-        Mapper.TypeParser.ParserContext parserContext = parserContext(type);
+        Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
         DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
                 (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);

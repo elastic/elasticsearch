@@ -57,10 +57,10 @@ cd c:\elasticsearch-{version}
 endif::[]
 
 ifdef::include-xpack[]
+[role="xpack"]
 [[windows-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+==== Enable automatic creation of system indices
 
-{xpack} will try to automatically create a number of indices within {es}.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]

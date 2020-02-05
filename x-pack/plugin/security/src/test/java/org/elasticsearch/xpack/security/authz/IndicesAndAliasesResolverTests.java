@@ -17,8 +17,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -35,6 +33,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,7 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
@@ -83,6 +82,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -124,13 +124,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                         .putAlias(AliasMetaData.builder("foounauthorized")).settings(settings))
                 .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("foofoobar"))
                         .putAlias(AliasMetaData.builder("foobarfoo")).settings(settings))
-                .put(indexBuilder("closed").state(IndexMetaData.State.CLOSE)
+                .put(indexBuilder("closed").state(State.CLOSE)
                         .putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
-                .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE).settings(settings))
-                .put(indexBuilder("foobar-closed").state(IndexMetaData.State.CLOSE).settings(settings))
+                .put(indexBuilder("foofoo-closed").state(State.CLOSE).settings(settings))
+                .put(indexBuilder("foobar-closed").state(State.CLOSE).settings(settings))
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")).settings(settings))
                 .put(indexBuilder("bar").settings(settings))
-                .put(indexBuilder("bar-closed").state(IndexMetaData.State.CLOSE).settings(settings))
+                .put(indexBuilder("bar-closed").state(State.CLOSE).settings(settings))
                 .put(indexBuilder("bar2").settings(settings))
                 .put(indexBuilder(indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")).settings(settings))
                 .put(indexBuilder("-index10").settings(settings))
@@ -140,6 +140,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(indexBuilder("logs-00001").putAlias(AliasMetaData.builder("logs-alias").writeIndex(false)).settings(settings))
                 .put(indexBuilder("logs-00002").putAlias(AliasMetaData.builder("logs-alias").writeIndex(false)).settings(settings))
                 .put(indexBuilder("logs-00003").putAlias(AliasMetaData.builder("logs-alias").writeIndex(true)).settings(settings))
+                .put(indexBuilder("hidden-open").settings(Settings.builder().put(settings).put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden-open").settings(Settings.builder().put(settings).put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden-closed").state(State.CLOSE)
+                    .settings(Settings.builder().put(settings).put("index.hidden", true).build()))
+                .put(indexBuilder("hidden-closed").state(State.CLOSE)
+                    .settings(Settings.builder().put(settings).put("index.hidden", true).build()))
                 .put(indexBuilder(securityIndexName).settings(settings)).build();
 
         if (withAlias) {
@@ -151,7 +157,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         userDashIndices = new User("dash", "dash");
         userNoIndices = new User("test", "test");
         rolesStore = mock(CompositeRolesStore.class);
-        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "missing", "foofoo-closed"};
+        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "missing", "foofoo-closed",
+            "hidden-open", "hidden-closed", ".hidden-open", ".hidden-closed"};
         String[] dashIndices = new String[]{"-index10", "-index11", "-index20", "-index21"};
         roleMap = new HashMap<>();
         roleMap.put("role", new RoleDescriptor("role", null,
@@ -196,7 +203,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testDashIndicesAreAllowedInShardLevelRequests() {
         //indices with names starting with '-' or '+' can be created up to version  2.x and can be around in 5.x
         //aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x
-        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[]{"-index10", "-index20", "+index30"});
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
                 .getLocal();
@@ -206,7 +213,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testWildcardsAreNotAllowedInShardLevelRequests() {
-        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[]{"index*"});
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
@@ -216,7 +223,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testAllIsNotAllowedInShardLevelRequests() {
-        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
         if (randomBoolean()) {
             when(request.indices()).thenReturn(new String[]{"_all"});
         } else {
@@ -777,14 +784,24 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "explicit"));
     }
 
-    public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
+    public void testResolveAliasesWildcardsIndicesAliasesRequestRemoveAliasActionsNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo*").alias("foo*"));
-        //no authorized aliases match bar*, hence aliases are replaced with no-aliases-expression for that action
         request.addAliasAction(AliasActions.remove().index("*bar").alias("bar*"));
         resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("*", "-*"));
+    }
+
+    public void testResolveAliasesWildcardsIndicesAliasesRequestRemoveIndexActions() {
+        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        request.addAliasAction(AliasActions.removeIndex().index("foo*"));
+        request.addAliasAction(AliasActions.removeIndex().index("*bar"));
+        resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), emptyArray());
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
+        assertThat(request.getAliasActions().get(1).aliases(), emptyArray());
     }
 
     public void testResolveWildcardsIndicesAliasesRequestAddAndDeleteActions() {
@@ -1194,28 +1211,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
     }
 
-    public void testIndicesExists() {
-        //verify that the ignore_unavailable and allow_no_indices get replaced like es core does, to make sure that
-        //indices exists api never throws exception due to missing indices, but only returns false instead.
-        {
-            IndicesExistsRequest request = new IndicesExistsRequest();
-            assertNoIndices(request, resolveIndices(request,
-                    buildAuthorizedIndices(userNoIndices, IndicesExistsAction.NAME)));
-        }
-
-        {
-            IndicesExistsRequest request = new IndicesExistsRequest("does_not_exist");
-
-            assertNoIndices(request, resolveIndices(request,
-                    buildAuthorizedIndices(user, IndicesExistsAction.NAME)));
-        }
-        {
-            IndicesExistsRequest request = new IndicesExistsRequest("does_not_exist_*");
-            assertNoIndices(request, resolveIndices(request,
-                    buildAuthorizedIndices(user, IndicesExistsAction.NAME)));
-        }
-    }
-
     public void testXPackSecurityUserHasAccessToSecurityIndex() {
         SearchRequest request = new SearchRequest();
         {
@@ -1381,8 +1376,56 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertEquals(message, index, putMappingIndexOrAlias);
     }
 
-    // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?
+    public void testHiddenIndicesResolution() {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, true, true));
+        List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed",
+            "hidden-open", "hidden-closed", ".hidden-open", ".hidden-closed"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
 
+        // open + hidden
+        searchRequest = new SearchRequest();
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
+        authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(),
+            containsInAnyOrder("bar", "foofoobar", "foobarfoo", "foofoo", "hidden-open", ".hidden-open"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // open + implicit hidden for . indices
+        searchRequest = new SearchRequest(randomFrom(".*", ".hid*"));
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
+        authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-open"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // closed + hidden, ignore aliases
+        searchRequest = new SearchRequest();
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, true, true, false, true, false));
+        authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar-closed", "foofoo-closed", "hidden-closed", ".hidden-closed"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // closed + implicit hidden for . indices
+        searchRequest = new SearchRequest(randomFrom(".*", ".hid*"));
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, false));
+        authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-closed"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // allow no indices, do not expand to open or closed, expand hidden, ignore aliases
+        searchRequest = new SearchRequest();
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, false, false, false, true, false, true, false));
+        authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), contains("-*"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+    }
 
     private List<String> buildAuthorizedIndices(User user, String action) {
         PlainActionFuture<Role> rolesListener = new PlainActionFuture<>();

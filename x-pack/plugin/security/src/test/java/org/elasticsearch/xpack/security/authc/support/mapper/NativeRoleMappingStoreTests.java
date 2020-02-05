@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
@@ -34,7 +35,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 
@@ -43,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -99,16 +101,19 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             }
         };
 
-        final RealmConfig realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"), Settings.EMPTY,
-                mock(Environment.class), new ThreadContext(Settings.EMPTY));
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
+        final Settings settings = Settings.builder()
+            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build();
+        final RealmConfig realm = new RealmConfig(realmIdentifier, settings,
+                mock(Environment.class), new ThreadContext(settings));
 
         final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData("sasquatch",
                 randomiseDn("cn=walter.langowski,ou=people,ou=dept_h,o=forces,dc=gc,dc=ca"),
-                Arrays.asList(
+                List.of(
                         randomiseDn("cn=alphaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"),
                         randomiseDn("cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")
-                ), Collections.singletonMap("extra_group", "flight"), realm);
+                ), Map.of("extra_group", "flight"), realm);
 
         logger.info("UserData is [{}]", user);
         store.resolveRoles(user, future);
@@ -234,7 +239,10 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         if (attachRealm) {
             final Environment env = TestEnvironment.newEnvironment(settings);
             final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("ldap", realmName);
-            final RealmConfig realmConfig = new RealmConfig(identifier, settings, env, threadContext);
+            final RealmConfig realmConfig = new RealmConfig(identifier,
+                Settings.builder().put(settings)
+                    .put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0).build(),
+                env, threadContext);
             final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
                 @Override
                 protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {

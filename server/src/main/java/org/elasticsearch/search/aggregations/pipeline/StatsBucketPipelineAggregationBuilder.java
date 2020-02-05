@@ -65,16 +65,6 @@ public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipeline
     };
 
     @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<StatsBucketPipelineAggregationBuilder> other) {
-        return true;
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }

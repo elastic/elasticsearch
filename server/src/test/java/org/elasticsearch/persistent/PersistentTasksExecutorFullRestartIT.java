@@ -25,7 +25,6 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,7 +47,6 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         return true;
     }
 
-    @TestLogging("org.elasticsearch.persistent:TRACE,org.elasticsearch.cluster.service:DEBUG")
     public void testFullClusterRestart() throws Exception {
         PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
         int numberOfTasks = randomIntBetween(1, 10);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -38,12 +38,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public final class ExceptionsHelper {
@@ -70,6 +72,8 @@ public final class ExceptionsHelper {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
+            } else if (t instanceof JsonParseException) {
+                return RestStatus.BAD_REQUEST;
             } else if (t instanceof EsRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;
             }
@@ -95,35 +99,6 @@ public final class ExceptionsHelper {
             result = result.getCause();
         }
         return result;
-    }
-
-    /**
-     * @deprecated Don't swallow exceptions, allow them to propagate.
-     */
-    @Deprecated
-    public static String detailedMessage(Throwable t) {
-        if (t == null) {
-            return "Unknown";
-        }
-        if (t.getCause() != null) {
-            StringBuilder sb = new StringBuilder();
-            while (t != null) {
-                sb.append(t.getClass().getSimpleName());
-                if (t.getMessage() != null) {
-                    sb.append("[");
-                    sb.append(t.getMessage());
-                    sb.append("]");
-                }
-                sb.append("; ");
-                t = t.getCause();
-                if (t != null) {
-                    sb.append("nested: ");
-                }
-            }
-            return sb.toString();
-        } else {
-            return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
-        }
     }
 
     public static String stackTrace(Throwable e) {
@@ -185,22 +160,14 @@ public final class ExceptionsHelper {
      * @return Corruption indicating exception if one is found, otherwise {@code null}
      */
     public static IOException unwrapCorruption(Throwable t) {
-        if (t != null) {
-            do {
-                for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
-                    if (clazz.isInstance(t)) {
-                        return (IOException) t;
-                    }
+        return t == null ? null : ExceptionsHelper.<IOException>unwrapCausesAndSuppressed(t, cause -> {
+            for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
+                if (clazz.isInstance(cause)) {
+                    return true;
                 }
-                for (Throwable suppressed : t.getSuppressed()) {
-                    IOException corruptionException = unwrapCorruption(suppressed);
-                    if (corruptionException != null) {
-                        return corruptionException;
-                    }
-                }
-            } while ((t = t.getCause()) != null);
-        }
-        return null;
+            }
+            return false;
+        }).orElse(null);
     }
 
     /**
@@ -213,7 +180,11 @@ public final class ExceptionsHelper {
      */
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {
         if (t != null) {
+            final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
             do {
+                if (seen.add(t) == false) {
+                    return null;
+                }
                 for (Class<?> clazz : clazzes) {
                     if (clazz.isInstance(t)) {
                         return t;
@@ -222,14 +193,6 @@ public final class ExceptionsHelper {
             } while ((t = t.getCause()) != null);
         }
         return null;
-    }
-
-    public static boolean isTransportStoppedForAction(final Throwable t, final String action) {
-        final TransportException maybeTransport =
-                (TransportException) ExceptionsHelper.unwrap(t, TransportException.class);
-        return maybeTransport != null
-                && (maybeTransport.getMessage().equals("TransportService is closed stopped can't send request")
-                || maybeTransport.getMessage().equals("transport stopped, action: " + action));
     }
 
     /**
@@ -246,33 +209,22 @@ public final class ExceptionsHelper {
         return true;
     }
 
-    static final int MAX_ITERATIONS = 1024;
-
-    /**
-     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
-     *
-     * @param cause the root throwable
-     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
-     */
-    public static Optional<Error> maybeError(final Throwable cause, final Logger logger) {
-        // early terminate if the cause is already an error
-        if (cause instanceof Error) {
-            return Optional.of((Error) cause);
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> Optional<T> unwrapCausesAndSuppressed(Throwable cause, Predicate<Throwable> predicate) {
+        if (predicate.test(cause)) {
+            return Optional.of((T) cause);
         }
 
         final Queue<Throwable> queue = new LinkedList<>();
         queue.add(cause);
-        int iterations = 0;
+        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         while (queue.isEmpty() == false) {
-            iterations++;
-            // this is a guard against deeply nested or circular chains of exceptions
-            if (iterations > MAX_ITERATIONS) {
-                logger.warn("giving up looking for fatal errors", cause);
-                break;
-            }
             final Throwable current = queue.remove();
-            if (current instanceof Error) {
-                return Optional.of((Error) current);
+            if (seen.add(current) == false) {
+                continue;
+            }
+            if (predicate.test(current)) {
+                return Optional.of((T) current);
             }
             Collections.addAll(queue, current.getSuppressed());
             if (current.getCause() != null) {
@@ -283,21 +235,24 @@ public final class ExceptionsHelper {
     }
 
     /**
-     * See {@link #maybeError(Throwable, Logger)}. Uses the class-local logger.
+     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
+     *
+     * @param cause the root throwable
+     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
      */
     public static Optional<Error> maybeError(final Throwable cause) {
-        return maybeError(cause, logger);
+        return unwrapCausesAndSuppressed(cause, t -> t instanceof Error);
     }
 
     /**
      * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
      * caught and bubbles up to the uncaught exception handler. Note that the cause tree is examined for any {@link Error}. See
-     * {@link #maybeError(Throwable, Logger)} for the semantics.
+     * {@link #maybeError(Throwable)} for the semantics.
      *
      * @param throwable the throwable to possibly throw on another thread
      */
     public static void maybeDieOnAnotherThread(final Throwable throwable) {
-        ExceptionsHelper.maybeError(throwable, logger).ifPresent(error -> {
+        ExceptionsHelper.maybeError(throwable).ifPresent(error -> {
             /*
              * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack
              * contains statements that catch any throwable (e.g., Netty, and the JDK futures framework). This means that a rethrow here

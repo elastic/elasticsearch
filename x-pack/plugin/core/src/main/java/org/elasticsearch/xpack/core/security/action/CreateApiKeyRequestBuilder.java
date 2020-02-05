@@ -39,7 +39,7 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
-        PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> {
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
             p.nextToken();
             return RoleDescriptor.parse(n, p, false);
         }, new ParseField("role_descriptors"));

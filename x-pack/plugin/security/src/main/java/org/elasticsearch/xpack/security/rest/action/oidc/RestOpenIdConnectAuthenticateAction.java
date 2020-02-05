@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oidc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Rest handler that authenticates the user based on the information provided as parameters of the redirect_uri
  */
 public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler {
+    private static final Logger logger = LogManager.getLogger();
 
     static final ObjectParser<OpenIdConnectAuthenticateRequest, Void> PARSER = new ObjectParser<>("oidc_authn",
         OpenIdConnectAuthenticateRequest::new);
@@ -38,6 +41,7 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
         PARSER.declareString(OpenIdConnectAuthenticateRequest::setRedirectUri, new ParseField("redirect_uri"));
         PARSER.declareString(OpenIdConnectAuthenticateRequest::setState, new ParseField("state"));
         PARSER.declareString(OpenIdConnectAuthenticateRequest::setNonce, new ParseField("nonce"));
+        PARSER.declareStringOrNull(OpenIdConnectAuthenticateRequest::setRealm, new ParseField("realm"));
     }
 
     public RestOpenIdConnectAuthenticateAction(Settings settings, RestController controller, XPackLicenseState licenseState) {

@@ -21,17 +21,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.hamcrest.Matchers;
 
 import java.util.Locale;
@@ -41,12 +38,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.xpack.ccr.action.ShardChangesAction:DEBUG,"
-    + "org.elasticsearch.index.shard:TRACE")
 public class FollowerFailOverIT extends CcrIntegTestCase {
 
     @Override
@@ -60,8 +54,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         int numberOfReplicas = between(1, 2);
         getFollowerCluster().startMasterOnlyNode();
         getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
-        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         AtomicBoolean stopped = new AtomicBoolean();
         Thread[] threads = new Thread[between(1, 8)];
@@ -79,12 +72,12 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                     }
                     if (frequently()) {
                         String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
-                        IndexResponse indexResponse = leaderClient().prepareIndex(leaderIndex, "doc", id)
+                        IndexResponse indexResponse = leaderClient().prepareIndex(leaderIndex).setId(id)
                             .setSource("{\"f\":" + id + "}", XContentType.JSON).get();
                         logger.info("--> index {} id={} seq_no={}", leaderIndex, indexResponse.getId(), indexResponse.getSeqNo());
                     } else {
                         String id = Integer.toString(between(0, docID.get()));
-                        DeleteResponse deleteResponse = leaderClient().prepareDelete(leaderIndex, "doc", id).get();
+                        DeleteResponse deleteResponse = leaderClient().prepareDelete(leaderIndex, id).get();
                         logger.info("--> delete {} id={} seq_no={}", leaderIndex, deleteResponse.getId(), deleteResponse.getSeqNo());
                     }
                 }
@@ -126,7 +119,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
 
     public void testFollowIndexAndCloseNode() throws Exception {
         getFollowerCluster().ensureAtLeastNumDataNodes(3);
-        String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        String leaderIndexSettings = getIndexSettings(3, 1);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen("index1");
 
@@ -143,7 +136,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                     throw new AssertionError(e);
                 }
                 final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
-                IndexResponse indexResp = leaderClient().prepareIndex("index1", "doc")
+                IndexResponse indexResp = leaderClient().prepareIndex("index1")
                     .setSource(source, XContentType.JSON)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .get();
@@ -180,8 +173,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
 
     public void testAddNewReplicasOnFollower() throws Exception {
         int numberOfReplicas = between(0, 1);
-        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas);
         assertAcked(leaderClient().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
         PutFollowAction.Request follow = putFollow("leader-index", "follower-index");
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
@@ -195,13 +187,13 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 try {
                     if (appendOnly) {
                         String id = Integer.toString(docID.incrementAndGet());
-                        leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                        leaderClient().prepareIndex("leader-index").setId(id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
                     } else if (frequently()) {
                         String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 100));
-                        leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                        leaderClient().prepareIndex("leader-index").setId(id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
                     } else {
                         String id = Integer.toString(between(0, docID.get()));
-                        leaderClient().prepareDelete("leader-index", "doc", id).get();
+                        leaderClient().prepareDelete("leader-index", id).get();
                     }
                 } catch (Exception ex) {
                     throw new AssertionError(ex);
@@ -214,6 +206,9 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 try {
                     if (rarely()) {
                         followerClient().admin().indices().prepareFlush("follower-index").get();
+                    }
+                    if (rarely()) {
+                        followerClient().admin().indices().prepareForceMerge("follower-index").setMaxNumSegments(1).get();
                     }
                     if (rarely()) {
                         followerClient().admin().indices().prepareRefresh("follower-index").get();
@@ -245,7 +240,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 .setSettings(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")
                     .put("index.routing.allocation.require.box", "large"))
                 .get()
         );
@@ -271,24 +265,24 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 }
             }
         });
-        leaderCluster.client().admin().indices().preparePutMapping().setType("doc")
+        leaderCluster.client().admin().indices().preparePutMapping()
             .setSource("balance", "type=long").setTimeout(TimeValue.ZERO).get();
         try {
             // Make sure the mapping is ready on the shard before we execute the index request; otherwise the index request
             // will perform a dynamic mapping update which however will be blocked because the latch is remained closed.
             assertBusy(() -> {
-                DocumentMapper mapper = indexShard.mapperService().documentMapper("doc");
+                DocumentMapper mapper = indexShard.mapperService().documentMapper();
                 assertNotNull(mapper);
                 assertNotNull(mapper.mappers().getMapper("balance"));
             });
-            IndexResponse indexResp = leaderCluster.client().prepareIndex("leader-index", "doc", "1")
+            IndexResponse indexResp = leaderCluster.client().prepareIndex("leader-index").setId("1")
                 .setSource("{\"balance\": 100}", XContentType.JSON).setTimeout(TimeValue.ZERO).get();
             assertThat(indexResp.getResult(), equalTo(DocWriteResponse.Result.CREATED));
-            assertThat(indexShard.getGlobalCheckpoint(), equalTo(0L));
+            assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(0L));
             // Make sure at least one read-request which requires mapping sync is completed.
             assertBusy(() -> {
-                CcrClient ccrClient = new CcrClient(followerClient());
-                FollowStatsAction.StatsResponses responses = ccrClient.followStats(new FollowStatsAction.StatsRequest()).actionGet();
+                FollowStatsAction.StatsResponses responses =
+                    followerClient().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
                 long bytesRead = responses.getStatsResponses().stream().mapToLong(r -> r.status().bytesRead()).sum();
                 assertThat(bytesRead, Matchers.greaterThan(0L));
             }, 60, TimeUnit.SECONDS);

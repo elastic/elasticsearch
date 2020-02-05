@@ -54,7 +54,19 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     private String script;
     private Map<String, Object> scriptParams;
 
-    public SearchTemplateRequest() {
+    public SearchTemplateRequest() {}
+
+    public SearchTemplateRequest(StreamInput in) throws IOException {
+        super(in);
+        request = in.readOptionalWriteable(SearchRequest::new);
+        simulate = in.readBoolean();
+        explain = in.readBoolean();
+        profile = in.readBoolean();
+        scriptType = ScriptType.readFrom(in);
+        script = in.readOptionalString();
+        if (in.readBoolean()) {
+            scriptParams = in.readMap();
+        }
     }
 
     public SearchTemplateRequest(SearchRequest searchRequest) {
@@ -218,23 +230,9 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        request = in.readOptionalWriteable(SearchRequest::new);
-        simulate = in.readBoolean();
-        explain = in.readBoolean();
-        profile = in.readBoolean();
-        scriptType = ScriptType.readFrom(in);
-        script = in.readOptionalString();
-        if (in.readBoolean()) {
-            scriptParams = in.readMap();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(request);
+        out.writeOptionalWriteable(request);
         out.writeBoolean(simulate);
         out.writeBoolean(explain);
         out.writeBoolean(profile);

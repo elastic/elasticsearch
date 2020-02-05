@@ -60,10 +60,11 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
     }
 
     public void testConnection() throws Exception {
+        assumeFalse("Fails on BCTLS with 'Closed engine without receiving the close alert message.'", inFipsJvm());
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
         final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
         PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, () -> null);
-        Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), null);
+        Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), newEnvironment());
         X509ExtendedKeyManager x509ExtendedKeyManager = CertParsingUtils.keyManager(certs, privateKey, new char[0]);
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(new X509ExtendedKeyManager[] { x509ExtendedKeyManager },

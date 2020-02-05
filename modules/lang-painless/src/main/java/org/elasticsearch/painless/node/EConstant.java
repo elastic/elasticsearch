@@ -19,12 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-
-import java.util.Set;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * Represents a constant inserted into the tree replacing
@@ -39,12 +38,7 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (constant instanceof String) {
             actual = String.class;
         } else if (constant instanceof Double) {
@@ -69,19 +63,14 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        if      (actual == String.class) writer.push((String)constant);
-        else if (actual == double.class) writer.push((double)constant);
-        else if (actual == float.class) writer.push((float)constant);
-        else if (actual == long.class) writer.push((long)constant);
-        else if (actual == int.class) writer.push((int)constant);
-        else if (actual == char.class) writer.push((char)constant);
-        else if (actual == short.class) writer.push((short)constant);
-        else if (actual == byte.class) writer.push((byte)constant);
-        else if (actual == boolean.class) writer.push((boolean)constant);
-        else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+    ConstantNode write(ClassNode classNode) {
+        ConstantNode constantNode = new ConstantNode();
+
+        constantNode.setLocation(location);
+        constantNode.setExpressionType(actual);
+        constantNode.setConstant(constant);
+
+        return constantNode;
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.hamcrest.Matcher;
@@ -29,10 +30,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.mode;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.randomMode;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,10 +71,10 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             String mode = randomMode();
             Map<String, Object> adminResponse = runSql(null,
                     new StringEntity("{\"query\": \"" + adminSql + "\", \"fetch_size\": 1" + mode(mode) + "}",
-                            ContentType.APPLICATION_JSON));
+                            ContentType.APPLICATION_JSON), mode);
             Map<String, Object> otherResponse = runSql(user,
                     new StringEntity("{\"query\": \"" + adminSql + "\", \"fetch_size\": 1" + mode(mode) + "}",
-                            ContentType.APPLICATION_JSON));
+                            ContentType.APPLICATION_JSON), mode);
 
             String adminCursor = (String) adminResponse.remove("cursor");
             String otherCursor = (String) otherResponse.remove("cursor");
@@ -82,9 +83,9 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             assertResponse(adminResponse, otherResponse);
             while (true) {
                 adminResponse = runSql(null,
-                        new StringEntity("{\"cursor\": \"" + adminCursor + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON));
+                        new StringEntity("{\"cursor\": \"" + adminCursor + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON), mode);
                 otherResponse = runSql(user,
-                        new StringEntity("{\"cursor\": \"" + otherCursor + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON));
+                        new StringEntity("{\"cursor\": \"" + otherCursor + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON), mode);
                 adminCursor = (String) adminResponse.remove("cursor");
                 otherCursor = (String) otherResponse.remove("cursor");
                 assertResponse(adminResponse, otherResponse);
@@ -179,10 +180,10 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         }
 
         private static Map<String, Object> runSql(@Nullable String asUser, String mode, String sql) throws IOException {
-            return runSql(asUser, new StringEntity("{\"query\": \"" + sql + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON));
+            return runSql(asUser, new StringEntity("{\"query\": \"" + sql + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON), mode);
         }
 
-        private static Map<String, Object> runSql(@Nullable String asUser, HttpEntity entity) throws IOException {
+        private static Map<String, Object> runSql(@Nullable String asUser, HttpEntity entity, String mode) throws IOException {
             Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
             if (asUser != null) {
                 RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -190,7 +191,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 request.setOptions(options);
             }
             request.setEntity(entity);
-            return toMap(client().performRequest(request));
+            return toMap(client().performRequest(request), mode);
         }
 
         private static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
@@ -201,9 +202,13 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             }
         }
 
-        private static Map<String, Object> toMap(Response response) throws IOException {
+        private static Map<String, Object> toMap(Response response, String mode) throws IOException {
             try (InputStream content = response.getEntity().getContent()) {
-                return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+                if (mode.equalsIgnoreCase("jdbc")) {
+                    return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);
+                } else {
+                    return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+                }
             }
         }
     }
@@ -226,15 +231,17 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
     public void testHijackScrollFails() throws Exception {
         createUser("full_access", "rest_minimal");
 
+        String mode = randomMode();
         Map<String, Object> adminResponse = RestActions.runSql(null,
-                new StringEntity("{\"query\": \"SELECT * FROM test\", \"fetch_size\": 1" + mode(randomMode()) + "}",
-                        ContentType.APPLICATION_JSON));
+                new StringEntity("{\"query\": \"SELECT * FROM test\", \"fetch_size\": 1" + mode(mode) + "}",
+                        ContentType.APPLICATION_JSON), mode);
 
         String cursor = (String) adminResponse.remove("cursor");
         assertNotNull(cursor);
 
+        final String m = randomMode();
         ResponseException e = expectThrows(ResponseException.class, () -> RestActions.runSql("full_access",
-                new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(randomMode()) + "}", ContentType.APPLICATION_JSON)));
+                new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(m) + "}", ContentType.APPLICATION_JSON), m));
         // TODO return a better error message for bad scrolls
         assertThat(e.getMessage(), containsString("No search context found for id"));
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());

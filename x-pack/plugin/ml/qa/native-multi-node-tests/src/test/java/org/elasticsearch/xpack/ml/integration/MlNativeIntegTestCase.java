@@ -30,9 +30,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -63,7 +66,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -79,10 +82,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
-        // are randomized to return both node clients and transport clients
-        // transport clients do not need to be wrapped since we specify the xpack.security.user setting that sets the default user to be
-        // used for the transport client. If we did not set a default user then the transport client would not even be allowed
-        // to connect
+        // return a node client
         return client -> client.filterWithHeader(headers);
     }
     @Override
@@ -143,18 +143,32 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    protected DeleteExpiredDataAction.Response deleteExpiredData() throws Exception {
+        DeleteExpiredDataAction.Response response = client().execute(DeleteExpiredDataAction.INSTANCE,
+            new DeleteExpiredDataAction.Request()).get();
+
+        // We need to refresh to ensure the deletion is visible
+        client().admin().indices().prepareRefresh("*").get();
+
+        return response;
+    }
+
     @Override
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedWriteables());
-            entries.addAll(new SearchModule(Settings.EMPTY, true, Collections.emptyList()).getNamedWriteables());
+            entries.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
             entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATAFEED_TASK_NAME,
                     StartDatafeedAction.DatafeedParams::new));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+                StartDataFrameAnalyticsAction.TaskParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_TASK_NAME,
                     OpenJobAction.JobParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, DatafeedState.NAME, DatafeedState::fromStream));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameAnalyticsTaskState.NAME,
+                DataFrameAnalyticsTaskState::new));
             entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetaData.TYPE, TokenMetaData::new));
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();

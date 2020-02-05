@@ -64,7 +64,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
         Document doc = mapperService.documentMapper().parse(
-            new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
+            new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -140,7 +140,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

@@ -190,6 +190,26 @@ public final class ConfigurationUtils {
     }
 
     /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type int a {@link ElasticsearchParseException} is thrown.
+     * If the property is missing an {@link ElasticsearchParseException} is thrown
+     */
+    public static Double readDoubleProperty(String processorType, String processorTag, Map<String, Object> configuration,
+                                          String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            throw newConfigurationException(processorType, processorTag, propertyName, "required property is missing");
+        }
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (Exception e) {
+            throw newConfigurationException(processorType, processorTag, propertyName,
+                "property cannot be converted to a double [" + value.toString() + "]");
+        }
+    }
+
+    /**
      * Returns and removes the specified property of type list from the specified configuration map.
      *
      * If the property value isn't of type list an {@link ElasticsearchParseException} is thrown.
@@ -326,6 +346,12 @@ public final class ConfigurationUtils {
         }
 
         return processors;
+    }
+
+    public static TemplateScript.Factory readTemplateProperty(String processorType, String processorTag, Map<String, Object> configuration,
+                                                              String propertyName, ScriptService scriptService) {
+        String value = readStringProperty(processorType, processorTag, configuration, propertyName, null);
+        return compileTemplate(processorType, processorTag, propertyName, value, scriptService);
     }
 
     public static TemplateScript.Factory compileTemplate(String processorType, String processorTag, String propertyName,

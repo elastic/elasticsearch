@@ -19,17 +19,13 @@
 package org.elasticsearch.client.watcher;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -37,70 +33,17 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRespon
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.ZonedDateTime;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
 
-public class GetWatchResponseTests extends
-    AbstractHlrcStreamableXContentTestCase<GetWatchResponse, org.elasticsearch.client.watcher.GetWatchResponse> {
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
-    private static final String[] SHUFFLE_FIELDS_EXCEPTION = new String[] { "watch" };
-
-    @Override
-    protected String[] getShuffleFieldsExceptions() {
-        return SHUFFLE_FIELDS_EXCEPTION;
-    }
+public class GetWatchResponseTests extends AbstractResponseTestCase<GetWatchResponse, org.elasticsearch.client.watcher.GetWatchResponse> {
 
     @Override
-    protected ToXContent.Params getToXContentParams() {
-        return new ToXContent.MapParams(Collections.singletonMap("hide_headers", "false"));
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return f -> f.contains("watch") || f.contains("actions") || f.contains("headers");
-    }
-
-    @Override
-    protected void assertEqualInstances(GetWatchResponse expectedInstance, GetWatchResponse newInstance) {
-        if (expectedInstance.isFound() &&
-                expectedInstance.getSource().getContentType() != newInstance.getSource().getContentType()) {
-            /**
-             * The {@link GetWatchResponse#getContentType()} depends on the content type that
-             * was used to serialize the main object so we use the same content type than the
-             * <code>expectedInstance</code> to translate the watch of the <code>newInstance</code>.
-             */
-            XContent from = XContentFactory.xContent(newInstance.getSource().getContentType());
-            XContent to = XContentFactory.xContent(expectedInstance.getSource().getContentType());
-            final BytesReference newSource;
-            // It is safe to use EMPTY here because this never uses namedObject
-            try (InputStream stream = newInstance.getSource().getBytes().streamInput();
-                 XContentParser parser = XContentFactory.xContent(from.type()).createParser(NamedXContentRegistry.EMPTY,
-                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-                parser.nextToken();
-                XContentBuilder builder = XContentFactory.contentBuilder(to.type());
-                builder.copyCurrentStructure(parser);
-                newSource = BytesReference.bytes(builder);
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-            newInstance = new GetWatchResponse(newInstance.getId(), newInstance.getVersion(),
-                newInstance.getSeqNo(), newInstance.getPrimaryTerm(),
-                newInstance.getStatus(), new XContentSource(newSource, expectedInstance.getSource().getContentType()));
-        }
-        super.assertEqualInstances(expectedInstance, newInstance);
-    }
-
-    @Override
-    protected GetWatchResponse createBlankInstance() {
-        return new GetWatchResponse();
-    }
-
-    @Override
-    protected GetWatchResponse createTestInstance() {
+    protected GetWatchResponse createServerTestInstance(XContentType xContentType) {
         String id = randomAlphaOfLength(10);
         if (LuceneTestCase.rarely()) {
             return new GetWatchResponse(id);
@@ -111,6 +54,34 @@ public class GetWatchResponseTests extends
         WatchStatus status = randomWatchStatus();
         BytesReference source = simpleWatch();
         return new GetWatchResponse(id, version, seqNo, primaryTerm, status, new XContentSource(source, XContentType.JSON));
+    }
+
+    @Override
+    protected org.elasticsearch.client.watcher.GetWatchResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.client.watcher.GetWatchResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(GetWatchResponse serverTestInstance, org.elasticsearch.client.watcher.GetWatchResponse clientInstance) {
+        assertThat(clientInstance.getId(), equalTo(serverTestInstance.getId()));
+        assertThat(clientInstance.getSeqNo(), equalTo(serverTestInstance.getSeqNo()));
+        assertThat(clientInstance.getPrimaryTerm(), equalTo(serverTestInstance.getPrimaryTerm()));
+        assertThat(clientInstance.getVersion(), equalTo(serverTestInstance.getVersion()));
+        if (serverTestInstance.getStatus() != null) {
+            assertThat(convertWatchStatus(clientInstance.getStatus()), equalTo(serverTestInstance.getStatus()));
+        } else {
+            assertThat(clientInstance.getStatus(), nullValue());
+        }
+        if (serverTestInstance.getSource() != null) {
+            assertThat(clientInstance.getSourceAsMap(), equalTo(serverTestInstance.getSource().getAsMap()));
+        } else {
+            assertThat(clientInstance.getSource(), nullValue());
+        }
+    }
+
+    @Override
+    protected ToXContent.Params getParams() {
+        return new ToXContent.MapParams(Map.of("hide_headers", "false"));
     }
 
     private static BytesReference simpleWatch() {
@@ -179,58 +150,45 @@ public class GetWatchResponseTests extends
         }
     }
 
-    @Override
-    public org.elasticsearch.client.watcher.GetWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.watcher.GetWatchResponse.fromXContent(parser);
-    }
-
-    @Override
-    public GetWatchResponse convertHlrcToInternal(org.elasticsearch.client.watcher.GetWatchResponse instance) {
-        if (instance.isFound()) {
-            return new GetWatchResponse(instance.getId(), instance.getVersion(), instance.getSeqNo(), instance.getPrimaryTerm(),
-                convertHlrcToInternal(instance.getStatus()), new XContentSource(instance.getSource(), instance.getContentType()));
-        } else {
-            return new GetWatchResponse(instance.getId());
-        }
-    }
-
-    private static WatchStatus convertHlrcToInternal(org.elasticsearch.client.watcher.WatchStatus status) {
+    private static WatchStatus convertWatchStatus(org.elasticsearch.client.watcher.WatchStatus status) {
         final Map<String, ActionStatus> actions = new HashMap<>();
         for (Map.Entry<String, org.elasticsearch.client.watcher.ActionStatus> entry : status.getActions().entrySet()) {
-            actions.put(entry.getKey(), convertHlrcToInternal(entry.getValue()));
+            actions.put(entry.getKey(), convertActionStatus(entry.getValue()));
         }
         return new WatchStatus(status.version(),
-            convertHlrcToInternal(status.state()),
-            status.getExecutionState() == null ? null : convertHlrcToInternal(status.getExecutionState()),
+            convertWatchStatusState(status.state()),
+            status.getExecutionState() == null ? null : convertWatchStatus(status.getExecutionState()),
             status.lastChecked(), status.lastMetCondition(), actions, status.getHeaders()
         );
     }
 
-    private static ActionStatus convertHlrcToInternal(org.elasticsearch.client.watcher.ActionStatus actionStatus) {
-        return new ActionStatus(convertHlrcToInternal(actionStatus.ackStatus()),
-            actionStatus.lastExecution() == null ? null : convertHlrcToInternal(actionStatus.lastExecution()),
-            actionStatus.lastSuccessfulExecution() == null ? null : convertHlrcToInternal(actionStatus.lastSuccessfulExecution()),
-            actionStatus.lastThrottle() == null ? null : convertHlrcToInternal(actionStatus.lastThrottle())
+    private static ActionStatus convertActionStatus(org.elasticsearch.client.watcher.ActionStatus actionStatus) {
+        return new ActionStatus(convertAckStatus(actionStatus.ackStatus()),
+            actionStatus.lastExecution() == null ? null : convertActionStatusExecution(actionStatus.lastExecution()),
+            actionStatus.lastSuccessfulExecution() == null ? null : convertActionStatusExecution(actionStatus.lastSuccessfulExecution()),
+            actionStatus.lastThrottle() == null ? null : convertActionStatusThrottle(actionStatus.lastThrottle())
         );
     }
 
-    private static ActionStatus.AckStatus convertHlrcToInternal(org.elasticsearch.client.watcher.ActionStatus.AckStatus ackStatus) {
-        return new ActionStatus.AckStatus(ackStatus.timestamp(), convertHlrcToInternal(ackStatus.state()));
+    private static ActionStatus.AckStatus convertAckStatus(org.elasticsearch.client.watcher.ActionStatus.AckStatus ackStatus) {
+        return new ActionStatus.AckStatus(ackStatus.timestamp(), convertAckStatusState(ackStatus.state()));
     }
 
-    private static ActionStatus.AckStatus.State convertHlrcToInternal(org.elasticsearch.client.watcher.ActionStatus.AckStatus.State state) {
+    private static ActionStatus.AckStatus.State convertAckStatusState(
+        org.elasticsearch.client.watcher.ActionStatus.AckStatus.State state) {
         return ActionStatus.AckStatus.State.valueOf(state.name());
     }
 
-    private static WatchStatus.State convertHlrcToInternal(org.elasticsearch.client.watcher.WatchStatus.State state) {
+    private static WatchStatus.State convertWatchStatusState(org.elasticsearch.client.watcher.WatchStatus.State state) {
         return new WatchStatus.State(state.isActive(), state.getTimestamp());
     }
 
-    private static ExecutionState convertHlrcToInternal(org.elasticsearch.client.watcher.ExecutionState executionState) {
+    private static ExecutionState convertWatchStatus(org.elasticsearch.client.watcher.ExecutionState executionState) {
         return ExecutionState.valueOf(executionState.name());
     }
 
-    private static ActionStatus.Execution convertHlrcToInternal(org.elasticsearch.client.watcher.ActionStatus.Execution execution) {
+    private static ActionStatus.Execution convertActionStatusExecution(
+        org.elasticsearch.client.watcher.ActionStatus.Execution execution) {
         if (execution.successful()) {
             return ActionStatus.Execution.successful(execution.timestamp());
         } else {
@@ -238,7 +196,7 @@ public class GetWatchResponseTests extends
         }
     }
 
-    private static ActionStatus.Throttle convertHlrcToInternal(org.elasticsearch.client.watcher.ActionStatus.Throttle throttle) {
+    private static ActionStatus.Throttle convertActionStatusThrottle(org.elasticsearch.client.watcher.ActionStatus.Throttle throttle) {
         return new ActionStatus.Throttle(throttle.timestamp(), throttle.reason());
     }
 }

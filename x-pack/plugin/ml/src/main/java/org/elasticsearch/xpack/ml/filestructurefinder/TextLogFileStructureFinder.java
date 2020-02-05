@@ -108,12 +108,13 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleMessages.size())
             .setMultilineStartPattern(multiLineRegex);
 
+        Map<String, String> messageMapping = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text");
         SortedMap<String, Object> mappings = new TreeMap<>();
-        mappings.put("message", Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text"));
-        mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        mappings.put("message", messageMapping);
+        mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
 
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
-        fieldStats.put("message", FileStructureUtils.calculateFieldStats(sampleMessages, timeoutChecker));
+        fieldStats.put("message", FileStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
 
         Map<String, String> customGrokPatternDefinitions = timestampFormatFinder.getCustomGrokPatternDefinitions();
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, fieldStats,
@@ -136,8 +137,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
                 if (interimTimestampField == null) {
                     interimTimestampField = "timestamp";
                 }
-                grokPattern =
-                    grokPatternCreator.createGrokPatternFromExamples(timestampFormatFinder.getGrokPatternName(), interimTimestampField);
+                grokPattern = grokPatternCreator.createGrokPatternFromExamples(timestampFormatFinder.getGrokPatternName(),
+                    timestampFormatFinder.getEsDateMappingTypeWithFormat(), interimTimestampField);
             }
         }
 
@@ -149,9 +150,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setJavaTimestampFormats(timestampFormatFinder.getJavaTimestampFormats())
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
-            .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(grokPattern,
-                customGrokPatternDefinitions, interimTimestampField,
-                timestampFormatFinder.getJavaTimestampFormats(), needClientTimeZone))
+            .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(grokPattern, customGrokPatternDefinitions, null, mappings,
+                interimTimestampField, timestampFormatFinder.getJavaTimestampFormats(), needClientTimeZone))
             .setMappings(mappings)
             .setFieldStats(fieldStats)
             .setExplanation(explanation)

@@ -1,0 +1,137 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-put-datafeed]]
+=== Create {dfeeds} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Create {dfeeds}</titleabbrev>
+++++
+
+Instantiates a {dfeed}.
+
+[[ml-put-datafeed-request]]
+==== {api-request-title}
+
+`PUT _ml/datafeeds/<feed_id>`
+
+[[ml-put-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* You must create an {anomaly-job} before you create a {dfeed}.  
+* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
+cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-put-datafeed-desc]]
+==== {api-description-title}
+
+{ml-docs}/ml-dfeeds.html[{dfeeds-cap}] retrieve data from {es} for analysis by
+an {anomaly-job}. You can associate only one {dfeed} to each {anomaly-job}.
+
+The {dfeed} contains a query that runs at a defined interval (`frequency`). If
+you are concerned about delayed data, you can add a delay (`query_delay`) at
+each interval. See {ml-docs}/ml-delayed-data-detection.html[Handling delayed data].
+
+[IMPORTANT]
+====
+* You must use {kib} or this API to create a {dfeed}. Do not put a
+{dfeed} directly to the `.ml-config` index using the {es} index API. If {es}
+{security-features} are enabled, do not give users `write` privileges on the
+`.ml-config` index.
+* When {es} {security-features} are enabled, your {dfeed} remembers which roles
+the user who created it had at the time of creation and runs the query using
+those same roles.
+====
+
+[[ml-put-datafeed-path-parms]]
+==== {api-path-parms-title}
+
+`<feed_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+[[ml-put-datafeed-request-body]]
+==== {api-request-body-title}
+
+`aggregations`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
+
+`chunking_config`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
+
+`delayed_data_check_config`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
+
+`frequency`::
+(Optional, <<time-units, time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
+
+`indices`::
+(Required, array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
+
+`job_id`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`max_empty_searches`::
+(Optional,integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
+ 
+`query`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=query]
+
+`query_delay`::
+(Optional, <<time-units, time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
+
+`script_fields`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
+
+`scroll_size`::
+(Optional, unsigned integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
+
+[[ml-put-datafeed-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+PUT _ml/datafeeds/datafeed-total-requests
+{
+  "job_id": "total-requests",
+  "indices": ["server-metrics"]
+}
+--------------------------------------------------
+// TEST[skip:setup:server_metrics_job]
+
+When the {dfeed} is created, you receive the following results:
+
+[source,console-result]
+----
+{
+  "datafeed_id": "datafeed-total-requests",
+  "job_id": "total-requests",
+  "query_delay": "83474ms",
+  "indices": [
+    "server-metrics"
+  ],
+  "query": {
+    "match_all": {
+      "boost": 1.0
+    }
+  },
+  "scroll_size": 1000,
+  "chunking_config": {
+    "mode": "auto"
+  }
+}
+----
+// TESTRESPONSE[s/"query_delay": "83474ms"/"query_delay": $body.query_delay/]
+// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]

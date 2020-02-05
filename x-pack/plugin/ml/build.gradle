@@ -2,98 +2,95 @@ evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
-    name 'x-pack-ml'
-    description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
-    classname 'org.elasticsearch.xpack.ml.MachineLearning'
-    hasNativeController true
-    extendedPlugins = ['x-pack-core', 'lang-painless']
+  name 'x-pack-ml'
+  description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
+  classname 'org.elasticsearch.xpack.ml.MachineLearning'
+  hasNativeController true
+  extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
 
 repositories {
-    ivy {
-        name "ml-cpp"
-        url "https://prelert-artifacts.s3.amazonaws.com"
-        metadataSources {
-            // no repository metadata, look directly for the artifact
-            artifact()
-        }
-        patternLayout {
-            artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
-        }
+  ivy {
+    name "ml-cpp"
+    url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
+    metadataSources {
+      // no repository metadata, look directly for the artifact
+      artifact()
     }
+    patternLayout {
+      artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+    }
+  }
 }
 
 configurations {
-    nativeBundle {
-        resolutionStrategy.dependencySubstitution {
-            if (findProject(':ml-cpp') != null) {
-                substitute module("org.elasticsearch.ml:ml-cpp") with project(":ml-cpp")
-            }
-        }
+  nativeBundle {
+    resolutionStrategy.dependencySubstitution {
+      if (findProject(':ml-cpp') != null) {
+        substitute module("org.elasticsearch.ml:ml-cpp") with project(":ml-cpp")
+      }
     }
+    resolutionStrategy.cacheChangingModulesFor 2, 'hours'
+  }
 }
 
 bundlePlugin {
-    dependsOn configurations.nativeBundle
-    from {
-        project.zipTree(configurations.nativeBundle.singleFile)
-    }
+  dependsOn configurations.nativeBundle
+  from {
+    project.zipTree(configurations.nativeBundle.singleFile)
+  }
 
-    // We don't ship the individual nativeBundle licenses - instead
-    // they get combined into the top level NOTICES file we ship
-    exclude 'platform/licenses/**'
+  // We don't ship the individual nativeBundle licenses - instead
+  // they get combined into the top level NOTICES file we ship
+  exclude 'platform/licenses/**'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-
 dependencies {
-    compileOnly project(':modules:lang-painless:spi')
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
-    // This should not be here
-    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  // This should not be here
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
-    // ml deps
-    compile project(':libs:elasticsearch-grok')
-    compile "com.ibm.icu:icu4j:${versions.icu4j}"
-    compile "net.sf.supercsv:super-csv:${versions.supercsv}"
-    nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
-    testCompile 'org.ini4j:ini4j:0.5.2'
+  // ml deps
+  compile project(':libs:elasticsearch-grok')
+  compile "com.ibm.icu:icu4j:${versions.icu4j}"
+  compile "net.sf.supercsv:super-csv:${versions.supercsv}"
+  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
+    changing = true
+  }
+  testCompile 'org.ini4j:ini4j:0.5.2'
 }
 
 configurations {
-    testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testRuntime
 }
 task testJar(type: Jar) {
-    appendix 'test'
-    from sourceSets.test.output
+  appendix 'test'
+  from sourceSets.test.output
 }
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
-    archives jar
-    testArtifacts testJar
+  // normal es plugins do not publish the jar but we need to since users need it for extensions
+  archives jar
+  testArtifacts testJar
 }
 
 task extractNativeLicenses(type: Copy) {
-    dependsOn configurations.nativeBundle
-    into "${buildDir}"
-    from {
-        project.zipTree(configurations.nativeBundle.singleFile)
-    }
-    include 'platform/licenses/**'
+  dependsOn configurations.nativeBundle
+  into "${buildDir}"
+  from {
+    project.zipTree(configurations.nativeBundle.singleFile)
+  }
+  include 'platform/licenses/**'
 }
 project.afterEvaluate {
-    // Add an extra licenses directory to the combined notices
-    project.tasks.findByName('generateNotice').dependsOn extractNativeLicenses
-    project.tasks.findByName('generateNotice').licensesDir new File("${project.buildDir}/platform/licenses")
-    project.tasks.findByName('generateNotice').outputs.upToDateWhen {
-        extractNativeLicenses.state.upToDate
-    }
+  // Add an extra licenses directory to the combined notices
+  project.tasks.findByName('generateNotice').dependsOn extractNativeLicenses
+  project.tasks.findByName('generateNotice').licensesDir new File("${project.buildDir}/platform/licenses")
+  project.tasks.findByName('generateNotice').outputs.upToDateWhen {
+    extractNativeLicenses.state.upToDate
+  }
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so
@@ -104,21 +101,21 @@ integTest.enabled = false
 // Instead we create a separate task to run the
 // tests based on ESIntegTestCase
 task internalClusterTest(type: Test) {
-    description = 'Multi-node tests'
+  description = 'Multi-node tests'
 
-    include '**/*IT.class'
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  include '**/*IT.class'
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 check.dependsOn internalClusterTest
 internalClusterTest.mustRunAfter test
 
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {
-    project.subprojects
-            .find { it.path == project.path + ":qa" }
-            .subprojects
-            .findAll { it.path.startsWith(project.path + ":qa") }
-            .each { check.dependsOn it.check }
+  project.subprojects
+    .find { it.path == project.path + ":qa" }
+    .subprojects
+    .findAll { it.path.startsWith(project.path + ":qa") }
+    .each { check.dependsOn it.check }
 }
 
 // also add an "alias" task to make typing on the command line easier

@@ -26,4 +26,8 @@ public class RankFeaturesFieldTypeTests extends FieldTypeTestCase {
         return new RankFeaturesFieldMapper.RankFeaturesFieldType();
     }
 
+    public void testIsAggregatable() {
+        MappedFieldType fieldType = createDefaultFieldType();
+        assertFalse(fieldType.isAggregatable());
+    }
 }

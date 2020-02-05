@@ -179,9 +179,9 @@ public class ScopedSettingsTests extends ESTestCase {
         Setting.AffixSetting<String> stringSetting = Setting.affixKeySetting("foo.", "name",
             (k) -> Setting.simpleString(k, Property.Dynamic, Property.NodeScope));
         Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
-            (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope), stringSetting);
+            (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope), () -> stringSetting);
 
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, stringSetting)));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
             () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true));
@@ -193,6 +193,50 @@ public class ScopedSettingsTests extends ESTestCase {
             .build(), true);
 
         service.validate(Settings.builder().put("foo.test.bar", 7).build(), false);
+    }
+
+    public void testDependentSettingsValidate() {
+        Setting.AffixSetting<String> stringSetting = Setting.affixKeySetting(
+            "foo.",
+            "name",
+            (k) -> Setting.simpleString(k, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting(
+            "foo.",
+            "bar",
+            (k) -> Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope),
+            new Setting.AffixSettingDependency() {
+
+                @Override
+                public Setting.AffixSetting getSetting() {
+                    return stringSetting;
+                }
+
+                @Override
+                public void validate(final String key, final Object value, final Object dependency) {
+                    if ("valid".equals(dependency) == false) {
+                        throw new SettingsException("[" + key + "] is set but [name] is [" + dependency + "]");
+                    }
+                }
+            });
+
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
+
+        SettingsException iae = expectThrows(
+            SettingsException.class,
+            () -> service.validate(Settings.builder().put("foo.test.bar", 7).put("foo.test.name", "invalid").build(), true));
+        assertEquals("[foo.test.bar] is set but [name] is [invalid]", iae.getMessage());
+
+        service.validate(Settings.builder()
+                .put("foo.test.bar", 7)
+                .put("foo.test.name", "valid")
+                .build(),
+            true);
+
+        service.validate(Settings.builder()
+            .put("foo.test.bar", 7)
+            .put("foo.test.name", "invalid")
+            .build(),
+            false);
     }
 
     public void testDependentSettingsWithFallback() {
@@ -208,8 +252,11 @@ public class ScopedSettingsTests extends ESTestCase {
                                 : nameFallbackSetting.getConcreteSetting(k.replaceAll("^foo", "fallback")),
                         Property.Dynamic,
                         Property.NodeScope));
-        Setting.AffixSetting<Integer> barSetting =
-                Setting.affixKeySetting("foo.", "bar", k -> Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope), nameSetting);
+        Setting.AffixSetting<Integer> barSetting = Setting.affixKeySetting(
+            "foo.",
+            "bar",
+            k -> Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope),
+            () -> nameSetting);
 
         final AbstractScopedSettings service =
                 new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(nameFallbackSetting, nameSetting, barSetting)));
@@ -800,9 +847,9 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build(),
+            settings.validate("index.similarity.boolean.type", Settings.builder().put("index.similarity.boolean.type", "mine").build(),
                 false));
-        assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
+        assertEquals("illegal value for [index.similarity.boolean] cannot redefine built-in similarity", e.getMessage());
     }
 
     public void testValidateSecureSettings() {

@@ -82,6 +82,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         public void consumeBucketsAndMaybeBreak(int size) {
             multiBucketConsumer.accept(size);
         }
+
     }
 
     protected final String name;
@@ -126,22 +127,24 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
+     * Creates the output from all pipeline aggs that this aggregation is associated with.  Should only
+     * be called after all aggregations have been fully reduced
+     */
+    public InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        assert reduceContext.isFinalReduce();
+        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+            reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
+        }
+        return reducedAggs;
+    }
+
+    /**
      * Reduces the given aggregations to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
      * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
      * try reusing an existing instance (typically the first in the given list) to save on redundant object
      * construction.
      */
-    public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        InternalAggregation aggResult = doReduce(aggregations, reduceContext);
-        if (reduceContext.isFinalReduce()) {
-            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-                aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
-            }
-        }
-        return aggResult;
-    }
-
-    public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
     /**
      * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns
@@ -218,39 +221,21 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, metaData, pipelineAggregators, doHashCode());
+        return Objects.hash(name, metaData, pipelineAggregators);
     }
-
-    /**
-     * Opportunity for subclasses to the {@link #hashCode()} for this
-     * class.
-     **/
-    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null) {
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        if (obj.getClass() != getClass()) {
-            return false;
-        }
+        if (obj == this) { return true; }
+
         InternalAggregation other = (InternalAggregation) obj;
         return Objects.equals(name, other.name) &&
                 Objects.equals(pipelineAggregators, other.pipelineAggregators) &&
-                Objects.equals(metaData, other.metaData) &&
-                doEquals(obj);
+                Objects.equals(metaData, other.metaData);
     }
-
-    /**
-     * Opportunity for subclasses to add criteria to the {@link #equals(Object)}
-     * method for this class.
-     *
-     * This method can safely cast <code>obj</code> to the subclass since the
-     * {@link #equals(Object)} method checks that <code>obj</code> is the same
-     * class as <code>this</code>
-     */
-    protected abstract boolean doEquals(Object obj);
 
     @Override
     public String toString() {

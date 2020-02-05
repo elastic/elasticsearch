@@ -59,7 +59,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(2, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                     .startObject()
                     .field("str_value", "s" + i)
                     .array("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})

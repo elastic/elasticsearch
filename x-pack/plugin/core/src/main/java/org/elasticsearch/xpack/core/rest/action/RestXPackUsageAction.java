@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -26,8 +25,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestXPackUsageAction extends BaseRestHandler {
-    public RestXPackUsageAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestXPackUsageAction(RestController controller) {
         controller.registerHandler(GET, "/_xpack/usage", this);
     }
 

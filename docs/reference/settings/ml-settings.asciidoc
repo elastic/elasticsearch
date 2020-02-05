@@ -50,6 +50,25 @@ IMPORTANT: If you want to use {ml} features in your cluster, you must have
 `xpack.ml.enabled` set to `true` on all master-eligible nodes. This is the
 default behavior.
 
+`xpack.ml.inference_model.cache_size`::
+The maximum inference cache size allowed. The inference cache exists in the JVM
+heap on each ingest node. The cache affords faster processing times for the
+`inference` processor. The value can be a static byte sized value (i.e. "2gb")
+or a percentage of total allocated heap. The default is "40%".
+
+`xpack.ml.inference_model.time_to_live`::
+The time to live (TTL) for models in the inference model cache. The TTL is
+calculated from last access. The `inference` processor attempts to load the
+model from cache. If the `inference` processor does not receive any documents
+for the duration of the TTL, the referenced model is flagged for eviction from
+the cache. If a document is processed later, the model is again loaded into the
+cache. Defaults to `5m`.
+
+`xpack.ml.max_inference_processors` (<<cluster-update-settings,Dynamic>>)::
+The total number of `inference` type processors allowed across all ingest
+pipelines. Once the limit is reached, adding an `inference` processor to
+a pipeline is disallowed. Defaults to `50`.
+
 `xpack.ml.max_machine_memory_percent` (<<cluster-update-settings,Dynamic>>)::
 The maximum percentage of the machine's memory that {ml} may use for running
 analytics processes. (These processes are separate to the {es} JVM.) Defaults to
@@ -62,18 +81,18 @@ The maximum `model_memory_limit` property value that can be set for any job on
 this node. If you try to create a job with a `model_memory_limit` property value
 that is greater than this setting value, an error occurs. Existing jobs are not
 affected when you update this setting. For more information about the
-`model_memory_limit` property, see <<ml-apilimits>>.
+`model_memory_limit` property, see <<put-analysislimits>>.
 
+[[xpack.ml.max_open_jobs]]
 `xpack.ml.max_open_jobs` (<<cluster-update-settings,Dynamic>>)::
 The maximum number of jobs that can run simultaneously on a node. Defaults to
-`20`. In this context, jobs include both anomaly detector jobs and data frame
-analytics jobs. The maximum number of jobs is also constrained by memory usage.
-Thus if the estimated memory usage of the jobs would be higher than allowed,
-fewer jobs will run on a node. Prior to version 7.1, this setting was a per-node
-non-dynamic setting. It became a cluster-wide dynamic
-setting in version 7.1. As a result, changes to its value after node startup
-are used only after every node in the cluster is running version 7.1 or higher.
-The maximum permitted value is `512`.
+`20`. In this context, jobs include both {anomaly-jobs} and {dfanalytics-jobs}. 
+The maximum number of jobs is also constrained by memory usage. Thus if the 
+estimated memory usage of the jobs would be higher than allowed, fewer jobs will 
+run on a node. Prior to version 7.1, this setting was a per-node non-dynamic 
+setting. It became a cluster-wide dynamic setting in version 7.1. As a result, 
+changes to its value after node startup are used only after every node in the 
+cluster is running version 7.1 or higher. The maximum permitted value is `512`.
 
 `xpack.ml.node_concurrent_job_allocations` (<<cluster-update-settings,Dynamic>>)::
 The maximum number of jobs that can concurrently be in the `opening` state on
@@ -109,3 +128,11 @@ cluster and the job is assigned to run on that node.
 IMPORTANT: This setting assumes some external process is capable of adding ML nodes
 to the cluster. This setting is only useful when used in conjunction with
 such an external process.
+
+`xpack.ml.process_connect_timeout` (<<cluster-update-settings,Dynamic>>)::
+The connection timeout for {ml} processes that run separately from the {es} JVM.
+Defaults to `10s`. Some {ml} processing is done by processes that run separately
+to the {es} JVM. When such processes are started they must connect to the {es}
+JVM. If such a process does not connect within the time period specified by this
+setting then the process is assumed to have failed. Defaults to `10s`. The minimum
+value for this setting is `5s`.

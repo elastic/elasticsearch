@@ -18,17 +18,20 @@
  */
 package org.elasticsearch.client.watcher.hlrc;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class PutWatchResponseTests extends AbstractHlrcXContentTestCase<
+import static org.hamcrest.Matchers.equalTo;
+
+public class PutWatchResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.protocol.xpack.watcher.PutWatchResponse, PutWatchResponse> {
 
     @Override
-    protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse createTestInstance() {
+    protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse createServerTestInstance(XContentType xContentType) {
         String id = randomAlphaOfLength(10);
         long seqNo = randomNonNegativeLong();
         long primaryTerm = randomLongBetween(1, 20);
@@ -38,23 +41,17 @@ public class PutWatchResponseTests extends AbstractHlrcXContentTestCase<
     }
 
     @Override
-    protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse doParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.protocol.xpack.watcher.PutWatchResponse.fromXContent(parser);
+    protected PutWatchResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return PutWatchResponse.fromXContent(parser);
     }
 
     @Override
-    public PutWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.watcher.PutWatchResponse.fromXContent(parser);
-    }
-
-    @Override
-    public org.elasticsearch.protocol.xpack.watcher.PutWatchResponse convertHlrcToInternal(PutWatchResponse instance) {
-        return new org.elasticsearch.protocol.xpack.watcher.PutWatchResponse(instance.getId(), instance.getVersion(),
-            instance.getSeqNo(), instance.getPrimaryTerm(), instance.isCreated());
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected void assertInstances(org.elasticsearch.protocol.xpack.watcher.PutWatchResponse serverTestInstance,
+                                   PutWatchResponse clientInstance) {
+        assertThat(clientInstance.getId(), equalTo(serverTestInstance.getId()));
+        assertThat(clientInstance.getSeqNo(), equalTo(serverTestInstance.getSeqNo()));
+        assertThat(clientInstance.getPrimaryTerm(), equalTo(serverTestInstance.getPrimaryTerm()));
+        assertThat(clientInstance.getVersion(), equalTo(serverTestInstance.getVersion()));
+        assertThat(clientInstance.isCreated(), equalTo(serverTestInstance.isCreated()));
     }
 }

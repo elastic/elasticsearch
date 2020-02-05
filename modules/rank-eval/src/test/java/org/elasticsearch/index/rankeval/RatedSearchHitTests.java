@@ -21,11 +21,9 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 
@@ -41,8 +39,7 @@ public class RatedSearchHitTests extends ESTestCase {
     public static RatedSearchHit randomRatedSearchHit() {
         OptionalInt rating = randomBoolean() ? OptionalInt.empty()
                 : OptionalInt.of(randomIntBetween(0, 5));
-        SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAlphaOfLength(10),
-                new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+        SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAlphaOfLength(10), Collections.emptyMap());
         RatedSearchHit ratedSearchHit = new RatedSearchHit(searchHit, rating);
         return ratedSearchHit;
     }
@@ -55,8 +52,7 @@ public class RatedSearchHitTests extends ESTestCase {
             rating = rating.isPresent() ? OptionalInt.of(rating.getAsInt() + 1) : OptionalInt.of(randomInt(5));
             break;
         case 1:
-            hit = new SearchHit(hit.docId(), hit.getId() + randomAlphaOfLength(10),
-                    new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+            hit = new SearchHit(hit.docId(), hit.getId() + randomAlphaOfLength(10), Collections.emptyMap());
             break;
         default:
             throw new IllegalStateException("The test should only allow two parameters mutated");

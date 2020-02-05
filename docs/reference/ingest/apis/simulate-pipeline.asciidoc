@@ -1,54 +1,216 @@
 
 [[simulate-pipeline-api]]
-=== Simulate Pipeline API
+=== Simulate pipeline API
+++++
+<titleabbrev>Simulate pipeline</titleabbrev>
+++++
 
-The simulate pipeline API executes a specific pipeline against
-the set of documents provided in the body of the request.
+Executes an ingest pipeline against
+a set of provided documents.
 
-You can either specify an existing pipeline to execute
-against the provided documents, or supply a pipeline definition in
-the body of the request.
-
-Here is the structure of a simulate request with a pipeline definition provided
-in the body of the request:
-
-[source,js]
---------------------------------------------------
-POST _ingest/pipeline/_simulate
+////
+[source,console]
+----
+PUT /_ingest/pipeline/my-pipeline-id
 {
-  "pipeline" : {
-    // pipeline definition here
-  },
-  "docs" : [
-    { "_source": {/** first document **/} },
-    { "_source": {/** second document **/} },
-    // ...
+  "description" : "example pipeline to simulate",
+      "processors": [
+      {
+        "set" : {
+          "field" : "field2",
+          "value" : "_value"
+        }
+      }
+    ]
+}
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+POST /_ingest/pipeline/my-pipeline-id/_simulate
+{
+  "docs": [
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "bar"
+      }
+    },
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "rab"
+      }
+    }
   ]
 }
---------------------------------------------------
-// NOTCONSOLE
+----
 
-Here is the structure of a simulate request against an existing pipeline:
 
-[source,js]
---------------------------------------------------
-POST _ingest/pipeline/my-pipeline-id/_simulate
+[[simulate-pipeline-api-request]]
+==== {api-request-title}
+
+POST /_ingest/pipeline/<pipeline>/_simulate
+
+GET /_ingest/pipeline/<pipeline>/_simulate
+
+POST /_ingest/pipeline/_simulate
+
+GET /_ingest/pipeline/_simulate
+
+
+[[simulate-pipeline-api-desc]]
+==== {api-description-title}
+
+The simulate pipeline API executes a specific pipeline
+against a set of documents provided in the body of the request.
+
+You can either specify an existing pipeline
+to execute against the provided documents
+or supply a pipeline definition in the body of the request.
+
+
+[[simulate-pipeline-api-path-params]]
+==== {api-path-parms-title}
+
+`<pipeline>`::
+(Optional, string)
+Pipeline ID used to simulate an ingest.
+
+
+[[simulate-pipeline-api-query-params]]
+==== {api-query-parms-title}
+
+`verbose`::
+(Optional, boolean)
+If `true`,
+the response includes output data
+for each processor in the executed pipeline.
+
+
+[[simulate-pipeline-api-request-body]]
+==== {api-request-body-title}
+
+`description`::
+(Optional, string)
+Description of the ingest pipeline.
+
+`processors`::
++
+--
+(Optional, array of <<ingest-processors,processor objects>>)
+Array of processors used to pre-process documents
+during ingest.
+
+Processors are executed in the order provided.
+
+See <<ingest-processors>> for processor object definitions
+and a list of built-in processors.
+--
+
+`docs`::
++
+--
+(Required, array)
+Array of documents
+ingested by the pipeline.
+
+Document object parameters include:
+
+`_index`::
+(Optional, string)
+Name of the index containing the document.
+
+`_id`::
+(Optional, string)
+Unique identifier for the document.
+This ID is only unique within the index.
+
+`_source`::
+(Required, object)
+JSON body for the document.
+--
+
+
+[[simulate-pipeline-api-example]]
+==== {api-examples-title}
+
+
+[[simulate-pipeline-api-path-parm-ex]]
+===== Specify a pipeline as a path parameter
+
+[source,console]
+----
+POST /_ingest/pipeline/my-pipeline-id/_simulate
 {
-  "docs" : [
-    { "_source": {/** first document **/} },
-    { "_source": {/** second document **/} },
-    // ...
+  "docs": [
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "bar"
+      }
+    },
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "rab"
+      }
+    }
   ]
 }
---------------------------------------------------
-// NOTCONSOLE
+----
 
-Here is an example of a simulate request with a pipeline defined in the request
-and its response:
+The API returns the following response:
 
-[source,js]
---------------------------------------------------
-POST _ingest/pipeline/_simulate
+[source,console-result]
+----
+{
+   "docs": [
+      {
+         "doc": {
+            "_id": "id",
+            "_index": "index",
+            "_source": {
+               "field2": "_value",
+               "foo": "bar"
+            },
+            "_ingest": {
+               "timestamp": "2017-05-04T22:30:03.187Z"
+            }
+         }
+      },
+      {
+         "doc": {
+            "_id": "id",
+            "_index": "index",
+            "_source": {
+               "field2": "_value",
+               "foo": "rab"
+            },
+            "_ingest": {
+               "timestamp": "2017-05-04T22:30:03.188Z"
+            }
+         }
+      }
+   ]
+}
+----
+// TESTRESPONSE[s/"2017-05-04T22:30:03.187Z"/$body.docs.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2017-05-04T22:30:03.188Z"/$body.docs.1.doc._ingest.timestamp/]
+
+
+[[simulate-pipeline-api-request-body-ex]]
+===== Specify a pipeline in the request body
+
+[source,console]
+----
+POST /_ingest/pipeline/_simulate
 {
   "pipeline" :
   {
@@ -79,20 +241,18 @@ POST _ingest/pipeline/_simulate
     }
   ]
 }
---------------------------------------------------
-// CONSOLE
+----
 
-Response:
+The API returns the following response:
 
-[source,js]
---------------------------------------------------
+[source,console-result]
+----
 {
    "docs": [
       {
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "bar"
@@ -106,7 +266,6 @@ Response:
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "rab"
@@ -118,22 +277,24 @@ Response:
       }
    ]
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/"2017-05-04T22:30:03.187Z"/$body.docs.0.doc._ingest.timestamp/]
 // TESTRESPONSE[s/"2017-05-04T22:30:03.188Z"/$body.docs.1.doc._ingest.timestamp/]
 
+
 [[ingest-verbose-param]]
-==== Viewing Verbose Results
-You can use the simulate pipeline API to see how each processor affects the ingest document
-as it passes through the pipeline. To see the intermediate results of
-each processor in the simulate request, you can add the `verbose` parameter
-to the request.
+===== View verbose results
 
-Here is an example of a verbose request and its response:
+You can use the simulate pipeline API
+to see how each processor affects the ingest document
+as it passes through the pipeline.
+To see the intermediate results
+of each processor in the simulate request,
+you can add the `verbose` parameter to the request.
 
-[source,js]
---------------------------------------------------
-POST _ingest/pipeline/_simulate?verbose
+[source,console]
+----
+POST /_ingest/pipeline/_simulate?verbose
 {
   "pipeline" :
   {
@@ -170,13 +331,12 @@ POST _ingest/pipeline/_simulate?verbose
     }
   ]
 }
---------------------------------------------------
-// CONSOLE
+----
 
-Response:
+The API returns the following response:
 
-[source,js]
---------------------------------------------------
+[source,console-result]
+----
 {
    "docs": [
       {
@@ -185,13 +345,13 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_doc",
                   "_source": {
                      "field2": "_value2",
                      "foo": "bar"
                   },
                   "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.674Z"
+                     "timestamp": "2017-05-04T22:46:09.674Z",
+                     "pipeline": "_simulate_pipeline"
                   }
                }
             },
@@ -199,14 +359,14 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_doc",
                   "_source": {
                      "field3": "_value3",
                      "field2": "_value2",
                      "foo": "bar"
                   },
                   "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.675Z"
+                     "timestamp": "2017-05-04T22:46:09.675Z",
+                     "pipeline": "_simulate_pipeline"
                   }
                }
             }
@@ -218,13 +378,13 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_doc",
                   "_source": {
                      "field2": "_value2",
                      "foo": "rab"
                   },
                   "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.676Z"
+                     "timestamp": "2017-05-04T22:46:09.676Z",
+                     "pipeline": "_simulate_pipeline"
                   }
                }
             },
@@ -232,14 +392,14 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_doc",
                   "_source": {
                      "field3": "_value3",
                      "field2": "_value2",
                      "foo": "rab"
                   },
                   "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.677Z"
+                     "timestamp": "2017-05-04T22:46:09.677Z",
+                     "pipeline": "_simulate_pipeline"
                   }
                }
             }
@@ -247,8 +407,22 @@ Response:
       }
    ]
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/"2017-05-04T22:46:09.674Z"/$body.docs.0.processor_results.0.doc._ingest.timestamp/]
 // TESTRESPONSE[s/"2017-05-04T22:46:09.675Z"/$body.docs.0.processor_results.1.doc._ingest.timestamp/]
 // TESTRESPONSE[s/"2017-05-04T22:46:09.676Z"/$body.docs.1.processor_results.0.doc._ingest.timestamp/]
 // TESTRESPONSE[s/"2017-05-04T22:46:09.677Z"/$body.docs.1.processor_results.1.doc._ingest.timestamp/]
+
+////
+[source,console]
+----
+DELETE /_ingest/pipeline/*
+----
+
+[source,console-result]
+----
+{
+"acknowledged": true
+}
+----
+////

@@ -35,6 +35,7 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -42,6 +43,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -53,7 +55,6 @@ public class NoOpEngineTests extends EngineTestCase {
     public void testNoopEngine() throws IOException {
         engine.close();
         final NoOpEngine engine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
-        expectThrows(UnsupportedOperationException.class, () -> engine.syncFlush(null, null));
         assertThat(engine.refreshNeeded(), equalTo(false));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
         engine.close();
@@ -83,14 +84,14 @@ public class NoOpEngineTests extends EngineTestCase {
             tracker.updateLocalCheckpoint(allocationId.getId(), i);
         }
 
-        flushAndTrimTranslog(engine);
+        engine.flush(true, true);
 
-        long localCheckpoint = engine.getLocalCheckpoint();
+        long localCheckpoint = engine.getPersistedLocalCheckpoint();
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
         engine.close();
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
-        assertThat(noOpEngine.getLocalCheckpoint(), equalTo(localCheckpoint));
+        assertThat(noOpEngine.getPersistedLocalCheckpoint(), equalTo(localCheckpoint));
         assertThat(noOpEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
         try (Engine.IndexCommitRef ref = noOpEngine.acquireLastIndexCommit(false)) {
             try (IndexReader reader = DirectoryReader.open(ref.getIndexCommit())) {
@@ -114,19 +115,21 @@ public class NoOpEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    globalCheckpoint.set(engine.getLocalCheckpoint());
+                    engine.syncTranslog(); // advance persisted local checkpoint
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 }
 
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
-                        Engine.DeleteResult result = engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
+                        Engine.DeleteResult result = engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
-                        globalCheckpoint.set(engine.getLocalCheckpoint());
+                        engine.syncTranslog(); // advance persisted local checkpoint
+                        globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                         deletions += 1;
                     }
                 }
-                engine.getLocalCheckpointTracker().waitForOpsToComplete(numDocs + deletions - 1);
+                engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(numDocs + deletions - 1);
                 flushAndTrimTranslog(engine);
             }
 
@@ -157,11 +160,56 @@ public class NoOpEngineTests extends EngineTestCase {
         }
     }
 
+    public void testTrimUnreferencedTranslogFiles() throws Exception {
+        final ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
+        ShardRouting routing = TestShardRouting.newShardRouting("test", shardId.id(), "node",
+            null, true, ShardRoutingState.STARTED, allocationId);
+        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
+        tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
+        tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+
+        boolean softDeleteEnabled = engine.config().getIndexSettings().isSoftDeleteEnabled();
+        final int numDocs = scaledRandomIntBetween(10, 3000);
+        for (int i = 0; i < numDocs; i++) {
+            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            tracker.updateLocalCheckpoint(allocationId.getId(), i);
+            if (rarely()) {
+                engine.flush();
+            }
+        }
+        engine.flush(true, true);
+
+        final String translogUuid = engine.getTranslog().getTranslogUUID();
+        final long minFileGeneration = engine.getTranslog().getMinFileGeneration();
+        final long currentFileGeneration = engine.getTranslog().currentFileGeneration();
+        engine.close();
+
+        final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
+        final Path translogPath = noOpEngine.config().getTranslogConfig().getTranslogPath();
+
+        final long lastCommitedTranslogGeneration;
+        try (Engine.IndexCommitRef indexCommitRef = noOpEngine.acquireLastIndexCommit(false)) {
+            Map<String, String> lastCommittedUserData = indexCommitRef.getIndexCommit().getUserData();
+            lastCommitedTranslogGeneration = Long.parseLong(lastCommittedUserData.get(Translog.TRANSLOG_GENERATION_KEY));
+            assertThat(lastCommitedTranslogGeneration, equalTo(currentFileGeneration));
+        }
+
+        assertThat(Translog.readMinTranslogGeneration(translogPath, translogUuid), equalTo(minFileGeneration));
+        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(softDeleteEnabled ? 0 : numDocs));
+        assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
+
+        noOpEngine.trimUnreferencedTranslogFiles();
+
+        assertThat(Translog.readMinTranslogGeneration(translogPath, translogUuid), equalTo(lastCommitedTranslogGeneration));
+        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(0));
+        assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
+
+        noOpEngine.close();
+    }
+
     private void flushAndTrimTranslog(final InternalEngine engine) {
         engine.flush(true, true);
         final TranslogDeletionPolicy deletionPolicy = engine.getTranslog().getDeletionPolicy();
-        deletionPolicy.setRetentionSizeInBytes(-1);
-        deletionPolicy.setRetentionAgeInMillis(-1);
         deletionPolicy.setMinTranslogGenerationForRecovery(engine.getTranslog().getGeneration().translogFileGeneration);
         engine.flush(true, true);
     }

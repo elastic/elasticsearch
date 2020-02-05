@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -198,7 +199,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             threadContext.putHeader(AuditTrail.X_FORWARDED_FOR_HEADER,
                     randomFrom("2001:db8:85a3:8d3:1319:8a2e:370:7348", "203.0.113.195", "203.0.113.195, 70.41.3.18, 150.172.238.178"));
         }
-        logger = CapturingLogger.newCapturingLogger(Level.INFO, patternLayout);
+        logger = CapturingLogger.newCapturingLogger(randomFrom(Level.OFF, Level.FATAL, Level.ERROR, Level.WARN, Level.INFO), patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
     }
 
@@ -1154,6 +1155,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
             }
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     static class MockIndicesRequest extends org.elasticsearch.action.MockIndicesRequest {

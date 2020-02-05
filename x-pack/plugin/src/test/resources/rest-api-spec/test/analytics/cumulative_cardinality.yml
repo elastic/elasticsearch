@@ -1,0 +1,86 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: foo
+        body:
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              user:
+                type: keyword
+
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-01T05:00:00Z"
+            user: "a"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-01T05:00:00Z"
+            user: "b"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-01T05:00:00Z"
+            user: "c"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-02T05:00:00Z"
+            user: "a"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-02T05:00:00Z"
+            user: "b"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-03T05:00:00Z"
+            user: "d"
+
+---
+"Basic Search":
+
+  - do:
+      search:
+        index: "foo"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                distinct_users:
+                  cardinality:
+                    field: "user"
+                total_users:
+                  cumulative_cardinality:
+                    buckets_path: "distinct_users"
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 3 }
+  - match: { aggregations.histo.buckets.0.distinct_users.value: 3 }
+  - match: { aggregations.histo.buckets.0.total_users.value: 3 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.distinct_users.value: 2 }
+  - match: { aggregations.histo.buckets.1.total_users.value: 3 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.histo.buckets.2.distinct_users.value: 1 }
+  - match: { aggregations.histo.buckets.2.total_users.value: 4 }
+

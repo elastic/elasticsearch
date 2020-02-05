@@ -50,7 +50,7 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return Arrays.asList(new RestRankEvalAction(settings, restController));
+        return Arrays.asList(new RestRankEvalAction(restController));
     }
 
     @Override

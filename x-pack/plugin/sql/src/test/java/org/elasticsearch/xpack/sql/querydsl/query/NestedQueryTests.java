@@ -7,10 +7,9 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.SourceTests;
-import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.SourceTests;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
@@ -122,11 +121,11 @@ public class NestedQueryTests extends ESTestCase {
             assertEquals(q.child().asBuilder(), sort.getFilter());
             q.enrichNestedSort(sort);
 
-            // But enriching using another query is not
-            NestedQuery other = new NestedQuery(SourceTests.randomSource(), q.path(), q.fields(),
-                randomValueOtherThan(q.child(), () -> randomQuery(0)));
-            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> other.enrichNestedSort(sort));
-            assertEquals("nested query should have been grouped in one place", e.getMessage());
+            // But enriching using another query will keep only the first query
+            Query originalChildQuery = randomValueOtherThan(q.child(), () -> randomQuery(0));
+            NestedQuery other = new NestedQuery(SourceTests.randomSource(), q.path(), q.fields(), originalChildQuery);
+            other.enrichNestedSort(sort);
+            assertEquals(other.child().asBuilder(), originalChildQuery.asBuilder());
         }
     }
 

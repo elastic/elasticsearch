@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -48,6 +49,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -61,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -122,6 +125,42 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testCloseRoutingTableWithRestoredIndex() {
+        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableWithRestoredIndex")).build();
+
+        String indexName = "restored-index";
+        ClusterBlock block = MetaDataIndexStateService.createIndexClosingBlock();
+        state = addRestoredIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
+            .build();
+
+        final Index index = state.metaData().index(indexName).getIndex();
+        final ClusterState updatedState =
+            MetaDataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
+                .v1();
+        assertIsOpened(index.getName(), updatedState);
+        assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
+    }
+
+    public void testCloseRoutingTableWithSnapshottedIndex() {
+        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableWithSnapshottedIndex")).build();
+
+        String indexName = "snapshotted-index";
+        ClusterBlock block = MetaDataIndexStateService.createIndexClosingBlock();
+        state = addSnapshotIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
+            .build();
+
+        final Index index = state.metaData().index(indexName).getIndex();
+        final ClusterState updatedState =
+            MetaDataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
+                .v1();
+        assertIsOpened(index.getName(), updatedState);
+        assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
+    }
+
     public void testCloseRoutingTableRemovesRoutingTable() {
         final Set<Index> nonBlockedIndices = new HashSet<>();
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
@@ -150,9 +189,9 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         state = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes())
                 .add(new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_7_0_0))
+                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.V_7_0_0))
                 .add(new DiscoveryNode("new_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_7_2_0)))
+                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.V_7_2_0)))
             .build();
 
         state = MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();
@@ -294,7 +333,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
     }
 
     public void testValidateShardLimit() {
-        int nodesInCluster = randomIntBetween(2,100);
+        int nodesInCluster = randomIntBetween(2, 90);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
         Settings clusterSettings = Settings.builder()
             .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
@@ -426,13 +465,14 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
 
         final ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
-            shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId()));
+            shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId(), "1"));
         }
 
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         final SnapshotsInProgress.Entry entry =
             new SnapshotsInProgress.Entry(snapshot, randomBoolean(), false, SnapshotsInProgress.State.INIT,
-                Collections.singletonList(new IndexId(index, index)), randomNonNegativeLong(), randomLong(), shardsBuilder.build());
+                Collections.singletonList(new IndexId(index, index)), randomNonNegativeLong(), randomLong(), shardsBuilder.build(),
+                SnapshotInfoTests.randomUserMetadata(), randomBoolean());
         return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(entry)).build();
     }
 

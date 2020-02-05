@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -31,13 +32,13 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
 
@@ -52,10 +53,9 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message incase it failed).
  */
-public class BulkItemResponse implements Streamable, StatusToXContentObject {
+public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     private static final String _INDEX = "_index";
-    private static final String _TYPE = "_type";
     private static final String _ID = "_id";
     private static final String STATUS = "status";
     private static final String ERROR = "error";
@@ -74,7 +74,6 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             builder.field(STATUS, response.status().getStatus());
         } else {
             builder.field(_INDEX, failure.getIndex());
-            builder.field(_TYPE, failure.getType());
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
             builder.startObject(ERROR);
@@ -152,7 +151,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
         BulkItemResponse bulkItemResponse;
         if (exception != null) {
-            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getType(), builder.getId(), exception, status);
+            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getId(), exception, status);
             bulkItemResponse = new BulkItemResponse(id, opType, failure);
         } else {
             bulkItemResponse = new BulkItemResponse(id, opType, builder.build());
@@ -165,31 +164,29 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
      */
     public static class Failure implements Writeable, ToXContentFragment {
         public static final String INDEX_FIELD = "index";
-        public static final String TYPE_FIELD = "type";
         public static final String ID_FIELD = "id";
         public static final String CAUSE_FIELD = "cause";
         public static final String STATUS_FIELD = "status";
 
         private final String index;
-        private final String type;
         private final String id;
         private final Exception cause;
         private final RestStatus status;
         private final long seqNo;
+        private final long term;
         private final boolean aborted;
 
-        public static ConstructingObjectParser<Failure, Void> PARSER =
+        public static final ConstructingObjectParser<Failure, Void> PARSER =
             new ConstructingObjectParser<>(
                 "bulk_failures",
                 true,
                 a ->
                     new Failure(
-                        (String)a[0], (String)a[1], (String)a[2], (Exception)a[3], RestStatus.fromCode((int)a[4])
+                        (String)a[0], (String)a[1], (Exception)a[2], RestStatus.fromCode((int)a[3])
                     )
             );
         static {
             PARSER.declareString(constructorArg(), new ParseField(INDEX_FIELD));
-            PARSER.declareString(constructorArg(), new ParseField(TYPE_FIELD));
             PARSER.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
             PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(CAUSE_FIELD));
             PARSER.declareInt(constructorArg(), new ParseField(STATUS_FIELD));
@@ -198,33 +195,35 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         /**
          * For write failures before operation was assigned a sequence number.
          *
-         * use @{link {@link #Failure(String, String, String, Exception, long)}}
+         * use @{link {@link #Failure(String, String, Exception, long, long)}}
          * to record operation sequence no with failure
          */
-        public Failure(String index, String type, String id, Exception cause) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+        public Failure(String index, String id, Exception cause) {
+            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
         }
 
-        public Failure(String index, String type, String id, Exception cause, boolean aborted) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO, aborted);
+        public Failure(String index, String id, Exception cause, boolean aborted) {
+            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM, aborted);
         }
 
-        public Failure(String index, String type, String id, Exception cause, RestStatus status) {
-            this(index, type, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+        public Failure(String index, String id, Exception cause, RestStatus status) {
+            this(index, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
         }
 
         /** For write failures after operation was assigned a sequence number. */
-        public Failure(String index, String type, String id, Exception cause, long seqNo) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), seqNo, false);
+        public Failure(String index, String id, Exception cause, long seqNo, long term) {
+            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, term, false);
         }
 
-        public Failure(String index, String type, String id, Exception cause, RestStatus status, long seqNo, boolean aborted) {
+        private Failure(String index, String id, Exception cause, RestStatus status, long seqNo, long term, boolean aborted) {
             this.index = index;
-            this.type = type;
             this.id = id;
             this.cause = cause;
             this.status = status;
             this.seqNo = seqNo;
+            this.term = term;
             this.aborted = aborted;
         }
 
@@ -233,21 +232,35 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
          */
         public Failure(StreamInput in) throws IOException {
             index = in.readString();
-            type = in.readString();
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                in.readString();
+                // can't make an assertion about type names here because too many tests still set their own
+                // types bypassing various checks
+            }
             id = in.readOptionalString();
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
             seqNo = in.readZLong();
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                term = in.readVLong();
+            } else {
+                term = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+            }
             aborted = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getIndex());
-            out.writeString(getType());
-            out.writeOptionalString(getId());
-            out.writeException(getCause());
-            out.writeZLong(getSeqNo());
+            out.writeString(index);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+            }
+            out.writeOptionalString(id);
+            out.writeException(cause);
+            out.writeZLong(seqNo);
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                out.writeVLong(term);
+            }
             out.writeBoolean(aborted);
         }
 
@@ -256,13 +269,6 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
          */
         public String getIndex() {
             return this.index;
-        }
-
-        /**
-         * The type of the action.
-         */
-        public String getType() {
-            return type;
         }
 
         /**
@@ -303,6 +309,15 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         }
 
         /**
+         * The operation primary term of the primary
+         * NOTE: {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM}
+         * indicates primary term was not assigned by primary
+         */
+        public long getTerm() {
+            return term;
+        }
+
+        /**
          * Whether this failure is the result of an <em>abort</em>.
          * If {@code true}, the request to which this failure relates should never be retried, regardless of the {@link #getCause() cause}.
          * @see BulkItemRequest#abort(String, Exception)
@@ -314,7 +329,6 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(INDEX_FIELD, index);
-            builder.field(TYPE_FIELD, type);
             if (id != null) {
                 builder.field(ID_FIELD, id);
             }
@@ -343,8 +357,24 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
     private Failure failure;
 
-    BulkItemResponse() {
+    BulkItemResponse() {}
 
+    BulkItemResponse(StreamInput in) throws IOException {
+        id = in.readVInt();
+        opType = OpType.fromId(in.readByte());
+
+        byte type = in.readByte();
+        if (type == 0) {
+            response = new IndexResponse(in);
+        } else if (type == 1) {
+            response = new DeleteResponse(in);
+        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
+            response = new UpdateResponse(in);
+        }
+
+        if (in.readBoolean()) {
+            failure = new Failure(in);
+        }
     }
 
     public BulkItemResponse(int id, OpType opType, DocWriteResponse response) {
@@ -381,16 +411,6 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             return failure.getIndex();
         }
         return response.getIndex();
-    }
-
-    /**
-     * The type of the action.
-     */
-    public String getType() {
-        if (failure != null) {
-            return failure.getType();
-        }
-        return response.getType();
     }
 
     /**
@@ -443,35 +463,6 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
      */
     public Failure getFailure() {
         return this.failure;
-    }
-
-    public static BulkItemResponse readBulkItem(StreamInput in) throws IOException {
-        BulkItemResponse response = new BulkItemResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        id = in.readVInt();
-        opType = OpType.fromId(in.readByte());
-
-        byte type = in.readByte();
-        if (type == 0) {
-            response = new IndexResponse();
-            response.readFrom(in);
-        } else if (type == 1) {
-            response = new DeleteResponse();
-            response.readFrom(in);
-
-        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
-            response = new UpdateResponse();
-            response.readFrom(in);
-        }
-
-        if (in.readBoolean()) {
-            failure = new Failure(in);
-        }
     }
 
     @Override

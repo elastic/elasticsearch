@@ -23,7 +23,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
@@ -31,7 +30,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 
@@ -40,7 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-@TestLogging("_root:DEBUG,org.elasticsearch.action.admin.cluster.state:TRACE")
 public class SpecificMasterNodesIT extends ESIntegTestCase {
 
     public void testSimpleOnlyMasterNodeElection() throws IOException {
@@ -143,9 +140,9 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder()
             .put(Node.NODE_DATA_SETTING.getKey(), true).put(Node.NODE_MASTER_SETTING.getKey(), false));
 
-        assertAcked(prepareCreate("test").addMapping(
-            "type1", "{\"type1\" : {\"properties\" : {\"table_a\" : { \"type\" : \"nested\", " +
-            "\"properties\" : {\"field_a\" : { \"type\" : \"keyword\" },\"field_b\" :{ \"type\" : \"keyword\" }}}}}}", XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(
+            "{\"properties\" : {\"table_a\" : { \"type\" : \"nested\", " +
+            "\"properties\" : {\"field_a\" : { \"type\" : \"keyword\" },\"field_b\" :{ \"type\" : \"keyword\" }}}}}"));
         client().admin().indices().prepareAliases().addAlias("test", "a_test",
             QueryBuilders.nestedQuery("table_a", QueryBuilders.termQuery("table_a.field_b", "y"), ScoreMode.Avg)).get();
     }

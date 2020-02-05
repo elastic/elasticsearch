@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[remote-recovery]]
-== Remote recovery
+=== Remote recovery
 
 When you create a follower index, you cannot use it until it is fully initialized.
 The _remote recovery_ process builds a new copy of a shard on a follower node by

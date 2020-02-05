@@ -16,11 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+import org.elasticsearch.gradle.PropertyNormalization
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 
 esplugin {
-    description 'Module for URL repository'
-    classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
+  description 'Module for URL repository'
+  classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
 // This directory is shared between two URL repositories and one FS repository in YAML integration tests
@@ -28,21 +31,23 @@ File repositoryDir = new File(project.buildDir, "shared-repository")
 
 /** A task to start the URLFixture which exposes the repositoryDir over HTTP **/
 task urlFixture(type: AntFixture) {
-    dependsOn testClasses
-    doFirst {
-        repositoryDir.mkdirs()
-    }
-    env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    executable = new File(project.runtimeJavaHome, 'bin/java')
-    args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
+  dependsOn testClasses
+  doFirst {
+    repositoryDir.mkdirs()
+  }
+  env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
+  executable = "${BuildParams.runtimeJavaHome}/bin/java"
+  args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }
 
 integTest {
-    dependsOn urlFixture
+  dependsOn urlFixture
 }
 testClusters.integTest {
-    // repositoryDir is used by a FS repository to create snapshots
-    setting 'path.repo', "${repositoryDir.absolutePath}"
-    // repositoryDir is used by two URL repositories to restore snapshots
-    setting 'repositories.url.allowed_urls', { "http://snapshot.test*,http://${urlFixture.addressAndPort}" }
+  // repositoryDir is used by a FS repository to create snapshots
+  setting 'path.repo', "${repositoryDir.absolutePath}", PropertyNormalization.IGNORE_VALUE
+  // repositoryDir is used by two URL repositories to restore snapshots
+  setting 'repositories.url.allowed_urls', {
+    "http://snapshot.test*,http://${urlFixture.addressAndPort}"
+  }, PropertyNormalization.IGNORE_VALUE
 }

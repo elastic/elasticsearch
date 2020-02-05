@@ -6,21 +6,23 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.google.common.base.Joiner;
+
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.sql.plan.logical.Filter;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +38,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class SqlParserTests extends ESTestCase {
 
     public void testSelectStar() {
-        singleProjection(project(parseStatement("SELECT * FROM foo")), UnresolvedStar.class);
+        singleProjection(project(parseStatement("SELECT * FROM foo")), UnresolvedAlias.class);
     }
 
     private <T> T singleProjection(Project project, Class<T> type) {
@@ -46,43 +48,63 @@ public class SqlParserTests extends ESTestCase {
         return type.cast(p);
     }
 
+    public void testEscapeDoubleQuotes() {
+        Project project = project(parseStatement("SELECT bar FROM \"fo\"\"o\""));
+        assertTrue(project.child() instanceof UnresolvedRelation);
+        assertEquals("fo\"o", ((UnresolvedRelation) project.child()).table().index());
+    }
+
+    public void testEscapeSingleQuotes() {
+        Alias a = singleProjection(project(parseStatement("SELECT '''ab''c' AS \"escaped_text\"")), Alias.class);
+        assertEquals("'ab'c", ((Literal) a.child()).value());
+        assertEquals("escaped_text", a.name());
+    }
+
+    public void testEscapeSingleAndDoubleQuotes() {
+        Alias a = singleProjection(project(parseStatement("SELECT 'ab''c' AS \"escaped\"\"text\"")), Alias.class);
+        assertEquals("ab'c", ((Literal) a.child()).value());
+        assertEquals("escaped\"text", a.name());
+    }
+
     public void testSelectField() {
-        UnresolvedAttribute a = singleProjection(project(parseStatement("SELECT bar FROM foo")), UnresolvedAttribute.class);
-        assertEquals("bar", a.name());
+        UnresolvedAlias a = singleProjection(project(parseStatement("SELECT bar FROM foo")), UnresolvedAlias.class);
+        assertEquals("bar", a.sourceText());
     }
 
     public void testSelectScore() {
-        UnresolvedFunction f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedFunction.class);
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedAlias.class);
         assertEquals("SCORE()", f.sourceText());
     }
 
     public void testSelectCast() {
-        Cast f = singleProjection(project(parseStatement("SELECT CAST(POWER(languages, 2) AS DOUBLE) FROM foo")), Cast.class);
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT CAST(POWER(languages, 2) AS DOUBLE) FROM foo")),
+                UnresolvedAlias.class);
         assertEquals("CAST(POWER(languages, 2) AS DOUBLE)", f.sourceText());
     }
 
     public void testSelectCastOperator() {
-        Cast f = singleProjection(project(parseStatement("SELECT POWER(languages, 2)::DOUBLE FROM foo")), Cast.class);
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT POWER(languages, 2)::DOUBLE FROM foo")), UnresolvedAlias.class);
         assertEquals("POWER(languages, 2)::DOUBLE", f.sourceText());
     }
 
     public void testSelectCastWithSQLOperator() {
-        Cast f = singleProjection(project(parseStatement("SELECT CONVERT(POWER(languages, 2), SQL_DOUBLE) FROM foo")), Cast.class);
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT CONVERT(POWER(languages, 2), SQL_DOUBLE) FROM foo")),
+                UnresolvedAlias.class);
         assertEquals("CONVERT(POWER(languages, 2), SQL_DOUBLE)", f.sourceText());
     }
 
     public void testSelectCastToEsType() {
-        Cast f = singleProjection(project(parseStatement("SELECT CAST('0.' AS SCALED_FLOAT)")), Cast.class);
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT CAST('0.' AS SCALED_FLOAT)")), UnresolvedAlias.class);
         assertEquals("CAST('0.' AS SCALED_FLOAT)", f.sourceText());
     }
 
     public void testSelectAddWithParanthesis() {
-        Add f = singleProjection(project(parseStatement("SELECT (1 +  2)")), Add.class);
-        assertEquals("1 +  2", f.sourceText());
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT (1 +  2)")), UnresolvedAlias.class);
+        assertEquals("(1 +  2)", f.sourceText());
     }
 
     public void testSelectRightFunction() {
-        UnresolvedFunction f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedFunction.class);
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedAlias.class);
         assertEquals("RIGHT()", f.sourceText());
     }
 
@@ -102,8 +124,8 @@ public class SqlParserTests extends ESTestCase {
 
         for (int i = 0; i < project.projections().size(); i++) {
             NamedExpression ne = project.projections().get(i);
-            assertEquals(UnresolvedAttribute.class, ne.getClass());
-            assertEquals(reserved[i], ne.name());
+            assertEquals(UnresolvedAlias.class, ne.getClass());
+            assertEquals(reserved[i], ne.sourceText());
         }
     }
 

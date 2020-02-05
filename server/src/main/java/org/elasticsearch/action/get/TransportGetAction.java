@@ -73,7 +73,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
+            throw new RoutingMissingException(request.concreteIndex(), request.request().id());
         }
     }
 
@@ -103,7 +103,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
 
-        GetResult result = indexShard.getService().get(request.type(), request.id(), request.storedFields(),
+        GetResult result = indexShard.getService().get(request.id(), request.storedFields(),
                 request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
         return new GetResponse(result);
     }

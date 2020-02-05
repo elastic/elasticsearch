@@ -19,21 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class NodesReloadSecureSettingsAction
-        extends Action<NodesReloadSecureSettingsResponse> {
+public class NodesReloadSecureSettingsAction extends ActionType<NodesReloadSecureSettingsResponse> {
 
     public static final NodesReloadSecureSettingsAction INSTANCE = new NodesReloadSecureSettingsAction();
     public static final String NAME = "cluster:admin/nodes/reload_secure_settings";
 
     private NodesReloadSecureSettingsAction() {
-        super(NAME);
+        super(NAME, NodesReloadSecureSettingsResponse::new);
     }
-
-    @Override
-    public NodesReloadSecureSettingsResponse newResponse() {
-        return new NodesReloadSecureSettingsResponse();
-    }
-
 }

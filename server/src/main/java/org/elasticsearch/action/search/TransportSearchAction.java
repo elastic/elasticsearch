@@ -55,6 +55,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -539,9 +540,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private static boolean shouldPreFilterSearchShards(SearchRequest searchRequest,
                                                        GroupShardsIterator<SearchShardIterator> shardIterators) {
         SearchSourceBuilder source = searchRequest.source();
-        return searchRequest.searchType() == QUERY_THEN_FETCH && // we can't do this for DFS it needs to fan out to all shards all the time
-                SearchService.canRewriteToMatchNone(source) &&
-                searchRequest.getPreFilterShardSize() < shardIterators.size();
+        return searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
+                    && (SearchService.canRewriteToMatchNone(source) || FieldSortBuilder.hasPrimaryFieldSort(source))
+                    && searchRequest.getPreFilterShardSize() < shardIterators.size();
     }
 
     static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,

@@ -308,6 +308,9 @@ public class MoreLikeThisQuery extends Query {
     }
 
     public void setMaxQueryTerms(int maxQueryTerms) {
+        if (maxQueryTerms <= 0) {
+            throw new IllegalArgumentException("requires 'maxQueryTerms' to be greater than 0");
+        }
         this.maxQueryTerms = maxQueryTerms;
     }
 

@@ -53,7 +53,7 @@ public class ReconfiguratorTests extends ESTestCase {
 
         check(nodes("a"), conf("a"), true, conf("a"));
         check(nodes("a", "b"), conf("a"), true, conf("a"));
-        check(nodes("a", "b"), conf("b"), true, conf("b"));
+        check(nodes("a", "b"), conf("b"), true, conf("a"));
         check(nodes("a", "b"), conf("a", "c"), true, conf("a"));
         check(nodes("a", "b"), conf("a", "b"), true, conf("a"));
         check(nodes("a", "b"), conf("a", "b", "e"), true, conf("a", "b", "e"));

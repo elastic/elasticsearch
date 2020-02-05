@@ -30,9 +30,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -50,7 +50,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -89,18 +88,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response> {
+public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Response> {
 
     public static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
     private static final String NAME = "cluster:admin/scripts/painless/execute";
 
     private PainlessExecuteAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        super(NAME, Response::new);
     }
 
     public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
@@ -257,9 +251,9 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         }
 
-        private Script script;
-        private ScriptContext<?> context = PainlessTestScript.CONTEXT;
-        private ContextSetup contextSetup;
+        private final Script script;
+        private final ScriptContext<?> context;
+        private final ContextSetup contextSetup;
 
         static Request parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
@@ -267,16 +261,20 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         Request(Script script, String scriptContextName, ContextSetup setup) {
             this.script = Objects.requireNonNull(script);
-            if (scriptContextName != null) {
-                this.context = fromScriptContextName(scriptContextName);
-            }
+            this.context = scriptContextName != null ? fromScriptContextName(scriptContextName) : PainlessTestScript.CONTEXT;
             if (setup != null) {
                 this.contextSetup = setup;
                 index(contextSetup.index);
+            } else {
+                contextSetup = null;
             }
         }
 
-        Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            script = new Script(in);
+            context = fromScriptContextName(in.readString());
+            contextSetup = in.readOptionalWriteable(ContextSetup::new);
         }
 
         public Script getScript() {
@@ -306,14 +304,6 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                 }
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            script = new Script(in);
-            context = fromScriptContextName(in.readString());
-            contextSetup = in.readOptionalWriteable(ContextSetup::new);
         }
 
         @Override
@@ -385,13 +375,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeGenericValue(result);
         }
 
@@ -543,7 +527,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                         scoreScript.setScorer(scorer);
                     }
 
-                    double result = scoreScript.execute();
+                    double result = scoreScript.execute(null);
                     return new Response(result);
                 }, indexService);
             } else {
@@ -560,16 +544,17 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             try (RAMDirectory ramDirectory = new RAMDirectory()) {
                 try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(defaultAnalyzer))) {
                     String index = indexService.index().getName();
-                    String type = indexService.mapperService().documentMapper().type();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse(index, type, "_id", document, xContentType);
+                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
                     ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
+                        final IndexSearcher searcher = new IndexSearcher(indexReader);
+                        searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
-                            indexService.newQueryShardContext(0, indexReader, () -> absoluteStartMillis, null);
+                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }
@@ -579,8 +564,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
     public static class RestAction extends BaseRestHandler {
 
-        public RestAction(Settings settings, RestController controller) {
-            super(settings);
+        public RestAction(RestController controller) {
             controller.registerHandler(GET, "/_scripts/painless/_execute", this);
             controller.registerHandler(POST, "/_scripts/painless/_execute", this);
         }

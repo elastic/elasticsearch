@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,21 +32,21 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     private final long recoveryId;
     private final ShardId shardId;
     private final int totalTranslogOps;
-    private final boolean fileBasedRecovery;
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean fileBasedRecovery) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
-        this.fileBasedRecovery = fileBasedRecovery;
     }
 
     RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();
-        fileBasedRecovery = in.readBoolean();
+        if (in.getVersion().before(Version.V_7_4_0)) {
+            in.readBoolean(); // was fileBasedRecovery
+        }
     }
 
     public long recoveryId() {
@@ -60,19 +61,14 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         return totalTranslogOps;
     }
 
-    /**
-     * Whether or not the recovery is file based
-     */
-    public boolean isFileBasedRecovery() {
-        return fileBasedRecovery;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        out.writeBoolean(fileBasedRecovery);
+        if (out.getVersion().before(Version.V_7_4_0)) {
+            out.writeBoolean(true); // was fileBasedRecovery
+        }
     }
 }

@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -106,7 +105,7 @@ class S3Service implements Closeable {
      * @param repositoryMetaData Repository Metadata
      * @return S3ClientSettings
      */
-    private S3ClientSettings settings(RepositoryMetaData repositoryMetaData) {
+    S3ClientSettings settings(RepositoryMetaData repositoryMetaData) {
         final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetaData.settings());
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
@@ -153,9 +152,13 @@ class S3Service implements Closeable {
         //
         // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
         // so this change removes that usage of a deprecated API.
-        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null))
-            .enablePathStyleAccess();
-
+        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null));
+        if (clientSettings.pathStyleAccess) {
+            builder.enablePathStyleAccess();
+        }
+        if (clientSettings.disableChunkedEncoding) {
+            builder.disableChunkedEncoding();
+        }
         return builder.build();
     }
 
@@ -226,7 +229,7 @@ class S3Service implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         releaseCachedClients();
     }
 

@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.watcher.history;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -18,7 +18,8 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
@@ -31,7 +32,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -66,7 +66,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
     }
 
     public void testHttpFields() throws Exception {
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort()).path("/input/path")))
                 .condition(InternalAlwaysCondition.INSTANCE)
@@ -130,7 +130,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
             webServer.enqueue(new MockResponse().setBeforeReplyDelay(TimeValue.timeValueSeconds(5)));
         }
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(id).setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), id).setSource(watchBuilder()
                 .trigger(schedule(interval("1h")))
                 .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .path("/")
@@ -144,7 +144,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        watcherClient().prepareExecuteWatch(id).setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client(), id).setRecordExecution(true).get();
 
         // ensure watcher history index has been written with this id
         flushAndRefresh(HistoryStoreField.INDEX_PREFIX + "*");
@@ -156,11 +156,10 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
-        Iterator<ImmutableOpenMap<String, MappingMetaData>> iterator = mappingsResponse.getMappings().valuesIt();
+        Iterator<MappingMetaData> iterator = mappingsResponse.getMappings().valuesIt();
         while (iterator.hasNext()) {
-            ImmutableOpenMap<String, MappingMetaData> mapping = iterator.next();
-            assertThat(mapping.containsKey(SINGLE_MAPPING_NAME), is(true));
-            Map<String, Object> docMapping = mapping.get(SINGLE_MAPPING_NAME).getSourceAsMap();
+            MappingMetaData mapping = iterator.next();
+            Map<String, Object> docMapping = mapping.getSourceAsMap();
             if (abortAtInput) {
                 Boolean enabled = ObjectPath.eval("properties.result.properties.input.properties.error.enabled", docMapping);
                 indexed.add(enabled);

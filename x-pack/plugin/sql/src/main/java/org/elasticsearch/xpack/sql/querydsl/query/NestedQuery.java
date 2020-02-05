@@ -5,13 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -19,19 +12,25 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.Source;
+
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableMap;
-
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 
 /**
  * A query to a nested document.
  */
 public class NestedQuery extends Query {
+    private static long COUNTER = 0;
     // TODO: make this configurable
     private static final int MAX_INNER_HITS = 99;
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
@@ -93,9 +92,14 @@ public class NestedQuery extends Query {
         if (false == sort.getPath().equals(path)) {
             return;
         }
+
+        //TODO: Add all filters in nested sorting when https://github.com/elastic/elasticsearch/issues/33079 is implemented
+        // Adding multiple filters to sort sections makes sense for nested queries where multiple conditions belong to the same
+        // nested query. The current functionality creates one nested query for each condition involving a nested field.
         QueryBuilder childAsBuilder = child.asBuilder();
         if (sort.getFilter() != null && false == sort.getFilter().equals(childAsBuilder)) {
-            throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
+            // throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
+            return;
         }
         sort.setFilter(childAsBuilder);
     }
@@ -109,6 +113,7 @@ public class NestedQuery extends Query {
             InnerHitBuilder ihb = new InnerHitBuilder();
             ihb.setSize(0);
             ihb.setSize(MAX_INNER_HITS);
+            ihb.setName(path + "_" + COUNTER++);
 
             boolean noSourceNeeded = true;
             List<String> sourceFields = new ArrayList<>();

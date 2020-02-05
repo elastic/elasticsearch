@@ -8,16 +8,12 @@
 
 Get follower stats.
 
-==== Description
-
-This API gets follower stats. This API will return shard-level stats about the
-following tasks associated with each shard for the specified indices.
-
-==== Request
+[[ccr-get-follow-stats-request]]
+==== {api-request-title}
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
@@ -25,180 +21,195 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 // TEST[setup:remote_cluster_and_leader_index]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEARDOWN
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /<index>/_ccr/stats
 --------------------------------------------------
-// CONSOLE
 // TEST[s/<index>/follower_index/]
 
-==== Path Parameters
-`index` ::
-  (string) a comma-delimited list of index patterns
+[[ccr-get-follow-stats-prereqs]]
+==== {api-prereq-title}
 
-==== Results
+* If the {es} {security-features} are enabled, you must have `monitor` cluster
+privileges on the cluster that contains the follower index. For more information,
+see <<security-privileges>>.
+
+[[ccr-get-follow-stats-desc]]
+==== {api-description-title}
+
+This API gets follower stats. This API will return shard-level stats about the
+following tasks associated with each shard for the specified indices.
+
+[[ccr-get-follow-stats-path-parms]]
+==== {api-path-parms-title}
+
+`<index>`::
+  (Required, string) A comma-delimited list of index patterns.
+
+[[ccr-get-follow-stats-response-body]]
+==== {api-response-body-title}
 
 This API returns the following information:
 
 `indices`::
-  (array) an array of follower index statistics
+  (array) An array of follower index statistics.
 
 The `indices` array consists of objects containing two fields:
 
 `indices[].index`::
-  (string) the name of the follower index
+  (string) The name of the follower index.
 
 `indices[].shards`::
-  (array) an array of shard-level following task statistics
+  (array) An array of shard-level following task statistics.
 
 The `shards` array consists of objects containing the following fields:
 
 `indices[].shards[].remote_cluster`::
-  (string) the <modules-remote-clusters,remote cluster>> containing the leader
-  index
+  (string) The <<modules-remote-clusters,remote cluster>> containing the leader
+  index.
 
 `indices[].shards[].leader_index`::
-  (string) the name of the index in the leader cluster being followed
+  (string) The name of the index in the leader cluster being followed.
 
 `indices[].shards[].follower_index`::
-  (string) the name of the follower index
+  (string) The name of the follower index.
 
 `indices[].shards[].shard_id`::
-  (integer) the numerical shard ID, with values from 0 to one less than the
-  number of replicas
+  (integer) The numerical shard ID, with values from 0 to one less than the
+  number of replicas.
 
 `indices[].shards[].leader_global_checkpoint`::
-  (long) the current global checkpoint on the leader known to the follower task
+  (long) The current global checkpoint on the leader known to the follower task.
 
 `indices[].shards[].leader_max_seq_no`::
-  (long) the current maximum sequence number on the leader known to the follower
-  task
+  (long) The current maximum sequence number on the leader known to the follower
+  task.
 
 `indices[].shards[].follower_global_checkpoint`::
-  (long) the current global checkpoint on the follower; the difference between the
+  (long) The current global checkpoint on the follower. The difference between the
   `leader_global_checkpoint` and the `follower_global_checkpoint` is an
-  indication of how much the follower is lagging the leader
+  indication of how much the follower is lagging the leader.
 
 `indices[].shards[].follower_max_seq_no`::
-  (long) the current maximum sequence number on the follower
+  (long) The current maximum sequence number on the follower.
 
 `indices[].shards[].last_requested_seq_no`::
-  (long) the starting sequence number of the last batch of operations requested
-  from the leader
+  (long) The starting sequence number of the last batch of operations requested
+  from the leader.
 
 `indices[].shards[].outstanding_read_requests`::
-  (integer) the number of active read requests from the follower
+  (integer) The number of active read requests from the follower.
 
 `indices[].shards[].outstanding_write_requests`::
-  (integer) the number of active bulk write requests on the follower
+  (integer) The number of active bulk write requests on the follower.
 
 `indices[].shards[].write_buffer_operation_count`::
-  (integer) the number of write operations queued on the follower
+  (integer) The number of write operations queued on the follower.
 
 `indices[].shards[].follower_mapping_version`::
-  (long) the mapping version the follower is synced up to
+  (long) The mapping version the follower is synced up to.
 
 `indices[].shards[].follower_settings_version`::
-  (long) the index settings version the follower is synced up to
+  (long) The index settings version the follower is synced up to.
 
 `indices[].shards[].follower_aliases_version`::
-  (long) the index aliases version the follower is synced up to
+  (long) The index aliases version the follower is synced up to.
 
 `indices[].shards[].total_read_time_millis`::
-  (long) the total time reads were outstanding, measured from the time a read
-  was sent to the leader to the time a reply was returned to the follower
+  (long) The total time reads were outstanding, measured from the time a read
+  was sent to the leader to the time a reply was returned to the follower.
 
 `indices[].shards[].total_read_remote_exec_time_millis`::
-  (long) the total time reads spent executing on the remote cluster
+  (long) The total time reads spent executing on the remote cluster.
 
 `indices[].shards[].successful_read_requests`::
-  (long) the number of successful fetches
+  (long) The number of successful fetches.
 
 `indices[].shards[].failed_read_requests`::
-  (long) the number of failed reads
+  (long) The number of failed reads.
 
 `indices[].shards[].operations_read`::
-  (long) the total number of operations read from the leader
+  (long) The total number of operations read from the leader.
 
 `indices[].shards[].bytes_read`::
-  (long) the total of transferred bytes read from the leader (note this is only
-  an estimate, and does not account for compression if enabled)
+  (long) The total of transferred bytes read from the leader.
++
+--
+NOTE: This is only an estimate and does not account for compression if enabled.
+
+--
 
 `indices[].shards[].total_write_time_millis`::
-  (long) the total time spent writing on the follower
+  (long) The total time spent writing on the follower.
 
 `indices[].shards[].write_buffer_size_in_bytes`::
-  (long) the total number of bytes of operations currently queued for writing
+  (long) The total number of bytes of operations currently queued for writing.
 
 `indices[].shards[].successful_write_requests`::
-  (long) the number of bulk write requests executed on the follower
+  (long) The number of bulk write requests executed on the follower.
 
 `indices[].shards[].failed_write_requests`::
-  (long) the number of failed bulk write requests executed on the follower
+  (long) The number of failed bulk write requests executed on the follower.
 
 `indices[].shards[].operations_written`::
-  (long) the number of operations written on the follower
+  (long) The number of operations written on the follower.
 
 `indices[].shards[].read_exceptions`::
-  (array) an array of objects representing failed reads
+  (array) An array of objects representing failed reads.
 
 The `read_exceptions` array consists of objects containing the following
 fields:
 
 `indices[].shards[].read_exceptions[].from_seq_no`::
-  (long) the starting sequence number of the batch requested from the leader
+  (long) The starting sequence number of the batch requested from the leader.
 
 `indices[].shards[].read_exceptions[].retries`::
-  (integer) the number of times the batch has been retried
+  (integer) The number of times the batch has been retried.
 
 `indices[].shards[].read_exceptions[].exception`::
-  (object) represents the exception that caused the read to fail
+  (object) Represents the exception that caused the read to fail.
 
 Continuing with the fields from `shards`:
 
 `indices[].shards[].time_since_last_read_millis`::
-  (long) the number of milliseconds since a read request was sent to the leader;
-  note that when the follower is caught up to the leader, this number will
+  (long) The number of milliseconds since a read request was sent to the leader.
++
+--
+NOTE: When the follower is caught up to the leader, this number will
   increase up to the configured `read_poll_timeout` at which point another read
-  request will be sent to the leader
+  request will be sent to the leader.
+
+--
 
 `indices[].fatal_exception`::
-  (object) an object representing a fatal exception that cancelled the following
-  task; in this situation, the following task must be resumed manually with the
-  <<ccr-post-resume-follow,resume follower API>>
+  (object) An object representing a fatal exception that cancelled the following
+  task. In this situation, the following task must be resumed manually with the
+  <<ccr-post-resume-follow,resume follower API>>.
 
-==== Authorization
-
-If the {es} {security-features} are enabled, you must have `monitor` cluster
-privileges on the cluster that contains the follower index. For more information,
-see {stack-ov}/security-privileges.html[Security privileges].
-
-==== Example
+[[ccr-get-follow-stats-examples]]
+==== {api-examples-title}
 
 This example retrieves follower stats:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /follower_index/_ccr/stats
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices" : [

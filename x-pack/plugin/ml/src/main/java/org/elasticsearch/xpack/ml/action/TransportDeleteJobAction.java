@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -32,12 +34,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -48,11 +52,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
-import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -68,10 +72,11 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -87,11 +92,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJobAction.Request, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportDeleteJobAction.class);
+
     private static final int MAX_SNAPSHOTS_TO_DELETE = 10000;
 
     private final Client client;
     private final PersistentTasksService persistentTasksService;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final JobResultsProvider jobResultsProvider;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
@@ -110,11 +117,11 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     public TransportDeleteJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
-                                    Client client, Auditor auditor, JobResultsProvider jobResultsProvider,
+                                    Client client, AnomalyDetectionAuditor auditor, JobResultsProvider jobResultsProvider,
                                     JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
                                     MlMemoryTracker memoryTracker) {
         super(DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteJobAction.Request::new);
+                DeleteJobAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.persistentTasksService = persistentTasksService;
         this.auditor = auditor;
@@ -132,18 +139,13 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteJobAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    @Override
-    protected void masterOperation(DeleteJobAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        throw new UnsupportedOperationException("the Task parameter is required");
     }
 
     @Override
@@ -231,7 +233,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         String jobId = request.getJobId();
 
         // We clean up the memory tracker on delete rather than close as close is not a master node action
-        memoryTracker.removeJob(jobId);
+        memoryTracker.removeAnomalyDetectorJob(jobId);
 
         // Step 4. When the job has been removed from the cluster state, return a response
         // -------
@@ -305,7 +307,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                 new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
                         request.setQuery(query);
                         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
-                        request.setSlices(5);
+                        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
                         request.setAbortOnVersionConflict(false);
                         request.setRefresh(true);
 
@@ -420,7 +422,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 response -> finishedHandler.onResponse(true),
                 e -> {
                     // It's not a problem for us if the index wasn't found - it's equivalent to document not found
-                    if (e instanceof IndexNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         finishedHandler.onResponse(true);
                     } else {
                         finishedHandler.onFailure(e);
@@ -464,7 +466,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 },
                 e -> {
                     // It's not a problem for us if the index wasn't found - it's equivalent to document not found
-                    if (e instanceof IndexNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         finishedHandler.onResponse(true);
                     } else {
                         finishedHandler.onFailure(e);
@@ -534,7 +536,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     normalDeleteJob(parentTaskClient, request, listener);
                 } else {
                     listener.onFailure(e);
@@ -547,7 +549,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         ActionListener<KillProcessAction.Response> killJobListener = ActionListener.wrap(
                 response -> removePersistentTask(request.getJobId(), state, removeTaskListener),
                 e -> {
-                    if (e instanceof ElasticsearchStatusException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ElasticsearchStatusException) {
                         // Killing the process marks the task as completed so it
                         // may have disappeared when we get here
                         removePersistentTask(request.getJobId(), state, removeTaskListener);

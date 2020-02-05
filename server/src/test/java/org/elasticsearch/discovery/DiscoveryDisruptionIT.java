@@ -31,7 +31,6 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -47,7 +46,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_S
 /**
  * Tests for discovery during disruptions.
  */
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 

@@ -170,7 +170,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         @Override
         public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
             return singletonMap("keyword", (indexSettings, environment, name, settings) ->
-                () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
+                TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
         }
     }
 }

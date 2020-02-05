@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -40,6 +42,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -52,7 +55,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     private static final String _SHARDS = "_shards";
     private static final String _INDEX = "_index";
-    private static final String _TYPE = "_type";
     private static final String _ID = "_id";
     private static final String _VERSION = "_version";
     private static final String _SEQ_NO = "_seq_no";
@@ -111,27 +113,37 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         }
     }
 
-    private ShardId shardId;
-    private String id;
-    private String type;
-    private long version;
-    private long seqNo;
-    private long primaryTerm;
+    private final ShardId shardId;
+    private final String id;
+    private final long version;
+    private final long seqNo;
+    private final long primaryTerm;
     private boolean forcedRefresh;
-    protected Result result;
+    protected final Result result;
 
-    public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        this.shardId = shardId;
-        this.type = type;
-        this.id = id;
+    public DocWriteResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+        this.shardId = Objects.requireNonNull(shardId);
+        this.id = Objects.requireNonNull(id);
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
         this.version = version;
-        this.result = result;
+        this.result = Objects.requireNonNull(result);
     }
 
     // needed for deserialization
-    protected DocWriteResponse() {
+    protected DocWriteResponse(StreamInput in) throws IOException {
+        super(in);
+        shardId = new ShardId(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
+        id = in.readString();
+        version = in.readZLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        forcedRefresh = in.readBoolean();
+        result = Result.readFrom(in);
     }
 
     /**
@@ -153,16 +165,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      */
     public ShardId getShardId() {
         return this.shardId;
-    }
-
-    /**
-     * The type of the document changed.
-     *
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String getType() {
-        return this.type;
     }
 
     /**
@@ -231,7 +233,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         try {
             // encode the path components separately otherwise the path separators will be encoded
             encodedIndex = URLEncoder.encode(getIndex(), "UTF-8");
-            encodedType = URLEncoder.encode(getType(), "UTF-8");
+            encodedType = URLEncoder.encode(MapperService.SINGLE_MAPPING_NAME, "UTF-8");
             encodedId = URLEncoder.encode(getId(), "UTF-8");
             encodedRouting = routing == null ? null : URLEncoder.encode(routing, "UTF-8");
         } catch (final UnsupportedEncodingException e) {
@@ -257,23 +259,12 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardId = new ShardId(in);
-        type = in.readString();
-        id = in.readString();
-        version = in.readZLong();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        forcedRefresh = in.readBoolean();
-        result = Result.readFrom(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeZLong(version);
         out.writeZLong(seqNo);
@@ -293,7 +284,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field(_INDEX, shardId.getIndexName());
-        builder.field(_TYPE, type);
         builder.field(_ID, id)
                 .field(_VERSION, version)
                 .field(RESULT, getResult().getLowercase());
@@ -326,8 +316,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             if (_INDEX.equals(currentFieldName)) {
                 // index uuid and shard id are unknown and can't be parsed back for now.
                 context.setShardId(new ShardId(new Index(parser.text(), IndexMetaData.INDEX_UUID_NA_VALUE), -1));
-            } else if (_TYPE.equals(currentFieldName)) {
-                context.setType(parser.text());
             } else if (_ID.equals(currentFieldName)) {
                 context.setId(parser.text());
             } else if (_VERSION.equals(currentFieldName)) {
@@ -366,14 +354,13 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public abstract static class Builder {
 
         protected ShardId shardId = null;
-        protected String type = null;
         protected String id = null;
         protected Long version = null;
         protected Result result = null;
         protected boolean forcedRefresh;
         protected ShardInfo shardInfo = null;
-        protected Long seqNo = UNASSIGNED_SEQ_NO;
-        protected Long primaryTerm = UNASSIGNED_PRIMARY_TERM;
+        protected long seqNo = UNASSIGNED_SEQ_NO;
+        protected long primaryTerm = UNASSIGNED_PRIMARY_TERM;
 
         public ShardId getShardId() {
             return shardId;
@@ -381,14 +368,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
         public void setShardId(ShardId shardId) {
             this.shardId = shardId;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public void setType(String type) {
-            this.type = type;
         }
 
         public String getId() {
@@ -415,11 +394,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             this.shardInfo = shardInfo;
         }
 
-        public void setSeqNo(Long seqNo) {
+        public void setSeqNo(long seqNo) {
             this.seqNo = seqNo;
         }
 
-        public void setPrimaryTerm(Long primaryTerm) {
+        public void setPrimaryTerm(long primaryTerm) {
             this.primaryTerm = primaryTerm;
         }
 

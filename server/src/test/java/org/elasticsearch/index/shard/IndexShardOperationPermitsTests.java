@@ -495,13 +495,14 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
          * permits to the semaphore. We wait here until all generic threads are idle as an indication that all permits have been returned to
          * the semaphore.
          */
-        awaitBusy(() -> {
+        assertBusy(() -> {
             for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
                 if (ThreadPool.Names.GENERIC.equals(stats.getName())) {
-                    return stats.getActive() == 0;
+                    assertThat("Expected no active threads in GENERIC pool", stats.getActive(), equalTo(0));
+                    return;
                 }
             }
-            return false;
+            fail("Failed to find stats for the GENERIC thread pool");
         });
     }
 

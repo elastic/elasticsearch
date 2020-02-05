@@ -23,6 +23,7 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
@@ -41,13 +42,14 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
     GetAutoFollowPatternResponse> {
 
     @Override
-    protected GetAutoFollowPatternAction.Response createServerTestInstance() {
+    protected GetAutoFollowPatternAction.Response createServerTestInstance(XContentType xContentType) {
         int numPatterns = randomIntBetween(0, 16);
         NavigableMap<String, AutoFollowMetadata.AutoFollowPattern> patterns = new TreeMap<>();
         for (int i = 0; i < numPatterns; i++) {
             String remoteCluster = randomAlphaOfLength(4);
             List<String> leaderIndexPatters = Collections.singletonList(randomAlphaOfLength(4));
             String followIndexNamePattern = randomAlphaOfLength(4);
+            boolean active = randomBoolean();
 
             Integer maxOutstandingReadRequests = null;
             if (randomBoolean()) {
@@ -90,7 +92,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
                 readPollTimeout = new TimeValue(randomNonNegativeLong());
             }
             patterns.put(randomAlphaOfLength(4), new AutoFollowMetadata.AutoFollowPattern(remoteCluster, leaderIndexPatters,
-                followIndexNamePattern, maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests,
+                followIndexNamePattern, active, maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests,
                 maxOutstandingWriteRequests, maxReadRequestSize, maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize,
                 maxRetryDelay, readPollTimeout));
         }

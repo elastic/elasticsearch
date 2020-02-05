@@ -30,9 +30,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -64,7 +64,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -128,7 +127,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         clusterService = createClusterService(threadPool);
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());
-        Set<DiscoveryNode.Role> roles = new HashSet<>(Arrays.asList(DiscoveryNode.Role.values()));
+        Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
         DiscoveryNode node1 = new DiscoveryNode("_name1", "_node1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("_name2", "_node2", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         state.nodes(DiscoveryNodes.builder()
@@ -158,7 +157,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         IndexMetaData indexMetaData = IndexMetaData.builder(shardId.getIndexName())
             .settings(indexSettings)
             .primaryTerm(shardId.id(), primary.getOperationPrimaryTerm())
-            .putMapping("_doc","{ \"properties\": { \"value\":  { \"type\": \"short\"}}}")
+            .putMapping("{ \"properties\": { \"value\":  { \"type\": \"short\"}}}")
             .build();
         state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
 
@@ -186,10 +185,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                     new TransportResponseHandler<TransportReplicationAction.ReplicaResponse>() {
                         @Override
                         public TransportReplicationAction.ReplicaResponse read(StreamInput in) throws IOException {
-                            final TransportReplicationAction.ReplicaResponse replicaResponse
-                                = new TransportReplicationAction.ReplicaResponse();
-                            replicaResponse.readFrom(in);
-                            return replicaResponse;
+                            return new TransportReplicationAction.ReplicaResponse(in);
                         }
 
                         @SuppressWarnings("unchecked")
@@ -421,7 +417,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                    SetOnce<Boolean> executedOnPrimary) {
             super(settings, actionName, transportService, clusterService, mockIndicesService(shardId, executedOnPrimary, primary, replica),
                 threadPool, shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), Request::new, Request::new, ThreadPool.Names.SAME);
+                new ActionFilters(new HashSet<>()), Request::new, Request::new, ThreadPool.Names.SAME);
             this.shardId = Objects.requireNonNull(shardId);
             this.primary = Objects.requireNonNull(primary);
             assertEquals(shardId, primary.shardId());
@@ -431,7 +427,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected Response newResponseInstance() {
+        protected Response newResponseInstance(StreamInput in) {
             return new Response();
         }
 

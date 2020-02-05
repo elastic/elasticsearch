@@ -42,7 +42,10 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
         int numberOfRepositories = randomInt(10);
         List<RepositoryMetaData> entries = new ArrayList<>();
         for (int i = 0; i < numberOfRepositories; i++) {
-            entries.add(new RepositoryMetaData(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings()));
+            // divide by 2 to not overflow when adding to this number for the pending generation below
+            final long generation = randomNonNegativeLong() / 2L;
+            entries.add(new RepositoryMetaData(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings(), generation,
+                generation + randomLongBetween(0, generation)));
         }
         entries.sort(Comparator.comparing(RepositoryMetaData::name));
         return new RepositoriesMetaData(entries);

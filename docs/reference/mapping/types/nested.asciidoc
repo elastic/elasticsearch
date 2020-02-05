@@ -1,5 +1,8 @@
 [[nested]]
 === Nested datatype
+++++
+<titleabbrev>Nested</titleabbrev>
+++++
 
 The `nested` type is a specialised version of the <<object,`object`>> datatype
 that allows arrays of objects to be indexed in a way that they can be queried 
@@ -12,7 +15,7 @@ Lucene has no concept of inner objects, so Elasticsearch flattens object
 hierarchies into a simple list of field names and values. For instance, the
 following document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index/_doc/1
 {
@@ -29,7 +32,7 @@ PUT my_index/_doc/1
   ]
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `user` field is dynamically added as a field of type `object`.
 
 would be transformed internally into a document that looks more like this:
@@ -48,7 +51,7 @@ The `user.first` and `user.last` fields are flattened into multi-value fields,
 and the association between `alice` and `white` is lost.  This document would
 incorrectly match a query for `alice AND smith`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -62,7 +65,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[nested-fields-array-objects]]
@@ -74,7 +76,7 @@ each object in the array, you should use the `nested` datatype instead of the
 the array as a separate hidden document, meaning that each nested object can be
 queried independently of the others, with the <<query-dsl-nested-query,`nested` query>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -143,7 +145,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `user` field is mapped as type `nested` instead of type `object`.
 <2> This query doesn't match because `Alice` and `Smith` are not in the same nested object.
 <3> This query matches because `Alice` and `White` are in the same nested object.
@@ -171,8 +173,8 @@ For instance, if a string field within a nested document has
 during the highlighting, these offsets will not be available during the main highlighting
 phase.  Instead, highlighting needs to be performed via
 <<nested-inner-hits,nested inner hits>>. The same consideration applies when loading
-fields during a search through <<search-request-docvalue-fields, `docvalue_fields`>>
-or <<search-request-stored-fields, `stored_fields`>>.
+fields during a search through <<request-body-search-docvalue-fields, `docvalue_fields`>>
+or <<request-body-search-stored-fields, `stored_fields`>>.
 
 =============================================
 

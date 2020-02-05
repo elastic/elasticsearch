@@ -56,6 +56,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,6 +74,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
 
 /**
@@ -117,6 +119,34 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         setNodes(nodes);
+    }
+
+    /**
+     * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     * Creates a new builder instance and sets the nodes that the client will send requests to.
+     *
+     * @param cloudId a valid elastic cloud cloudId that will route to a cluster. The cloudId is located in
+     *                the user console https://cloud.elastic.co and will resemble a string like the following
+     *                optionalHumanReadableName:dXMtZWFzdC0xLmF3cy5mb3VuZC5pbyRlbGFzdGljc2VhcmNoJGtpYmFuYQ==
+     */
+    public static RestClientBuilder builder(String cloudId) {
+        // there is an optional first portion of the cloudId that is a human readable string, but it is not used.
+        if (cloudId.contains(":")) {
+            if (cloudId.indexOf(":") == cloudId.length() - 1) {
+                throw new IllegalStateException("cloudId " + cloudId + " must begin with a human readable identifier followed by a colon");
+            }
+            cloudId = cloudId.substring(cloudId.indexOf(":") + 1);
+        }
+
+        String decoded = new String(Base64.getDecoder().decode(cloudId), UTF_8);
+        // once decoded the parts are separated by a $ character
+        String[] decodedParts = decoded.split("\\$");
+        if (decodedParts.length != 3) {
+            throw new IllegalStateException("cloudId " + cloudId + " did not decode to a cluster identifier correctly");
+        }
+
+        String url = decodedParts[1]  + "." + decodedParts[0];
+        return builder(new HttpHost(url, 443, "https"));
     }
 
     /**
@@ -277,60 +307,64 @@ public class RestClient implements Closeable {
      * @param responseListener the {@link ResponseListener} to notify when the
      *      request is completed or fails
      */
-    public void performRequestAsync(Request request, ResponseListener responseListener) {
+    public Cancellable performRequestAsync(Request request, ResponseListener responseListener) {
         try {
             FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
             InternalRequest internalRequest = new InternalRequest(request);
             performRequestAsync(nextNodes(), internalRequest, failureTrackingResponseListener);
+            return internalRequest.cancellable;
         } catch (Exception e) {
             responseListener.onFailure(e);
+            return Cancellable.NO_OP;
         }
     }
 
     private void performRequestAsync(final NodeTuple<Iterator<Node>> nodeTuple,
                                      final InternalRequest request,
                                      final FailureTrackingResponseListener listener) {
-        final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
-        client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
-            @Override
-            public void completed(HttpResponse httpResponse) {
-                try {
-                    ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
-                    if (responseOrResponseException.responseException == null) {
-                        listener.onSuccess(responseOrResponseException.response);
-                    } else {
+        request.cancellable.runIfNotCancelled(() -> {
+            final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+            client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
+                @Override
+                public void completed(HttpResponse httpResponse) {
+                    try {
+                        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+                        if (responseOrResponseException.responseException == null) {
+                            listener.onSuccess(responseOrResponseException.response);
+                        } else {
+                            if (nodeTuple.nodes.hasNext()) {
+                                listener.trackFailure(responseOrResponseException.responseException);
+                                performRequestAsync(nodeTuple, request, listener);
+                            } else {
+                                listener.onDefinitiveFailure(responseOrResponseException.responseException);
+                            }
+                        }
+                    } catch(Exception e) {
+                        listener.onDefinitiveFailure(e);
+                    }
+                }
+
+                @Override
+                public void failed(Exception failure) {
+                    try {
+                        RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
+                        onFailure(context.node);
                         if (nodeTuple.nodes.hasNext()) {
-                            listener.trackFailure(responseOrResponseException.responseException);
+                            listener.trackFailure(failure);
                             performRequestAsync(nodeTuple, request, listener);
                         } else {
-                            listener.onDefinitiveFailure(responseOrResponseException.responseException);
+                            listener.onDefinitiveFailure(failure);
                         }
+                    } catch(Exception e) {
+                        listener.onDefinitiveFailure(e);
                     }
-                } catch(Exception e) {
-                    listener.onDefinitiveFailure(e);
                 }
-            }
 
-            @Override
-            public void failed(Exception failure) {
-                try {
-                    RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
-                    onFailure(context.node);
-                    if (nodeTuple.nodes.hasNext()) {
-                        listener.trackFailure(failure);
-                        performRequestAsync(nodeTuple, request, listener);
-                    } else {
-                        listener.onDefinitiveFailure(failure);
-                    }
-                } catch(Exception e) {
-                    listener.onDefinitiveFailure(e);
+                @Override
+                public void cancelled() {
+                    listener.onDefinitiveFailure(Cancellable.newCancellationException());
                 }
-            }
-
-            @Override
-            public void cancelled() {
-                listener.onDefinitiveFailure(new ExecutionException("request was cancelled", null));
-            }
+            });
         });
     }
 
@@ -651,19 +685,20 @@ public class RestClient implements Closeable {
 
     private class InternalRequest {
         private final Request request;
-        private final Map<String, String> params;
         private final Set<Integer> ignoreErrorCodes;
         private final HttpRequestBase httpRequest;
+        private final Cancellable cancellable;
         private final WarningsHandler warningsHandler;
 
         InternalRequest(Request request) {
             this.request = request;
-            this.params = new HashMap<>(request.getParameters());
+            Map<String, String> params = new HashMap<>(request.getParameters());
             //ignore is a special parameter supported by the clients, shouldn't be sent to es
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
             this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
+            this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
             this.warningsHandler = request.getOptions().getWarningsHandler() == null ?
                 RestClient.this.warningsHandler : request.getOptions().getWarningsHandler();

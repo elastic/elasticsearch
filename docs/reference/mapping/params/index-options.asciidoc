@@ -33,7 +33,7 @@ NOTE: <<number,Numeric fields>> don't support the `index_options` parameter any 
 <<mapping-index,Analyzed>> string fields use `positions` as the default, and
 all other fields use `docs` as the default.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -66,5 +66,5 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `text` field will use the postings for the highlighting by default because `offsets` are indexed.

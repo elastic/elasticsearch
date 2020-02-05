@@ -19,24 +19,22 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,23 +46,13 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class AnalyzeAction extends Action<AnalyzeAction.Response> {
+public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();
     public static final String NAME = "indices:admin/analyze";
 
     private AnalyzeAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        super(NAME, AnalyzeAction.Response::new);
     }
 
     /**
@@ -83,61 +71,20 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         private String[] attributes = Strings.EMPTY_ARRAY;
         private String normalizer;
 
-        public static class NameOrDefinition implements Writeable {
-            // exactly one of these two members is not null
-            public final String name;
-            public final Settings definition;
-
-            NameOrDefinition(String name) {
-                this.name = Objects.requireNonNull(name);
-                this.definition = null;
-            }
-
-            NameOrDefinition(Map<String, ?> definition) {
-                this.name = null;
-                Objects.requireNonNull(definition);
-                try {
-                    XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                    builder.map(definition);
-                    this.definition = Settings.builder().loadFromSource(Strings.toString(builder), builder.contentType()).build();
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("Failed to parse [" + definition + "]", e);
-                }
-            }
-
-            NameOrDefinition(StreamInput in) throws IOException {
-                name = in.readOptionalString();
-                if (in.readBoolean()) {
-                    definition = Settings.readSettingsFromStream(in);
-                } else {
-                    definition = null;
-                }
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeOptionalString(name);
-                boolean isNotNullDefinition = this.definition != null;
-                out.writeBoolean(isNotNullDefinition);
-                if (isNotNullDefinition) {
-                    Settings.writeSettingsToStream(definition, out);
-                }
-            }
-
-            public static NameOrDefinition fromXContent(XContentParser parser) throws IOException {
-                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return new NameOrDefinition(parser.text());
-                }
-                if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                    return new NameOrDefinition(parser.map());
-                }
-                throw new XContentParseException(parser.getTokenLocation(),
-                    "Expected [VALUE_STRING] or [START_OBJECT], got " + parser.currentToken());
-            }
-
+        public Request() {
         }
 
-        public Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            text = in.readStringArray();
+            analyzer = in.readOptionalString();
+            tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
+            tokenFilters.addAll(in.readList(NameOrDefinition::new));
+            charFilters.addAll(in.readList(NameOrDefinition::new));
+            field = in.readOptionalString();
+            explain = in.readBoolean();
+            attributes = in.readStringArray();
+            normalizer = in.readOptionalString();
         }
 
         /**
@@ -298,20 +245,6 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            text = in.readStringArray();
-            analyzer = in.readOptionalString();
-            tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-            tokenFilters.addAll(in.readList(NameOrDefinition::new));
-            charFilters.addAll(in.readList(NameOrDefinition::new));
-            field = in.readOptionalString();
-            explain = in.readBoolean();
-            attributes = in.readStringArray();
-            normalizer = in.readOptionalString();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(text);
@@ -331,7 +264,7 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
             return request;
         }
 
-        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("analyze_request", null);
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("analyze_request");
         static {
             PARSER.declareStringArray(Request::text, new ParseField("text"));
             PARSER.declareString(Request::analyzer, new ParseField("analyzer"));
@@ -355,28 +288,29 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         private final List<AnalyzeToken> tokens;
 
         public Response(List<AnalyzeToken> tokens, DetailAnalyzeResponse detail) {
+            if (tokens == null && detail == null) {
+                throw new IllegalArgumentException("Neither token nor detail set on AnalysisAction.Response");
+            }
             this.tokens = tokens;
             this.detail = detail;
         }
 
         public Response(StreamInput in) throws IOException {
-            super.readFrom(in);
-            int size = in.readVInt();
-            if (size > 0) {
-                tokens = new ArrayList<>(size);
-                for (int i = 0; i < size; i++) {
-                    tokens.add(new AnalyzeToken(in));
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                AnalyzeToken[] tokenArray = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
+                tokens = tokenArray != null ? Arrays.asList(tokenArray) : null;
+            } else {
+                int size = in.readVInt();
+                if (size > 0) {
+                    tokens = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++) {
+                        tokens.add(new AnalyzeToken(in));
+                    }
+                } else {
+                    tokens = null;
                 }
             }
-            else {
-                tokens = null;
-            }
             detail = in.readOptionalWriteable(DetailAnalyzeResponse::new);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         public List<AnalyzeToken> getTokens() {
@@ -409,22 +343,33 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (tokens != null) {
-                out.writeVInt(tokens.size());
-                for (AnalyzeToken token : tokens) {
-                    token.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                AnalyzeToken[] tokenArray = null;
+                if (tokens != null) {
+                    tokenArray = tokens.toArray(new AnalyzeToken[0]);
                 }
+                out.writeOptionalArray(tokenArray);
             } else {
-                out.writeVInt(0);
+                if (tokens != null) {
+                    out.writeVInt(tokens.size());
+                    for (AnalyzeToken token : tokens) {
+                        token.writeTo(out);
+                    }
+                } else {
+                    out.writeVInt(0);
+                }
             }
             out.writeOptionalWriteable(detail);
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response that = (Response) o;
             return Objects.equals(detail, that.detail) &&
                 Objects.equals(tokens, that.tokens);
@@ -465,8 +410,12 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             AnalyzeToken that = (AnalyzeToken) o;
             return startOffset == that.startOffset &&
                 endOffset == that.endOffset &&
@@ -646,8 +595,12 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             DetailAnalyzeResponse that = (DetailAnalyzeResponse) o;
             return customAnalyzer == that.customAnalyzer &&
                 Objects.equals(analyzer, that.analyzer) &&
@@ -733,8 +686,12 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             AnalyzeTokenList that = (AnalyzeTokenList) o;
             return Objects.equals(name, that.name) &&
                 Arrays.equals(tokens, that.tokens);
@@ -754,15 +711,18 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         AnalyzeTokenList(StreamInput in) throws IOException {
             name = in.readString();
-            int size = in.readVInt();
-            if (size > 0) {
-                tokens = new AnalyzeToken[size];
-                for (int i = 0; i < size; i++) {
-                    tokens[i] = new AnalyzeToken(in);
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                tokens = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
+            } else {
+                int size = in.readVInt();
+                if (size > 0) {
+                    tokens = new AnalyzeToken[size];
+                    for (int i = 0; i < size; i++) {
+                        tokens[i] = new AnalyzeToken(in);
+                    }
+                } else {
+                    tokens = null;
                 }
-            }
-            else {
-                tokens = null;
             }
         }
 
@@ -796,13 +756,17 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            if (tokens != null) {
-                out.writeVInt(tokens.length);
-                for (AnalyzeToken token : tokens) {
-                    token.writeTo(out);
-                }
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeOptionalArray(tokens);
             } else {
-                out.writeVInt(0);
+                if (tokens != null) {
+                    out.writeVInt(tokens.length);
+                    for (AnalyzeToken token : tokens) {
+                        token.writeTo(out);
+                    }
+                } else {
+                    out.writeVInt(0);
+                }
             }
         }
     }
@@ -853,8 +817,12 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             CharFilteredText that = (CharFilteredText) o;
             return Objects.equals(name, that.name) &&
                 Arrays.equals(texts, that.texts);

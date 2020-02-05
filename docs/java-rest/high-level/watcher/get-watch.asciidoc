@@ -3,9 +3,9 @@
 :request: GetWatchRequest
 :response: GetWatchResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Watch API
+=== Get watch API
 
 [id="{upid}-{api}-request"]
 ==== Execution

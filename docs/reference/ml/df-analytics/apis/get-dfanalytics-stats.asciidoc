@@ -1,0 +1,122 @@
+[role="xpack"]
+[testenv="platinum"]
+[[get-dfanalytics-stats]]
+=== Get {dfanalytics-jobs} statistics API
+[subs="attributes"]
+++++
+<titleabbrev>Get {dfanalytics-jobs} stats</titleabbrev>
+++++
+
+Retrieves usage information for {dfanalytics-jobs}.
+
+experimental[]
+
+[[ml-get-dfanalytics-stats-request]]
+==== {api-request-title}
+
+`GET _ml/data_frame/analytics/<data_frame_analytics_id>/_stats` +
+
+`GET _ml/data_frame/analytics/<data_frame_analytics_id>,<data_frame_analytics_id>/_stats` +
+
+`GET _ml/data_frame/analytics/_stats` +
+
+`GET _ml/data_frame/analytics/_all/_stats` +
+
+`GET _ml/data_frame/analytics/*/_stats`
+
+
+[[ml-get-dfanalytics-stats-prereq]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+
+[[ml-get-dfanalytics-stats-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
+
+
+[[ml-get-dfanalytics-stats-query-params]]
+==== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
+`from`::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=from]
+
+`size`::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=size]
+
+
+[[ml-get-dfanalytics-stats-response-body]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`data_frame_analytics`::
+(array) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=data-frame-analytics-stats]
+
+
+[[ml-get-dfanalytics-stats-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
+
+
+[[ml-get-dfanalytics-stats-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _ml/data_frame/analytics/loganalytics/_stats
+--------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "count": 1,
+    "data_frame_analytics": [
+        {
+            "id": "loganalytics",
+            "state": "stopped",
+            "progress": [
+              {
+                "phase": "reindexing",
+                "progress_percent": 0
+              },
+              {
+                "phase": "loading_data",
+                "progress_percent": 0
+              },
+              {
+                "phase": "analyzing",
+                "progress_percent": 0
+              },
+              {
+                "phase": "writing_results",
+                "progress_percent": 0
+              }
+            ]
+        }
+    ]
+}
+----

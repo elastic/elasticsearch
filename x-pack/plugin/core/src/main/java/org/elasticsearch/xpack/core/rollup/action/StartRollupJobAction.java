@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -24,23 +24,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartRollupJobAction extends Action<StartRollupJobAction.Response> {
+public class StartRollupJobAction extends ActionType<StartRollupJobAction.Response> {
 
     public static final StartRollupJobAction INSTANCE = new StartRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/start";
 
     private StartRollupJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StartRollupJobAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

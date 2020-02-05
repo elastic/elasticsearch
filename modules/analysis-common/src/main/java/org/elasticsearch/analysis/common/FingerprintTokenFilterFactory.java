@@ -19,10 +19,8 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.FingerprintFilter;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -33,9 +31,6 @@ import static org.elasticsearch.analysis.common.FingerprintAnalyzerProvider.DEFA
 import static org.elasticsearch.analysis.common.FingerprintAnalyzerProvider.MAX_OUTPUT_SIZE;
 
 public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(FingerprintTokenFilterFactory.class));
 
     private final char separator;
     private final int maxOutputSize;

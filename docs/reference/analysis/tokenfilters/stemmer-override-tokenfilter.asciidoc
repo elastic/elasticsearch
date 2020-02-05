@@ -1,5 +1,8 @@
 [[analysis-stemmer-override-tokenfilter]]
-=== Stemmer Override Token Filter
+=== Stemmer override token filter
+++++
+<titleabbrev>Stemmer override</titleabbrev>
+++++
 
 Overrides stemming algorithms, by applying a custom mapping, then
 protecting these terms from being modified by stemmers. Must be placed
@@ -18,7 +21,7 @@ absolute) to a list of mappings.
 
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_index
 {
@@ -40,7 +43,6 @@ PUT /my_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Where the file looks like:
 
@@ -51,7 +53,7 @@ include::{es-test-dir}/cluster/config/analysis/stemmer_override.txt[]
 
 You can also define the overrides rules inline:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_index
 {
@@ -76,4 +78,3 @@ PUT /my_index
     }
 }
 --------------------------------------------------
-// CONSOLE

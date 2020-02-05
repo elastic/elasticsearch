@@ -19,19 +19,19 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(command("EXPLAIN (PLAN PARSED) SELECT * FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("With[{}]"));
-        assertThat(readLine(), startsWith("\\_Project[[?*]]"));
+        assertThat(readLine(), startsWith("\\_Project[[?* AS ?]]"));
         assertThat(readLine(), startsWith("  \\_UnresolvedRelation[test]"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT * FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Project[[test_field{f}#"));
+        assertThat(readLine(), startsWith("Project[[test.test_field{f}#"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][test_field{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT * FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Project[[test_field{f}#"));
+        assertThat(readLine(), startsWith("Project[[test.test_field{f}#"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][test_field{f}#"));
         assertEquals("", readLine());
 
@@ -63,23 +63,23 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(command("EXPLAIN (PLAN PARSED) SELECT * FROM test WHERE i = 2"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("With[{}]"));
-        assertThat(readLine(), startsWith("\\_Project[[?*]]"));
-        assertThat(readLine(), startsWith("  \\_Filter[Equals[?i,2"));
+        assertThat(readLine(), startsWith("\\_Project[[?* AS ?]]"));
+        assertThat(readLine(), startsWith("  \\_Filter[?i == 2[INTEGER]]"));
         assertThat(readLine(), startsWith("    \\_UnresolvedRelation[test]"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT * FROM test WHERE i = 2"),
                 containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Project[[i{f}#"));
-        assertThat(readLine(), startsWith("\\_Filter[Equals[i"));
+        assertThat(readLine(), startsWith("Project[[test.i{f}#"));
+        assertThat(readLine(), startsWith("\\_Filter[test.i{f}#"));
         assertThat(readLine(), startsWith("  \\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT * FROM test WHERE i = 2"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Project[[i{f}#"));
-        assertThat(readLine(), startsWith("\\_Filter[Equals[i"));
+        assertThat(readLine(), startsWith("Project[[test.i{f}#"));
+        assertThat(readLine(), startsWith("\\_Filter[test.i{f}"));
         assertThat(readLine(), startsWith("  \\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
@@ -96,15 +96,11 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("  },"));
         assertThat(readLine(), startsWith("  \"_source\" : {"));
         assertThat(readLine(), startsWith("    \"includes\" : ["));
+        assertThat(readLine(), startsWith("      \"i\""));
         assertThat(readLine(), startsWith("      \"test_field\""));
         assertThat(readLine(), startsWith("    ],"));
         assertThat(readLine(), startsWith("    \"excludes\" : [ ]"));
         assertThat(readLine(), startsWith("  },"));
-        assertThat(readLine(), startsWith("  \"docvalue_fields\" : ["));
-        assertThat(readLine(), startsWith("    {"));
-        assertThat(readLine(), startsWith("      \"field\" : \"i\""));
-        assertThat(readLine(), startsWith("    }"));
-        assertThat(readLine(), startsWith("  ],"));
         assertThat(readLine(), startsWith("  \"sort\" : ["));
         assertThat(readLine(), startsWith("    {"));
         assertThat(readLine(), startsWith("      \"_doc\" :"));
@@ -123,20 +119,20 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(command("EXPLAIN (PLAN PARSED) SELECT COUNT(*) FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("With[{}]"));
-        assertThat(readLine(), startsWith("\\_Project[[?COUNT[?*]]]"));
+        assertThat(readLine(), startsWith("\\_Project[[?COUNT[?*] AS ?]]"));
         assertThat(readLine(), startsWith("  \\_UnresolvedRelation[test]"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT COUNT(*) FROM test"),
                 containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Aggregate[[],[Count[*=1"));
+        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*)"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT COUNT(*) FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Aggregate[[],[Count[*=1"));
+        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*)"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 

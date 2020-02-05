@@ -16,7 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -37,7 +36,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -65,16 +63,14 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Collection<Class<? extends Plugin>> classes = new ArrayList<>(super.getMockPlugins());
-        classes.remove(MockEngineFactoryPlugin.class);
-        return classes;
+    protected boolean addMockInternalEngine() {
+        return false;
     }
 
     public static final class MyPlugin extends Plugin implements RepositoryPlugin, EnginePlugin {
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ThreadPool threadPool) {
+                                                               ClusterService clusterService) {
             return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
         }
         @Override
@@ -114,7 +110,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
+        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
             .setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
             client().admin().indices().prepareUpdateSettings(sourceIdx)
@@ -139,7 +135,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
+        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
             .setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
         client().admin().indices().prepareUpdateSettings(sourceIdx).setSettings(Settings.builder().put("index.number_of_replicas", 1))
@@ -150,9 +146,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
-        ImmutableOpenMap<String, MappingMetaData> mapping = getMappingsResponse
-            .getMappings().get(sourceIdx);
-        assertTrue(mapping.containsKey("_doc"));
+        MappingMetaData mapping = getMappingsResponse.getMappings().get(sourceIdx);
         String nested = useNested ?
             ",\"incorrect\":{\"type\":\"object\"},\"nested\":{\"type\":\"nested\",\"properties\":{\"value\":{\"type\":\"long\"}}}" : "";
         if (requireRouting) {
@@ -160,12 +154,12 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
                 "\"_meta\":{\"_doc\":{\"_routing\":{\"required\":true}," +
                 "\"properties\":{\"field1\":{\"type\":\"text\"," +
                 "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested +
-                "}}}}}", mapping.get("_doc").source().string());
+                "}}}}}", mapping.source().string());
         } else {
             assertEquals("{\"_doc\":{\"enabled\":false," +
                 "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
                 "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}}}",
-                mapping.get("_doc").source().string());
+                mapping.source().string());
         }
     }
 
@@ -233,7 +227,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(sourceIdx, 0, Settings.builder()
             .put("number_of_shards", numShards).put("number_of_replicas", 0));
-        List<Object> mappings = new ArrayList<>();
+        List<String> mappings = new ArrayList<>();
         if (requireRouting) {
             mappings.addAll(Arrays.asList("_routing", "required=true"));
         }
@@ -242,7 +236,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             mappings.addAll(Arrays.asList("nested", "type=nested", "incorrect", "type=object"));
         }
         if (mappings.isEmpty() == false) {
-            createIndexRequestBuilder.addMapping("_doc", mappings.toArray());
+            createIndexRequestBuilder.setMapping(mappings.toArray(new String[0]));
         }
         assertAcked(createIndexRequestBuilder);
         ensureGreen();
@@ -261,8 +255,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            builders[i] = client().prepareIndex(sourceIdx, "_doc",
-                Integer.toString(i)).setSource(source).setRouting("r" + i);
+            builders[i] = client().prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

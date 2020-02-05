@@ -16,10 +16,13 @@ import java.io.IOException;
 
 public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestoreSessionRequest> {
 
-    private String sessionUUID;
-    private ShardId shardId;
+    private final String sessionUUID;
+    private final ShardId shardId;
 
-    PutCcrRestoreSessionRequest() {
+    PutCcrRestoreSessionRequest(StreamInput in) throws IOException {
+        super(in);
+        sessionUUID = in.readString();
+        shardId = new ShardId(in);
     }
 
     public PutCcrRestoreSessionRequest(String sessionUUID, ShardId shardId) {
@@ -31,13 +34,6 @@ public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestor
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        sessionUUID = in.readString();
-        shardId = new ShardId(in);
     }
 
     @Override

@@ -19,17 +19,21 @@
 package org.elasticsearch.repositories.fs;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -37,23 +41,26 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
+
     @Override
-    protected void createTestRepository(String name, boolean verify) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setVerify(verify)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+    protected String repositoryType() {
+        return FsRepository.TYPE;
     }
 
     @Override
-    protected void afterCreationCheck(Repository repository) {
-        assertThat(repository, instanceOf(FsRepository.class));
+    protected Settings repositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put(super.repositorySettings());
+        settings.put("location", randomRepoPath());
+        if (randomBoolean()) {
+            long size = 1 << randomInt(10);
+            settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));
+        }
+        return settings.build();
     }
 
-    public void testMissingDirectoriesNotCreatedInReadonlyRepository() throws IOException, ExecutionException, InterruptedException {
-        final String repoName = randomAsciiName();
+    public void testMissingDirectoriesNotCreatedInReadonlyRepository() throws IOException, InterruptedException {
+        final String repoName = randomName();
         final Path repoPath = randomRepoPath();
 
         logger.info("--> creating repository {} at {}", repoName, repoPath);
@@ -63,13 +70,13 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
             .put("compress", randomBoolean())
             .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-        String indexName = randomAsciiName();
+        final String indexName = randomName();
         int docCount = iterations(10, 1000);
         logger.info("-->  create random index {} with {} records", indexName, docCount);
         addRandomDocuments(indexName, docCount);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCount);
 
-        final String snapshotName = randomAsciiName();
+        final String snapshotName = randomName();
         logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
         assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true).setIndices(indexName));
@@ -93,5 +100,38 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
         assertThat(exception.getRootCause(), instanceOf(NoSuchFileException.class));
 
         assertFalse("deleted path is not recreated in readonly repository", Files.exists(deletedPath));
+    }
+
+    public void testReadOnly() throws Exception {
+        Path tempDir = createTempDir();
+        Path path = tempDir.resolve("bar");
+
+        try (FsBlobStore store = new FsBlobStore(Settings.EMPTY, path, true)) {
+            assertFalse(Files.exists(path));
+            BlobPath blobPath = BlobPath.cleanPath().add("foo");
+            store.blobContainer(blobPath);
+            Path storePath = store.path();
+            for (String d : blobPath) {
+                storePath = storePath.resolve(d);
+            }
+            assertFalse(Files.exists(storePath));
+        }
+
+        try (FsBlobStore store = new FsBlobStore(Settings.EMPTY, path, false)) {
+            assertTrue(Files.exists(path));
+            BlobPath blobPath = BlobPath.cleanPath().add("foo");
+            BlobContainer container = store.blobContainer(blobPath);
+            Path storePath = store.path();
+            for (String d : blobPath) {
+                storePath = storePath.resolve(d);
+            }
+            assertTrue(Files.exists(storePath));
+            assertTrue(Files.isDirectory(storePath));
+
+            byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            writeBlob(container, "test", new BytesArray(data));
+            assertArrayEquals(readBlobFully(container, "test", data.length), data);
+            assertTrue(BlobStoreTestUtil.blobExists(container, "test"));
+        }
     }
 }

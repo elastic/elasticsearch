@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -39,8 +38,7 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 public class RestCancelTasksAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestCancelTasksAction(Settings settings, RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
-        super(settings);
+    public RestCancelTasksAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
         controller.registerHandler(POST, "/_tasks/_cancel", this);
         controller.registerHandler(POST, "/_tasks/{task_id}/_cancel", this);

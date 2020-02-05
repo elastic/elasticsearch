@@ -27,7 +27,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -42,7 +41,7 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,15 +63,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQueryStringBuilder> {
-    @Override
-    protected boolean isCacheable(SimpleQueryStringBuilder queryBuilder) {
-        return isCacheable(queryBuilder.fields().keySet(), queryBuilder.value());
-    }
+public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        String queryText = randomAlphaOfLengthBetween(1, 10);
+        // we avoid strings with "now" since those can have different caching policies that are checked elsewhere
+        String queryText = randomValueOtherThanMany(s -> s.toLowerCase(Locale.ROOT).contains("now"),
+                () -> randomAlphaOfLengthBetween(1, 10));
         SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(queryText);
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
@@ -263,7 +260,7 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
      * actual functionality of query parsing.
      */
     @Override
-    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
 
         if (queryBuilder.value().isEmpty()) {
@@ -412,15 +409,6 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
             }
             assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());
         }
-    }
-
-    public void testIndexMetaField() throws IOException {
-        QueryShardContext shardContext = createShardContext();
-        SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder(getIndex().getName());
-        simpleQueryStringBuilder.field("_index");
-        Query query = simpleQueryStringBuilder.toQuery(shardContext);
-        assertThat(query, notNullValue());
-        assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 
     public void testExpandedTerms() throws Exception {
@@ -785,5 +773,40 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
         assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
+    }
+
+    /**
+     * Query terms that contain "now" can trigger a query to not be cacheable.
+     * This test checks the search context cacheable flag is updated accordingly.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit all fields, this should contain a date field and should diable cachability
+        String query = "now " + randomAlphaOfLengthBetween(4, 10);
+        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(query);
+        assertQueryCachability(queryBuilder, false);
+
+        // if we hit a date field with "now", this should diable cachability
+        queryBuilder = new SimpleQueryStringBuilder("now");
+        queryBuilder.field(DATE_FIELD_NAME);
+        assertQueryCachability(queryBuilder, false);
+
+        // everything else is fine on all fields
+        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
+        queryBuilder = new SimpleQueryStringBuilder(query);
+        assertQueryCachability(queryBuilder, true);
+    }
+
+    private void assertQueryCachability(SimpleQueryStringBuilder qb, boolean cachingExpected) throws IOException {
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(qb, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertEquals("query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(), cachingExpected,
+                context.isCacheable());
     }
 }

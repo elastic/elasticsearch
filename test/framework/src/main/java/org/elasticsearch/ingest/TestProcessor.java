@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Processor used for testing, keeps track of how many times it is invoked and
@@ -31,15 +32,30 @@ public class TestProcessor implements Processor {
 
     private final String type;
     private final String tag;
-    private final Consumer<IngestDocument> ingestDocumentConsumer;
+    private final Function<IngestDocument, IngestDocument> ingestDocumentMapper;
     private final AtomicInteger invokedCounter = new AtomicInteger();
 
     public TestProcessor(Consumer<IngestDocument> ingestDocumentConsumer) {
         this(null, "test-processor", ingestDocumentConsumer);
     }
 
+    public TestProcessor(RuntimeException e) {
+        this(null, "test-processor", e);
+    }
+
+    public TestProcessor(String tag, String type, RuntimeException e) {
+        this(tag, type, (Consumer<IngestDocument>) i -> { throw e; });
+    }
+
     public TestProcessor(String tag, String type, Consumer<IngestDocument> ingestDocumentConsumer) {
-        this.ingestDocumentConsumer = ingestDocumentConsumer;
+        this(tag, type, id -> {
+            ingestDocumentConsumer.accept(id);
+            return id;
+        });
+    }
+
+    public TestProcessor(String tag, String type, Function<IngestDocument, IngestDocument> ingestDocumentMapper) {
+        this.ingestDocumentMapper = ingestDocumentMapper;
         this.type = type;
         this.tag = tag;
     }
@@ -47,8 +63,7 @@ public class TestProcessor implements Processor {
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         invokedCounter.incrementAndGet();
-        ingestDocumentConsumer.accept(ingestDocument);
-        return ingestDocument;
+        return ingestDocumentMapper.apply(ingestDocument);
     }
 
     @Override

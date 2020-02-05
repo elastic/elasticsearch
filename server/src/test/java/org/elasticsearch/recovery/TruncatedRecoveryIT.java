@@ -88,7 +88,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         // create the index and prevent allocation on any other nodes than the lucky one
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
         assertAcked(prepareCreate("test")
-            .addMapping("type1", "field1", "type=text", "the_id", "type=text")
+            .setMapping("field1", "type=text", "the_id", "type=text")
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
                 .put("index.routing.allocation.include._name", primariesNode.getNode().getName()))); // only allocate on the lucky node
@@ -98,7 +98,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builder = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            builder.add(client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(i), "the_id", id));
+            builder.add(client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i), "the_id", id));
         }
         indexRandom(true, builder);
         for (int i = 0; i < numDocs; i++) {
@@ -108,6 +108,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
         client().admin().indices().prepareFlush().setForce(true).get();
+        client().admin().indices().prepareFlush().setForce(true).get(); // double flush to create safe commit in case of async durability
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -119,7 +120,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                 (connection, requestId, action, request, options) -> {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        logger.debug("file chunk [{}] lastChunk: {}", req, req.lastChunk());
+                        logger.info("file chunk [{}] lastChunk: {}", req, req.lastChunk());
                         if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
                             latch.countDown();
                             throw new RuntimeException("Caused some truncated files for fun and profit");

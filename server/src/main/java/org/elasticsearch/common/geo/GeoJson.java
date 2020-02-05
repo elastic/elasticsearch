@@ -31,19 +31,20 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.geometry.Rectangle;
-import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,18 +67,20 @@ public final class GeoJson {
 
     private final boolean rightOrientation;
     private final boolean coerce;
-    private final boolean ignoreZValue;
+    private final GeometryValidator validator;
 
-    public GeoJson(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
+    public GeoJson(boolean rightOrientation, boolean coerce, GeometryValidator validator) {
         this.rightOrientation = rightOrientation;
         this.coerce = coerce;
-        this.ignoreZValue = ignoreZValue;
+        this.validator = validator;
     }
 
     public Geometry fromXContent(XContentParser parser)
         throws IOException {
         try (XContentSubParser subParser = new XContentSubParser(parser)) {
-            return PARSER.apply(subParser, this);
+            Geometry geometry = PARSER.apply(subParser, this);
+            validator.validate(geometry);
+            return geometry;
         }
     }
 
@@ -89,7 +92,7 @@ public final class GeoJson {
             public XContentBuilder visit(Circle circle) throws IOException {
                 builder.field(FIELD_RADIUS.getPreferredName(), DistanceUnit.METERS.toString(circle.getRadiusMeters()));
                 builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
-                return coordinatesToXContent(circle.getLat(), circle.getLon(), circle.getAlt());
+                return coordinatesToXContent(circle.getY(), circle.getX(), circle.getZ());
             }
 
             @Override
@@ -127,9 +130,9 @@ public final class GeoJson {
                 builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
                 for (int i = 0; i < multiPoint.size(); i++) {
                     Point p = multiPoint.get(i);
-                    builder.startArray().value(p.getLon()).value(p.getLat());
-                    if (p.hasAlt()) {
-                        builder.value(p.getAlt());
+                    builder.startArray().value(p.getX()).value(p.getY());
+                    if (p.hasZ()) {
+                        builder.value(p.getZ());
                     }
                     builder.endArray();
                 }
@@ -150,7 +153,7 @@ public final class GeoJson {
             @Override
             public XContentBuilder visit(Point point) throws IOException {
                 builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
-                return coordinatesToXContent(point.getLat(), point.getLon(), point.getAlt());
+                return coordinatesToXContent(point.getY(), point.getX(), point.getZ());
             }
 
             @Override
@@ -166,8 +169,8 @@ public final class GeoJson {
             @Override
             public XContentBuilder visit(Rectangle rectangle) throws IOException {
                 builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
-                coordinatesToXContent(rectangle.getMaxLat(), rectangle.getMinLon(), rectangle.getMinAlt()); // top left
-                coordinatesToXContent(rectangle.getMinLat(), rectangle.getMaxLon(), rectangle.getMaxAlt()); // bottom right
+                coordinatesToXContent(rectangle.getMaxY(), rectangle.getMinX(), rectangle.getMinZ()); // top left
+                coordinatesToXContent(rectangle.getMinY(), rectangle.getMaxX(), rectangle.getMaxZ()); // bottom right
                 return builder.endArray();
             }
 
@@ -182,9 +185,9 @@ public final class GeoJson {
             private XContentBuilder coordinatesToXContent(Line line) throws IOException {
                 builder.startArray();
                 for (int i = 0; i < line.length(); i++) {
-                    builder.startArray().value(line.getLon(i)).value(line.getLat(i));
-                    if (line.hasAlt()) {
-                        builder.value(line.getAlt(i));
+                    builder.startArray().value(line.getX(i)).value(line.getY(i));
+                    if (line.hasZ()) {
+                        builder.value(line.getZ(i));
                     }
                     builder.endArray();
                 }
@@ -203,7 +206,7 @@ public final class GeoJson {
         return builder.endObject();
     }
 
-    private static ConstructingObjectParser<Geometry, GeoJson> PARSER =
+    private static final ConstructingObjectParser<Geometry, GeoJson> PARSER =
         new ConstructingObjectParser<>("geojson", true, (a, c) -> {
             String type = (String) a[0];
             CoordinateNode coordinates = (CoordinateNode) a[1];
@@ -215,7 +218,7 @@ public final class GeoJson {
 
     static {
         PARSER.declareString(constructorArg(), FIELD_TYPE);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseCoordinates(p, c.ignoreZValue), FIELD_COORDINATES,
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseCoordinates(p), FIELD_COORDINATES,
             ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(optionalConstructorArg(), PARSER, FIELD_GEOMETRIES);
         PARSER.declareString(optionalConstructorArg(), FIELD_ORIENTATION);
@@ -225,8 +228,12 @@ public final class GeoJson {
 
     private static Geometry createGeometry(String type, List<Geometry> geometries, CoordinateNode coordinates, Boolean orientation,
                                            boolean defaultOrientation, boolean coerce, DistanceUnit.Distance radius) {
-
-        ShapeType shapeType = ShapeType.forName(type);
+        ShapeType shapeType;
+        if ("bbox".equalsIgnoreCase(type)) {
+            shapeType = ShapeType.ENVELOPE;
+        } else {
+            shapeType = ShapeType.forName(type);
+        }
         if (shapeType == ShapeType.GEOMETRYCOLLECTION) {
             if (geometries == null) {
                 throw new ElasticsearchParseException("geometries not included");
@@ -250,7 +257,7 @@ public final class GeoJson {
                 }
                 verifyNulls(type, geometries, orientation, null);
                 Point point = coordinates.asPoint();
-                return new Circle(point.getLat(), point.getLon(), point.getAlt(), radius.convert(DistanceUnit.METERS).value);
+                return new Circle(point.getX(), point.getY(), point.getZ(), radius.convert(DistanceUnit.METERS).value);
             case POINT:
                 verifyNulls(type, geometries, orientation, radius);
                 return coordinates.asPoint();
@@ -298,20 +305,20 @@ public final class GeoJson {
      * Recursive method which parses the arrays of coordinates used to define
      * Shapes
      */
-    private static CoordinateNode parseCoordinates(XContentParser parser, boolean ignoreZValue) throws IOException {
+    private static CoordinateNode parseCoordinates(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         // Base cases
         if (token != XContentParser.Token.START_ARRAY &&
             token != XContentParser.Token.END_ARRAY &&
             token != XContentParser.Token.VALUE_NULL) {
-            return new CoordinateNode(parseCoordinate(parser, ignoreZValue));
+            return new CoordinateNode(parseCoordinate(parser));
         } else if (token == XContentParser.Token.VALUE_NULL) {
             throw new IllegalArgumentException("coordinates cannot contain NULL values)");
         }
 
         List<CoordinateNode> nodes = new ArrayList<>();
         while (token != XContentParser.Token.END_ARRAY) {
-            CoordinateNode node = parseCoordinates(parser, ignoreZValue);
+            CoordinateNode node = parseCoordinates(parser);
             if (nodes.isEmpty() == false && nodes.get(0).numDimensions() != node.numDimensions()) {
                 throw new ElasticsearchParseException("Exception parsing coordinates: number of dimensions do not match");
             }
@@ -325,7 +332,7 @@ public final class GeoJson {
     /**
      * Parser a singe set of 2 or 3 coordinates
      */
-    private static Point parseCoordinate(XContentParser parser, boolean ignoreZValue) throws IOException {
+    private static Point parseCoordinate(XContentParser parser) throws IOException {
         // Add support for coerce here
         if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
             throw new ElasticsearchParseException("geo coordinates must be numbers");
@@ -339,14 +346,14 @@ public final class GeoJson {
         // alt (for storing purposes only - future use includes 3d shapes)
         double alt = Double.NaN;
         if (token == XContentParser.Token.VALUE_NUMBER) {
-            alt = GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
+            alt = parser.doubleValue();
             parser.nextToken();
         }
         // do not support > 3 dimensions
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
             throw new ElasticsearchParseException("geo coordinates greater than 3 dimensions are not supported");
         }
-        return new Point(lat, lon, alt);
+        return new Point(lon, lat, alt);
     }
 
     /**
@@ -458,7 +465,7 @@ public final class GeoJson {
                 throw new ElasticsearchException("attempting to get number of dimensions on an empty coordinate node");
             }
             if (coordinate != null) {
-                return coordinate.hasAlt() ? 3 : 2;
+                return coordinate.hasZ() ? 3 : 2;
             }
             return children.get(0).numDimensions();
         }
@@ -481,7 +488,7 @@ public final class GeoJson {
             return new MultiPoint(points);
         }
 
-        private double[][] asLineComponents(boolean orientation, boolean coerce) {
+        private double[][] asLineComponents(boolean orientation, boolean coerce, boolean close) {
             if (coordinate != null) {
                 throw new ElasticsearchException("expected a list of points but got a point");
             }
@@ -492,7 +499,7 @@ public final class GeoJson {
 
             boolean needsClosing;
             int resultSize;
-            if (coerce && children.get(0).asPoint().equals(children.get(children.size() - 1).asPoint()) == false) {
+            if (close && coerce && children.get(0).asPoint().equals(children.get(children.size() - 1).asPoint()) == false) {
                 needsClosing = true;
                 resultSize = children.size() + 1;
             } else {
@@ -506,10 +513,10 @@ public final class GeoJson {
             int i = orientation ? 0 : lats.length - 1;
             for (CoordinateNode node : children) {
                 Point point = node.asPoint();
-                lats[i] = point.getLat();
-                lons[i] = point.getLon();
+                lats[i] = point.getY();
+                lons[i] = point.getX();
                 if (alts != null) {
-                    alts[i] = point.getAlt();
+                    alts[i] = point.getZ();
                 }
                 i = orientation ? i + 1 : i - 1;
             }
@@ -528,13 +535,13 @@ public final class GeoJson {
         }
 
         public Line asLineString(boolean coerce) {
-            double[][] components = asLineComponents(true, coerce);
-            return new Line(components[0], components[1], components[2]);
+            double[][] components = asLineComponents(true, coerce, false);
+            return new Line(components[1], components[0], components[2]);
         }
 
         public LinearRing asLinearRing(boolean orientation, boolean coerce) {
-            double[][] components = asLineComponents(orientation, coerce);
-            return new LinearRing(components[0], components[1], components[2]);
+            double[][] components = asLineComponents(orientation, coerce, true);
+            return new LinearRing(components[1], components[0], components[2]);
         }
 
         public MultiLine asMultiLineString(boolean coerce) {
@@ -585,13 +592,13 @@ public final class GeoJson {
             // verify coordinate bounds, correct if necessary
             Point uL = children.get(0).coordinate;
             Point lR = children.get(1).coordinate;
-            return new Rectangle(lR.getLat(), uL.getLat(), uL.getLon(), lR.getLon());
+            return new Rectangle(uL.getX(), lR.getX(), uL.getY(), lR.getY());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (children == null) {
-                builder.startArray().value(coordinate.getLon()).value(coordinate.getLat()).endArray();
+                builder.startArray().value(coordinate.getX()).value(coordinate.getY()).endArray();
             } else {
                 builder.startArray();
                 for (CoordinateNode child : children) {

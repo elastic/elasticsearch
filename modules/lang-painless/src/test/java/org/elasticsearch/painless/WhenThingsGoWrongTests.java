@@ -262,7 +262,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testRegexDisabledByDefault() {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> exec("return 'foo' ==~ /foo/"));
+        IllegalStateException e = expectScriptThrows(IllegalStateException.class, () -> exec("return 'foo' ==~ /foo/"));
         assertEquals("Regexes are disabled. Set [script.painless.regex.enabled] to [true] in elasticsearch.yaml to allow them. "
                 + "Be careful though, regexes break out of Painless's protection against deep recursion and long loops.", e.getMessage());
     }

@@ -48,8 +48,12 @@ public class IndicesSegmentResponse extends BroadcastResponse {
 
     private Map<String, IndexSegments> indicesSegments;
 
-    IndicesSegmentResponse() {
-
+    IndicesSegmentResponse(StreamInput in) throws IOException {
+        super(in);
+        shards = new ShardSegments[in.readVInt()];
+        for (int i = 0; i < shards.length; i++) {
+            shards[i] = new ShardSegments(in);
+        }
     }
 
     IndicesSegmentResponse(ShardSegments[] shards, int totalShards, int successfulShards, int failedShards,
@@ -80,16 +84,6 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         }
         this.indicesSegments = indicesSegments;
         return indicesSegments;
-    }
-
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shards = new ShardSegments[in.readVInt()];
-        for (int i = 0; i < shards.length; i++) {
-            shards[i] = ShardSegments.readShardSegments(in);
-        }
     }
 
     @Override

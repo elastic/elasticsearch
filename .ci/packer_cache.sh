@@ -21,5 +21,6 @@ export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}
 export JAVA8_HOME="${HOME}"/.java/java8
 export JAVA11_HOME="${HOME}"/.java/java11
 export JAVA12_HOME="${HOME}"/.java/openjdk12
+export JAVA13_HOME="${HOME}"/.java/openjdk13
 ./gradlew --parallel clean --scan -Porg.elasticsearch.acceptScanTOS=true -s resolveAllDependencies
 

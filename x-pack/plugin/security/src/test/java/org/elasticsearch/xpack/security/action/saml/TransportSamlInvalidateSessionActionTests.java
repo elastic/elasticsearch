@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security.action.saml;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -46,6 +46,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -120,6 +122,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
     @Before
     public void setup() throws Exception {
+        final RealmIdentifier realmId = new RealmIdentifier("saml", REALM_NAME);
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Settings settings = Settings.builder()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
@@ -130,6 +133,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SamlRealmTestHelper.SP_ACS_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_LOGOUT), SamlRealmTestHelper.SP_LOGOUT_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
 
         final ThreadContext threadContext = new ThreadContext(settings);
@@ -143,13 +147,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final Client client = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 if (IndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;
                     indexRequests.add(indexRequest);
                     final IndexResponse response = new IndexResponse(
-                        indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                        new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
                     listener.onResponse((Response) response);
                 } else if (BulkAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(BulkRequest.class));
@@ -214,7 +218,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final RealmIdentifier realmId = new RealmIdentifier("saml", REALM_NAME);
         final RealmConfig realmConfig = new RealmConfig(
                 realmId,
             settings,

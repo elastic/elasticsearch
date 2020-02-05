@@ -42,6 +42,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private static final Duration WAIT_FOR_KILL_TIMEOUT = Duration.ofMillis(1000);
 
     private final String jobId;
+    private final NativeController nativeController;
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream processInStream;
     private final InputStream processOutStream;
@@ -51,25 +52,28 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private final int numberOfFields;
     private final List<Path> filesToDelete;
     private final Consumer<String> onProcessCrash;
+    private final Duration processConnectTimeout;
     private volatile Future<?> logTailFuture;
     private volatile Future<?> stateProcessorFuture;
     private volatile boolean processCloseInitiated;
     private volatile boolean processKilled;
     private volatile boolean isReady;
 
-    protected AbstractNativeProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
-                                    OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                                    Consumer<String> onProcessCrash) {
+    protected AbstractNativeProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
+                                    InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
+                                    List<Path> filesToDelete, Consumer<String> onProcessCrash, Duration processConnectTimeout) {
         this.jobId = jobId;
-        cppLogHandler = new CppLogMessageHandler(jobId, logStream);
-        this.processInStream = new BufferedOutputStream(processInStream);
+        this.nativeController = nativeController;
+        this.cppLogHandler = new CppLogMessageHandler(jobId, logStream);
+        this.processInStream = processInStream != null ? new BufferedOutputStream(processInStream) : null;
         this.processOutStream = processOutStream;
         this.processRestoreStream = processRestoreStream;
         this.recordWriter = new LengthEncodedWriter(this.processInStream);
-        startTime = ZonedDateTime.now();
+        this.startTime = ZonedDateTime.now();
         this.numberOfFields = numberOfFields;
         this.filesToDelete = filesToDelete;
         this.onProcessCrash = Objects.requireNonNull(onProcessCrash);
+        this.processConnectTimeout = Objects.requireNonNull(processConnectTimeout);
     }
 
     public abstract String getName();
@@ -87,17 +91,30 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                     LOGGER.error(new ParameterizedMessage("[{}] Error tailing {} process logs", jobId, getName()), e);
                 }
             } finally {
-                if (processCloseInitiated == false && processKilled == false) {
-                    // The log message doesn't say "crashed", as the process could have been killed
-                    // by a user or other process (e.g. the Linux OOM killer)
-
-                    String errors = cppLogHandler.getErrors();
-                    String fullError = String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly: %s", jobId, getName(), errors);
-                    LOGGER.error(fullError);
-                    onProcessCrash.accept(fullError);
-                }
+                detectCrash();
             }
         });
+    }
+
+    /**
+     * Try detecting whether the process crashed i.e. stopped prematurely without any known reason.
+     */
+    private void detectCrash() {
+        if (processCloseInitiated || processKilled) {
+            // Do not detect crash when the process is being closed or killed.
+            return;
+        }
+        if (processInStream == null) {
+            // Do not detect crash when the process has been closed automatically.
+            // This is possible when the process does not have input pipe to hang on and closes right after writing its output.
+            return;
+        }
+        // The log message doesn't say "crashed", as the process could have been killed
+        // by a user or other process (e.g. the Linux OOM killer)
+        String errors = cppLogHandler.getErrors();
+        String fullError = String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly: %s", jobId, getName(), errors);
+        LOGGER.error(fullError);
+        onProcessCrash.accept(fullError);
     }
 
     /**
@@ -147,7 +164,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         try {
             processCloseInitiated = true;
             // closing its input causes the process to exit
-            processInStream.close();
+            if (processInStream != null) {
+                processInStream.close();
+            }
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
             // indexed
@@ -177,12 +196,12 @@ public abstract class AbstractNativeProcess implements NativeProcess {
 
     @Override
     public void kill() throws IOException {
+        LOGGER.debug("[{}] Killing {} process", jobId, getName());
         processKilled = true;
         try {
-            // The PID comes via the processes log stream.  We don't wait for it to arrive here,
-            // but if the wait times out it implies the process has only just started, in which
-            // case it should die very quickly when we close its input stream.
-            NativeControllerHolder.getNativeController().killProcess(cppLogHandler.getPid(Duration.ZERO));
+            // The PID comes via the processes log stream. We do wait here to give the process the time to start up and report its PID.
+            // Without the PID we cannot kill the process.
+            nativeController.killProcess(cppLogHandler.getPid(processConnectTimeout));
 
             // Wait for the process to die before closing processInStream as if the process
             // is still alive when processInStream is closed it may start persisting state
@@ -191,7 +210,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             LOGGER.warn("[{}] Failed to get PID of {} process to kill", jobId, getName());
         } finally {
             try {
-                processInStream.close();
+                if (processInStream != null) {
+                    processInStream.close();
+                }
             } catch (IOException e) {
                 // Ignore it - we're shutting down and the method itself has logged a warning
             }
@@ -264,5 +285,17 @@ public abstract class AbstractNativeProcess implements NativeProcess {
 
     protected boolean isProcessKilled() {
         return processKilled;
+    }
+
+    public void consumeAndCloseOutputStream() {
+        try {
+            byte[] buff = new byte[512];
+            while (processOutStream().read(buff) >= 0) {
+                // Do nothing
+            }
+            processOutStream().close();
+        } catch (IOException e) {
+            // Given we are closing down the process there is no point propagating IO exceptions here
+        }
     }
 }

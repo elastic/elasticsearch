@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -28,17 +29,20 @@ import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -53,14 +57,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -84,18 +85,7 @@ public class CompositeRolesStore {
         Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
 
-    // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using
-    // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
-    // the read lock is obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or values of
-    // the cache the write lock must obtained to prevent any modifications
-    private final ReleasableLock readLock;
-    private final ReleasableLock writeLock;
-
-    {
-        final ReadWriteLock iterationLock = new ReentrantReadWriteLock();
-        readLock = new ReleasableLock(iterationLock.readLock());
-        writeLock = new ReleasableLock(iterationLock.writeLock());
-    }
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
@@ -104,7 +94,9 @@ public class CompositeRolesStore {
     private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final Cache<RoleKey, Role> roleCache;
+    private final CacheIteratorHelper<RoleKey, Role> roleCacheHelper;
     private final Cache<String, Boolean> negativeLookupCache;
+    private final DocumentSubsetBitsetCache dlsBitsetCache;
     private final ThreadContext threadContext;
     private final AtomicLong numInvalidation = new AtomicLong();
     private final AnonymousUser anonymousUser;
@@ -117,21 +109,24 @@ public class CompositeRolesStore {
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState, FieldPermissionsCache fieldPermissionsCache,
-                               ApiKeyService apiKeyService, Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer) {
-        this.fileRolesStore = fileRolesStore;
+                               ApiKeyService apiKeyService, DocumentSubsetBitsetCache dlsBitsetCache,
+                               Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer) {
+        this.fileRolesStore = Objects.requireNonNull(fileRolesStore);
+        this.dlsBitsetCache = Objects.requireNonNull(dlsBitsetCache);
         fileRolesStore.addListener(this::invalidate);
-        this.nativeRolesStore = nativeRolesStore;
-        this.privilegeStore = privilegeStore;
-        this.licenseState = licenseState;
-        this.fieldPermissionsCache = fieldPermissionsCache;
-        this.apiKeyService = apiKeyService;
-        this.effectiveRoleDescriptorsConsumer = effectiveRoleDescriptorsConsumer;
+        this.nativeRolesStore = Objects.requireNonNull(nativeRolesStore);
+        this.privilegeStore = Objects.requireNonNull(privilegeStore);
+        this.licenseState = Objects.requireNonNull(licenseState);
+        this.fieldPermissionsCache = Objects.requireNonNull(fieldPermissionsCache);
+        this.apiKeyService = Objects.requireNonNull(apiKeyService);
+        this.effectiveRoleDescriptorsConsumer = Objects.requireNonNull(effectiveRoleDescriptorsConsumer);
         CacheBuilder<RoleKey, Role> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);
         if (cacheSize >= 0) {
             builder.setMaximumWeight(cacheSize);
         }
         this.roleCache = builder.build();
+        this.roleCacheHelper = new CacheIteratorHelper(roleCache);
         this.threadContext = threadContext;
         CacheBuilder<String, Boolean> nlcBuilder = CacheBuilder.builder();
         final int nlcCacheSize = NEGATIVE_LOOKUP_CACHE_SIZE_SETTING.get(settings);
@@ -162,6 +157,7 @@ public class CompositeRolesStore {
             final long invalidationCounter = numInvalidation.get();
             roleDescriptors(roleNames, ActionListener.wrap(
                     rolesRetrievalResult -> {
+                        logDeprecatedRoles(rolesRetrievalResult.roleDescriptors);
                         final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
                         if (missingRoles) {
                             logger.debug(() -> new ParameterizedMessage("Could not find roles with names {}",
@@ -185,6 +181,17 @@ public class CompositeRolesStore {
                     },
                     roleActionListener::onFailure));
         }
+    }
+
+    void logDeprecatedRoles(Set<RoleDescriptor> roleDescriptors) {
+        roleDescriptors.stream()
+            .filter(rd -> Boolean.TRUE.equals(rd.getMetadata().get(MetadataUtils.DEPRECATED_METADATA_KEY)))
+            .forEach(rd -> {
+                String reason = Objects.toString(
+                    rd.getMetadata().get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY), "Please check the documentation");
+                deprecationLogger.deprecatedAndMaybeLog("deprecated_role-" + rd.getName(), "The role [" + rd.getName() +
+                    "] is deprecated and will be removed in a future version of Elasticsearch. " + reason);
+            });
     }
 
     public void getRoles(User user, Authentication authentication, ActionListener<Role> roleActionListener) {
@@ -261,7 +268,7 @@ public class CompositeRolesStore {
         logger.trace("Building role from descriptors [{}] for names [{}] from source [{}]", roleDescriptors, roleKey.names, roleKey.source);
         buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
             if (role != null && tryCache) {
-                try (ReleasableLock ignored = readLock.acquire()) {
+                try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
                     /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
                      * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
                      * stuff in an async fashion we need to make sure that if the cache got invalidated since we
@@ -350,7 +357,7 @@ public class CompositeRolesStore {
         }
 
         Set<String> clusterPrivileges = new HashSet<>();
-        final List<ConditionalClusterPrivilege> conditionalClusterPrivileges = new ArrayList<>();
+        final List<ConfigurableClusterPrivilege> configurableClusterPrivileges = new ArrayList<>();
         Set<String> runAs = new HashSet<>();
         final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
         final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
@@ -365,7 +372,7 @@ public class CompositeRolesStore {
                 clusterPrivileges.addAll(Arrays.asList(descriptor.getClusterPrivileges()));
             }
             if (descriptor.getConditionalClusterPrivileges() != null) {
-                conditionalClusterPrivileges.addAll(Arrays.asList(descriptor.getConditionalClusterPrivileges()));
+                configurableClusterPrivileges.addAll(Arrays.asList(descriptor.getConditionalClusterPrivileges()));
             }
             if (descriptor.getRunAs() != null) {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
@@ -387,7 +394,7 @@ public class CompositeRolesStore {
 
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
         final Role.Builder builder = Role.builder(roleNames.toArray(new String[roleNames.size()]))
-                .cluster(clusterPrivileges, conditionalClusterPrivileges)
+                .cluster(clusterPrivileges, configurableClusterPrivileges)
                 .runAs(runAsPrivilege);
         indicesPrivilegesMap.entrySet().forEach((entry) -> {
             MergeableIndicesPrivilege privilege = entry.getValue();
@@ -420,47 +427,29 @@ public class CompositeRolesStore {
     public void invalidateAll() {
         numInvalidation.incrementAndGet();
         negativeLookupCache.invalidateAll();
-        try (ReleasableLock ignored = readLock.acquire()) {
+        try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
             roleCache.invalidateAll();
         }
+        dlsBitsetCache.clear("role store invalidation");
     }
 
     public void invalidate(String role) {
         numInvalidation.incrementAndGet();
 
-        // the cache cannot be modified while doing this operation per the terms of the cache iterator
-        try (ReleasableLock ignored = writeLock.acquire()) {
-            Iterator<RoleKey> keyIter = roleCache.keys().iterator();
-            while (keyIter.hasNext()) {
-                RoleKey key = keyIter.next();
-                if (key.names.contains(role)) {
-                    keyIter.remove();
-                }
-            }
-        }
+        roleCacheHelper.removeKeysIf(key -> key.names.contains(role));
         negativeLookupCache.invalidate(role);
     }
 
     public void invalidate(Set<String> roles) {
         numInvalidation.incrementAndGet();
-
-        // the cache cannot be modified while doing this operation per the terms of the cache iterator
-        try (ReleasableLock ignored = writeLock.acquire()) {
-            Iterator<RoleKey> keyIter = roleCache.keys().iterator();
-            while (keyIter.hasNext()) {
-                RoleKey key = keyIter.next();
-                if (Sets.haveEmptyIntersection(key.names, roles) == false) {
-                    keyIter.remove();
-                }
-            }
-        }
-
+        roleCacheHelper.removeKeysIf(key -> Sets.haveEmptyIntersection(key.names, roles) == false);
         roles.forEach(negativeLookupCache::invalidate);
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         final Map<String, Object> usage = new HashMap<>(2);
         usage.put("file", fileRolesStore.usageStats());
+        usage.put("dls", Map.of("bit_set_cache", dlsBitsetCache.usageStats()));
         nativeRolesStore.usageStats(ActionListener.wrap(map -> {
             usage.put("native", map);
             listener.onResponse(usage);

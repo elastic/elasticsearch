@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -41,7 +42,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
@@ -57,7 +57,6 @@ final class DocumentParser {
     }
 
     ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
-        validateType(source);
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
@@ -116,18 +115,6 @@ final class DocumentParser {
         }
     }
 
-    private void validateType(SourceToParse source) {
-        if (docMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
-            throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
-        }
-
-        if (Objects.equals(source.type(), docMapper.type()) == false &&
-                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used by typeless APIs
-            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type ["
-                + docMapper.type() + "]");
-        }
-    }
-
     private static void validateStart(XContentParser parser) throws IOException {
         // will result in START_OBJECT
         XContentParser.Token token = parser.nextToken();
@@ -166,7 +153,6 @@ final class DocumentParser {
             context.version(),
             context.seqID(),
             context.sourceToParse().id(),
-            context.sourceToParse().type(),
             source.routing(),
             context.docs(),
             context.sourceToParse().source(),
@@ -432,21 +418,23 @@ final class DocumentParser {
     private static void nested(ParseContext context, ObjectMapper.Nested nested) {
         ParseContext.Document nestedDoc = context.doc();
         ParseContext.Document parentDoc = nestedDoc.getParent();
+        Settings settings = context.indexSettings().getSettings();
         if (nested.isIncludeInParent()) {
-            addFields(nestedDoc, parentDoc);
+            addFields(settings, nestedDoc, parentDoc);
         }
         if (nested.isIncludeInRoot()) {
             ParseContext.Document rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
-                addFields(nestedDoc, rootDoc);
+                addFields(settings, nestedDoc, rootDoc);
             }
         }
     }
 
-    private static void addFields(ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+    private static void addFields(Settings settings, ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+        String nestedPathFieldName = NestedPathFieldMapper.name(settings);
         for (IndexableField field : nestedDoc.getFields()) {
-            if (!field.name().equals(TypeFieldMapper.NAME)) {
+            if (field.name().equals(nestedPathFieldName) == false) {
                 rootDoc.add(field);
             }
         }
@@ -472,10 +460,7 @@ final class DocumentParser {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
 
-        // the type of the nested doc starts with __, so we can identify that its a nested one in filters
-        // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
-        // across types (for example, with similar nested objects)
-        nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.FIELD_TYPE));
+        nestedDoc.add(NestedPathFieldMapper.field(context.indexSettings().getSettings(), mapper.nestedTypePath()));
         return context;
     }
 
@@ -670,7 +655,7 @@ final class DocumentParser {
             }
         }
         if (builder == null) {
-            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(currentFieldName);
+            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
             Mapper.TypeParser typeParser = parserContext.typeParser(fieldType.typeName());
             if (typeParser == null) {
                 throw new MapperParsingException("Cannot generate dynamic mappings of type [" + fieldType.typeName()
@@ -764,13 +749,17 @@ final class DocumentParser {
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
             XContentParser.NumberType numberType = context.parser().numberType();
-            if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
+            if (numberType == XContentParser.NumberType.INT
+                    || numberType == XContentParser.NumberType.LONG
+                    || numberType == XContentParser.NumberType.BIG_INTEGER) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
                     builder = newLongBuilder(currentFieldName);
                 }
                 return builder;
-            } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
+            } else if (numberType == XContentParser.NumberType.FLOAT
+                    || numberType == XContentParser.NumberType.DOUBLE
+                    || numberType == XContentParser.NumberType.BIG_DECIMAL) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
                 if (builder == null) {
                     // no templates are defined, we use float by default instead of double

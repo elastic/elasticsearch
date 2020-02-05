@@ -54,7 +54,9 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -63,7 +65,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  * It sets up a cluster with Monitoring and Security configured with SSL. Once started,
  * an HTTP exporter is activated and it exports data locally over HTTPS/SSL. The test
- * then uses a transport client to check that the data have been correctly received and
+ * then uses a rest client to check that the data have been correctly received and
  * indexed in the cluster.
  */
 public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
@@ -148,25 +150,42 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
     @Before
     public void enableExporter() throws Exception {
         Settings exporterSettings = Settings.builder()
-                .put("xpack.monitoring.collection.enabled", true)
-                .put("xpack.monitoring.exporters._http.enabled", true)
-                .put("xpack.monitoring.exporters._http.host", "https://" + randomNodeHttpAddress())
-                .build();
+            .put("xpack.monitoring.collection.enabled", true)
+            .put("xpack.monitoring.exporters._http.enabled", true)
+            .put("xpack.monitoring.exporters._http.type", "http")
+            .put("xpack.monitoring.exporters._http.host", "https://" + randomNodeHttpAddress())
+            .put("xpack.monitoring.exporters._http.auth.username", "monitoring_agent")
+            .put("xpack.monitoring.exporters._http.auth.password", "x-pack-test-password")
+            .put("xpack.monitoring.exporters._http.ssl.verification_mode", "full")
+            .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
+            .build();
         ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), getRequestOptions());
         assertTrue(response.isAcknowledged());
     }
 
     @After
     public void disableExporter() throws IOException {
         Settings exporterSettings = Settings.builder()
-                .putNull("xpack.monitoring.collection.enabled")
-                .putNull("xpack.monitoring.exporters._http.enabled")
-                .putNull("xpack.monitoring.exporters._http.host")
-                .build();
+            .putNull("xpack.monitoring.collection.enabled")
+            .putNull("xpack.monitoring.exporters._http.enabled")
+            .putNull("xpack.monitoring.exporters._http.type")
+            .putNull("xpack.monitoring.exporters._http.host")
+            .putNull("xpack.monitoring.exporters._http.auth.username")
+            .putNull("xpack.monitoring.exporters._http.auth.password")
+            .putNull("xpack.monitoring.exporters._http.ssl.verification_mode")
+            .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
+            .build();
         ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), getRequestOptions());
         assertTrue(response.isAcknowledged());
+    }
+
+    private RequestOptions getRequestOptions() {
+        String deprecationWarning = "[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will " +
+            "be removed in a future release! See the breaking changes documentation for the next major version.";
+        return RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.size() != 1 ||
+            warnings.get(0).equals(deprecationWarning) == false).build();
     }
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {
@@ -224,6 +243,16 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
                 fail("monitoring date not exported yet: " + e.getMessage());
             }
         });
+    }
+
+    public void testSettingsFilter() throws IOException {
+        final Request request = new Request("GET", "/_cluster/settings");
+        final Response response = client().performRequest(request);
+        final ObjectPath path = ObjectPath.createFromResponse(response);
+        final Map<String, Object> settings = path.evaluate("transient.xpack.monitoring.exporters._http");
+        assertThat(settings, hasKey("type"));
+        assertThat(settings, not(hasKey("auth")));
+        assertThat(settings, not(hasKey("ssl")));
     }
 
     private String randomNodeHttpAddress() throws IOException {

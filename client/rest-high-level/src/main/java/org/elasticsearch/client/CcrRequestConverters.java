@@ -29,9 +29,11 @@ import org.elasticsearch.client.ccr.FollowInfoRequest;
 import org.elasticsearch.client.ccr.FollowStatsRequest;
 import org.elasticsearch.client.ccr.ForgetFollowerRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.PauseAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
+import org.elasticsearch.client.ccr.ResumeAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 
@@ -116,6 +118,24 @@ final class CcrRequestConverters {
             .addPathPart(getAutoFollowPatternRequest.getName())
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
+    static Request pauseAutoFollowPattern(PauseAutoFollowPatternRequest pauseAutoFollowPatternRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_ccr", "auto_follow")
+            .addPathPart(pauseAutoFollowPatternRequest.getName())
+            .addPathPartAsIs("pause")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request resumeAutoFollowPattern(ResumeAutoFollowPatternRequest resumeAutoFollowPatternRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_ccr", "auto_follow")
+            .addPathPart(resumeAutoFollowPatternRequest.getName())
+            .addPathPartAsIs("resume")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
     static Request getCcrStats(CcrStatsRequest ccrStatsRequest) {

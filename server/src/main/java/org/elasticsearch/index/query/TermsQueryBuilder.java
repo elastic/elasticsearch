@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -63,11 +61,6 @@ import java.util.stream.IntStream;
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(TermsQueryBuilder.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated " +
-        "in [terms] lookup queries.";
 
     private final String fieldName;
     private final List<?> values;
@@ -215,10 +208,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     public TermsLookup termsLookup() {
         return this.termsLookup;
-    }
-
-    public boolean isTypeless() {
-        return termsLookup == null || termsLookup.type() == null;
     }
 
     private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
@@ -406,10 +395,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             .boost(boost)
             .queryName(queryName);
 
-        if (builder.isTypeless() == false) {
-            deprecationLogger.deprecatedAndMaybeLog("terms_lookup_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         return builder;
     }
 
@@ -459,9 +444,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
-        GetRequest getRequest = termsLookup.type() == null
-            ? new GetRequest(termsLookup.index(), termsLookup.id())
-            : new GetRequest(termsLookup.index(), termsLookup.type(), termsLookup.id());
+        GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
@@ -498,6 +481,21 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 return null;
             })));
             return new TermsQueryBuilder(this.fieldName, supplier::get);
+        }
+        if ("_index".equals(this.fieldName) && values != null) {
+            // Special-case optimisation for canMatch phase:  
+            // We can skip querying this shard if the index name doesn't match any of the search terms.
+            QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+            if (shardContext != null) {
+                for (Object localValue : values) {
+                    if (shardContext.indexMatches(BytesRefs.toString(localValue))) {
+                        // We can match - at least one index name matches
+                        return this;
+                    }     
+                }
+                // all index names are invalid - no possibility of a match on this shard.
+                return new MatchNoneQueryBuilder();
+            }
         }
         return this;
     }

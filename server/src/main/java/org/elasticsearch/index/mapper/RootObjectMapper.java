@@ -89,6 +89,7 @@ public class RootObjectMapper extends ObjectMapper {
          * @param parentIncluded True iff node is a child of root or a node that is included in
          * root
          */
+        @SuppressWarnings("rawtypes")
         private static void fixRedundantIncludes(ObjectMapper.Builder omb, boolean parentIncluded) {
             for (Object mapper : omb.mappersBuilders) {
                 if (mapper instanceof ObjectMapper.Builder) {
@@ -119,6 +120,7 @@ public class RootObjectMapper extends ObjectMapper {
     public static class TypeParser extends ObjectMapper.TypeParser {
 
         @Override
+        @SuppressWarnings("rawtypes")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
 
             RootObjectMapper.Builder builder = new Builder(name);
@@ -135,8 +137,9 @@ public class RootObjectMapper extends ObjectMapper {
             return builder;
         }
 
+        @SuppressWarnings("unchecked")
         protected boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode,
-                Version indexVersionCreated) {
+                                       Version indexVersionCreated) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
@@ -154,15 +157,20 @@ public class RootObjectMapper extends ObjectMapper {
                 }
                 return true;
             } else if (fieldName.equals("dynamic_templates")) {
-                //  "dynamic_templates" : [
-                //      {
-                //          "template_1" : {
-                //              "match" : "*_test",
-                //              "match_mapping_type" : "string",
-                //              "mapping" : { "type" : "string", "store" : "yes" }
-                //          }
-                //      }
-                //  ]
+                /*
+                  "dynamic_templates" : [
+                      {
+                          "template_1" : {
+                              "match" : "*_test",
+                              "match_mapping_type" : "string",
+                              "mapping" : { "type" : "string", "store" : "yes" }
+                          }
+                      }
+                  ]
+                */
+                if ((fieldNode instanceof List) == false) {
+                    throw new MapperParsingException("Dynamic template syntax error. An array of named objects is expected.");
+                }
                 List<?> tmplNodes = (List<?>) fieldNode;
                 List<DynamicTemplate> templates = new ArrayList<>();
                 for (Object tmplNode : tmplNodes) {
@@ -231,6 +239,7 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicDateTimeFormatters.value();
     }
 
+    @SuppressWarnings("rawtypes")
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
         return findTemplateBuilder(context, name, matchType.defaultMappingType(), matchType);
     }
@@ -242,12 +251,13 @@ public class RootObjectMapper extends ObjectMapper {
      * @param matchType   the type of the field in the json document or null if unknown
      * @return a mapper builder, or null if there is no template for such a field
      */
+    @SuppressWarnings("rawtypes")
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType, XContentFieldType matchType) {
         DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(name);
+        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {

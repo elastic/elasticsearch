@@ -30,6 +30,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -44,10 +45,10 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -81,8 +82,17 @@ public class QueryProfilerTests extends ESTestCase {
         }
         reader = w.getReader();
         w.close();
-        Engine.Searcher engineSearcher = new Engine.Searcher("test", new IndexSearcher(reader), null);
-        searcher = new ContextIndexSearcher(engineSearcher, IndexSearcher.getDefaultQueryCache(), MAYBE_CACHE_POLICY);
+        searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(), ALWAYS_CACHE_POLICY);
+    }
+
+    @After
+    public void checkNoCache() {
+        LRUQueryCache cache = (LRUQueryCache) searcher.getQueryCache();
+        assertThat(cache.getHitCount(), equalTo(0L));
+        assertThat(cache.getCacheCount(), equalTo(0L));
+        assertThat(cache.getTotalCount(), equalTo(cache.getMissCount()));
+        assertThat(cache.getCacheSize(), equalTo(0L));
     }
 
     @AfterClass
@@ -159,10 +169,6 @@ public class QueryProfilerTests extends ESTestCase {
 
     public void testApproximations() throws IOException {
         QueryProfiler profiler = new QueryProfiler();
-        Engine.Searcher engineSearcher = new Engine.Searcher("test", new IndexSearcher(reader), reader::close);
-        // disable query caching since we want to test approximations, which won't
-        // be exposed on a cached entry
-        ContextIndexSearcher searcher = new ContextIndexSearcher(engineSearcher, null, MAYBE_CACHE_POLICY);
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
@@ -185,7 +191,6 @@ public class QueryProfilerTests extends ESTestCase {
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
-
     }
 
     public void testCollector() throws IOException {
@@ -289,17 +294,4 @@ public class QueryProfilerTests extends ESTestCase {
         }
 
     };
-
-    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
-
-        @Override
-        public void onUse(Query query) {}
-
-        @Override
-        public boolean shouldCache(Query query) throws IOException {
-            return false;
-        }
-
-    };
-
 }

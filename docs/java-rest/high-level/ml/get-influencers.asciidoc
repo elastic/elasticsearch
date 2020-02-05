@@ -3,15 +3,15 @@
 :request: GetInfluencersRequest
 :response: GetInfluencersResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Influencers API
+=== Get influencers API
 
-The Get Influencers API retrieves one or more influencer results.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Retrieves one or more influencer results.
+It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Influencers Request
+==== Get influencers request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 
@@ -19,9 +19,9 @@ A +{request}+ object gets created with an existing non-null `jobId`.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request referencing an existing `jobId`
+<1> Constructing a new request referencing an existing `jobId`.
 
-==== Optional Arguments
+==== Optional arguments
 The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -46,14 +46,16 @@ include-tagged::{doc-tests-file}[{api}-exclude-interim]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-influencer-score]
 --------------------------------------------------
-<1> Influencers with influencer_score greater or equal than this value will be returned.
+<1> Influencers with `influencer_score` greater than or equal to this value will
+be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-page]
 --------------------------------------------------
-<1> The page parameters `from` and `size`. `from` specifies the number of influencers to skip.
-`size` specifies the maximum number of influencers to get. Defaults to `0` and `100` respectively.
+<1> The page parameters `from` and `size`. `from` specifies the number of
+influencers to skip. `size` specifies the maximum number of influencers to get.
+Defaults to `0` and `100` respectively.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -70,7 +72,7 @@ include-tagged::{doc-tests-file}[{api}-start]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get Influencers Response
+==== Get influencers response
 
 The returned +{response}+ contains the requested influencers:
 
@@ -78,5 +80,5 @@ The returned +{response}+ contains the requested influencers:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of influencers that were matched
-<2> The influencers retrieved
+<1> The count of influencers that were matched.
+<2> The influencers retrieved.

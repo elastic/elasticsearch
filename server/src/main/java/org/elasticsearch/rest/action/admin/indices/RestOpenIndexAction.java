@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -33,8 +32,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 
 public class RestOpenIndexAction extends BaseRestHandler {
-    public RestOpenIndexAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestOpenIndexAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, "/_open", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_open", this);
     }

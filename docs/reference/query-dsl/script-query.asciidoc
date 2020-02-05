@@ -1,12 +1,18 @@
 [[query-dsl-script-query]]
-=== Script Query
+=== Script query
+++++
+<titleabbrev>Script</titleabbrev>
+++++
 
-A query allowing to define
-<<modules-scripting,scripts>> as queries. They are typically used in a filter
-context, for example:
+Filters documents based on a provided <<modules-scripting-using,script>>. The
+`script` query is typically used in a <<query-filter-context,filter context>>.
 
-[source,js]
-----------------------------------------------
+
+[[script-query-ex-request]]
+==== Example request
+
+[source,console]
+----
 GET /_search
 {
     "query": {
@@ -22,18 +28,28 @@ GET /_search
         }
     }
 }
-----------------------------------------------
-// CONSOLE
+----
 
-[float]
-==== Custom Parameters
 
-Scripts are compiled and cached for faster execution. If the same script
-can be used, just with different parameters provider, it is preferable
-to use the ability to pass parameters to the script itself, for example:
+[[script-top-level-params]]
+==== Top-level parameters for `script`
 
-[source,js]
-----------------------------------------------
+`script`::
+(Required, <<modules-scripting-using, script object>>) Contains a script to run
+as a query. This script must return a boolean value, `true` or `false`.
+
+[[script-query-notes]]
+==== Notes
+
+[[script-query-custom-params]]
+===== Custom Parameters
+
+Like <<query-filter-context,filters>>, scripts are cached for faster execution.
+If you frequently change the arguments of a script, we recommend you store them
+in the script's `params` parameter. For example:
+
+[source,console]
+----
 GET /_search
 {
     "query": {
@@ -52,6 +68,4 @@ GET /_search
         }
     }
 }
-----------------------------------------------
-// CONSOLE
-
+----

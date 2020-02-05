@@ -44,7 +44,7 @@ USER()
 .Description:
 
 Returns the username of the authenticated user executing the query. This function can
-return `null` in case {stack-ov}/elasticsearch-security.html[Security] is disabled.
+return `null` in case <<elasticsearch-security,security>> is disabled.
 
 [source, sql]
 --------------------------------------------------

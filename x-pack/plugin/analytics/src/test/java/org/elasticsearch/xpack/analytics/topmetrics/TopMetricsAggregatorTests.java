@@ -315,7 +315,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             @Override
             public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                System.err.println("Used " + total + " grabbing " + bytes + " for " + label);
+                logger.debug("Used {} grabbing {} for {}", total, bytes, label);
                 total += bytes;
                 if (total > max.getBytes()) {
                     throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
@@ -325,7 +325,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             @Override
             public long addWithoutBreaking(long bytes) {
-                System.err.println("Used " + total + " grabbing " + bytes);
+                logger.debug("Used {} grabbing {}", total, bytes);
                 total += bytes;
                 return total;
             }
@@ -364,7 +364,10 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                         throw new RuntimeException("ADFADFS " + b, e);
                     }
                 }
-                leaf.collect(0, bucketThatBreaks);
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> leaf.collect(0, bucketThatBreaks));
+                assertThat(e.getMessage(), equalTo("test error"));
+                assertThat(e.getByteLimit(), equalTo(max.getBytes()));
+                assertThat(e.getBytesWanted(), equalTo(16440L));
             }
         }
     }

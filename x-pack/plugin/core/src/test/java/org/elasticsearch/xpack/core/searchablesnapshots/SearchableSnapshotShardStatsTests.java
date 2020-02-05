@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardS
 import java.util.ArrayList;
 import java.util.List;
 
-;
-
 public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTestCase<SearchableSnapshotShardStats> {
 
     @Override
@@ -52,6 +50,6 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
     }
 
     private Counter randomCounter() {
-        return new Counter(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        return new Counter(randomLong(), randomLong(), randomLong(), randomLong());
     }
 }

@@ -23,6 +23,7 @@ public class IndexInputStats {
     static final ByteSizeValue SEEKING_THRESHOLD = new ByteSizeValue(8, ByteSizeUnit.MB);
 
     private final long fileLength;
+    private final long seekingThreshold;
 
     private final LongAdder opened = new LongAdder();
     private final LongAdder inner = new LongAdder();
@@ -43,7 +44,13 @@ public class IndexInputStats {
     private final Counter cachedBytesWritten = new Counter();
 
     public IndexInputStats(long fileLength) {
+        this(fileLength, SEEKING_THRESHOLD.getBytes());
+    }
+
+    // pkg-private for testing
+    IndexInputStats(long fileLength, long seekingThreshold) {
         this.fileLength = fileLength;
+        this.seekingThreshold = seekingThreshold;
     }
 
     public void incrementOpenCount() {
@@ -149,8 +156,8 @@ public class IndexInputStats {
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
-    boolean isLargeSeek(long delta) {
-        return delta != Long.MIN_VALUE && Math.abs(delta) > SEEKING_THRESHOLD.getBytes();
+    private boolean isLargeSeek(long delta) {
+        return delta != Long.MIN_VALUE && Math.abs(delta) > seekingThreshold;
     }
 
     public static class Counter {

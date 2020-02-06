@@ -30,10 +30,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggregationBuilder<PercentileRanksAggregationBuilder> {
@@ -42,33 +40,10 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     private static final ParseField VALUES_FIELD = new ParseField("values");
     private static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER;
     static {
-        PARSER = new ConstructingObjectParser<>(PercentileRanksAggregationBuilder.NAME, false, (objects, name) -> {
-
-            double[] values = ((List<Double>) objects[0]).stream().mapToDouble(Double::doubleValue).toArray();
-            PercentilesMethod.Config percentilesConfig;
-
-            if (objects[1] != null && objects[2] != null) {
-                throw new IllegalStateException("Only one percentiles method should be declared.");
-            } else if (objects[1] == null && objects[2] == null) {
-                // Default is tdigest
-                percentilesConfig = new PercentilesMethod.Config.TDigest();
-            } else if (objects[1] != null) {
-                percentilesConfig = (PercentilesMethod.Config) objects[1];
-            } else {
-                percentilesConfig = (PercentilesMethod.Config) objects[2];
-            }
-
-            return new PercentileRanksAggregationBuilder(name, values, percentilesConfig);
-        });
-
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
-
-        PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), VALUES_FIELD);
-        PARSER.declareBoolean(PercentileRanksAggregationBuilder::keyed, PercentilesAggregationBuilder.KEYED_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.TDIGEST_PARSER,
-            PercentilesMethod.TDIGEST.getParseField());
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.HDR_PARSER,
-            PercentilesMethod.HDR.getParseField());
+        PARSER = AbstractPercentilesAggregationBuilder.getParser(
+            PercentileRanksAggregationBuilder.NAME,
+            PercentileRanksAggregationBuilder::new,
+            VALUES_FIELD);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

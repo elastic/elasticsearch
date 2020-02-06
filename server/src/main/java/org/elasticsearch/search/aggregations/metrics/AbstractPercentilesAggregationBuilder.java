@@ -21,18 +21,22 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -41,7 +45,7 @@ import java.util.Objects;
  * It provides a set of common fields/functionality for setting the available algorithms (TDigest and HDRHistogram),
  * as well as algorithm-specific settings via a {@link PercentilesMethod.Config} object
  */
-public abstract class AbstractPercentilesAggregationBuilder<T extends ValuesSourceAggregationBuilder<ValuesSource, T>>
+public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPercentilesAggregationBuilder<T>>
     extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, T> {
 
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
@@ -49,6 +53,44 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends ValuesSour
     protected double[] values;
     private PercentilesMethod.Config percentilesConfig;
     private ParseField valuesField;
+
+    public static <T extends AbstractPercentilesAggregationBuilder<T>> ConstructingObjectParser<T, String> getParser(String aggName,
+                                                         TriFunction<String, double[], PercentilesMethod.Config, T> fn,
+                                                         ParseField valuesField) {
+
+        ConstructingObjectParser<T, String> parser = new ConstructingObjectParser<>(aggName, false, (objects, name) -> {
+
+            if (objects == null || objects.length == 0) {
+                return fn.apply(name, null, new PercentilesMethod.Config.TDigest());
+            }
+
+            double[] values = objects[0] != null ? ((List<Double>) objects[0]).stream().mapToDouble(Double::doubleValue).toArray() : null;
+            PercentilesMethod.Config percentilesConfig;
+
+            if (objects[1] != null && objects[2] != null) {
+                throw new IllegalArgumentException("Only one percentiles method should be declared.");
+            } else if (objects[1] == null && objects[2] == null) {
+                // Default is tdigest
+                percentilesConfig = new PercentilesMethod.Config.TDigest();
+            } else if (objects[1] != null) {
+                percentilesConfig = (PercentilesMethod.Config) objects[1];
+            } else {
+                percentilesConfig = (PercentilesMethod.Config) objects[2];
+            }
+
+            return fn.apply(name, values, percentilesConfig);
+        });
+
+        ValuesSourceParserHelper.declareAnyFields(parser, true, true);
+        parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), valuesField);
+        parser.declareBoolean(T::keyed, KEYED_FIELD);
+        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.TDIGEST_PARSER,
+            PercentilesMethod.TDIGEST.getParseField());
+        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.HDR_PARSER,
+            PercentilesMethod.HDR.getParseField());
+
+        return parser;
+    }
 
     AbstractPercentilesAggregationBuilder(String name, double[] values, PercentilesMethod.Config percentilesConfig,
                                           ParseField valuesField) {
@@ -63,11 +105,6 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends ValuesSour
         Arrays.sort(sortedValues);
         this.values = sortedValues;
         this.percentilesConfig = percentilesConfig;
-        this.valuesField = valuesField;
-    }
-
-    AbstractPercentilesAggregationBuilder(String name, ParseField valuesField) {
-        super(name,  CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
         this.valuesField = valuesField;
     }
 
@@ -142,10 +179,6 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends ValuesSour
      */
     @Deprecated
     public T numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
-        if (numberOfSignificantValueDigits < 0 || numberOfSignificantValueDigits > 5) {
-            throw new IllegalArgumentException("[numberOfSignificantValueDigits] must be between 0 and 5: [" + name + "]");
-        }
-
         if (percentilesConfig == null || percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
             percentilesConfig = new PercentilesMethod.Config.Hdr(numberOfSignificantValueDigits);
         } else {
@@ -180,11 +213,6 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends ValuesSour
      */
     @Deprecated
     public T compression(double compression) {
-        if (compression < 0.0) {
-            throw new IllegalArgumentException(
-                "[compression] must be greater than or equal to 0. Found [" + compression + "] in [" + name + "]");
-        }
-
         if (percentilesConfig == null || percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
             percentilesConfig = new PercentilesMethod.Config.TDigest(compression);
         } else {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
@@ -63,18 +64,16 @@ public enum PercentilesMethod implements Writeable {
     public static final ParseField COMPRESSION_FIELD = new ParseField("compression");
     public static final ParseField NUMBER_SIGNIFICANT_DIGITS_FIELD = new ParseField("number_of_significant_value_digits");
 
-    public static final ConstructingObjectParser<Config.TDigest, String> TDIGEST_PARSER;
+    public static final ObjectParser<Config.TDigest, String> TDIGEST_PARSER;
     static {
-        TDIGEST_PARSER = new ConstructingObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), false,
-            objects -> new Config.TDigest((double) objects[0]));
-        TDIGEST_PARSER.declareDouble(ConstructingObjectParser.constructorArg(), COMPRESSION_FIELD);
+        TDIGEST_PARSER = new ObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), Config.TDigest::new);
+        TDIGEST_PARSER.declareDouble(Config.TDigest::setCompression, COMPRESSION_FIELD);
     }
 
-    public static final ConstructingObjectParser<Config.Hdr, String> HDR_PARSER;
+    public static final ObjectParser<Config.Hdr, String> HDR_PARSER;
     static {
-        HDR_PARSER = new ConstructingObjectParser<>(PercentilesMethod.HDR.getParseField().getPreferredName(), false,
-            objects -> new Config.Hdr((int) objects[0]));
-        HDR_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_SIGNIFICANT_DIGITS_FIELD);
+        HDR_PARSER = new ObjectParser<>(PercentilesMethod.HDR.getParseField().getPreferredName(), Config.Hdr::new);
+        HDR_PARSER.declareInt(Config.Hdr::setNumberOfSignificantValueDigits, NUMBER_SIGNIFICANT_DIGITS_FIELD);
     }
 
     private final ParseField parseField;
@@ -170,7 +169,7 @@ public enum PercentilesMethod implements Writeable {
 
         public static class TDigest extends Config {
             static final double DEFAULT_COMPRESSION = 100.0;
-            private final double compression;
+            private double compression;
 
             TDigest() {
                 this(DEFAULT_COMPRESSION);
@@ -178,11 +177,19 @@ public enum PercentilesMethod implements Writeable {
 
             TDigest(double compression) {
                 super(PercentilesMethod.TDIGEST);
-                this.compression = compression;
+                setCompression(compression);
             }
 
             private TDigest(StreamInput in) throws IOException {
                 this(in.readDouble());
+            }
+
+            public void setCompression(double compression) {
+                if (compression < 0.0) {
+                    throw new IllegalArgumentException(
+                        "[compression] must be greater than or equal to 0. Found [" + compression + "]");
+                }
+                this.compression = compression;
             }
 
             public double getCompression() {
@@ -239,7 +246,7 @@ public enum PercentilesMethod implements Writeable {
 
         public static class Hdr extends Config {
             static final int DEFAULT_NUMBER_SIG_FIGS = 3;
-            private final int numberOfSignificantValueDigits;
+            private int numberOfSignificantValueDigits;
 
             Hdr() {
                 this(DEFAULT_NUMBER_SIG_FIGS);
@@ -247,11 +254,18 @@ public enum PercentilesMethod implements Writeable {
 
             Hdr(int numberOfSignificantValueDigits) {
                 super(PercentilesMethod.HDR);
-                this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
+                setNumberOfSignificantValueDigits(numberOfSignificantValueDigits);
             }
 
             private Hdr(StreamInput in) throws IOException {
                 this(in.readVInt());
+            }
+
+            public void setNumberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
+                if (numberOfSignificantValueDigits < 0 || numberOfSignificantValueDigits > 5) {
+                    throw new IllegalArgumentException("[numberOfSignificantValueDigits] must be between 0 and 5");
+                }
+                this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
             }
 
             public int getNumberOfSignificantValueDigits() {

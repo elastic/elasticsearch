@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,33 +46,15 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
 
     private static final ConstructingObjectParser<PercentilesAggregationBuilder, String> PARSER;
     static {
-        PARSER = new ConstructingObjectParser<>(PercentilesAggregationBuilder.NAME, false, (objects, name) -> {
-
-            double[] values = ((List<Double>) objects[0]).stream().mapToDouble(Double::doubleValue).toArray();
-            PercentilesMethod.Config percentilesConfig;
-
-            if (objects[1] != null && objects[2] != null) {
-                throw new IllegalStateException("Only one percentiles method should be declared.");
-            } else if (objects[1] == null && objects[2] == null) {
-                // Default is tdigest
-                percentilesConfig = new PercentilesMethod.Config.TDigest();
-            } else if (objects[1] != null) {
-                percentilesConfig = (PercentilesMethod.Config) objects[1];
-            } else {
-                percentilesConfig = (PercentilesMethod.Config) objects[2];
-            }
-
-            return new PercentilesAggregationBuilder(name, values, percentilesConfig);
-        });
-
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
-
-        PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), PERCENTS_FIELD);
-        PARSER.declareBoolean(PercentilesAggregationBuilder::keyed, KEYED_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.TDIGEST_PARSER,
-            PercentilesMethod.TDIGEST.getParseField());
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.HDR_PARSER,
-            PercentilesMethod.HDR.getParseField());
+        PARSER = AbstractPercentilesAggregationBuilder.getParser(
+            PercentilesAggregationBuilder.NAME,
+            (name, values, percentileConfig) -> {
+                if (values == null) {
+                    values = DEFAULT_PERCENTS; // this is needed because Percentiles has a default, while Ranks does not
+                }
+                return new PercentilesAggregationBuilder(name, values, percentileConfig);
+            },
+            PERCENTS_FIELD);
     }
 
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {
@@ -83,8 +66,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     }
 
     public PercentilesAggregationBuilder(String name) {
-        super(name, PERCENTS_FIELD);
-        this.values = DEFAULT_PERCENTS;
+        this(name, DEFAULT_PERCENTS, null);
     }
 
     public PercentilesAggregationBuilder(String name, double[] values, PercentilesMethod.Config percentilesConfig) {

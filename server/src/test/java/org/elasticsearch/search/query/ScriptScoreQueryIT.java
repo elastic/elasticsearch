@@ -189,7 +189,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
                             .prepareSearch("test-index")
                             .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))
                             .get());
-            assertEquals("script score queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+            assertEquals("Script score queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                     e.getCause().getMessage());
 
             // Set search.allow_expensive_queries to "true" => success

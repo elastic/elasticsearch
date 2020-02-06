@@ -78,7 +78,7 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
     @Override
     public Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context) {
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("geo shape queries on PrefixTree geo shapes cannot be executed when '"
+            throw new ElasticsearchException("Geo-shape queries on PrefixTree geo shapes cannot be executed when '"
                     + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
         }
 

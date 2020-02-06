@@ -916,7 +916,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     () -> client().prepareSearch()
                             .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
                             .get());
-            assertEquals("percolate queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+            assertEquals("Percolate queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                     e.getCause().getMessage());
 
             // Set search.allow_expensive_queries setting to "true" ==> success

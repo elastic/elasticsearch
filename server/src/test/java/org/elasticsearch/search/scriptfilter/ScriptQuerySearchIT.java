@@ -256,7 +256,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                             .prepareSearch("test-index")
                             .setQuery(scriptQuery(script))
                             .get());
-            assertEquals("script queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+            assertEquals("Script queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                     e.getCause().getMessage());
 
             // Set search.allow_expensive_queries to "true" => success

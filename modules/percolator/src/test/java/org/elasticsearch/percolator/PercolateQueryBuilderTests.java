@@ -351,7 +351,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder queryBuilder = doCreateTestQueryBuilder(true);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
-        assertEquals("percolate queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+        assertEquals("Percolate queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 e.getMessage());
     }
 }

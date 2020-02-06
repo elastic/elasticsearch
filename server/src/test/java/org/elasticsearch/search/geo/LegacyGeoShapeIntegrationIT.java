@@ -221,7 +221,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
             ElasticsearchException e = expectThrows(ElasticsearchException.class,
                     () -> client().prepareSearch("test").setQuery(geoShapeQuery("shape",
                             new Circle(30, 50, 77000))).get());
-            assertEquals("geo shape queries on PrefixTree geo shapes cannot be executed when " +
+            assertEquals("Geo-shape queries on PrefixTree geo shapes cannot be executed when " +
                             "'search.allow_expensive_queries' is set to false", e.getCause().getMessage());
 
             // Set search.allow_expensive_queries to "true" => success

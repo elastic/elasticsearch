@@ -134,8 +134,8 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("script queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() +
-                    "' is set to false");
+            throw new ElasticsearchException("Script queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
         }
         FilterScript.Factory factory = context.compile(script, FilterScript.CONTEXT);
         FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());

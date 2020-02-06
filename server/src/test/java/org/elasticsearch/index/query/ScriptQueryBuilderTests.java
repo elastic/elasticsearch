@@ -139,7 +139,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         ScriptQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
-        assertEquals("script queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+        assertEquals("Script queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 e.getMessage());
     }
 }

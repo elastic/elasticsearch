@@ -275,7 +275,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 CHILD_DOC, new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), false);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
-        assertEquals("joining queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+        assertEquals("Joining queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 e.getMessage());
     }
 }

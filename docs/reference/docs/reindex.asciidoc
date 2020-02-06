@@ -442,8 +442,10 @@ Defaults to `abort`.
 
 `source`::
 `index`:::
-(Required, string) The name of the index you are copying _from_. 
-Also accepts a comma-separated list of indices to reindex from multiple sources.  
+(Required, string or array of strings)
+The name of the index you are copying _from_. 
+Also accepts an array of indices (e.g. `["index1", "index2"]`) to reindex from
+multiple sources.  
 
 `max_docs`:::
 (Optional, integer) The maximum number of documents to reindex.

@@ -20,7 +20,7 @@ import java.io.IOException;
 public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecisionAction.Response> {
 
     public static final GetAutoscalingDecisionAction INSTANCE = new GetAutoscalingDecisionAction();
-    public static final String NAME = "cluster:admin/xpack/autoscaling/get_autoscaling_decision";
+    public static final String NAME = "cluster:admin/autoscaling/get_autoscaling_decision";
 
     private GetAutoscalingDecisionAction() {
         super(NAME, Response::new);

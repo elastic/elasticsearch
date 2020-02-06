@@ -110,7 +110,7 @@ public class ClusterPrivilegeResolver {
         "/ingest/pipeline/*"));
     public static final NamedClusterPrivilege MANAGE_AUTOSCALING = new ActionClusterPrivilege(
         "manage_autoscaling",
-        Set.of("cluster:admin/xpack/autoscaling/*")
+        Set.of("cluster:admin/autoscaling/*")
     );
     public static final NamedClusterPrivilege MANAGE_CCR =            new ActionClusterPrivilege("manage_ccr", MANAGE_CCR_PATTERN);
     public static final NamedClusterPrivilege READ_CCR = new ActionClusterPrivilege("read_ccr", READ_CCR_PATTERN);

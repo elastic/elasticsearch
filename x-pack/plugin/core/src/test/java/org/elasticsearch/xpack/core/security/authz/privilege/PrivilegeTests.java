@@ -175,7 +175,7 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testManageAutoscalingPrivilege() {
-        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_AUTOSCALING, "cluster:admin/xpack/autoscaling/get_decision");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_AUTOSCALING, "cluster:admin/autoscaling/get_decision");
     }
 
     public void testManageCcrPrivilege() {

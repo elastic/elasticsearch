@@ -1,0 +1,100 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: a-complex-regression-model
+        body: >
+          {
+            "description": "super complex model for tests",
+            "input": {"field_names": ["decider"]},
+            "definition": {
+              "trained_model": {
+                "ensemble": {
+                  "feature_names": [],
+                  "target_type": "regression",
+                  "trained_models": [
+                  {
+                    "tree": {
+                      "feature_names": [
+                        "decider"
+                      ],
+                      "tree_structure": [
+                      {
+                        "node_index": 0,
+                        "split_feature": 0,
+                        "split_gain": 12,
+                        "threshold": 38,
+                        "decision_type": "lte",
+                        "default_left": true,
+                        "left_child": 1,
+                        "right_child": 2
+                      },
+                      {
+                        "node_index": 1,
+                        "leaf_value": 5.0
+                      },
+                      {
+                        "node_index": 2,
+                        "leaf_value": 2.0
+                      }
+                      ],
+                      "target_type": "regression"
+                    }
+                  }
+                  ]
+                }
+              }
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: store
+        body:
+          mappings:
+            properties:
+              goods:
+                type: text
+              size:
+                type: double
+
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: store
+        refresh: true
+        body: |
+          { "index": {} }
+          { "goods": "television", "size": 32.0 }
+          { "index": {} }
+          { "goods": "VCR", "size": 0 }
+          { "index": {} }
+          { "goods": "widescreen television", "size": 40.0 }
+
+---
+"Test rescore":
+
+  - do:
+      search:
+        index: store
+        body: |
+          {
+            "query": { "term" : { "goods": {"value": "television"} } },
+            "rescore": {
+              "ml_rescore" : {
+                "model_id": "a-complex-regression-model",
+                "field_mappings": {"size": "decider"},
+                "inference_config": { "regression": {} }
+              }
+            }
+          }
+  - match: { hits.hits.0._score: 5.0 }
+  - match: { hits.hits.1._score: 2.0 }

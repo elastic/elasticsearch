@@ -482,7 +482,6 @@ final class StoreRecovery {
                 snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
             final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-
             final IndexId indexIdFromCS = restoreSource.indexId();
             repositoryDataListener.whenComplete(repositoryData -> {
                 final IndexId indexId;

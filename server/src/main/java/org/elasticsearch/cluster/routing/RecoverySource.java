@@ -242,6 +242,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         }
 
         /**
+         * Gets the {@link IndexId} of the recovery source.
          *
          * @return IndexId or {@code null} if running against old version master that did not add an IndexId to the recovery source
          */

@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -38,20 +39,24 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     final CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType;
     private final CopyOnWriteHashMap<String, String> aliasToConcreteName;
+    private final CopyOnWriteHashMap<String, Set<String>> fieldToSourcePath;
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
 
     FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         aliasToConcreteName = new CopyOnWriteHashMap<>();
+        fieldToSourcePath = new CopyOnWriteHashMap<>();
         dynamicKeyLookup = new DynamicKeyFieldTypeLookup();
     }
 
     private FieldTypeLookup(CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType,
                             CopyOnWriteHashMap<String, String> aliasToConcreteName,
+                            CopyOnWriteHashMap<String, Set<String>> fieldToSourcePath,
                             DynamicKeyFieldTypeLookup dynamicKeyLookup) {
         this.fullNameToFieldType = fullNameToFieldType;
         this.aliasToConcreteName = aliasToConcreteName;
+        this.fieldToSourcePath = fieldToSourcePath;
         this.dynamicKeyLookup = dynamicKeyLookup;
     }
 
@@ -66,6 +71,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
         CopyOnWriteHashMap<String, String> aliases = this.aliasToConcreteName;
+        CopyOnWriteHashMap<String, Set<String>> sourcePaths = this.fieldToSourcePath;
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -80,6 +86,17 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             if (fieldMapper instanceof DynamicKeyFieldMapper) {
                 dynamicKeyMappers.put(fieldName, (DynamicKeyFieldMapper) fieldMapper);
             }
+
+            for (String targetField : fieldMapper.copyTo().copyToFields()) {
+                Set<String> sourcePath = sourcePaths.get(targetField);
+                if (sourcePath == null) {
+                    sourcePaths = sourcePaths.copyAndPut(targetField, Collections.singleton(fieldName));
+                } else if (sourcePath.contains(fieldName) == false) {
+                    Set<String> newSourcePath = new HashSet<>(sourcePath);
+                    newSourcePath.add(fieldName);
+                    sourcePaths = sourcePaths.copyAndPut(targetField, Collections.unmodifiableSet(newSourcePath));
+                }
+            }
         }
 
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
@@ -93,7 +110,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         }
 
         DynamicKeyFieldTypeLookup newDynamicKeyLookup = this.dynamicKeyLookup.copyAndAddAll(dynamicKeyMappers, aliases);
-        return new FieldTypeLookup(fullName, aliases, newDynamicKeyLookup);
+        return new FieldTypeLookup(fullName, aliases, sourcePaths, newDynamicKeyLookup);
     }
 
     /**
@@ -127,6 +144,30 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
         return fields;
+    }
+
+    public Set<String> sourcePath(String field) {
+        String targetField = aliasToConcreteName.get(field);
+        if (targetField != null) {
+            return Collections.singleton(targetField);
+        }
+
+        String parentField = getParentField(field);
+        if (parentField != null) {
+            return Collections.singleton(parentField);
+        }
+
+        return fieldToSourcePath.getOrDefault(field, new HashSet<>());
+    }
+
+    private String getParentField(String field) {
+        int lastDotIndex = field.lastIndexOf('.');
+        if (lastDotIndex < 0) {
+            return null;
+        }
+
+        String parentField = field.substring(0, lastDotIndex);
+        return fullNameToFieldType.containsKey(parentField) ? parentField : null;
     }
 
     @Override

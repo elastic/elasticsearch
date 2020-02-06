@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilities.SourcePath;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -51,9 +53,9 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
 
     public void testBuilder() {
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", true, false, Collections.emptyMap());
-        builder.add("index2", true, false, Collections.emptyMap());
-        builder.add("index3", true, false, Collections.emptyMap());
+        builder.add("index1", true, false, Collections.emptyMap(), Collections.emptySet());
+        builder.add("index2", true, false, Collections.emptyMap(), Collections.emptySet());
+        builder.add("index3", true, false, Collections.emptyMap(), Collections.emptySet());
 
         {
             FieldCapabilities cap1 = builder.build(false);
@@ -63,6 +65,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
             assertEquals(Collections.emptyMap(), cap1.meta());
+            assertEquals(Collections.emptyList(), cap1.sourcePath());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
@@ -72,12 +75,13 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
             assertEquals(Collections.emptyMap(), cap2.meta());
+            assertEquals(Collections.emptyList(), cap2.sourcePath());
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, true, Collections.emptyMap());
-        builder.add("index2", true, false, Collections.emptyMap());
-        builder.add("index3", false, false, Collections.emptyMap());
+        builder.add("index1", false, true, Collections.emptyMap(), Collections.emptySet());
+        builder.add("index2", true, false, Collections.emptyMap(), Collections.emptySet());
+        builder.add("index3", false, false, Collections.emptyMap(), Collections.emptySet());
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
@@ -86,6 +90,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap1.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
             assertThat(cap1.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
             assertEquals(Collections.emptyMap(), cap1.meta());
+            assertEquals(Collections.emptyList(), cap1.sourcePath());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(false));
@@ -95,12 +100,13 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap2.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
             assertThat(cap2.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
             assertEquals(Collections.emptyMap(), cap2.meta());
+            assertEquals(Collections.emptyList(), cap2.sourcePath());
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", true, true, Collections.emptyMap());
-        builder.add("index2", true, true, Map.of("foo", "bar"));
-        builder.add("index3", true, true, Map.of("foo", "quux"));
+        builder.add("index1", true, true, Collections.emptyMap(), Set.of("field1", "field2"));
+        builder.add("index2", true, true, Map.of("foo", "bar"), Collections.emptySet());
+        builder.add("index3", true, true, Map.of("foo", "quux"), Set.of("field2", "field1"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -109,6 +115,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap1.meta());
+            assertEquals(List.of(new SourcePath(new String[]{"index1", "index3"}, new String[]{"field1", "field2"})), cap1.sourcePath());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
@@ -118,6 +125,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap2.meta());
+            assertEquals(List.of(new SourcePath(new String[]{"index1", "index3"}, new String[]{"field1", "field2"})), cap2.sourcePath());
         }
     }
 
@@ -157,9 +165,16 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             break;
         }
 
+        List<SourcePath> sourcePaths = Collections.emptyList();
+        if (randomBoolean()) {
+            sourcePaths = List.of(
+                new SourcePath(new String[]{"index1, index2"}, new String[]{"field"}),
+                new SourcePath(new String[]{"index3"}, new String[]{"other_field"}));
+        }
+
         return new FieldCapabilities(fieldName,
             randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(),
-            indices, nonSearchableIndices, nonAggregatableIndices, meta);
+            indices, nonSearchableIndices, nonAggregatableIndices, meta, sourcePaths);
     }
 
     @Override
@@ -172,6 +187,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         String[] nonSearchableIndices = instance.nonSearchableIndices();
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
         Map<String, Set<String>> meta = instance.meta();
+        List<SourcePath> sourcePaths = instance.sourcePath();
         switch (between(0, 7)) {
         case 0:
             name += randomAlphaOfLengthBetween(1, 10);
@@ -236,9 +252,19 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             }
             meta = newMeta;
             break;
+        case 8:
+            if (sourcePaths.isEmpty()) {
+                sourcePaths = List.of(
+                    new SourcePath(new String[]{"index1, index2"}, new String[]{"field"}),
+                    new SourcePath(new String[]{"index3"}, new String[]{"other_field"}));
+            } else {
+                sourcePaths = Collections.emptyList();
+            }
+            break;
         default:
             throw new AssertionError();
         }
-        return new FieldCapabilities(name, type, isSearchable, isAggregatable, indices, nonSearchableIndices, nonAggregatableIndices, meta);
+        return new FieldCapabilities(name, type, isSearchable, isAggregatable,
+            indices, nonSearchableIndices, nonAggregatableIndices, meta, sourcePaths);
     }
 }

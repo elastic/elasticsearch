@@ -968,7 +968,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         private MockFieldCapsResponseBuilder addField(String field, boolean isAggregatable, String... types) {
             Map<String, FieldCapabilities> caps = new HashMap<>();
             for (String type : types) {
-                caps.put(type, new FieldCapabilities(field, type, true, isAggregatable, null, null, null, Collections.emptyMap()));
+                caps.put(type, new FieldCapabilities(field, type, true, isAggregatable, null, null, null,
+                    Collections.emptyMap(), Collections.emptyList()));
             }
             fieldCaps.put(field, caps);
             return this;

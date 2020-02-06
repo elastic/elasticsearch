@@ -1,0 +1,76 @@
+---
+setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: "source_path is currently only supported on 8.0."
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            properties:
+              field:
+                type: text
+              new_field:
+                type: alias
+                path: field
+              copy_to_field1:
+                type: text
+                copy_to: field
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          mappings:
+            properties:
+              field:
+                type: text
+              new_field:
+                type: alias
+                path: field
+              copy_to_field2:
+                type: text
+                copy_to: field
+
+  - do:
+      indices.create:
+        index: index3
+        body:
+          mappings:
+            properties:
+              field:
+                type: text
+              new_field:
+                type: text
+              copy_to_field2:
+                type: text
+                copy_to: field
+
+---
+"Merge source path information across multiple indices":
+  - do:
+      field_caps:
+        index: index1
+        fields: ["field", "new_field"]
+
+  - match: {"fields.field.text.source_path.0.indices": ["index1"]}
+  - match: {"fields.field.text.source_path.0.paths":   ["copy_to_field1"]}
+
+  - match: {"fields.new_field.text.source_path.0.indices": ["index1"]}
+  - match: {"fields.new_field.text.source_path.0.paths":   ["field"]}
+
+  - do:
+      field_caps:
+        index: index1,index2,index3
+        fields: ["field", "new_field"]
+
+  - match: {"fields.field.text.source_path.0.indices": ["index1"]}
+  - match: {"fields.field.text.source_path.0.paths":   ["copy_to_field1"]}
+
+  - match: {"fields.field.text.source_path.1.indices": ["index2", "index3"]}
+  - match: {"fields.field.text.source_path.1.paths":   ["copy_to_field2"]}
+
+  - match: {"fields.new_field.text.source_path.0.indices": ["index1", "index2"]}
+  - match: {"fields.new_field.text.source_path.0.paths":   ["field"]}

@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -40,6 +41,7 @@ public class IndexFieldCapabilities implements Writeable {
     private final boolean isSearchable;
     private final boolean isAggregatable;
     private final Map<String, String> meta;
+    private final Set<String> sourcePath;
 
     /**
      * @param name The name of the field.
@@ -47,16 +49,19 @@ public class IndexFieldCapabilities implements Writeable {
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
      * @param meta Metadata about the field.
+     * @param sourcePath The paths in _source that contain this field's values.
      */
     IndexFieldCapabilities(String name, String type,
                            boolean isSearchable, boolean isAggregatable,
-                           Map<String, String> meta) {
+                           Map<String, String> meta,
+                           Set<String> sourcePath) {
 
         this.name = name;
         this.type = type;
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
         this.meta = meta;
+        this.sourcePath = sourcePath;
     }
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
@@ -77,11 +82,15 @@ public class IndexFieldCapabilities implements Writeable {
                 Map.Entry::getKey,
                 entry -> entry.getValue().iterator().next()));
         }
+
+        this.sourcePath = in.getVersion().onOrAfter(Version.V_8_0_0)
+            ? in.readSet(StreamInput::readString)
+            : Collections.emptySet();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeString(name);
             out.writeString(type);
             out.writeBoolean(isSearchable);
@@ -92,8 +101,13 @@ public class IndexFieldCapabilities implements Writeable {
             Map<String, Set<String>> wrappedMeta = meta.entrySet().stream().collect(Collectors.toMap(
                 Map.Entry::getKey,
                 entry -> Set.of(entry.getValue())));
-            FieldCapabilities fieldCaps = new FieldCapabilities(name, type, isSearchable, isAggregatable, null, null, null, wrappedMeta);
+            FieldCapabilities fieldCaps = new FieldCapabilities(name, type, isSearchable, isAggregatable,
+                null, null, null, wrappedMeta, Collections.emptyList());
             fieldCaps.writeTo(out);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeStringCollection(sourcePath);
         }
     }
 
@@ -117,6 +131,10 @@ public class IndexFieldCapabilities implements Writeable {
         return meta;
     }
 
+    public Set<String> sourcePath() {
+        return sourcePath;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -126,11 +144,12 @@ public class IndexFieldCapabilities implements Writeable {
             isAggregatable == that.isAggregatable &&
             Objects.equals(name, that.name) &&
             Objects.equals(type, that.type) &&
-            Objects.equals(meta, that.meta);
+            Objects.equals(meta, that.meta) &&
+            Objects.equals(sourcePath, that.sourcePath);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, isSearchable, isAggregatable, meta);
+        return Objects.hash(name, type, isSearchable, isAggregatable, meta, sourcePath);
     }
 }

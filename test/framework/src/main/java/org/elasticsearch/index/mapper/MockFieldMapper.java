@@ -44,6 +44,14 @@ public class MockFieldMapper extends FieldMapper {
             MultiFields.empty(), new CopyTo.Builder().build());
     }
 
+    public MockFieldMapper(String fullName,
+                           MappedFieldType fieldType,
+                           MultiFields multifields,
+                           CopyTo copyTo) {
+        super(findSimpleName(fullName), setName(fullName, fieldType), setName(fullName, fieldType), dummySettings,
+            multifields, copyTo);
+    }
+
     static MappedFieldType setName(String fullName, MappedFieldType fieldType) {
         fieldType.setName(fullName);
         return fieldType;
@@ -89,5 +97,18 @@ public class MockFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List list) throws IOException {
+    }
+
+    public static class Builder extends FieldMapper.Builder<MockFieldMapper.Builder, MockFieldMapper> {
+        protected Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
+            super(name, fieldType, defaultFieldType);
+            builder = this;
+        }
+
+        @Override
+        public MockFieldMapper build(BuilderContext context) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            return new MockFieldMapper(name(), fieldType, multiFields, copyTo);
+        }
     }
 }

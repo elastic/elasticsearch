@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 
@@ -74,8 +75,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 break;
         }
 
+        Set<String> sourcePath = randomBoolean() ? Collections.emptySet() : Set.of("field1", "field2");
+
         return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20),
-            randomBoolean(), randomBoolean(), meta);
+            randomBoolean(), randomBoolean(), meta, sourcePath);
     }
 
     @Override

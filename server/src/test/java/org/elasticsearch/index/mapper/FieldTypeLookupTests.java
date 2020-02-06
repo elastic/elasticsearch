@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -148,6 +149,72 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         assertTrue(names.contains("bar"));
         assertTrue(names.contains("barometer"));
+    }
+
+    public void testSourcePathsWithMultiFields() {
+        MappedFieldType ft = new MockFieldMapper.FakeFieldType();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(
+            MockFieldMapper.dummySettings, new ContentPath());
+
+        MockFieldMapper field = new MockFieldMapper.Builder("field", ft, ft)
+            .addMultiField(new MockFieldMapper.Builder("field.subfield1", ft, ft))
+            .addMultiField(new MockFieldMapper.Builder("field.subfield2", ft, ft))
+            .build(context);
+
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup = lookup.copyAndAddAll(newList(field), emptyList());
+
+        assertTrue(lookup.sourcePath("field").isEmpty());
+        assertEquals(Set.of("field"), lookup.sourcePath("field.subfield1"));
+        assertEquals(Set.of("field"), lookup.sourcePath("field.subfield2"));
+    }
+
+    public void testSourcePathsWithCopyTo() {
+        MappedFieldType ft = new MockFieldMapper.FakeFieldType();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(
+            MockFieldMapper.dummySettings, new ContentPath());
+
+        MockFieldMapper field = new MockFieldMapper.Builder("field", ft, ft)
+            .addMultiField(new MockFieldMapper.Builder("field.subfield1", ft, ft))
+            .build(context);
+
+        MockFieldMapper otherField = new MockFieldMapper.Builder("other_field", ft, ft)
+            .copyTo(new FieldMapper.CopyTo.Builder()
+                .add("field")
+                .add("field.subfield1")
+                .build())
+            .build(context);
+
+        MockFieldMapper anotherField = new MockFieldMapper.Builder("another_field", ft, ft)
+            .copyTo(new FieldMapper.CopyTo.Builder()
+                .add("field")
+                .build())
+            .build(context);
+
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup = lookup.copyAndAddAll(newList(field, otherField, anotherField), emptyList());
+
+        assertEquals(Set.of("other_field", "another_field"), lookup.sourcePath("field"));
+        assertEquals(Set.of("field"), lookup.sourcePath("field.subfield1"));
+    }
+
+    public void testSourcePathsWithAliases() {
+        MappedFieldType ft = new MockFieldMapper.FakeFieldType();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(
+            MockFieldMapper.dummySettings, new ContentPath());
+
+        MockFieldMapper field = new MockFieldMapper.Builder("field", ft, ft)
+            .addMultiField(new MockFieldMapper.Builder("field.subfield", ft, ft))
+            .build(context);
+
+        FieldAliasMapper alias1 = new FieldAliasMapper("alias1", "alias1", "field");
+        FieldAliasMapper alias2 = new FieldAliasMapper("alias2", "alias2", "field.subfield");
+
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup = lookup.copyAndAddAll(newList(field), newList(alias1, alias2));
+
+        assertEquals(Set.of("field"), lookup.sourcePath("alias1"));
+        assertEquals(Set.of("field.subfield"), lookup.sourcePath("alias2"));
     }
 
     public void testIteratorImmutable() {

@@ -602,6 +602,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return fieldTypes.simpleMatchToFullName(pattern);
     }
 
+    public Set<String> sourcePath(String fullName) {
+        return fieldTypes.sourcePath(fullName);
+    }
+
     /**
      * Returns all mapped field types.
      */

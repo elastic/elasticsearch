@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fieldcaps;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities.SourcePath;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -31,6 +32,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -120,22 +122,24 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(distance.containsKey("double"));
         assertEquals(
             new FieldCapabilities("distance", "double", true, true, new String[] {"old_index"}, null, null,
-                    Collections.emptyMap()),
+                    Collections.emptyMap(), Collections.emptyList()),
             distance.get("double"));
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
             new FieldCapabilities("distance", "text", true, false, new String[] {"new_index"}, null, null,
-                    Collections.emptyMap()),
+                    Collections.emptyMap(), Collections.emptyList()),
             distance.get("text"));
 
         // Check the capabilities for the 'route_length_miles' alias.
         Map<String, FieldCapabilities> routeLength = response.getField("route_length_miles");
         assertEquals(1, routeLength.size());
 
+        SourcePath expectedRoutePath = new SourcePath(new String[]{"old_index"}, new String[]{"distance"});
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("route_length_miles", "double", true, true, null, null, null,
+                Collections.emptyMap(), List.of(expectedRoutePath)),
             routeLength.get("double"));
     }
 
@@ -161,6 +165,29 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(response.get().containsKey("distance"));
     }
 
+    public void testSourcePath() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("route_length_miles", "distance").get();
+        assertIndices(response, "old_index", "new_index");
+
+        // The alias field 'route_field_miles' should have 'distance' as its source path.
+        Map<String, FieldCapabilities> routeResponse = response.getField("route_length_miles");
+        assertNotNull(routeResponse);
+
+        FieldCapabilities routeFieldCaps = routeResponse.get("double");
+        assertNotNull(routeFieldCaps);
+
+        SourcePath expectedRoutePath = new SourcePath(new String[]{"old_index"}, new String[]{"distance"});
+        assertEquals(List.of(expectedRoutePath), routeFieldCaps.sourcePath());
+
+        // The concrete field 'distance' should have an empty source path.
+        Map<String, FieldCapabilities> distanceResponse = response.getField("distance");
+        assertNotNull(distanceResponse);
+
+        FieldCapabilities distanceFieldCaps = distanceResponse.get("double");
+        assertNotNull(distanceFieldCaps);
+        assertEquals(List.of(), distanceFieldCaps.sourcePath());
+    }
+
     public void testWithUnmapped() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("new_field", "old_field")
@@ -177,21 +204,22 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(oldField.containsKey("long"));
         assertEquals(
             new FieldCapabilities("old_field", "long", true, true, new String[] {"old_index"}, null, null,
-                    Collections.emptyMap()),
+                    Collections.emptyMap(), Collections.emptyList()),
             oldField.get("long"));
 
         assertTrue(oldField.containsKey("unmapped"));
         assertEquals(
             new FieldCapabilities("old_field", "unmapped", false, false, new String[] {"new_index"}, null, null,
-                    Collections.emptyMap()),
+                    Collections.emptyMap(), Collections.emptyList()),
             oldField.get("unmapped"));
 
         Map<String, FieldCapabilities> newField = response.getField("new_field");
         assertEquals(1, newField.size());
 
+        SourcePath expectedSourcePath = new SourcePath(new String[]{"old_index"}, new String[]{"old_field"});
         assertTrue(newField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("new_field", "long", true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("new_field", "long", true, true, null, null, null, Collections.emptyMap(), List.of(expectedSourcePath)),
             newField.get("long"));
     }
 

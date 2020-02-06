@@ -90,8 +90,9 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
             if (ft != null) {
                 if (indicesService.isMetaDataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
                         || fieldPredicate.test(ft.name())) {
+                    Set<String> sourcePath = mapperService.sourcePath(field);
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.typeName(),
-                        ft.isSearchable(), ft.isAggregatable(), ft.meta());
+                        ft.isSearchable(), ft.isAggregatable(), ft.meta(), sourcePath);
                     responseMap.put(field, fieldCap);
                 } else {
                     continue;
@@ -110,7 +111,7 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
                         ObjectMapper mapper = mapperService.getObjectMapper(parentField);
                         String type = mapper.nested().isNested() ? "nested" : "object";
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
-                            false, false, Collections.emptyMap());
+                            false, false, Collections.emptyMap(), Collections.emptySet());
                         responseMap.put(parentField, fieldCap);
                     }
                     dotIndex = parentField.lastIndexOf('.');

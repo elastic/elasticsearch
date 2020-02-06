@@ -19,6 +19,7 @@
 
 package org.elasticsearch.grok;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43673")
 public class GrokTests extends ESTestCase {
     private static final Map<String, String> basePatterns = Grok.getBuiltinPatterns();
 

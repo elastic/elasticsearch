@@ -128,3 +128,6 @@ You can howeve update your pipelines or templates.
 - upgrade template
 
 - Upgrade to 7.x
+
+//todo
+on templates outside ES

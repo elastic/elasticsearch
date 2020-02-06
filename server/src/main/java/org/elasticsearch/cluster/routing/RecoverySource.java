@@ -279,11 +279,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             Version.writeVersion(version, out);
             out.writeString(index);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                if (indexId == null) {
-                    out.writeOptionalString(null);
-                } else {
-                    out.writeOptionalString(indexId.getId());
-                }
+                out.writeOptionalString(indexId == null ? null : indexId.getId());
             }
         }
 

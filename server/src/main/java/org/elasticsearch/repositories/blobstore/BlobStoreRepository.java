@@ -22,13 +22,10 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -1451,28 +1448,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public List<SegmentInfos> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
+    public List<Iterable<StoreFileMetaData>> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
         final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(Collections.emptySet(),
-        shardContainer(indexId, shardId), generation).v1();
+            shardContainer(indexId, shardId), generation).v1();
         return blobStoreIndexShardSnapshots.snapshots().stream().map(
-            snapshotFiles -> {
-                final Directory dir = new ByteBuffersDirectory();
-                snapshotFiles.indexFiles().stream().filter(fileInfo -> fileInfo.metadata().length() == fileInfo.length()).forEach(
-                    fileInfo -> {
-                        try(IndexOutput indexOutput = dir.createOutput(fileInfo.physicalName(), IOContext.DEFAULT)) {
-                            final BytesRef fileContent = fileInfo.metadata().hash();
-                            indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
-                        } catch (IOException e) {
-                            throw new AssertionError(e);
-                        }
-                    }
-                );
-                try {
-                    return SegmentInfos.readLatestCommit(dir);
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-            }
+            snapshotFiles -> snapshotFiles.indexFiles().stream()
+                .map(BlobStoreIndexShardSnapshot.FileInfo::metadata).collect(Collectors.toList())
         ).collect(Collectors.toList());
     }
 

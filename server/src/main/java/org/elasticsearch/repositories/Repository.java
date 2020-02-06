@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -241,7 +242,7 @@ public interface Repository extends LifecycleComponent {
      */
     void updateState(ClusterState state);
 
-    default List<SegmentInfos> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
+    default List<Iterable<StoreFileMetaData>> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
         throw new UnsupportedOperationException("segmentsInShard not implemented");
     }
 

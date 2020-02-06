@@ -40,6 +40,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -58,21 +59,22 @@ import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter
 public class SourceOnlySnapshot {
     private final Directory targetDirectory;
     private final Supplier<Query> deleteByQuerySupplier;
-    private final CheckedSupplier<List<SegmentInfos>, IOException> knownSegmentCommitsProvider;
+    private final CheckedSupplier<List<Iterable<StoreFileMetaData>>, IOException> knownSegmentCommitsProvider;
 
     public SourceOnlySnapshot(Directory targetDirectory, Supplier<Query> deleteByQuerySupplier,
-                              CheckedSupplier<List<SegmentInfos>, IOException> knownSegmentCommitsProvider) {
+                              CheckedSupplier<List<Iterable<StoreFileMetaData>>, IOException> knownSegmentCommitsProvider) {
         this.targetDirectory = targetDirectory;
         this.deleteByQuerySupplier = deleteByQuerySupplier;
         this.knownSegmentCommitsProvider = knownSegmentCommitsProvider;
     }
 
-    public SourceOnlySnapshot(Directory targetDirectory, CheckedSupplier<List<SegmentInfos>, IOException> knownSegmentCommitsProvider) {
+    public SourceOnlySnapshot(Directory targetDirectory, CheckedSupplier<List<Iterable<StoreFileMetaData>>, IOException> knownSegmentCommitsProvider) {
         this(targetDirectory, null, knownSegmentCommitsProvider);
     }
 
     public synchronized SegmentInfos syncSnapshot(IndexCommit commit) throws IOException {
         Map<BytesRef, SegmentCommitInfo> existingSegments;
+        Map<BytesRef, Iterable<StoreFileMetaData>> existingFileSets;
         existingSegments = new HashMap<>();
         for (SegmentCommitInfo info : knownSegmentCommitsProvider.get().stream()
             .flatMap(infos -> infos.asList().stream()).collect(Collectors.toList())) {

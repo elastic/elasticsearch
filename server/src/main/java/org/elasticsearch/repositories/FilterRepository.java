@@ -19,7 +19,6 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -32,6 +31,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -172,7 +172,7 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public List<SegmentInfos> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
+    public List<Iterable<StoreFileMetaData>> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
         return in.segmentsInShard(indexId, shardId, generation);
     }
 }

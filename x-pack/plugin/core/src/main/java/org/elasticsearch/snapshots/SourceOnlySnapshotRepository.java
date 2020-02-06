@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -23,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
@@ -43,7 +45,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -138,7 +139,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         final List<Closeable> toClose = new ArrayList<>(3);
         toClose.add(() -> IOUtils.rm(snapPath));
         try {
-            final List<SegmentInfos> segmentInfosInRepo = segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation());
+            final List<Iterable<StoreFileMetaData>> segmentInfosInRepo =
+                segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation());
             FSDirectory directory = new SimpleFSDirectory(snapPath);
             toClose.add(0, directory);
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
@@ -170,7 +172,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             store.incRef();
             toClose.add(1, store::decRef);
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId,
-                new SourceOnlyIndexCommit(newFiles, directory), snapshotStatus, writeShardGens, userMetadata,
+                new SourceOnlyIndexCommit(newFiles, tempStore.directory()), snapshotStatus, writeShardGens, userMetadata,
                 ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {
@@ -179,6 +181,26 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 e.addSuppressed(ex);
             }
             listener.onFailure(e);
+        }
+    }
+
+    private static SegmentInfos segmentInfosFromMeta(Iterable<StoreFileMetaData> files) {
+        final Directory dir = new ByteBuffersDirectory();
+        for (StoreFileMetaData m : files) {
+            if (m.length() != m.hash().length) {
+                continue;
+            }
+            try (IndexOutput indexOutput = dir.createOutput(m.name(), IOContext.DEFAULT)) {
+                final BytesRef fileContent = m.hash();
+                indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+        try {
+            return SegmentInfos.readLatestCommit(dir);
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 

@@ -122,7 +122,7 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
 
     public void testTermsAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
-        int numFailures = 0;//randomBoolean() ? randomIntBetween(0, numShards) : 0;
+        int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
         int termsSize = randomIntBetween(1, numKeywords);
         SearchSourceBuilder source = new SearchSourceBuilder()
             .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(termsSize).shardSize(termsSize*2));

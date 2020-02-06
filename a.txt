@@ -1,0 +1,11 @@
+The preferred method of setting or overriding JVM options is via JVM options
+files. When installing from the tar or zip distributions, the root `jvm.options`
+configuration file is `config/jvm.options` and custom JVM options files can be
+added to `config/jvm.options.d/`. When installing from the Debian or RPM
+packages, the root `jvm.options` configuration file is
+``/etc/elasticsearch/jvm.options` and custom JVM options files can be added to
+`/etc/elasticsearch/jvm.options.d/`. When using the <<docker, Docker
+distribution of {es}>> you can bind mount custom JVM options files into
+`/usr/share/elasticsearch/config/jvm.options.d/`. You should never need to
+modify the root `jvm.options` file instead preferring to use custom JVM options
+files. Custom JVM options files are processed in lexicographic order.

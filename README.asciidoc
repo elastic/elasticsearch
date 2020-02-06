@@ -192,7 +192,7 @@ In order to play with the distributed nature of Elasticsearch, simply bring more
 
 === Where to go from here?
 
-We have just covered a very small portion of what Elasticsearch is all about. For more information, please refer to the http://www.elastic.co/products/elasticsearch[elastic.co] website. General questions can be asked on the https://discuss.elastic.co[Elastic Forum] or https://ela.st/slack[on Slack]. The Elasticsearch GitHub repository is reserved for bug reports and feature requests only.
+We have just covered a very small portion of what Elasticsearch is all about. For more information, please refer to the https://www.elastic.co/products/elasticsearch[elastic.co] website. General questions can be asked on the https://discuss.elastic.co[Elastic Forum] or https://ela.st/slack[on Slack]. The Elasticsearch GitHub repository is reserved for bug reports and feature requests only.
 
 === Building from Source
 

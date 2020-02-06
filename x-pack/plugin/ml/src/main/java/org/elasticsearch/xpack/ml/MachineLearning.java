@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -131,7 +130,6 @@ import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -259,7 +257,9 @@ import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPostCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarJobAction;
+import org.elasticsearch.xpack.ml.rest.cat.RestCatDatafeedsAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatJobsAction;
+import org.elasticsearch.xpack.ml.rest.cat.RestCatTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
@@ -774,7 +774,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             new RestGetTrainedModelsStatsAction(restController),
             new RestPutTrainedModelAction(restController),
             // CAT Handlers
-            new RestCatJobsAction(restController)
+            new RestCatJobsAction(restController),
+            new RestCatTrainedModelsAction(restController),
+            new RestCatDatafeedsAction(restController)
         );
     }
 
@@ -888,13 +890,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
-            final TimeValue delayedNodeTimeOutSetting;
-            // Whether we are using native process is a good way to detect whether we are in dev / test mode:
-            if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
-                delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
-            } else {
-                delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
-            }
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate =
@@ -906,8 +901,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .build();
                 templates.put(AuditorField.NOTIFICATIONS_INDEX, notificationMessageTemplate);
             } catch (IOException e) {
@@ -922,8 +916,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .version(Version.CURRENT.id)
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .build();
@@ -941,7 +934,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
                                         AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
                         .version(Version.CURRENT.id)
@@ -958,8 +950,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexPattern()))
                         // TODO review these settings
                         .settings(Settings.builder()
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();
@@ -975,7 +966,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 // Sacrifice durability for performance: in the event of power
                                 // failure we can lose the last 5 seconds of changes, but it's
                                 // much faster
@@ -1048,16 +1038,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        //TODO: Some of the below should be converted to non-dot-prefixed hidden indices. I am not sure which ones.
-        // Either way, they should be here until then to prevent deprecation warnings
         return Collections.unmodifiableList(Arrays.asList(
-            new SystemIndexDescriptor(MlMetaIndex.INDEX_NAME, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.STATE_INDEX_PATTERN, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.CONFIG_INDEX, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.RESULTS_INDEX_PATTERN, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(".ml-notifications-*", this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(AnnotationIndex.INDEX_PATTERN, this.getClass().getSimpleName())
+            new SystemIndexDescriptor(MlMetaIndex.INDEX_NAME, "Contains scheduling and anomaly tracking metadata"),
+            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.STATE_INDEX_PATTERN, "Contains ML model state"),
+            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.CONFIG_INDEX, "Contains ML configuration data"),
+            new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
         ));
     }
 }

@@ -46,6 +46,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -87,6 +88,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
@@ -612,6 +614,46 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
+    public void testIndexNameExclusionsList() {
+        // this test case should be removed when DOT_INDICES_EXCLUSIONS is empty
+        List<String> excludedNames = Arrays.asList(
+            ".slm-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".watch-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".ml-anomalies-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".ml-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".ml-annotations-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".data-frame-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".transform-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT)
+        );
+
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            MetaDataCreateIndexService checkerService = new MetaDataCreateIndexService(
+                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(testThreadPool),
+                null,
+                null,
+                null,
+                null,
+                null,
+                testThreadPool,
+                null,
+                Collections.emptyList(),
+                false
+            );
+
+            excludedNames.forEach(name -> {
+                checkerService.validateIndexName(name, ClusterState.EMPTY_STATE, false);
+            });
+
+            excludedNames.forEach(name -> {
+                expectThrows(AssertionError.class, () -> checkerService.validateIndexName(name, ClusterState.EMPTY_STATE, true));
+            });
+        } finally {
+            testThreadPool.shutdown();
+        }
+    }
+
     public void testParseMappingsAppliesDataFromTemplateAndRequest() throws Exception {
         IndexTemplateMetaData templateMetaData = addMatchingTemplate(templateBuilder -> {
             templateBuilder.putAlias(AliasMetaData.builder("alias1"));
@@ -908,6 +950,42 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         });
         assertThat(error.getMessage(), equalTo("Creating indices with soft-deletes disabled is no longer supported. "
             + "Please do not specify a value for setting [index.soft_deletes.enabled]."));
+    }
+
+    public void testRejectTranslogRetentionSettings() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 120)));
+        } else {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
+        }
+        if (randomBoolean()) {
+            settings.put(SETTING_INDEX_VERSION_CREATED.getKey(),
+                VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT));
+        }
+        request.settings(settings.build());
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS));
+        assertThat(error.getMessage(), equalTo("Translog retention settings [index.translog.retention.age] " +
+            "and [index.translog.retention.size] are no longer supported. Please do not specify values for these settings"));
+    }
+
+    public void testDeprecateTranslogRetentionSettings() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 120)));
+        } else {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
+        }
+        settings.put(SETTING_INDEX_VERSION_CREATED.getKey(), VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0));
+        request.settings(settings.build());
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        assertWarnings("Translog retention settings [index.translog.retention.age] "
+            + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
     }
 
     private IndexTemplateMetaData addMatchingTemplate(Consumer<IndexTemplateMetaData.Builder> configurator) {

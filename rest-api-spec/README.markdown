@@ -4,13 +4,13 @@ This repository contains a collection of JSON files which describe the [Elastics
 
 Their purpose is to formalize and standardize the API, to facilitate development of libraries and integrations.
 
-Example for the ["Create Index"](http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html) API:
+Example for the ["Create Index"](https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html) API:
 
 ```json
 {
   "indices.create": {
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html"
     },
     "stability": "stable",
     "url":{

@@ -229,7 +229,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-
     public void testPutUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

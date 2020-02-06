@@ -49,8 +49,7 @@ caches, but the less memory it leaves available for the operating system to use
 for the filesystem cache. Also, larger heaps can cause longer garbage
 collection pauses.
 
-Here are examples of how to set the heap size via a `jvm.options.d/heap.options`
-file:
+Here is an example of how to set the heap size via a `jvm.options.d/` file:
 
 [source,txt]
 ------------------

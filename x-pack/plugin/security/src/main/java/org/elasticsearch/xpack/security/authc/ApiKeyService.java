@@ -884,7 +884,7 @@ public class ApiKeyService {
         if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
         } else {
-            return authentication.getSourceRealm().getName();
+            return authentication.getAuthenticatedBy().getName();
         }
     }
 
@@ -899,7 +899,7 @@ public class ApiKeyService {
         if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_TYPE);
         } else {
-            return authentication.getSourceRealm().getType();
+            return authentication.getAuthenticatedBy().getType();
         }
     }
 

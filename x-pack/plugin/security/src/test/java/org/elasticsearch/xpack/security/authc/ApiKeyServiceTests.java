@@ -566,20 +566,20 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNull(cachedApiKeyHashResult);
     }
 
-    public void testWillGetLookupRealmNameWhenItExists() {
+    public void testWillAlwaysGetAuthenticationRealmName() {
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("auth_by", "auth_by_type", "node");
         final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef("lookup_by", "lookup_by_type", "node");
         final Authentication authentication = new Authentication(
             new User("user"), authenticatedBy, lookedUpBy);
-        assertEquals("lookup_by", ApiKeyService.getCreatorRealmName(authentication));
+        assertEquals("auth_by", ApiKeyService.getCreatorRealmName(authentication));
     }
 
-    public void testWillGetLookupRealmTypeWhenItExists() {
+    public void testWillAlwaysGetAuthenticationRealmType() {
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("auth_by", "auth_by_type", "node");
         final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef("lookup_by", "lookup_by_type", "node");
         final Authentication authentication = new Authentication(
             new User("user"), authenticatedBy, lookedUpBy);
-        assertEquals("lookup_by_type", ApiKeyService.getCreatorRealmType(authentication));
+        assertEquals("auth_by_type", ApiKeyService.getCreatorRealmType(authentication));
     }
 
     private ApiKeyService createApiKeyService(Settings baseSettings) {

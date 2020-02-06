@@ -44,11 +44,21 @@ public enum PercentilesMethod implements Writeable {
     /**
      * The TDigest method for calculating percentiles
      */
-    TDIGEST("tdigest", "TDigest", "TDIGEST"),
+    TDIGEST("tdigest", "TDigest", "TDIGEST") {
+        @Override
+        Config configFromStream(StreamInput in) throws IOException {
+            return new Config.TDigest(in);
+        }
+    },
     /**
      * The HDRHistogram method of calculating percentiles
      */
-    HDR("hdr", "HDR");
+    HDR("hdr", "HDR") {
+        @Override
+        Config configFromStream(StreamInput in) throws IOException {
+            return new Config.Hdr(in);
+        }
+    };
 
     public static final ParseField COMPRESSION_FIELD = new ParseField("compression");
     public static final ParseField NUMBER_SIGNIFICANT_DIGITS_FIELD = new ParseField("number_of_significant_value_digits");
@@ -72,6 +82,8 @@ public enum PercentilesMethod implements Writeable {
     PercentilesMethod(String name, String... deprecatedNames) {
         this.parseField = new ParseField(name, deprecatedNames);
     }
+
+    abstract Config configFromStream(StreamInput in) throws IOException;
 
     /**
      * @return the name of the method
@@ -108,12 +120,7 @@ public enum PercentilesMethod implements Writeable {
 
         public static Config fromStream(StreamInput in) throws IOException {
             PercentilesMethod method = PercentilesMethod.readFromStream(in);
-            if (method.equals(PercentilesMethod.TDIGEST)) {
-                return new TDigest(in);
-            } else if (method.equals(PercentilesMethod.HDR)) {
-                return new Hdr(in);
-            }
-            throw new IllegalArgumentException("Unsupported percentiles algorithm [" + method + "]");
+            return method.configFromStream(in);
         }
 
         /**

@@ -496,14 +496,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotCreated = true;
 
                     logger.info("snapshot [{}] started", snapshot.snapshot());
-                    final boolean hasOldFormatSnapshots =
-                        hasOldVersionSnapshots(snapshot.snapshot().getRepository(), repositoryData, null);
-                    final boolean hasNoIndexGens = hasPreIndexGensVersionSnapshots(repositoryData);
-                    final boolean writeShardGenerations = hasOldFormatSnapshots == false &&
-                        clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
-                    // TODO: This is not good enough, need to check index gen version instead
-                    final boolean writeIndexGenerations = hasNoIndexGens == false &&
-                        clusterService.state().nodes().getMinNodeVersion().onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION);
+                    final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+                    final boolean writeShardGenerations = minNodeVersion.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION)
+                        && hasOldVersionSnapshots(snapshot.snapshot().getRepository(), repositoryData, null) == false;
+                    final boolean writeIndexGenerations = writeShardGenerations &&
+                        minNodeVersion.onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION) &&
+                        hasPreIndexGensVersionSnapshots(repositoryData) == false;
                     if (indices.isEmpty()) {
                         // No indices in this snapshot - we are done
                         userCreateSnapshotListener.onResponse(snapshot.snapshot());
@@ -1112,6 +1110,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             protected void doRun() {
                 final Snapshot snapshot = entry.snapshot();
+                if (entry.repositoryStateId() == RepositoryData.UNKNOWN_REPO_GEN) {
+                    throw new SnapshotException(snapshot, "Ended snapshot before starting it with entry [" + entry + "]");
+                }
                 final Repository repository = repositoriesService.repository(snapshot.getRepository());
                 final String failure = entry.failure();
                 logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);

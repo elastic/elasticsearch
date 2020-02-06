@@ -887,7 +887,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final Map<IndexId, String> indexMetas;
             final Map<String, String> indexMetaHashes;
-            if (writeShardGens) {
+            if (writeIndexGens) {
                 indexMetaHashes = ConcurrentCollections.newConcurrentMap();
                 indexMetas = ConcurrentCollections.newConcurrentMap();
             } else {

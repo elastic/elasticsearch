@@ -29,6 +29,8 @@ Consider using EQL if you:
 [[eql-toc]]
 === In this section
 
-* <<eql-requirements,EQL requirements>>
+* <<eql-requirements>>
+* <<eql-syntax>>
 
 include::requirements.asciidoc[]
+include::syntax.asciidoc[]

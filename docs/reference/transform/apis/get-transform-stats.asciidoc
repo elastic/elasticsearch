@@ -70,9 +70,109 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 [[get-transform-stats-response]]
 ==== {api-response-body-title}
 
-`transforms`::
-  (array) An array of statistics objects for {transforms}, which are
-  sorted by the `id` value in ascending order.
+The API returns an array of statistics objects for {transforms}, which are
+sorted by the `id` value in ascending order. All of these properties are
+informational; you cannot update their values.
+
+`checkpointing`::
+(object) Contains statistics about <<transform-checkpoints,checkpoints>>.
+`checkpointing`.`changes_last_detected_at`:::
+(date) The timestamp when changes were last detected in the source indices.
+`checkpointing`.`last`:::
+(object) Contains statistics about the last completed checkpoint. 
+`checkpointing`.`last`.`checkpoint`::::
+(integer) The sequence number for the checkpoint.
+`checkpointing`.`last`.`time_upper_bound_millis`::::
+(date) When using time-based synchronization, this timestamp indicates the
+upper bound of data that is included in the checkpoint.
+`checkpointing`.`last`.`timestamp_millis`::::
+(date) The timestamp of the checkpoint, which indicates when the checkpoint
+was created.
+`checkpointing`.`next`:::
+(object) Contains statistics about the next checkpoint that is currently in
+progress. This object appears only when the {transform} `state` is `indexing`.
+`checkpointing`.`next`.`checkpoint`::::
+(integer) The sequence number for the checkpoint.
+`checkpointing`.`next`.`checkpoint_progress`::::
+(object) Contains statistics about the progress of the checkpoint. For example,
+it lists the `total_docs`, `docs_remaining`, `percent_complete`,
+`docs_processed`, and `docs_indexed`. This information is available only for
+batch {transforms} and the first checkpoint of {ctransforms}.
+`checkpointing`.`next`.`time_upper_bound_millis`::::
+(date) When using time-based synchronization, this timestamp indicates the
+upper bound of data that is included in the checkpoint.
+`checkpointing`.`next`.`timestamp_millis`::::
+(date) The timestamp of the checkpoint, which indicates when the checkpoint was
+created.
+
+`id`::
+(string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+`node`::
+(object) For started {transforms} only, the node upon which the {transform} is
+started.
+`node`.`attributes`:::
+(object) A list of attributes for the node.
+`node`.`ephemeral_id`:::
+(string) The node ephemeral ID.
+`node`.`id`:::
+(string) The unique identifier of the node. For example, "0-o0tOoRTwKFZifatTWKNw".
+`node`.`name`:::
+(string) The node name. For example, `0-o0tOo`.
+`node`.`transport_address`:::
+(string) The host and port where transport HTTP connections are accepted. For
+example, `127.0.0.1:9300`.
+`state`::
+(string) The status of the {transform}, which can be one of the following values:
++
+--
+* `aborting`: The {transform} is aborting.
+* `failed`: The {transform} failed. For more information about the failure,
+check the reason field.
+* `indexing`: The {transform} is actively processing data and creating new
+documents.
+* `started`: The {transform} is running but not actively indexing data.
+* `stopped`: The {transform} is stopped.
+* `stopping`: The {transform} is stopping.
+--
+
+`stats`::
+(object) An object that provides statistical information about the {transform}.
+`stats`.`documents_indexed`:::
+(long) The number of documents that have been indexed into the destination index
+for the {transform}.
+`stats`.`documents_processed`:::
+(long) The number of documents that have been processed from the source index of
+the {transform}.
+`stats`.`exponential_avg_checkpoint_duration_ms`:::
+(double) Exponential moving average of the duration of the checkpoint, in milliseconds.
+`stats`.`exponential_avg_documents_indexed`:::
+(double) Exponential moving average of the number of new documents that have been
+indexed.
+`stats`.`exponential_avg_documents_processed`:::
+(double) Exponential moving average of the number of documents that have been
+processed.
+`stats`.`index_failures`:::
+(long) The number of indexing failures.
+`stats`.`index_time_in_ms`:::
+(long) The amount of time spent indexing, in milliseconds.
+`stats`.`index_total`:::
+(long) The number of indices created.
+`stats`.`pages_processed`:::
+(long) The number of search or bulk index operations processed. Documents are
+processed in batches instead of individually.
+`stats`.`search_failures`:::
+(long) The number of search failures. 
+`stats`.`search_time_in_ms`:::
+(long) The amount of time spent searching, in milliseconds.
+`stats`.`search_total`:::
+(long) The number of search operations on the source index for the {transform}. 
+`stats`.`trigger_count`:::
+(long) The number of times the {transform} has been triggered by the scheduler.
+For example, the scheduler triggers the {transform} indexer to check for updates
+or ingest new data at an interval specified in the
+<<put-transform-request-body,`frequency` property>>.
   
 [[get-transform-stats-response-codes]]
 ==== {api-response-codes-title}

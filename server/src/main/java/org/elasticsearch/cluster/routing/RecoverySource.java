@@ -235,7 +235,12 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             version = Version.readVersion(in);
             index = in.readString();
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                indexId = new IndexId(index, in.readString());
+                final String indexUUID = in.readOptionalString();
+                if (indexUUID == null) {
+                    indexId = null;
+                } else {
+                    indexId = new IndexId(index, indexUUID);
+                }
             } else {
                 indexId = null;
             }
@@ -274,7 +279,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             Version.writeVersion(version, out);
             out.writeString(index);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeString(indexId.getId());
+                if (indexId == null) {
+                    out.writeOptionalString(null);
+                } else {
+                    out.writeOptionalString(indexId.getId());
+                }
             }
         }
 

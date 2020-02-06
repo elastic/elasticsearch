@@ -50,11 +50,8 @@ import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-<<<<<<< HEAD
-import org.elasticsearch.search.sort.FieldSortBuilder;
-=======
 import org.elasticsearch.search.query.QuerySearchResult;
->>>>>>> master
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -105,7 +102,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             shardId,
             numberOfShards,
             searchRequest.searchType(),
-            searchRequest.source() != null ? searchRequest.source().shallowCopy() : null,
+            searchRequest.source(),
             searchRequest.requestCache(),
             aliasFilter,
             indexBoost,
@@ -186,8 +183,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         } else {
             canReturnNullResponseIfMatchNoDocs = false;
             rawBottomSortValues = null;
-        } else {
-            canReturnNullResponseIfMatchNoDocs = false;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }

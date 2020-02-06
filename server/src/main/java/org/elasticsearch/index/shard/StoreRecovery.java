@@ -31,6 +31,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -474,19 +476,32 @@ final class StoreRecovery {
             indexShard.prepareForIndexRecovery();
             final ShardId snapshotShardId;
             final String indexName = restoreSource.index();
-            if (!shardId.getIndexName().equals(indexName)) {
-                snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
-            } else {
+            if (shardId.getIndexName().equals(indexName)) {
                 snapshotShardId = shardId;
+            } else {
+                snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
-            repository.getRepositoryData(ActionListener.wrap(
-                repositoryData -> {
-                    final IndexId indexId = repositoryData.resolveIndexId(indexName);
-                    assert indexShard.getEngineOrNull() == null;
-                    repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
-                        indexShard.recoveryState(), restoreListener);
-                }, restoreListener::onFailure
-            ));
+            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+
+            final IndexId indexIdFromCS = restoreSource.indexId();
+            repositoryDataListener.whenComplete(repositoryData -> {
+                final IndexId indexId;
+                if (indexIdFromCS == null) {
+                    indexId = repositoryData.resolveIndexId(indexName);
+                } else {
+                    assert repositoryData == null: "Shouldn't have loaded RepositoryData but saw [" + repositoryData + "]";
+                    indexId = indexIdFromCS;
+                }
+                assert indexShard.getEngineOrNull() == null;
+                repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
+                    indexShard.recoveryState(), restoreListener);
+            }, restoreListener::onFailure);
+            if (indexIdFromCS == null) {
+                // BwC path, running against an old version master that did not add the IndexId to the recovery source
+                repository.getRepositoryData(repositoryDataListener);
+            } else {
+                repositoryDataListener.onResponse(null);
+            }
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }

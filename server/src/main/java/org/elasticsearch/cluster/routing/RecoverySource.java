@@ -20,12 +20,14 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
@@ -214,13 +216,17 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final String restoreUUID;
         private final Snapshot snapshot;
         private final String index;
+
+        @Nullable
+        private final IndexId indexId;
         private final Version version;
 
-        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, String index) {
+        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
-            this.index = Objects.requireNonNull(index);
+            this.indexId = Objects.requireNonNull(indexId);
+            this.index = indexId.getName();
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
@@ -228,6 +234,20 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
             index = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                indexId = new IndexId(index, in.readString());
+            } else {
+                indexId = null;
+            }
+        }
+
+        /**
+         *
+         * @return IndexId or {@code null} if running against old version master that did not add an IndexId to the recovery source
+         */
+        @Nullable
+        public IndexId indexId() {
+            return indexId;
         }
 
         public String restoreUUID() {
@@ -252,6 +272,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
             out.writeString(index);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeString(indexId.getId());
+            }
         }
 
         @Override
@@ -284,12 +307,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
             SnapshotRecoverySource that = (SnapshotRecoverySource) o;
             return restoreUUID.equals(that.restoreUUID) && snapshot.equals(that.snapshot)
-                && index.equals(that.index) && version.equals(that.version);
+                && index.equals(that.index) && version.equals(that.version)
+                && Objects.equals(indexId, that.indexId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(restoreUUID, snapshot, index, version);
+            return Objects.hash(restoreUUID, snapshot, index, version, indexId);
         }
 
     }

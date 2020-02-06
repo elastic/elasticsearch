@@ -32,17 +32,20 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.RegressionTests;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -92,36 +95,25 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
     @Override
     protected List<Version> bwcVersions() {
-        return Arrays.asList(Version.V_7_0_0,
-            Version.V_7_1_1,
-            Version.V_7_2_1,
-            Version.V_7_3_2,
-            Version.V_7_4_2,
-            Version.V_7_5_3,
-            Version.V_7_6_0,
-            Version.V_7_7_0);
+        return AbstractBWCSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
     }
 
     @Override
     protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, Version version) {
-        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance);
-        if (version.before(Version.V_7_6_0)) {
-            if (instance.getAnalysis() instanceof Regression) {
-                // TODO regression and classification serialize a randomized value for the random seed
-            }
-            builder.setSource(new DataFrameAnalyticsSource.Builder(instance.getSource())
-                .setSourceFiltering(null)
-                .build());
+        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance)
+            .setSource(DataFrameAnalyticsSourceTests.mutateForVersion(instance.getSource(), version))
+            .setDest(DataFrameAnalyticsDestTests.mutateForVersion(instance.getDest(), version));
+        if (instance.getAnalysis() instanceof OutlierDetection) {
+            builder.setAnalysis(OutlierDetectionTests.mutateForVersion((OutlierDetection)instance.getAnalysis(), version));
+        }
+        if (instance.getAnalysis() instanceof Regression) {
+            builder.setAnalysis(RegressionTests.mutateForVersion((Regression)instance.getAnalysis(), version));
+        }
+        if (instance.getAnalysis() instanceof Classification) {
+            builder.setAnalysis(ClassificationTests.mutateForVersion((Classification)instance.getAnalysis(), version));
         }
         if (version.before(Version.V_7_5_0)) {
             builder.setAllowLazyStart(false);
-            if (instance.getAnalysis() instanceof OutlierDetection) {
-                builder.setAnalysis(new OutlierDetection.Builder((OutlierDetection)instance.getAnalysis())
-                    .setComputeFeatureInfluence(true)
-                    .setOutlierFraction(0.05)
-                    .setStandardizationEnabled(true)
-                    .build());
-            }
         }
         if (version.before(Version.V_7_4_0)) {
             builder.setDescription(null);
@@ -134,6 +126,56 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     @Override
+    protected void assertOnBWCObject(DataFrameAnalyticsConfig bwcSerializedObject, DataFrameAnalyticsConfig testInstance, Version version) {
+
+        // Don't have to worry about Regression/Classifications Seeds
+        if (version.onOrAfter(Version.V_7_6_0) || testInstance.getAnalysis() instanceof OutlierDetection) {
+            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
+            return;
+        }
+        DataFrameAnalysis bwcAnalysis;
+        DataFrameAnalysis testAnalysis;
+        if (testInstance.getAnalysis() instanceof Regression) {
+            Regression testRegression = (Regression)testInstance.getAnalysis();
+            Regression bwcRegression = (Regression)bwcSerializedObject.getAnalysis();
+
+            bwcAnalysis = new Regression(bwcRegression.getDependentVariable(),
+                bwcRegression.getBoostedTreeParams(),
+                bwcRegression.getPredictionFieldName(),
+                bwcRegression.getTrainingPercent(),
+                42L);
+            testAnalysis = new Regression(testRegression.getDependentVariable(),
+                testRegression.getBoostedTreeParams(),
+                testRegression.getPredictionFieldName(),
+                testRegression.getTrainingPercent(),
+                42L);
+        } else {
+            Classification testClassification = (Classification)testInstance.getAnalysis();
+            Classification bwcClassification = (Classification)bwcSerializedObject.getAnalysis();
+            bwcAnalysis = new Classification(bwcClassification.getDependentVariable(),
+                bwcClassification.getBoostedTreeParams(),
+                bwcClassification.getPredictionFieldName(),
+                bwcClassification.getNumTopClasses(),
+                bwcClassification.getTrainingPercent(),
+                42L);
+            testAnalysis = new Classification(testClassification.getDependentVariable(),
+                testClassification.getBoostedTreeParams(),
+                testClassification.getPredictionFieldName(),
+                testClassification.getNumTopClasses(),
+                testClassification.getTrainingPercent(),
+                42L);
+        }
+        super.assertOnBWCObject(new DataFrameAnalyticsConfig.Builder(bwcSerializedObject)
+            .setAnalysis(bwcAnalysis)
+            .build(),
+            new DataFrameAnalyticsConfig.Builder(testInstance)
+            .setAnalysis(testAnalysis)
+            .build(),
+            version);
+    }
+
+
+    @Override
     protected Writeable.Reader<DataFrameAnalyticsConfig> instanceReader() {
         return DataFrameAnalyticsConfig::new;
     }
@@ -143,19 +185,23 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     public static DataFrameAnalyticsConfig createRandom(String id, boolean withGeneratedFields) {
-        return createRandomBuilder(id, withGeneratedFields).build();
+        return createRandomBuilder(id, withGeneratedFields, randomFrom(OutlierDetectionTests.createRandom(),
+            RegressionTests.createRandom(),
+            ClassificationTests.createRandom())).build();
     }
 
     public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id) {
-        return createRandomBuilder(id, false);
+        return createRandomBuilder(id, false, randomFrom(OutlierDetectionTests.createRandom(),
+            RegressionTests.createRandom(),
+            ClassificationTests.createRandom()));
     }
 
-    public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id, boolean withGeneratedFields) {
+    public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id, boolean withGeneratedFields, DataFrameAnalysis analysis) {
         DataFrameAnalyticsSource source = DataFrameAnalyticsSourceTests.createRandom();
         DataFrameAnalyticsDest dest = DataFrameAnalyticsDestTests.createRandom();
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setAnalysis(OutlierDetectionTests.createRandom())
+            .setAnalysis(analysis)
             .setSource(source)
             .setDest(dest);
         if (randomBoolean()) {

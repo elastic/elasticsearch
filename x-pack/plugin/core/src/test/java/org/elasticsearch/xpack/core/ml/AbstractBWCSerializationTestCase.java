@@ -11,10 +11,21 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.Version.getDeclaredVersions;
 
 public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractSerializingTestCase<T> {
+
+    private static final List<Version> ALL_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
+
+    public static List<Version> getAllBWCVersions(Version version) {
+        return ALL_VERSIONS.stream().filter(v -> v.before(version) && version.isCompatible(v)).collect(Collectors.toList());
+    }
+
+    private static final List<Version> DEFAULT_BWC_VERSIONS = getAllBWCVersions(Version.CURRENT);
 
     /**
      * Returns the expected instance if serialized from the given version.
@@ -25,7 +36,7 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
      * The bwc versions to test serialization against
      */
     protected List<Version> bwcVersions() {
-        return Arrays.asList(Version.V_7_7_0);
+        return DEFAULT_BWC_VERSIONS;
     }
 
     /**
@@ -47,16 +58,17 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
      */
     protected final void assertBwcSerialization(T testInstance, Version version) throws IOException {
         T deserializedInstance = copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), version);
-        assertBwcEqualInstances(mutateInstanceForVersion(testInstance, version), deserializedInstance, version);
+        assertOnBWCObject(deserializedInstance, mutateInstanceForVersion(testInstance, version), version);
     }
 
     /**
-     * Assert that two instances are equal.
+     * @param bwcSerializedObject The object deserialized from the previous version
+     * @param testInstance The original test instance
+     * @param version The version which serialized
      */
-    protected final void assertBwcEqualInstances(T expectedInstance, T newInstance, Version version) {
-        assertNotSame(version.toString(), newInstance, expectedInstance);
-        assertEquals(version.toString(), expectedInstance, newInstance);
-        assertEquals(version.toString(), expectedInstance.hashCode(), newInstance.hashCode());
+    protected void assertOnBWCObject(T bwcSerializedObject, T testInstance, Version version) {
+        assertNotSame(version.toString(), bwcSerializedObject, testInstance);
+        assertEquals(version.toString(), bwcSerializedObject, testInstance);
+        assertEquals(version.toString(), bwcSerializedObject.hashCode(), testInstance.hashCode());
     }
-
 }

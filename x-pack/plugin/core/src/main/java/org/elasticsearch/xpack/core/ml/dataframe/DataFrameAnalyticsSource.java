@@ -157,6 +157,11 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         return queryProvider.getParsingException();
     }
 
+    // visible for testing
+    QueryProvider getQueryProvider() {
+        return queryProvider;
+    }
+
     /**
      * Calls the parser and returns any gathered deprecations
      *
@@ -224,38 +229,5 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         // Let us take "foo" as an example.
         // Fields that are "foo.*" should also be matched.
         return Regex.simpleMatch(sourcePattern + ".*", path);
-    }
-
-    public static class Builder {
-        private String[] index;
-        private QueryProvider queryProvider;
-        private FetchSourceContext sourceFiltering;
-
-        public Builder() {}
-
-        public Builder(DataFrameAnalyticsSource other) {
-            this.index = other.index;
-            this.queryProvider = other.queryProvider == null ? null : new QueryProvider(other.queryProvider);
-            this.sourceFiltering = other.sourceFiltering;
-        }
-
-        public Builder setIndex(String[] index) {
-            this.index = index;
-            return this;
-        }
-
-        public Builder setQueryProvider(QueryProvider queryProvider) {
-            this.queryProvider = queryProvider;
-            return this;
-        }
-
-        public Builder setSourceFiltering(FetchSourceContext sourceFiltering) {
-            this.sourceFiltering = sourceFiltering;
-            return this;
-        }
-
-        public DataFrameAnalyticsSource build() {
-            return new DataFrameAnalyticsSource(index, queryProvider, sourceFiltering);
-        }
     }
 }

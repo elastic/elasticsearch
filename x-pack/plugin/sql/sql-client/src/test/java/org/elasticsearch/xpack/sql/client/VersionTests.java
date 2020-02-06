@@ -55,9 +55,12 @@ public class VersionTests extends ESTestCase {
     }
     
     public void testVersionFromJarInJar() throws IOException {
+        final String JDBC_JAR_NAME = "es-sql-jdbc.jar";
+        final String JAR_PATH_SEPARATOR = "!/";
+        
         Path dir = createTempDir();
-        Path jarPath = dir.resolve("foo.jar");              // simulated uberjar containing the jdbc driver
-        Path innerJarPath = dir.resolve("es-sql-jdbc.jar"); // simulated ES JDBC driver file
+        Path jarPath = dir.resolve("uberjar.jar");          // simulated uberjar containing the jdbc driver
+        Path innerJarPath = dir.resolve(JDBC_JAR_NAME); // simulated ES JDBC driver file
 
         Manifest jdbcJarManifest = new Manifest();
         Attributes attributes = jdbcJarManifest.getMainAttributes();
@@ -71,7 +74,7 @@ public class VersionTests extends ESTestCase {
         // create the uberjar and embed the jdbc driver one into it
         try (BufferedInputStream in = new BufferedInputStream(Files.newInputStream(innerJarPath));
                 JarOutputStream out = new JarOutputStream(Files.newOutputStream(jarPath, StandardOpenOption.CREATE), new Manifest())) {
-            JarEntry entry = new JarEntry("es-sql-jdbc.jar!/");
+            JarEntry entry = new JarEntry(JDBC_JAR_NAME + JAR_PATH_SEPARATOR);
             out.putNextEntry(entry);
 
             byte[] buffer = new byte[1024];
@@ -84,7 +87,7 @@ public class VersionTests extends ESTestCase {
             }
         }
         
-        URL jarInJar = new URL("jar:" + jarPath.toUri().toURL().toString() + "!/es-sql-jdbc.jar!/");
+        URL jarInJar = new URL("jar:" + jarPath.toUri().toURL().toString() + JAR_PATH_SEPARATOR + JDBC_JAR_NAME + JAR_PATH_SEPARATOR);
         
         Version version = Version.extractVersion(jarInJar);
         assertEquals(1, version.major);

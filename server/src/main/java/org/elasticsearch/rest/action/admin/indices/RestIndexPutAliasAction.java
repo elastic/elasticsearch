@@ -51,8 +51,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
             new Route("/_aliases/{name}", PUT),
             new Route("/{index}/_alias", PUT),
             new Route("/{index}/_aliases", PUT),
-            new Route("/_alias", PUT),
-            new Route("/{index}/_alias", PUT)));
+            new Route("/_alias", PUT)));
     }
 
     @Override

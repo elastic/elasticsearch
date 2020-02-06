@@ -13,25 +13,22 @@ include::install_remove.asciidoc[]
 
 In order to enable the `_size` field, set the mapping as follows:
 
-[source,js]
+[source,console]
 --------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "_size": {
-        "enabled": true
-      }
+    "_size": {
+      "enabled": true
     }
   }
 }
 --------------------------
-// CONSOLE
 
 The value of the `_size` field is accessible in queries, aggregations, scripts,
 and when sorting:
 
-[source,js]
+[source,console]
 --------------------------
 # Example documents
 PUT my_index/_doc/1
@@ -75,7 +72,6 @@ GET my_index/_search
   }
 }
 --------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> Querying on the `_size` field

@@ -23,8 +23,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
@@ -52,11 +50,14 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -168,7 +169,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::search-source-sorting
             sourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.DESC)); // <1>
-            sourceBuilder.sort(new FieldSortBuilder("_id").order(SortOrder.ASC));  // <2>
+            sourceBuilder.sort(new FieldSortBuilder("id").order(SortOrder.ASC));  // <2>
             // end::search-source-sorting
 
             // tag::search-source-filtering-off
@@ -772,11 +773,10 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::render-search-template-response
 
         assertNotNull(source);
-        assertEquals((
-            "{" +
-            "  \"size\" : \"5\"," +
-            "  \"query\": { \"match\" : { \"title\" : \"elasticsearch\" } }" +
-            "}").replaceAll("\\s+", ""), source.utf8ToString());
+        assertEquals(
+            ("{  \"size\" : \"5\",  \"query\": { \"match\" : { \"title\" : \"elasticsearch\" } }}").replaceAll("\\s+", ""),
+            source.utf8ToString()
+        );
     }
 
     public void testSearchTemplateWithStoredScript() throws Exception {
@@ -1249,30 +1249,50 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void indexSearchTestData() throws IOException {
         CreateIndexRequest authorsRequest = new CreateIndexRequest("authors")
-            .mapping("_doc", "user", "type=keyword,doc_values=false");
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("id")
+                        .field("type", "keyword")
+                    .endObject()
+                    .startObject("user")
+                        .field("type", "keyword")
+                        .field("doc_values", "false")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
 
         CreateIndexRequest reviewersRequest = new CreateIndexRequest("contributors")
-            .mapping("_doc", "user", "type=keyword,store=true");
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("id")
+                        .field("type", "keyword")
+                    .endObject()
+                    .startObject("user")
+                        .field("type", "keyword")
+                        .field("store", "true")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse reviewersResponse = highLevelClient().indices().create(reviewersRequest, RequestOptions.DEFAULT);
         assertTrue(reviewersResponse.isAcknowledged());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("posts").id("1")
-                .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
+                .source(XContentType.JSON, "id", 1, "title", "In which order are my Elasticsearch queries executed?", "user",
                         Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("posts").id("2")
-                .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
+                .source(XContentType.JSON, "id", 2, "title", "Current status and upcoming changes in Elasticsearch", "user",
                         Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("posts").id("3")
-                .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
+                .source(XContentType.JSON, "id", 3, "title", "The Future of Federated Search in Elasticsearch", "user",
                         Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
 
         bulkRequest.add(new IndexRequest("authors").id("1")
-            .source(XContentType.JSON, "user", "kimchy"));
+            .source(XContentType.JSON, "id", 1, "user", "kimchy"));
         bulkRequest.add(new IndexRequest("contributors").id("1")
-            .source(XContentType.JSON, "user", "tanguy"));
+            .source(XContentType.JSON, "id", 1, "user", "tanguy"));
 
 
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1368,7 +1388,14 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private static void indexCountTestData() throws IOException {
         CreateIndexRequest authorsRequest = new CreateIndexRequest("author")
-            .mapping("_doc", "user", "type=keyword,doc_values=false");
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("user")
+                        .field("type", "keyword")
+                        .field("doc_values", "false")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
 

@@ -1,5 +1,8 @@
 [[analysis-predicatefilter-tokenfilter]]
-=== Predicate Token Filter Script
+=== Predicate script token filter
+++++
+<titleabbrev>Predicate script</titleabbrev>
+++++
 
 The predicate_token_filter token filter takes a predicate script, and removes tokens that do
 not match the predicate.
@@ -15,9 +18,9 @@ be emitted.  Note that only inline scripts are supported.
 
 You can set it up like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /condition_example?include_type_name=true
+PUT /condition_example
 {
     "settings" : {
         "analysis" : {
@@ -39,13 +42,12 @@ PUT /condition_example?include_type_name=true
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> This will emit tokens that are more than 5 characters long
 
 And test it like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /condition_example/_analyze
 {
@@ -53,12 +55,11 @@ POST /condition_example/_analyze
   "text" : "What Flapdoodle"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And it'd respond:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -72,7 +73,6 @@ And it'd respond:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 <1> The token 'What' has been removed from the tokenstream because it does not
 match the predicate.

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -34,7 +36,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -55,20 +56,19 @@ import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
-import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -179,21 +179,21 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[count];
         for (int i = 0; i < count; i++) {
             String id = String.valueOf(i);
-            SearchHit hit = new SearchHit(1, id, new Text("watch"), Collections.emptyMap());
+            SearchHit hit = new SearchHit(1, id, Collections.emptyMap());
             hit.version(1L);
-            hit.shard(new SearchShardTarget("nodeId", watchIndex, 0, "whatever"));
+            hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever", OriginalIndices.NONE));
             hits[i] = hit;
 
             boolean active = randomBoolean();
             if (active) {
                 activeWatchCount++;
             }
-            WatchStatus.State state = new WatchStatus.State(active, DateTime.now(DateTimeZone.UTC));
+            WatchStatus.State state = new WatchStatus.State(active, ZonedDateTime.now(ZoneOffset.UTC));
             WatchStatus watchStatus = mock(WatchStatus.class);
             Watch watch = mock(Watch.class);
             when(watchStatus.state()).thenReturn(state);
             when(watch.status()).thenReturn(watchStatus);
-            when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON))).thenReturn(watch);
+            when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON), anyLong(), anyLong())).thenReturn(watch);
         }
         SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
@@ -229,8 +229,10 @@ public class WatcherServiceTests extends ESTestCase {
         Trigger trigger = mock(Trigger.class);
         when(trigger.type()).thenReturn(engineType);
 
+        final String id = randomAlphaOfLengthBetween(3, 12);
         Watch watch = mock(Watch.class);
         when(watch.trigger()).thenReturn(trigger);
+        when(watch.id()).thenReturn(id);
         when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
         ExecutableNoneInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
@@ -266,13 +268,13 @@ public class WatcherServiceTests extends ESTestCase {
         csBuilder.metaData(MetaData.builder());
 
         service.reload(csBuilder.build(), "whatever");
-        verify(executionService).clearExecutionsAndQueue();
-        verify(executionService, never()).pause();
+        verify(executionService).clearExecutionsAndQueue(any());
+        verify(executionService, never()).pause(any());
         verify(triggerService).pauseExecution();
     }
 
     private static DiscoveryNode newNode() {
         return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(asList(DiscoveryNode.Role.values())), Version.CURRENT);
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
     }
 }

@@ -19,6 +19,7 @@ reading the entire inverted index for each segment from disk, inverting the
 term ↔︎ document relationship, and storing the result in memory, in the JVM
 heap.
 
+[[fielddata-disabled-text-fields]]
 ==== Fielddata is disabled on `text` fields by default
 
 Fielddata can consume a *lot* of heap space, especially when loading high
@@ -30,12 +31,10 @@ why fielddata is disabled by default.
 If you try to sort, aggregate, or access values from a script on a `text`
 field, you will see this exception:
 
-[quote]
---
+[literal]
 Fielddata is disabled on text fields by default.  Set `fielddata=true` on
 [`your_field_name`] in order to load  fielddata in memory by uninverting the
 inverted index. Note that this can however use significant memory.
---
 
 [[before-enabling-fielddata]]
 ==== Before enabling fielddata
@@ -53,19 +52,17 @@ Instead, you should have a `text` field for full text searches, and an
 unanalyzed <<keyword,`keyword`>> field with <<doc-values,`doc_values`>>
 enabled for aggregations, as follows:
 
-[source,js]
+[source,console]
 ---------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_field": { <1>
-          "type": "text",
-          "fields": {
-            "keyword": { <2>
-              "type": "keyword"
-            }
+    "properties": {
+      "my_field": { <1>
+        "type": "text",
+        "fields": {
+          "keyword": { <2>
+            "type": "keyword"
           }
         }
       }
@@ -73,16 +70,17 @@ PUT my_index?include_type_name=true
   }
 }
 ---------------------------------
-// CONSOLE
+
 <1> Use the `my_field` field for searches.
 <2> Use the `my_field.keyword` field for aggregations, sorting, or in scripts.
 
+[[enable-fielddata-text-fields]]
 ==== Enabling fielddata on `text` fields
 
 You can enable fielddata on an existing `text` field using the
 <<indices-put-mapping,PUT mapping API>> as follows:
 
-[source,js]
+[source,console]
 -----------------------------------
 PUT my_index/_mapping
 {
@@ -94,7 +92,6 @@ PUT my_index/_mapping
   }
 }
 -----------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The mapping that you specify for `my_field` should consist of the existing
@@ -116,25 +113,22 @@ value for the field, as opposed to all docs in the segment.
 Small segments can be excluded completely by specifying the minimum
 number of docs that the segment should contain with `min_segment_size`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "tag": {
-          "type": "text",
-          "fielddata": true,
-          "fielddata_frequency_filter": {
-            "min": 0.001,
-            "max": 0.1,
-            "min_segment_size": 500
-          }
+    "properties": {
+      "tag": {
+        "type": "text",
+        "fielddata": true,
+        "fielddata_frequency_filter": {
+          "min": 0.001,
+          "max": 0.1,
+          "min_segment_size": 500
         }
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE

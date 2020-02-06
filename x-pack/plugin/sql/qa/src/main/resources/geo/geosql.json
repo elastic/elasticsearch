@@ -1,0 +1,31 @@
+{
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+      "properties": {
+        "region": {
+          "type": "keyword"
+        },
+        "city": {
+          "type": "keyword"
+        },
+        "location": {
+          "type": "geo_point"
+        },
+        "location_no_dv": {
+          "type": "geo_point",
+          "doc_values": "false"
+        },
+        "geoshape": {
+          "type": "geo_shape"
+        },
+        "region_point": {
+          "type": "keyword"
+        },
+        "shape": {
+          "type": "shape"
+        }
+      }
+  }
+}

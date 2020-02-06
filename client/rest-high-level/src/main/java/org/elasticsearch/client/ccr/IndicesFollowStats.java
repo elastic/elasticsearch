@@ -101,6 +101,7 @@ public final class IndicesFollowStats {
         static final ParseField WRITE_BUFFER_SIZE_IN_BYTES_FIELD = new ParseField("write_buffer_size_in_bytes");
         static final ParseField FOLLOWER_MAPPING_VERSION_FIELD = new ParseField("follower_mapping_version");
         static final ParseField FOLLOWER_SETTINGS_VERSION_FIELD = new ParseField("follower_settings_version");
+        static final ParseField FOLLOWER_ALIASES_VERSION_FIELD = new ParseField("follower_aliases_version");
         static final ParseField TOTAL_READ_TIME_MILLIS_FIELD = new ParseField("total_read_time_millis");
         static final ParseField TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD = new ParseField("total_read_remote_exec_time_millis");
         static final ParseField SUCCESSFUL_READ_REQUESTS_FIELD = new ParseField("successful_read_requests");
@@ -117,41 +118,42 @@ public final class IndicesFollowStats {
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<ShardFollowStats, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "shard-follow-stats",
-                true,
-                args -> new ShardFollowStats(
-                    (String) args[0],
-                    (String) args[1],
-                    (String) args[2],
-                    (int) args[3],
-                    (long) args[4],
-                    (long) args[5],
-                    (long) args[6],
-                    (long) args[7],
-                    (long) args[8],
-                    (int) args[9],
-                    (int) args[10],
-                    (int) args[11],
-                    (long) args[12],
-                    (long) args[13],
-                    (long) args[14],
-                    (long) args[15],
-                    (long) args[16],
-                    (long) args[17],
-                    (long) args[18],
-                    (long) args[19],
-                    (long) args[20],
-                    (long) args[21],
-                    (long) args[22],
-                    (long) args[23],
-                    (long) args[24],
-                    (long) args[25],
-                    new TreeMap<>(
-                        ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[26])
-                            .stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                    (ElasticsearchException) args[27]));
+                new ConstructingObjectParser<>(
+                        "shard-follow-stats",
+                        true,
+                        args -> new ShardFollowStats(
+                                (String) args[0],
+                                (String) args[1],
+                                (String) args[2],
+                                (int) args[3],
+                                (long) args[4],
+                                (long) args[5],
+                                (long) args[6],
+                                (long) args[7],
+                                (long) args[8],
+                                (int) args[9],
+                                (int) args[10],
+                                (int) args[11],
+                                (long) args[12],
+                                (long) args[13],
+                                (long) args[14],
+                                (long) args[15],
+                                (long) args[16],
+                                (long) args[17],
+                                (long) args[18],
+                                (long) args[19],
+                                (long) args[20],
+                                (long) args[21],
+                                (long) args[22],
+                                (long) args[23],
+                                (long) args[24],
+                                (long) args[25],
+                                (long) args[26],
+                                new TreeMap<>(
+                                        ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[27])
+                                                .stream()
+                                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
+                                (ElasticsearchException) args[28]));
 
         static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> READ_EXCEPTIONS_ENTRY_PARSER =
             new ConstructingObjectParser<>(
@@ -175,6 +177,7 @@ public final class IndicesFollowStats {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), WRITE_BUFFER_SIZE_IN_BYTES_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_MAPPING_VERSION_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_SETTINGS_VERSION_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_ALIASES_VERSION_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_READ_TIME_MILLIS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SUCCESSFUL_READ_REQUESTS_FIELD);
@@ -220,6 +223,7 @@ public final class IndicesFollowStats {
         private final long writeBufferSizeInBytes;
         private final long followerMappingVersion;
         private final long followerSettingsVersion;
+        private final long followerAliasesVersion;
         private final long totalReadTimeMillis;
         private final long totalReadRemoteExecTimeMillis;
         private final long successfulReadRequests;
@@ -249,6 +253,7 @@ public final class IndicesFollowStats {
                          long writeBufferSizeInBytes,
                          long followerMappingVersion,
                          long followerSettingsVersion,
+                         long followerAliasesVersion,
                          long totalReadTimeMillis,
                          long totalReadRemoteExecTimeMillis,
                          long successfulReadRequests,
@@ -277,6 +282,7 @@ public final class IndicesFollowStats {
             this.writeBufferSizeInBytes = writeBufferSizeInBytes;
             this.followerMappingVersion = followerMappingVersion;
             this.followerSettingsVersion = followerSettingsVersion;
+            this.followerAliasesVersion = followerAliasesVersion;
             this.totalReadTimeMillis = totalReadTimeMillis;
             this.totalReadRemoteExecTimeMillis = totalReadRemoteExecTimeMillis;
             this.successfulReadRequests = successfulReadRequests;
@@ -350,6 +356,10 @@ public final class IndicesFollowStats {
 
         public long getFollowerSettingsVersion() {
             return followerSettingsVersion;
+        }
+
+        public long getFollowerAliasesVersion() {
+            return followerAliasesVersion;
         }
 
         public long getTotalReadTimeMillis() {

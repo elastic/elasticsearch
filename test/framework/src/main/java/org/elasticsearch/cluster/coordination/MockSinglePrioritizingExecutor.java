@@ -34,11 +34,19 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
             r -> new Thread() {
                 @Override
                 public void start() {
-                    deterministicTaskQueue.scheduleNow(() -> {
-                        try {
-                            r.run();
-                        } catch (KillWorkerError kwe) {
-                            // hacks everywhere
+                    deterministicTaskQueue.scheduleNow(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                r.run();
+                            } catch (KillWorkerError kwe) {
+                                // hacks everywhere
+                            }
+                        }
+
+                        @Override
+                        public String toString() {
+                            return r.toString();
                         }
                     });
                 }
@@ -51,6 +59,12 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
         super.afterExecute(r, t);
         // kill worker so that next one will be scheduled
         throw new KillWorkerError();
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit unit) {
+        // ensures we don't block
+        return false;
     }
 
     private static final class KillWorkerError extends Error {

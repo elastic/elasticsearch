@@ -29,8 +29,7 @@ public class GetPrivilegesRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
 
-        final GetPrivilegesRequest copy = new GetPrivilegesRequest();
-        copy.readFrom(out.bytes().streamInput());
+        final GetPrivilegesRequest copy = new GetPrivilegesRequest(out.bytes().streamInput());
 
         assertThat(original.application(), Matchers.equalTo(copy.application()));
         assertThat(original.privileges(), Matchers.equalTo(copy.privileges()));
@@ -45,7 +44,8 @@ public class GetPrivilegesRequestTests extends ESTestCase {
         assertThat(request("my_app", "read", "write").validate(), nullValue());
         final ActionRequestValidationException exception = request("my_app", ((String[]) null)).validate();
         assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), containsInAnyOrder("privileges cannot be null"));
+        assertThat(exception.validationErrors(),
+            containsInAnyOrder("privileges cannot be null"));
     }
 
     private GetPrivilegesRequest request(String application, String... privileges) {

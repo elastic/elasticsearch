@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.ESTestCase;
@@ -14,9 +17,11 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -25,10 +30,18 @@ import static org.mockito.Mockito.mock;
 public class AggregationDataExtractorFactoryTests extends ESTestCase {
 
     private Client client;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     @Before
     public void setUpMocks() {
         client = mock(Client.class);
+        timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     public void testNewExtractor_GivenAlignedTimes() {
@@ -66,6 +79,7 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
         datafeedConfigBuilder.setParsedAggregations(aggs);
         datafeedConfigBuilder.setIndices(Arrays.asList("my_index"));
-        return new AggregationDataExtractorFactory(client, datafeedConfigBuilder.build(), jobBuilder.build(new Date()));
+        return new AggregationDataExtractorFactory(
+            client, datafeedConfigBuilder.build(), jobBuilder.build(new Date()), xContentRegistry(), timingStatsReporter);
     }
 }

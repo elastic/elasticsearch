@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.function.Function;
 
 public class StringProcessor implements Processor {
-    
+
     private interface StringFunction<R> {
         default R apply(Object o) {
             if (!(o instanceof String || o instanceof Character)) {
@@ -57,11 +57,11 @@ public class StringProcessor implements Processor {
             int i = n.intValue();
             if (i < 0) {
                 return null;
-            };
+            }
             char[] spaces = new char[i];
             char whitespace = ' ';
             Arrays.fill(spaces, whitespace);
-            
+
             return new String(spaces);
         }),
         BIT_LENGTH((String s) -> UnicodeUtil.calcUTF16toUTF8Length(s, 0, s.length()) * 8),
@@ -91,7 +91,7 @@ public class StringProcessor implements Processor {
             return this == CHAR ? "character" : super.toString();
         }
     }
-    
+
     public static final String NAME = "s";
 
     private final StringOperation processor;

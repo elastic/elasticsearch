@@ -60,8 +60,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testSimpleValidateQuery() throws Exception {
         createIndex("test");
         ensureGreen();
-        client().admin().indices().preparePutMapping("test").setType("type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        client().admin().indices().preparePutMapping("test")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
                         .endObject().endObject().endObject())
@@ -91,8 +91,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testExplainValidateQueryTwoNodes() throws IOException {
         createIndex("test");
         ensureGreen();
-        client().admin().indices().preparePutMapping("test").setType("type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        client().admin().indices().preparePutMapping("test")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
                         .startObject("baz").field("type", "text").field("analyzer", "standard").endObject()
@@ -138,7 +138,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plus(1, ChronoUnit.MONTHS));
         String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minus(1, ChronoUnit.MONTHS));
 
-        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+        client().prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
 
         refresh();
 
@@ -160,7 +160,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             client().admin().indices().prepareValidateQuery().get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index [null]"));
+            assertThat(e.getMessage(), is("no such index [null] and no indices exist"));
         }
     }
 
@@ -177,7 +177,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainFilteredAlias() {
         assertAcked(prepareCreate("test")
-                .addMapping("test", "field", "type=text")
+                .setMapping("field", "type=text")
                 .addAlias(new Alias("alias").filter(QueryBuilders.termQuery("field", "value1"))));
         ensureGreen();
 
@@ -189,14 +189,14 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:value1"));
     }
 
-    public void testExplainWithRewriteValidateQuery() throws Exception {
+    public void testExplainWithRewriteValidateQuery() {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field", "type=text,analyzer=whitespace")
+                .setMapping("field", "type=text,analyzer=whitespace")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)).get();
-        client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
-        client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();
-        client().prepareIndex("test", "type1", "3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test", "type1", "4").setSource("field", "the lazy dog quacks like a duck").get();
+        client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
+        client().prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
+        client().prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
+        client().prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
         refresh();
 
         // prefix queries
@@ -205,18 +205,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertExplanation(QueryBuilders.matchPhrasePrefixQuery("field", "ju"),
                 containsString("field:jumps"), true);
 
-        // common terms queries
-        assertExplanation(QueryBuilders.commonTermsQuery("field", "huge brown pidgin").cutoffFrequency(1),
-                containsString("+field:pidgin (field:huge field:brown)"), true);
-        assertExplanation(QueryBuilders.commonTermsQuery("field", "the brown").analyzer("stop"),
-                containsString("field:brown"), true);
-
-        // match queries with cutoff frequency
-        assertExplanation(QueryBuilders.matchQuery("field", "huge brown pidgin").cutoffFrequency(1),
-                containsString("+field:pidgin (field:huge field:brown)"), true);
-        assertExplanation(QueryBuilders.matchQuery("field", "the brown").analyzer("stop"),
-                containsString("field:brown"), true);
-
         // fuzzy queries
         assertExplanation(QueryBuilders.fuzzyQuery("field", "the").fuzziness(Fuzziness.fromEdits(2)),
                 containsString("field:the (field:tree)^0.3333333"), true);
@@ -224,7 +212,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("(field:jumps)^0.75"), true);
 
         // more like this queries
-        Item[] items = new Item[] { new Item(null, null, "1")};
+        Item[] items = new Item[] { new Item(null, "1") };
         assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, items)
                         .include(true).minTermFreq(1).minDocFreq(1).maxQueryTerms(2),
                 containsString("field:huge field:pidgin"), true);
@@ -233,19 +221,19 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("field:huge field:pidgin"), true);
     }
 
-    public void testExplainWithRewriteValidateQueryAllShards() throws Exception {
+    public void testExplainWithRewriteValidateQueryAllShards() {
         client().admin().indices().prepareCreate("test")
-            .addMapping("type1", "field", "type=text,analyzer=whitespace")
+            .setMapping("field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)).get();
         // We are relying on specific routing behaviors for the result to be right, so
         // we cannot randomize the number of shards or change ids here.
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
             .setSource("field", "quick lazy huge brown pidgin").get();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test").setId("2")
             .setSource("field", "the quick brown fox").get();
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test").setId("3")
             .setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test", "type1", "4")
+        client().prepareIndex("test").setId("4")
             .setSource("field", "the lazy dog quacks like a duck").get();
         refresh();
 
@@ -262,7 +250,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             ), true, true);
     }
 
-    public void testIrrelevantPropertiesBeforeQuery() throws IOException {
+    public void testIrrelevantPropertiesBeforeQuery() {
         createIndex("test");
         ensureGreen();
         refresh();
@@ -271,7 +259,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}"))).get().isValid(), equalTo(false));
     }
 
-    public void testIrrelevantPropertiesAfterQuery() throws IOException {
+    public void testIrrelevantPropertiesAfterQuery() {
         createIndex("test");
         ensureGreen();
         refresh();
@@ -282,7 +270,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
-                .setTypes("type1")
                 .setQuery(queryBuilder)
                 .setExplain(true)
                 .setRewrite(withRewrite)
@@ -297,7 +284,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                                            List<Matcher<String>> matchers, boolean withRewrite,
                                            boolean allShards) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
-            .setTypes("type1")
             .setQuery(queryBuilder)
             .setExplain(true)
             .setRewrite(withRewrite)
@@ -311,17 +297,16 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         }
     }
 
-    public void testExplainTermsQueryWithLookup() throws Exception {
+    public void testExplainTermsQueryWithLookup() {
         client().admin().indices().prepareCreate("twitter")
-            .addMapping("_doc", "user", "type=integer", "followers", "type=integer")
+            .setMapping("user", "type=integer", "followers", "type=integer")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)).get();
-        client().prepareIndex("twitter", "_doc", "1")
+        client().prepareIndex("twitter").setId("1")
             .setSource("followers", new int[] {1, 2, 3}).get();
         refresh();
 
-        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "_doc", "1", "followers"));
+        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "1", "followers"));
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("twitter")
-            .setTypes("_doc")
             .setQuery(termsLookupQuery)
             .setExplain(true)
             .execute().actionGet();

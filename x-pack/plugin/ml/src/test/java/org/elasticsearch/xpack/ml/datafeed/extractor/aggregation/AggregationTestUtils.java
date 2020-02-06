@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
@@ -37,6 +40,14 @@ public final class AggregationTestUtils {
         return bucket;
     }
 
+    static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<Aggregation> subAggregations) {
+        SingleBucketAggregation singleBucketAggregation = mock(SingleBucketAggregation.class);
+        when(singleBucketAggregation.getName()).thenReturn(name);
+        when(singleBucketAggregation.getDocCount()).thenReturn(docCount);
+        when(singleBucketAggregation.getAggregations()).thenReturn(createAggs(subAggregations));
+        return singleBucketAggregation;
+    }
+
     static Histogram.Bucket createHistogramBucket(long timestamp, long docCount) {
         return createHistogramBucket(timestamp, docCount, Collections.emptyList());
     }
@@ -59,6 +70,15 @@ public final class AggregationTestUtils {
         when(max.value()).thenReturn(value);
         when(max.getValue()).thenReturn(value);
         return max;
+    }
+
+    static GeoCentroid createGeoCentroid(String name, long count, double lat, double lon) {
+        GeoCentroid centroid = mock(GeoCentroid.class);
+        when(centroid.count()).thenReturn(count);
+        when(centroid.getName()).thenReturn(name);
+        GeoPoint point = count > 0 ? new GeoPoint(lat, lon) : null;
+        when(centroid.centroid()).thenReturn(point);
+        return centroid;
     }
 
     static NumericMetricsAggregation.SingleValue createSingleValue(String name, double value) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.join.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -52,8 +53,6 @@ import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -141,7 +140,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
      */
     @Override
     protected HasChildQueryBuilder doCreateTestQueryBuilder() {
-        int min = randomIntBetween(0, Integer.MAX_VALUE / 2);
+        int min = randomIntBetween(1, Integer.MAX_VALUE / 2);
         int max = randomIntBetween(min, Integer.MAX_VALUE);
 
         QueryBuilder innerQueryBuilder = new MatchAllQueryBuilder();
@@ -164,7 +163,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
+    protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
         HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
         assertEquals(queryBuilder.minChildren(), lpq.getMinChildren());
@@ -173,20 +172,12 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         if (queryBuilder.innerHit() != null) {
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
             // doCreateTestQueryBuilder)
-            queryBuilder = (HasChildQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
+            queryBuilder = (HasChildQueryBuilder) queryBuilder.rewrite(context);
             Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
-            for (InnerHitContextBuilder builder : innerHitBuilders.values()) {
-                builder.build(searchContext, searchContext.innerHits());
-            }
-            assertNotNull(searchContext.innerHits());
-            assertEquals(1, searchContext.innerHits().getInnerHits().size());
-            assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-            InnerHitsContext.InnerHitSubContext innerHits =
-                    searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
-            assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-            assertEquals(innerHits.sort().sort.getSort().length, 1);
-            assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
+            assertTrue(innerHitBuilders.containsKey(queryBuilder.innerHit().getName()));
+            InnerHitContextBuilder innerHits = innerHitBuilders.get(queryBuilder.innerHit().getName());
+            assertEquals(innerHits.innerHitBuilder(), queryBuilder.innerHit());
         }
     }
 
@@ -215,10 +206,10 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         int positiveValue = randomIntBetween(0, Integer.MAX_VALUE);
         HasChildQueryBuilder foo = hasChildQuery("foo", query, ScoreMode.None); // all good
         e = expectThrows(IllegalArgumentException.class, () -> foo.minMaxChildren(randomIntBetween(Integer.MIN_VALUE, -1), positiveValue));
-        assertEquals("[has_child] requires non-negative 'min_children' field", e.getMessage());
+        assertEquals("[has_child] requires positive 'min_children' field", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> foo.minMaxChildren(positiveValue, randomIntBetween(Integer.MIN_VALUE, -1)));
-        assertEquals("[has_child] requires non-negative 'max_children' field", e.getMessage());
+        assertEquals("[has_child] requires positive 'max_children' field", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> foo.minMaxChildren(positiveValue, positiveValue - 10));
         assertEquals("[has_child] 'max_children' is less than 'min_children'", e.getMessage());
@@ -252,6 +243,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "      \"from\" : 0,\n" +
                 "      \"size\" : 100,\n" +
                 "      \"version\" : false,\n" +
+                "      \"seq_no_primary_term\" : false,\n" +
                 "      \"explain\" : false,\n" +
                 "      \"track_scores\" : false,\n" +
                 "      \"sort\" : [ {\n" +
@@ -279,13 +271,9 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testToQueryInnerQueryType() throws IOException {
-        String[] searchTypes = new String[]{TYPE};
         QueryShardContext shardContext = createShardContext();
-        shardContext.setTypes(searchTypes);
         HasChildQueryBuilder hasChildQueryBuilder = hasChildQuery(CHILD_DOC, new IdsQueryBuilder().addIds("id"), ScoreMode.None);
         Query query = hasChildQueryBuilder.toQuery(shardContext);
-        //verify that the context types are still the same as the ones we previously set
-        assertThat(shardContext.getTypes(), equalTo(searchTypes));
         assertLateParsingQuery(query, CHILD_DOC, "id");
     }
 
@@ -365,5 +353,13 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         Query query = queryBuilder.rewrite(queryShardContext).toQuery(queryShardContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testExtractInnerHitBuildersWithDuplicate() {
+        final HasChildQueryBuilder queryBuilder
+            = new HasChildQueryBuilder(CHILD_DOC, new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), ScoreMode.None);
+        queryBuilder.innerHit(new InnerHitBuilder("some_name"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> InnerHitContextBuilder.extractInnerHits(queryBuilder, Collections.singletonMap("some_name", null)));
     }
 }

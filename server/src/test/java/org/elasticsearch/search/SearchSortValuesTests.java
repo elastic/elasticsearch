@@ -20,9 +20,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,11 +30,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Base64;
 
 public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSortValues> {
 
@@ -71,7 +67,12 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
     }
 
     private static DocValueFormat randomDocValueFormat() {
-        return randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.RAW, DocValueFormat.IP, DocValueFormat.BINARY, DocValueFormat.GEOHASH);
+        return randomFrom(DocValueFormat.BOOLEAN,
+            DocValueFormat.RAW,
+            DocValueFormat.IP,
+            DocValueFormat.BINARY,
+            DocValueFormat.GEOHASH,
+            DocValueFormat.GEOTILE);
     }
 
     @Override
@@ -134,23 +135,5 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
         Object[] values = Arrays.copyOf(sortValues, sortValues.length + 1);
         values[sortValues.length] = randomSortValue(randomFrom(XContentType.values()), randomBoolean());
         return new SearchSortValues(values);
-    }
-
-    public void testSerializationPre6_6_0() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0));
-        SearchSortValues original = createTestInstance();
-        SearchSortValues deserialized = copyInstance(original, version);
-        assertArrayEquals(original.getFormattedSortValues(), deserialized.getFormattedSortValues());
-        assertEquals(0, deserialized.getRawSortValues().length);
-    }
-
-    public void testReadFromPre6_6_0() throws IOException {
-        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode("AwIAAAABAQEyBUAIAAAAAAAAAAAAAAAA"))) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0)));
-            SearchSortValues deserialized = new SearchSortValues(in);
-            SearchSortValues expected = new SearchSortValues(new Object[]{1, "2", 3d});
-            assertEquals(expected, deserialized);
-            assertEquals(0, deserialized.getRawSortValues().length);
-        }
     }
 }

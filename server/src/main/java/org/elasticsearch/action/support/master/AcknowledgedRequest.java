@@ -82,12 +82,6 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        timeout = in.readTimeValue();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeTimeValue(timeout);

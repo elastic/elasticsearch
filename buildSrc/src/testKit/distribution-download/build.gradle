@@ -1,0 +1,55 @@
+import org.elasticsearch.gradle.BwcVersions
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+plugins {
+  id 'elasticsearch.global-build-info'
+}
+boolean internal = Boolean.parseBoolean(System.getProperty("tests.internal", "true"))
+BuildParams.init { it.setIsInternal(internal) }
+
+project.gradle.projectsEvaluated {
+  // wire the download service url to wiremock
+  String fakeDownloadService = System.getProperty('tests.download_service')
+  if (fakeDownloadService != null) {
+    IvyArtifactRepository repository = (IvyArtifactRepository) rootProject.repositories.getByName("elasticsearch-downloads")
+    repository.setUrl(fakeDownloadService)
+    repository = (IvyArtifactRepository) project('subproj').repositories.getByName("elasticsearch-downloads")
+    repository.setUrl(fakeDownloadService)
+    if (internal == false) {
+      repository = (IvyArtifactRepository) rootProject.repositories.getByName("elasticsearch-snapshots")
+      repository.setUrl(fakeDownloadService)
+      repository = (IvyArtifactRepository) project('subproj').repositories.getByName("elasticsearch-snapshots")
+      repository.setUrl(fakeDownloadService)
+    }
+  }
+}
+
+if (internal) {
+  Version currentVersion = Version.fromString("9.0.0")
+  BwcVersions versions = new BwcVersions(new TreeSet<>(
+    Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
+    currentVersion)
+  allprojects {
+    ext.bwcVersions = versions
+  }
+}

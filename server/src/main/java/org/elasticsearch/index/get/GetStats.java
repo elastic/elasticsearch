@@ -21,14 +21,14 @@ package org.elasticsearch.index.get;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class GetStats implements Streamable, ToXContentFragment {
+public class GetStats implements Writeable, ToXContentFragment {
 
     private long existsCount;
     private long existsTimeInMillis;
@@ -37,6 +37,14 @@ public class GetStats implements Streamable, ToXContentFragment {
     private long current;
 
     public GetStats() {
+    }
+
+    public GetStats(StreamInput in) throws IOException {
+        existsCount = in.readVLong();
+        existsTimeInMillis = in.readVLong();
+        missingCount = in.readVLong();
+        missingTimeInMillis = in.readVLong();
+        current = in.readVLong();
     }
 
     public GetStats(long existsCount, long existsTimeInMillis, long missingCount, long missingTimeInMillis, long current) {
@@ -132,15 +140,6 @@ public class GetStats implements Streamable, ToXContentFragment {
         static final String MISSING_TIME = "missing_time";
         static final String MISSING_TIME_IN_MILLIS = "missing_time_in_millis";
         static final String CURRENT = "current";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        existsCount = in.readVLong();
-        existsTimeInMillis = in.readVLong();
-        missingCount = in.readVLong();
-        missingTimeInMillis = in.readVLong();
-        current = in.readVLong();
     }
 
     @Override

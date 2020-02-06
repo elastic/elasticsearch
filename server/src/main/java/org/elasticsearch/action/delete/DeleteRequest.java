@@ -43,7 +43,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * A request to delete a document from an index based on its type and id. Best created using
  * {@link org.elasticsearch.client.Requests#deleteRequest(String)}.
  * <p>
- * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)} to
+ * The operation requires the {@link #index()} and {@link #id(String)} to
  * be set.
  *
  * @see DeleteResponse
@@ -53,8 +53,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
-    // Set to null initially so we can know to override in bulk requests that have a default type.
-    private String type;
+    private static final ShardId NO_SHARD_ID = null;
+
     private String id;
     @Nullable
     private String routing;
@@ -63,31 +63,31 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+    public DeleteRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
+        id = in.readString();
+        routing = in.readOptionalString();
+        version = in.readLong();
+        versionType = VersionType.fromValue(in.readByte());
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
+    }
+
     public DeleteRequest() {
+        super(NO_SHARD_ID);
     }
 
     /**
-     * Constructs a new delete request against the specified index. The {@link #type(String)} and {@link #id(String)}
+     * Constructs a new delete request against the specified index. The {@link #id(String)}
      * must be set.
      */
     public DeleteRequest(String index) {
+        super(NO_SHARD_ID);
         this.index = index;
-    }
-
-    /**
-     * Constructs a new delete request against the specified index with the type and id.
-     *
-     * @param index The index to get the document from
-     * @param type  The type of the document
-     * @param id    The id of the document
-     *
-     * @deprecated Types are in the process of being removed. Use {@link #DeleteRequest(String, String)} instead.
-     */
-    @Deprecated
-    public DeleteRequest(String index, String type, String id) {
-        this.index = index;
-        this.type = type;
-        this.id = id;
     }
 
     /**
@@ -97,6 +97,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * @param id    The id of the document
      */
     public DeleteRequest(String index, String id) {
+        super(NO_SHARD_ID);
         this.index = index;
         this.id = id;
     }
@@ -104,78 +105,14 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (Strings.isEmpty(type())) {
-            validationException = addValidationError("type is missing", validationException);
-        }
         if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
-        if (versionType.validateVersionForWrites(version) == false) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type ["
-                + versionType.name() + "]", validationException);
-        }
-        if (versionType == VersionType.FORCE) {
-            validationException = addValidationError("version type [force] may no longer be used", validationException);
-        }
 
-        if (ifSeqNo != UNASSIGNED_SEQ_NO && (
-            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
-        )) {
-            validationException = addValidationError("compare and write operations can not use versioning", validationException);
-        }
-
-        if (ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM && ifSeqNo != UNASSIGNED_SEQ_NO) {
-            validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
-        }
-        if (ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM && ifSeqNo == UNASSIGNED_SEQ_NO) {
-            validationException =
-                addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]", validationException);
-        }
+        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
         return validationException;
     }
-
-    /**
-     * The type of the document to delete.
-     *
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public String type() {
-        if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;                    
-        }
-        return type;
-    }
-
-    /**
-     * Sets the type of the document to delete.
-     *
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public DeleteRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-    
-    /**
-     * Set the default type supplied to a bulk
-     * request if this individual request's type is null
-     * or empty
-     * 
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public DeleteRequest defaultTypeIfNull(String defaultType) {
-        if (Strings.isNullOrEmpty(type)) {
-            type = defaultType;
-        }
-        return this;
-    }    
 
     /**
      * The id of the document to delete.
@@ -293,61 +230,21 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
-        version = in.readLong();
-        versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            ifSeqNo = in.readZLong();
-            ifPrimaryTerm = in.readVLong();
-        } else {
-            ifSeqNo = UNASSIGNED_SEQ_NO;
-            ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
-        out.writeString(type());
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeOptionalString(routing());
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalString(null); // _parent
-        }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeZLong(ifSeqNo);
-            out.writeVLong(ifPrimaryTerm);
-        } else if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-            assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
-            throw new IllegalStateException(
-                "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
-                    "Stream version [" + out.getVersion() + "]");
-        }
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
     }
 
     @Override
     public String toString() {
-        return "delete {[" + index + "][" + type() + "][" + id + "]}";
-    }
-
-    /**
-     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
-     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
-     * use because the DeleteRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
-     */
-    @Override
-    public DeleteRequest setShardId(ShardId shardId) {
-        throw new UnsupportedOperationException("shard id should never be set on DeleteRequest");
+        return "delete {[" + index + "][" + id + "]}";
     }
 }

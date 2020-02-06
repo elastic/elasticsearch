@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class SqlQueryAction extends Action<SqlQueryResponse> {
+public class SqlQueryAction extends ActionType<SqlQueryResponse> {
 
     public static final SqlQueryAction INSTANCE = new SqlQueryAction();
     public static final String NAME = "indices:data/read/sql";
 
     private SqlQueryAction() {
-        super(NAME);
-    }
-
-    @Override
-    public SqlQueryResponse newResponse() {
-        return new SqlQueryResponse();
+        super(NAME, SqlQueryResponse::new);
     }
 }

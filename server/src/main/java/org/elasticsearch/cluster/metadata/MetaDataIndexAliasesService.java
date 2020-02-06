@@ -85,12 +85,15 @@ public class MetaDataIndexAliasesService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return innerExecute(currentState, request.actions());
+                    return applyAliasActions(currentState, request.actions());
                 }
             });
     }
 
-    ClusterState innerExecute(ClusterState currentState, Iterable<AliasAction> actions) {
+     /**
+     * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s.
+     */
+     public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
         List<Index> indicesToClose = new ArrayList<>();
         Map<String, IndexService> indices = new HashMap<>();
         try {
@@ -115,6 +118,7 @@ public class MetaDataIndexAliasesService {
             }
             MetaData.Builder metadata = MetaData.builder(currentState.metaData());
             // Run the remaining alias actions
+            final Set<String> maybeModifiedIndices = new HashSet<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
                     // Handled above
@@ -136,7 +140,7 @@ public class MetaDataIndexAliasesService {
                             if (indexService == null) {
                                 // temporarily create the index and add mappings so we can parse the filter
                                 try {
-                                    indexService = indicesService.createIndex(index, emptyList());
+                                    indexService = indicesService.createIndex(index, emptyList(), false);
                                     indicesToClose.add(index.getIndex());
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
@@ -151,7 +155,20 @@ public class MetaDataIndexAliasesService {
                                 xContentRegistry);
                     }
                 };
-                changed |= action.apply(newAliasValidator, metadata, index);
+                if (action.apply(newAliasValidator, metadata, index)) {
+                    changed = true;
+                    maybeModifiedIndices.add(index.getIndex().getName());
+                }
+            }
+
+            for (final String maybeModifiedIndex : maybeModifiedIndices) {
+                final IndexMetaData currentIndexMetaData = currentState.metaData().index(maybeModifiedIndex);
+                final IndexMetaData newIndexMetaData = metadata.get(maybeModifiedIndex);
+                // only increment the aliases version if the aliases actually changed for this index
+                if (currentIndexMetaData.getAliases().equals(newIndexMetaData.getAliases()) == false) {
+                    assert currentIndexMetaData.getAliasesVersion() == newIndexMetaData.getAliasesVersion();
+                    metadata.put(new IndexMetaData.Builder(newIndexMetaData).aliasesVersion(1 + currentIndexMetaData.getAliasesVersion()));
+                }
             }
 
             if (changed) {

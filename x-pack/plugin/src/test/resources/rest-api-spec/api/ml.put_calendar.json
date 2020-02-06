@@ -1,20 +1,28 @@
 {
-  "ml.put_calendar": {
-    "methods": [ "PUT" ],
-    "url": {
-      "path": "/_ml/calendars/{calendar_id}",
-      "paths": [ "/_ml/calendars/{calendar_id}" ],
-      "parts": {
-        "calendar_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the calendar to create"
-        }
-      }
+  "ml.put_calendar":{
+    "documentation":{
+      "url":null
     },
-    "body": {
-      "description" : "The calendar details",
-      "required" : false
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to create"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The calendar details",
+      "required":false
     }
   }
 }

@@ -40,7 +40,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -61,10 +60,6 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState createInitialClusterState(boolean startShards) {
-        return createInitialClusterState(startShards, Version.CURRENT);
-    }
-
-    private ClusterState createInitialClusterState(boolean startShards, Version nodeVersion) {
         MetaData.Builder metaBuilder = MetaData.builder();
         metaBuilder.put(IndexMetaData.builder("source").settings(settings(Version.CURRENT))
             .numberOfShards(2).numberOfReplicas(0).setRoutingNumShards(16));
@@ -75,11 +70,11 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData).routingTable(routingTable).build();
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1", nodeVersion)).add(newNode
-            ("node2", nodeVersion)))
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1", Version.CURRENT)).add(newNode
+            ("node2", Version.CURRENT)))
             .build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute", false).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertEquals(prevRoutingTable.index("source").shards().size(), 2);
@@ -94,9 +89,9 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
 
         if (startShards) {
-            clusterState = strategy.applyStartedShards(clusterState,
-                Arrays.asList(routingTable.index("source").shard(0).shards().get(0),
-                    routingTable.index("source").shard(1).shards().get(0)));
+            clusterState = startShardsAndReroute(strategy, clusterState,
+                routingTable.index("source").shard(0).shards().get(0),
+                routingTable.index("source").shard(1).shards().get(0));
             routingTable = clusterState.routingTable();
             assertEquals(routingTable.index("source").shards().size(), 2);
             assertEquals(routingTable.index("source").shard(0).shards().get(0).state(), STARTED);

@@ -21,14 +21,13 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -60,17 +59,34 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     /**
      * A search response item, holding the actual search response, or an error message if it failed.
      */
-    public static class Item implements Streamable {
-        private SearchResponse response;
-        private Exception exception;
-
-        Item() {
-
-        }
+    public static class Item implements Writeable {
+        private final SearchResponse response;
+        private final Exception exception;
 
         public Item(SearchResponse response, Exception exception) {
             this.response = response;
             this.exception = exception;
+        }
+
+        Item(StreamInput in) throws IOException{
+            if (in.readBoolean()) {
+                this.response = new SearchResponse(in);
+                this.exception = null;
+            } else {
+                this.exception = in.readException();
+                this.response = null;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (response != null) {
+                out.writeBoolean(true);
+                response.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+                out.writeException(exception);
+            }
         }
 
         /**
@@ -96,47 +112,21 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
             return this.response;
         }
 
-        public static Item readItem(StreamInput in) throws IOException {
-            Item item = new Item();
-            item.readFrom(in);
-            return item;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            if (in.readBoolean()) {
-                this.response = new SearchResponse();
-                response.readFrom(in);
-            } else {
-                exception = in.readException();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (response != null) {
-                out.writeBoolean(true);
-                response.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-                out.writeException(exception);
-            }
-        }
-
         public Exception getFailure() {
             return exception;
         }
     }
 
-    private Item[] items;
+    private final Item[] items;
+    private final long tookInMillis;
 
-    private long tookInMillis;
-
-    MultiSearchResponse() {
-    }
-
-    MultiSearchResponse(StreamInput in) throws IOException {
-        readFrom(in);
+    public MultiSearchResponse(StreamInput in) throws IOException {
+        super(in);
+        items = new Item[in.readVInt()];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = new Item(in);
+        }
+        tookInMillis = in.readVLong();
     }
 
     public MultiSearchResponse(Item[] items, long tookInMillis) {
@@ -164,27 +154,12 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        items = new Item[in.readVInt()];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = Item.readItem(in);
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            tookInMillis = in.readVLong();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(items.length);
         for (Item item : items) {
             item.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeVLong(tookInMillis);
-        }
+        out.writeVLong(tookInMillis);
     }
 
     @Override

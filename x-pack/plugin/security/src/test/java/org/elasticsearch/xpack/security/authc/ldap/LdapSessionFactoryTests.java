@@ -9,6 +9,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -61,7 +63,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put("path.home", createTempDir())
             .putList(RealmSettings.realmSslPrefix(REALM_IDENTIFIER) + "certificate_authorities", ldapCaPath.toString())
             .build();
-        sslService = new SSLService(globalSettings, TestEnvironment.newEnvironment(globalSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(globalSettings));
         threadPool = new TestThreadPool("LdapSessionFactoryTests thread pool");
     }
 
@@ -73,14 +75,19 @@ public class LdapSessionFactoryTests extends LdapTestCase {
     public void testBindWithReadTimeout() throws Exception {
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
         String protocol = randomFrom("ldap", "ldaps");
-        String ldapUrl = new LDAPURL(protocol, "localhost", ldapServer.getListenPort(protocol), null, null, null, null).toString();
+        InetAddress listenAddress = ldapServer.getListenAddress(protocol);
+        if (listenAddress == null) {
+            listenAddress = InetAddress.getLoopbackAddress();
+        }
+        String ldapUrl = new LDAPURL(protocol, NetworkAddress.format(listenAddress), ldapServer.getListenPort(protocol),
+            null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 
         Settings settings = Settings.builder()
                 .put(globalSettings)
                 .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
+                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "1ms")
                 .put("path.home", createTempDir())
                 .build();
 
@@ -232,8 +239,16 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      * (one failure, one success) depending on which file content is in place.
      */
     public void testSslTrustIsReloaded() throws Exception {
+        assumeFalse("NPE thrown in BCFIPS JSSE - addressed in " +
+            "https://github.com/bcgit/bc-java/commit/5aed687e17a3cd63f34373cafe92699b90076fb6#diff-8e5d8089bc0d504d93194a1e484d3950R179",
+            inFipsJvm());
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
-        String ldapUrl = new LDAPURL("ldaps", "localhost", ldapServer.getListenPort("ldaps"), null, null, null, null).toString();
+        InetAddress listenAddress = ldapServer.getListenAddress("ldaps");
+        if (listenAddress == null) {
+            listenAddress = InetAddress.getLoopbackAddress();
+        }
+        String ldapUrl = new LDAPURL("ldaps", NetworkAddress.format(listenAddress), ldapServer.getListenPort("ldaps"),
+            null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,7 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.Date;
@@ -38,6 +39,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
      * Field Names
      */
     public static final ParseField MODEL_BYTES_FIELD = new ParseField("model_bytes");
+    public static final ParseField MODEL_BYTES_EXCEEDED_FIELD = new ParseField("model_bytes_exceeded");
+    public static final ParseField MODEL_BYTES_MEMORY_LIMIT_FIELD = new ParseField("model_bytes_memory_limit");
     public static final ParseField TOTAL_BY_FIELD_COUNT_FIELD = new ParseField("total_by_field_count");
     public static final ParseField TOTAL_OVER_FIELD_COUNT_FIELD = new ParseField("total_over_field_count");
     public static final ParseField TOTAL_PARTITION_FIELD_COUNT_FIELD = new ParseField("total_partition_field_count");
@@ -56,6 +59,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         parser.declareString((modelSizeStat, s) -> {}, Result.RESULT_TYPE);
         parser.declareLong(Builder::setModelBytes, MODEL_BYTES_FIELD);
+        parser.declareLong(Builder::setModelBytesExceeded, MODEL_BYTES_EXCEEDED_FIELD);
+        parser.declareLong(Builder::setModelBytesMemoryLimit, MODEL_BYTES_MEMORY_LIMIT_FIELD);
         parser.declareLong(Builder::setBucketAllocationFailuresCount, BUCKET_ALLOCATION_FAILURES_COUNT_FIELD);
         parser.declareLong(Builder::setTotalByFieldCount, TOTAL_BY_FIELD_COUNT_FIELD);
         parser.declareLong(Builder::setTotalOverFieldCount, TOTAL_OVER_FIELD_COUNT_FIELD);
@@ -100,6 +105,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
     private final String jobId;
     private final long modelBytes;
+    private final Long modelBytesExceeded;
+    private final Long modelBytesMemoryLimit;
     private final long totalByFieldCount;
     private final long totalOverFieldCount;
     private final long totalPartitionFieldCount;
@@ -108,11 +115,14 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     private final Date timestamp;
     private final Date logTime;
 
-    private ModelSizeStats(String jobId, long modelBytes, long totalByFieldCount, long totalOverFieldCount,
-                           long totalPartitionFieldCount, long bucketAllocationFailuresCount, MemoryStatus memoryStatus,
+    private ModelSizeStats(String jobId, long modelBytes, Long modelBytesExceeded, Long modelBytesMemoryLimit, long totalByFieldCount,
+                           long totalOverFieldCount, long totalPartitionFieldCount, long bucketAllocationFailuresCount,
+                           MemoryStatus memoryStatus,
                            Date timestamp, Date logTime) {
         this.jobId = jobId;
         this.modelBytes = modelBytes;
+        this.modelBytesExceeded = modelBytesExceeded;
+        this.modelBytesMemoryLimit = modelBytesMemoryLimit;
         this.totalByFieldCount = totalByFieldCount;
         this.totalOverFieldCount = totalOverFieldCount;
         this.totalPartitionFieldCount = totalPartitionFieldCount;
@@ -125,6 +135,16 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public ModelSizeStats(StreamInput in) throws IOException {
         jobId = in.readString();
         modelBytes = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            modelBytesExceeded = in.readOptionalLong();
+        } else {
+            modelBytesExceeded = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            modelBytesMemoryLimit = in.readOptionalLong();
+        } else {
+            modelBytesMemoryLimit = null;
+        }
         totalByFieldCount = in.readVLong();
         totalOverFieldCount = in.readVLong();
         totalPartitionFieldCount = in.readVLong();
@@ -146,6 +166,12 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeVLong(modelBytes);
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            out.writeOptionalLong(modelBytesExceeded);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            out.writeOptionalLong(modelBytesMemoryLimit);
+        }
         out.writeVLong(totalByFieldCount);
         out.writeVLong(totalOverFieldCount);
         out.writeVLong(totalPartitionFieldCount);
@@ -171,6 +197,12 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(MODEL_BYTES_FIELD.getPreferredName(), modelBytes);
+        if (modelBytesExceeded != null) {
+            builder.field(MODEL_BYTES_EXCEEDED_FIELD.getPreferredName(), modelBytesExceeded);
+        }
+        if (modelBytesMemoryLimit != null) {
+            builder.field(MODEL_BYTES_MEMORY_LIMIT_FIELD.getPreferredName(), modelBytesMemoryLimit);
+        }
         builder.field(TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(), totalByFieldCount);
         builder.field(TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(), totalOverFieldCount);
         builder.field(TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName(), totalPartitionFieldCount);
@@ -190,6 +222,14 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
     public long getModelBytes() {
         return modelBytes;
+    }
+
+    public Long getModelBytesExceeded() {
+        return modelBytesExceeded;
+    }
+
+    public Long getModelBytesMemoryLimit() {
+        return modelBytesMemoryLimit;
     }
 
     public long getTotalByFieldCount() {
@@ -231,8 +271,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         // this.id excluded here as it is generated by the datastore
-        return Objects.hash(jobId, modelBytes, totalByFieldCount, totalOverFieldCount, totalPartitionFieldCount,
-                this.bucketAllocationFailuresCount, memoryStatus, timestamp, logTime);
+        return Objects.hash(jobId, modelBytes, modelBytesExceeded, modelBytesMemoryLimit, totalByFieldCount, totalOverFieldCount,
+                totalPartitionFieldCount, this.bucketAllocationFailuresCount, memoryStatus, timestamp, logTime);
     }
 
     /**
@@ -250,7 +290,9 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
         ModelSizeStats that = (ModelSizeStats) other;
 
-        return this.modelBytes == that.modelBytes && this.totalByFieldCount == that.totalByFieldCount
+        return this.modelBytes == that.modelBytes && Objects.equals(this.modelBytesExceeded, that.modelBytesExceeded)
+                && Objects.equals(this.modelBytesMemoryLimit, that.modelBytesMemoryLimit)
+                && this.totalByFieldCount == that.totalByFieldCount
                 && this.totalOverFieldCount == that.totalOverFieldCount && this.totalPartitionFieldCount == that.totalPartitionFieldCount
                 && this.bucketAllocationFailuresCount == that.bucketAllocationFailuresCount
                 && Objects.equals(this.memoryStatus, that.memoryStatus) && Objects.equals(this.timestamp, that.timestamp)
@@ -262,6 +304,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
         private final String jobId;
         private long modelBytes;
+        private Long modelBytesExceeded;
+        private Long modelBytesMemoryLimit;
         private long totalByFieldCount;
         private long totalOverFieldCount;
         private long totalPartitionFieldCount;
@@ -279,6 +323,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         public Builder(ModelSizeStats modelSizeStats) {
             this.jobId = modelSizeStats.jobId;
             this.modelBytes = modelSizeStats.modelBytes;
+            this.modelBytesExceeded = modelSizeStats.modelBytesExceeded;
+            this.modelBytesMemoryLimit = modelSizeStats.modelBytesMemoryLimit;
             this.totalByFieldCount = modelSizeStats.totalByFieldCount;
             this.totalOverFieldCount = modelSizeStats.totalOverFieldCount;
             this.totalPartitionFieldCount = modelSizeStats.totalPartitionFieldCount;
@@ -290,6 +336,16 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
         public Builder setModelBytes(long modelBytes) {
             this.modelBytes = modelBytes;
+            return this;
+        }
+
+        public Builder setModelBytesExceeded(long modelBytesExceeded) {
+            this.modelBytesExceeded = modelBytesExceeded;
+            return this;
+        }
+
+        public Builder setModelBytesMemoryLimit(long modelBytesMemoryLimit) {
+            this.modelBytesMemoryLimit = modelBytesMemoryLimit;
             return this;
         }
 
@@ -330,8 +386,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         }
 
         public ModelSizeStats build() {
-            return new ModelSizeStats(jobId, modelBytes, totalByFieldCount, totalOverFieldCount, totalPartitionFieldCount,
-                    bucketAllocationFailuresCount, memoryStatus, timestamp, logTime);
+            return new ModelSizeStats(jobId, modelBytes, modelBytesExceeded, modelBytesMemoryLimit, totalByFieldCount, totalOverFieldCount,
+                    totalPartitionFieldCount, bucketAllocationFailuresCount, memoryStatus, timestamp, logTime);
         }
     }
 }

@@ -6,19 +6,17 @@ purposes.  This is the purpose of _multi-fields_. For instance, a `string`
 field could be mapped as a `text` field for full-text
 search, and as a `keyword` field for sorting or aggregations:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "city": {
-          "type": "text",
-          "fields": {
-            "raw": { <1>
-              "type":  "keyword"
-            }
+    "properties": {
+      "city": {
+        "type": "text",
+        "fields": {
+          "raw": { <1>
+            "type":  "keyword"
           }
         }
       }
@@ -55,15 +53,14 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `city.raw` field is a `keyword` version of the `city` field.
 <2> The `city` field can be used for full text search.
 <3> The `city.raw` field can be used for sorting and aggregations
 
 NOTE: Multi-fields do not change the original `_source` field.
 
-TIP: The `fields` setting is allowed to have different settings for fields of
-the same name in the same index.  New multi-fields can be added to existing
+TIP: New multi-fields can be added to existing
 fields using the <<indices-put-mapping,PUT mapping API>>.
 
 ==== Multi-fields with multiple analyzers
@@ -74,20 +71,18 @@ ways for better relevance. For instance we could index a field with the
 words, and again with the <<english-analyzer,`english` analyzer>>
 which stems words into their root form:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": { <1>
-          "type": "text",
-          "fields": {
-            "english": { <2>
-              "type":     "text",
-              "analyzer": "english"
-            }
+    "properties": {
+      "text": { <1>
+        "type": "text",
+        "fields": {
+          "english": { <2>
+            "type":     "text",
+            "analyzer": "english"
           }
         }
       }
@@ -115,7 +110,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `text` field uses the `standard` analyzer.
 <2> The `text.english` field uses the `english` analyzer.

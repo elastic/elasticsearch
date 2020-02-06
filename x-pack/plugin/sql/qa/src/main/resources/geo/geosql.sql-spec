@@ -1,0 +1,26 @@
+// To mute tests follow example in file: example.sql-spec
+
+//
+// Commands on geo test data
+//
+
+selectAllShapesAsGeometries
+SELECT city, shape, region FROM "geo" ORDER BY "city";
+
+selectAllShapesAsWKT
+SELECT city, ST_GEOMFROMTEXT(ST_ASWKT(shape)) shape_wkt, region FROM "geo" ORDER BY "city";
+
+selectAllPointsAsGeometries
+SELECT city, location, region FROM "geo" ORDER BY "city";
+
+selectAllPointsAsWKT
+SELECT city, ST_GEOMFROMTEXT(ST_ASWKT(location)) shape_wkt, region FROM "geo" ORDER BY "city";
+
+selectRegionUsingWktToSqlWithoutConvertion
+SELECT region, city, shape, ST_GEOMFROMTEXT(region_point) region_wkt  FROM geo ORDER BY region, city;
+
+selectCitiesWithGroupByWktToSql
+SELECT COUNT(city) city_by_region, ST_GEOMFROMTEXT(region_point) region_geom FROM geo WHERE city LIKE '%a%' GROUP BY region_geom ORDER BY city_by_region;
+
+selectCitiesWithOrderByWktToSql
+SELECT region, city, UCASE(ST_ASWKT(ST_GEOMFROMTEXT(region_point))) region_wkt FROM geo WHERE city LIKE '%e%' ORDER BY region_wkt, city;

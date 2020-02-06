@@ -1,0 +1,63 @@
+---
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+
+---
+"Segment Stats":
+
+  - skip:
+      version: " - 7.1.99"
+      reason: forbid_closed_indices is not supported in ealier version
+
+  - do:
+      indices.stats:
+        metric: [ segments ]
+  - set: { indices.test.primaries.segments.count: num_segments }
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  { "foo": "bar" }
+
+  - do:
+      indices.flush:
+        index: test
+
+  - do:
+      indices.stats:
+        metric: [ segments ]
+  - gt: { indices.test.primaries.segments.count: $num_segments }
+  - set: { indices.test.primaries.segments.count: num_segments_after_flush }
+
+  - do:
+      indices.close:
+        index: test
+        wait_for_active_shards: all
+
+  - do:
+      indices.stats:
+        metric: segments
+        expand_wildcards: closed
+        forbid_closed_indices: false
+
+  - match: { indices.test.primaries.segments.count: 0 }
+
+  - do:
+      indices.stats:
+        metric: segments
+        include_unloaded_segments: true
+        expand_wildcards: closed
+        forbid_closed_indices: false
+
+  - match: { indices.test.primaries.segments.count: $num_segments_after_flush }

@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
+import java.io.IOException;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.text.ParseException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -35,6 +39,11 @@ import static java.util.Calendar.MINUTE;
 import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
 
 /**
  * Conversion utilities for conversion of JDBC types to Java type and back
@@ -45,6 +54,8 @@ import static java.util.Calendar.YEAR;
  * NULL, BOOLEAN, TINYINT, SMALLINT, INTEGER, BIGINT, DOUBLE, REAL, FLOAT, VARCHAR, VARBINARY and TIMESTAMP
  */
 final class TypeConverter {
+
+    private static WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     private TypeConverter() {}
 
@@ -93,6 +104,7 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
+
 
 
     static long convertFromCalendarToUTC(long value, Calendar cal) {
@@ -214,7 +226,11 @@ final class TypeConverter {
             case FLOAT:
                 return floatValue(v); // Float might be represented as string for infinity and NaN values
             case DATE:
-                return JdbcDateUtils.asDateTimeField(v, JdbcDateUtils::asTimestamp, Timestamp::new);
+                return asDateTimeField(v, JdbcDateUtils::asDate, Date::new);
+            case TIME:
+                return timeAsTime(v.toString());
+            case DATETIME:
+                return asDateTimeField(v, JdbcDateUtils::asTimestamp, Timestamp::new);
             case INTERVAL_YEAR:
             case INTERVAL_MONTH:
             case INTERVAL_YEAR_TO_MONTH:
@@ -230,6 +246,16 @@ final class TypeConverter {
             case INTERVAL_HOUR_TO_SECOND:
             case INTERVAL_MINUTE_TO_SECOND:
                 return Duration.parse(v.toString());
+            case GEO_POINT:
+            case GEO_SHAPE:
+            case SHAPE:
+                try {
+                    return WKT.fromWKT(v.toString());
+                } catch (IOException | ParseException ex) {
+                    throw new SQLException("Cannot parse geo_shape", ex);
+                }
+            case IP:
+                return v.toString();
             default:
                 throw new SQLException("Unexpected column type [" + typeString + "]");
 
@@ -467,22 +493,34 @@ final class TypeConverter {
     }
 
     private static Date asDate(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATE) {
-            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asDate, Date::new);
+        if (columnType == DATETIME || columnType == DATE) {
+            return asDateTimeField(val, JdbcDateUtils::asDate, Date::new);
+        }
+        if (columnType == TIME) {
+            return new Date(0L);
         }
         return failConversion(val, columnType, typeString, Date.class);
     }
 
     private static Time asTime(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATE) {
-            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTime, Time::new);
+        if (columnType == DATETIME) {
+            return asDateTimeField(val, JdbcDateUtils::asTime, Time::new);
+        }
+        if (columnType == TIME) {
+            return asDateTimeField(val, JdbcDateUtils::timeAsTime, Time::new);
+        }
+        if (columnType == DATE) {
+            return new Time(0L);
         }
         return failConversion(val, columnType, typeString, Time.class);
     }
 
     private static Timestamp asTimestamp(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATE) {
-            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTimestamp, Timestamp::new);
+        if (columnType == DATETIME || columnType == DATE) {
+            return asDateTimeField(val, JdbcDateUtils::asTimestamp, Timestamp::new);
+        }
+        if (columnType == TIME) {
+            return asDateTimeField(val, JdbcDateUtils::timeAsTimestamp, Timestamp::new);
         }
         return failConversion(val, columnType, typeString, Timestamp.class);
     }

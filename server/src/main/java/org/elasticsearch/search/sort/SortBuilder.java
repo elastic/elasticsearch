@@ -40,14 +40,13 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.search.sort.NestedSortBuilder.FILTER_FIELD;
 
 public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
 
@@ -55,19 +54,13 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
 
     // parse fields common to more than one SortBuilder
     public static final ParseField ORDER_FIELD = new ParseField("order");
-    public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
-    public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
 
-    private static final Map<String, Parser<?>> PARSERS;
-    static {
-        Map<String, Parser<?>> parsers = new HashMap<>();
-        parsers.put(ScriptSortBuilder.NAME, ScriptSortBuilder::fromXContent);
-        parsers.put(GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::fromXContent);
-        parsers.put(GeoDistanceSortBuilder.ALTERNATIVE_NAME, GeoDistanceSortBuilder::fromXContent);
-        parsers.put(ScoreSortBuilder.NAME, ScoreSortBuilder::fromXContent);
-        // FieldSortBuilder gets involved if the user specifies a name that isn't one of these.
-        PARSERS = unmodifiableMap(parsers);
-    }
+    private static final Map<String, Parser<?>> PARSERS = Map.of(
+            ScriptSortBuilder.NAME, ScriptSortBuilder::fromXContent,
+            GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::fromXContent,
+            GeoDistanceSortBuilder.ALTERNATIVE_NAME, GeoDistanceSortBuilder::fromXContent,
+            // TODO: this can deadlock as it might access the ScoreSortBuilder (subclass) initializer from the SortBuilder initializer!!!
+            ScoreSortBuilder.NAME, ScoreSortBuilder::fromXContent);
 
     /**
      * Create a @link {@link SortFieldAndFormat} from this builder.
@@ -177,12 +170,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         return Optional.empty();
     }
 
-    protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder nestedFilter) throws IOException {
-        NestedSortBuilder nestedSortBuilder = new NestedSortBuilder(nestedPath);
-        nestedSortBuilder.setFilter(nestedFilter);
-        return resolveNested(context, nestedSortBuilder);
-    }
-
     protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSort) throws IOException {
         final Query childQuery = resolveNestedQuery(context, nestedSort, null);
         if (childQuery == null) {
@@ -191,11 +178,11 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         final ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         final Query parentQuery;
         if (objectMapper == null) {
-            parentQuery = Queries.newNonNestedFilter(context.indexVersionCreated());
+            parentQuery = Queries.newNonNestedFilter();
         } else {
             parentQuery = objectMapper.nestedTypeFilter();
         }
-        return new Nested(context.bitsetFilter(parentQuery), childQuery, nestedSort);
+        return new Nested(context.bitsetFilter(parentQuery), childQuery, nestedSort, context.searcher());
     }
 
     private static Query resolveNestedQuery(QueryShardContext context, NestedSortBuilder nestedSort, Query parentQuery) throws IOException {
@@ -213,7 +200,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         if (nestedObjectMapper == null) {
             throw new QueryShardException(context, "[nested] failed to find nested object under path [" + nestedPath + "]");
         }
-        if (!nestedObjectMapper.nested().isNested()) {
+        if (nestedObjectMapper.nested().isNested() == false) {
             throw new QueryShardException(context, "[nested] nested object under path [" + nestedPath + "] is not of nested type");
         }
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
@@ -262,7 +249,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         try {
             return parseInnerQueryBuilder(parser);
         } catch (Exception e) {
-            throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element.", e);
+            throw new ParsingException(parser.getTokenLocation(), "Expected " + FILTER_FIELD.getPreferredName() + " element.", e);
         }
     }
 

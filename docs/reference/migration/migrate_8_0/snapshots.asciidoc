@@ -1,0 +1,96 @@
+[float]
+[[breaking_80_snapshots_changes]]
+=== Snapshot and Restore changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+=== Get snapshots response format is changed
+It's possible to get snapshots from multiple repositories in one go. The response format has changed
+and now contains separate response for each repository.
+
+For example, requesting one snapshot from particular repository
+
+[source,console]
+-----------------------------------
+GET _snapshot/repo1/snap1
+-----------------------------------
+// TEST[skip:no repo and snapshots are created]
+
+produces the following response
+
+[source,console-result]
+-----------------------------------
+{
+    "responses": [
+        {
+            "repository": "repo1",
+            "snapshots": [
+                {
+                    "snapshot": "snap1",
+                    "uuid": "cEzdqUKxQ5G6MyrJAcYwmA",
+                    "version_id": 8000099,
+                    "version": "8.0.0",
+                    "indices": [],
+                    "include_global_state": true,
+                    "state": "SUCCESS",
+                    "start_time": "2019-05-10T17:01:57.868Z",
+                    "start_time_in_millis": 1557507717868,
+                    "end_time": "2019-05-10T17:01:57.909Z",
+                    "end_time_in_millis": 1557507717909,
+                    "duration_in_millis": 41,
+                    "failures": [],
+                    "shards": {
+                        "total": 0,
+                        "failed": 0,
+                        "successful": 0
+                    }
+                }
+            ]
+        }
+    ]
+}
+-----------------------------------
+// TESTRESPONSE[skip:no repo and snapshots are created]
+
+See <<modules-snapshots>> for more information.
+
+[float]
+==== Deprecated node level compress setting removed
+
+For shared file system repositories (`"type": "fs"`), the node level setting `repositories.fs.compress` could
+previously be used to enable compression for all shared file system repositories where `compress` was not specified.
+The `repositories.fs.compress` setting has been removed.
+
+Instead use the repository specific `compress` setting to enable compression. See <<modules-snapshots>> for information
+on the `compress` setting.
+
+[float]
+==== Compression of meta data files is now on by default
+
+Previously, the default value for `compress` was `false`. The default has been changed to `true`.
+
+This change will affect both newly created repositories and existing repositories where `compress=false` has not been
+explicitly specified.
+
+For more information on the compress option, see <<modules-snapshots>>
+
+[float]
+==== The S3 repository plugin uses the DNS style access pattern by default
+
+Starting in version 7.4 the `repository-s3` plugin does not use the
+now-deprecated path-style access pattern by default. In versions 7.0, 7.1, 7.2
+and 7.3 the `repository-s3` plugin always used the path-style access pattern.
+This is a breaking change for deployments that only support path-style access
+but which are recognized as supporting DNS-style access by the AWS SDK. If your
+deployment only supports path-style access and is affected by this change then
+you must configure the S3 client setting `path_style_access` to `true`. This
+breaking change was made necessary by
+https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/[AWS's
+announcement] that the path-style access pattern is deprecated and will be
+unsupported on buckets created after September 30th 2020.

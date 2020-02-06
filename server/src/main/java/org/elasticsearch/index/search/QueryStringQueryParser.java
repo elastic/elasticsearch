@@ -54,9 +54,9 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -89,7 +89,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private Analyzer forceQuoteAnalyzer;
     private String quoteFieldSuffix;
     private boolean analyzeWildcard;
-    private DateTimeZone timeZone;
+    private ZoneId timeZone;
     private Fuzziness fuzziness = Fuzziness.AUTO;
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private MappedFieldType currentFieldType;
@@ -151,6 +151,12 @@ public class QueryStringQueryParser extends XQueryParser {
         queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
+    }
+
+    @Override
+    public void setEnablePositionIncrements(boolean enable) {
+        super.setEnablePositionIncrements(enable);
+        queryBuilder.setEnablePositionIncrements(enable);
     }
 
     @Override
@@ -227,7 +233,7 @@ public class QueryStringQueryParser extends XQueryParser {
     /**
      * @param timeZone Time Zone to be applied to any range query related to dates.
      */
-    public void setTimeZone(DateTimeZone timeZone) {
+    public void setTimeZone(ZoneId timeZone) {
         this.timeZone = timeZone;
     }
 
@@ -423,7 +429,8 @@ public class QueryStringQueryParser extends XQueryParser {
         if (fuzzySlop.image.length() == 1) {
             return getFuzzyQuery(field, termImage, fuzziness.asDistance(termImage));
         }
-        return getFuzzyQuery(field, termImage, Fuzziness.build(fuzzySlop.image.substring(1)).asFloat());
+        float distance = Fuzziness.fromString(fuzzySlop.image.substring(1)).asDistance(termImage);
+        return getFuzzyQuery(field, termImage, distance);
     }
 
     @Override
@@ -434,7 +441,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
-            Query q = getFuzzyQuerySingle(entry.getKey(), termStr, minSimilarity);
+            Query q = getFuzzyQuerySingle(entry.getKey(), termStr, (int) minSimilarity);
             assert q != null;
             queries.add(applyBoost(q, entry.getValue()));
         }
@@ -447,7 +454,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
     }
 
-    private Query getFuzzyQuerySingle(String field, String termStr, float minSimilarity) throws ParseException {
+    private Query getFuzzyQuerySingle(String field, String termStr, int minSimilarity) throws ParseException {
         currentFieldType = context.fieldMapper(field);
         if (currentFieldType == null) {
             return newUnmappedFieldQuery(field);
@@ -455,7 +462,7 @@ public class QueryStringQueryParser extends XQueryParser {
         try {
             Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
-            return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits((int) minSimilarity),
+            return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits(minSimilarity),
                 getFuzzyPrefixLength(), fuzzyMaxExpansions, fuzzyTranspositions);
         } catch (RuntimeException e) {
             if (lenient) {
@@ -467,7 +474,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
-        int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
+        int numEdits = Fuzziness.fromEdits((int) minimumSimilarity).asDistance(term.text());
         FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength,
             fuzzyMaxExpansions, fuzzyTranspositions);
         QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);

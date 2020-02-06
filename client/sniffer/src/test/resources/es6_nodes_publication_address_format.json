@@ -1,0 +1,30 @@
+{
+  "_nodes": {
+    "total": 8,
+    "successful": 8,
+    "failed": 0
+  },
+  "cluster_name": "elasticsearch",
+  "nodes": {
+    "ikXK_skVTfWkhONhldnbkw": {
+      "name": "m1",
+      "transport_address": "127.0.0.1:9300",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "6.0.0",
+      "build_hash": "8f0685b",
+      "roles": [
+        "master",
+        "ingest"
+      ],
+      "attributes": { },
+      "http": {
+        "bound_address": [
+          "127.0.0.1:9200"
+        ],
+        "publish_address": "127.0.0.1:9200",
+        "max_content_length_in_bytes": 104857600
+      }
+    }
+  }
+}

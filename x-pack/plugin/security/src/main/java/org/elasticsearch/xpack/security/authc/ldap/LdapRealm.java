@@ -35,8 +35,8 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper.UserData;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
@@ -132,7 +132,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                         contextPreservingListener(new LdapSessionActionListener("authenticate", token.principal(), listener))), logger
         );
         threadPool.generic().execute(cancellableLdapRunnable);
-        threadPool.schedule(executionTimeout, Names.SAME, cancellableLdapRunnable::maybeTimeout);
+        threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
     }
 
     @Override
@@ -147,7 +147,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                     () -> sessionFactory.unauthenticatedSession(username,
                             contextPreservingListener(new LdapSessionActionListener("lookup", username, sessionListener))), logger);
             threadPool.generic().execute(cancellableLdapRunnable);
-            threadPool.schedule(executionTimeout, Names.SAME, cancellableLdapRunnable::maybeTimeout);
+            threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
         } else {
             userActionListener.onResponse(null);
         }
@@ -219,8 +219,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                     .put("ldap_groups", ldapData.groups)
                     .putAll(ldapData.metaData)
                     .map();
-                final UserData user = new UserData(username, session.userDn(), ldapData.groups,
-                    metadata, session.realm());
+                final UserData user = new UserData(username, session.userDn(), ldapData.groups, metadata, session.realm());
                 roleMapper.resolveRoles(user, ActionListener.wrap(
                     roles -> {
                         IOUtils.close(session);

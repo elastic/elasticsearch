@@ -10,11 +10,13 @@ teardown:
 "Test ml info":
   - do:
       ml.info: {}
+  - match: { defaults.anomaly_detectors.categorization_analyzer.tokenizer: "ml_classic" }
   - match: { defaults.anomaly_detectors.model_memory_limit: "1gb" }
   - match: { defaults.anomaly_detectors.categorization_examples_limit: 4 }
   - match: { defaults.anomaly_detectors.model_snapshot_retention_days: 1 }
   - match: { defaults.datafeeds.scroll_size: 1000 }
   - match: { limits: {} }
+  - match: { upgrade_mode: false }
 
   - do:
       cluster.put_settings:
@@ -24,11 +26,13 @@ teardown:
 
   - do:
       ml.info: {}
+  - match: { defaults.anomaly_detectors.categorization_analyzer.tokenizer: "ml_classic" }
   - match: { defaults.anomaly_detectors.model_memory_limit: "512mb" }
   - match: { defaults.anomaly_detectors.categorization_examples_limit: 4 }
   - match: { defaults.anomaly_detectors.model_snapshot_retention_days: 1 }
   - match: { defaults.datafeeds.scroll_size: 1000 }
   - match: { limits.max_model_memory_limit: "512mb" }
+  - match: { upgrade_mode: false }
 
   - do:
       cluster.put_settings:
@@ -38,8 +42,10 @@ teardown:
 
   - do:
       ml.info: {}
+  - match: { defaults.anomaly_detectors.categorization_analyzer.tokenizer: "ml_classic" }
   - match: { defaults.anomaly_detectors.model_memory_limit: "1gb" }
   - match: { defaults.anomaly_detectors.categorization_examples_limit: 4 }
   - match: { defaults.anomaly_detectors.model_snapshot_retention_days: 1 }
   - match: { defaults.datafeeds.scroll_size: 1000 }
   - match: { limits.max_model_memory_limit: "6gb" }
+  - match: { upgrade_mode: false }

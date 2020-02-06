@@ -27,12 +27,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
         numDataNodes = 0,
-        transportClientRatio = 0.0,
         numClientNodes = 0)
 public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCase {
 
     public void testTwoNodesShouldRunUsingPrivateOrPublicIp() {
-        final String hostType = randomFrom(AzureUnicastHostsProvider.HostType.values()).getType();
+        final String hostType = randomFrom(AzureSeedHostsProvider.HostType.values()).getType();
         logger.info("--> using azure host type " + hostType);
 
         final Settings settings = Settings.builder()

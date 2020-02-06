@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,6 +42,7 @@ import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -64,6 +66,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     protected AbstractQueryBuilder(StreamInput in) throws IOException {
         boost = in.readFloat();
+        checkNegativeBoost(boost);
         queryName = in.readOptionalString();
     }
 
@@ -139,6 +142,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return this.boost;
     }
 
+    protected final void checkNegativeBoost(float boost) {
+        if (Float.compare(boost, 0f) < 0) {
+            throw new IllegalArgumentException("negative [boost] are not allowed in [" + toString() + "], " +
+                "use a value between 0 and 1 to deboost");
+        }
+    }
+
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
@@ -146,10 +156,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @SuppressWarnings("unchecked")
     @Override
     public final QB boost(float boost) {
-        if (Float.compare(boost, 0f) < 0) {
-            throw new IllegalArgumentException("negative [boost] are not allowed in [" + toString() + "], " +
-                "use a value between 0 and 1 to deboost");
-        }
+        checkNegativeBoost(boost);
         this.boost = boost;
         return (QB) this;
     }
@@ -308,10 +315,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         try {
             result = parser.namedObject(QueryBuilder.class, queryName, null);
         } catch (NamedObjectNotFoundException e) {
-            // Preserve the error message from 5.0 until we have a compellingly better message so we don't break BWC.
-            // This intentionally doesn't include the causing exception because that'd change the "root_cause" of any unknown query errors
-            throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()),
-                    "no [query] registered for [" + queryName + "]");
+            String message = String.format(Locale.ROOT, "unknown query [%s]%s", queryName,
+                    SuggestingErrorOnUnknown.suggest(queryName, e.getCandidates()));
+            throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()), message, e);
         }
         //end_object of the specific query (e.g. match, multi_match etc.) element
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {

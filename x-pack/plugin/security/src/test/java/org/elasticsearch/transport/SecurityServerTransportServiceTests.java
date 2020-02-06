@@ -5,20 +5,11 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
 // this class sits in org.elasticsearch.transport so that TransportService.requestHandlers is visible
 public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {
-    @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder()
-                .put(super.transportClientSettings())
-                .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-                .build();
-    }
 
     public void testSecurityServerTransportServiceWrapsAllHandlers() {
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {

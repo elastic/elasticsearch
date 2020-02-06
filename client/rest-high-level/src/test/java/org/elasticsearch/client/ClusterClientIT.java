@@ -27,19 +27,27 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.client.cluster.RemoteConnectionInfo;
+import org.elasticsearch.client.cluster.RemoteInfoRequest;
+import org.elasticsearch.client.cluster.RemoteInfoResponse;
+import org.elasticsearch.client.cluster.SniffModeInfo;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -165,10 +173,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        assertNoIndices(response);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
     public void testClusterHealthYellowClusterLevel() throws IOException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);
@@ -178,14 +184,21 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
 
         logger.info("Shard stats\n{}", EntityUtils.toString(
                 client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
-        assertYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(0));
     }
 
     public void testClusterHealthYellowIndicesLevel() throws IOException {
-        createIndex("index", Settings.EMPTY);
-        createIndex("index2", Settings.EMPTY);
-        ClusterHealthRequest request = new ClusterHealthRequest();
+        String firstIndex = "index";
+        String secondIndex = "index2";
+        // including another index that we do not assert on, to ensure that we are not
+        // accidentally asserting on entire cluster state
+        String ignoredIndex = "tasks";
+        createIndex(firstIndex, Settings.EMPTY);
+        createIndex(secondIndex, Settings.EMPTY);
+        if (randomBoolean()) {
+            createIndex(ignoredIndex, Settings.EMPTY);
+        }
+        ClusterHealthRequest request = new ClusterHealthRequest(firstIndex, secondIndex);
         request.timeout("5s");
         request.level(ClusterHealthRequest.Level.INDICES);
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
@@ -211,8 +224,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getDelayedUnassignedShards(), equalTo(0));
         assertThat(response.getInitializingShards(), equalTo(0));
         assertThat(response.getUnassignedShards(), equalTo(2));
-        assertThat(response.getActiveShardsPercent(), equalTo(50d));
     }
+
 
     public void testClusterHealthYellowSpecificIndex() throws IOException {
         createIndex("index", Settings.EMPTY);
@@ -233,7 +246,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getDelayedUnassignedShards(), equalTo(0));
         assertThat(response.getInitializingShards(), equalTo(0));
         assertThat(response.getUnassignedShards(), equalTo(1));
-        assertThat(response.getActiveShardsPercent(), equalTo(50d));
         assertThat(response.getIndices().size(), equalTo(1));
         Map.Entry<String, ClusterIndexHealth> index = response.getIndices().entrySet().iterator().next();
         assertYellowIndex(index.getKey(), index.getValue(), false);
@@ -269,7 +281,19 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(shardHealth.getRelocatingShards(), equalTo(0));
     }
 
+    private static void assertNoIndices(ClusterHealthResponse response) {
+        assertThat(response.getIndices(), equalTo(emptyMap()));
+        assertThat(response.getActivePrimaryShards(), equalTo(0));
+        assertThat(response.getNumberOfDataNodes(), equalTo(1));
+        assertThat(response.getNumberOfNodes(), equalTo(1));
+        assertThat(response.getActiveShards(), equalTo(0));
+        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
+        assertThat(response.getInitializingShards(), equalTo(0));
+        assertThat(response.getUnassignedShards(), equalTo(0));
+    }
+
     public void testClusterHealthNotFoundIndex() throws IOException {
+        createIndex("index", Settings.EMPTY);
         ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
         request.timeout("5s");
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
@@ -281,15 +305,41 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertNoIndices(response);
     }
 
-    private static void assertNoIndices(ClusterHealthResponse response) {
-        assertThat(response.getIndices(), equalTo(emptyMap()));
-        assertThat(response.getActivePrimaryShards(), equalTo(0));
-        assertThat(response.getNumberOfDataNodes(), equalTo(1));
-        assertThat(response.getNumberOfNodes(), equalTo(1));
-        assertThat(response.getActiveShards(), equalTo(0));
-        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
-        assertThat(response.getInitializingShards(), equalTo(0));
-        assertThat(response.getUnassignedShards(), equalTo(0));
-        assertThat(response.getActiveShardsPercent(), equalTo(100d));
+    public void testRemoteInfo() throws Exception {
+        String clusterAlias = "local_cluster";
+        setupRemoteClusterConfig(clusterAlias);
+
+        ClusterGetSettingsRequest settingsRequest = new ClusterGetSettingsRequest();
+        settingsRequest.includeDefaults(true);
+        ClusterGetSettingsResponse settingsResponse = highLevelClient().cluster().getSettings(settingsRequest, RequestOptions.DEFAULT);
+
+        List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(settingsResponse.getTransientSettings());
+        int connectionsPerCluster = SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER
+                .get(settingsResponse.getTransientSettings());
+        TimeValue initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING
+                .get(settingsResponse.getTransientSettings());
+        boolean skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(settingsResponse.getTransientSettings());
+
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        RemoteInfoResponse response = execute(request, highLevelClient().cluster()::remoteInfo,
+                highLevelClient().cluster()::remoteInfoAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.getInfos().size(), equalTo(1));
+        RemoteConnectionInfo info = response.getInfos().get(0);
+        assertThat(info.getClusterAlias(), equalTo(clusterAlias));
+        assertThat(info.getInitialConnectionTimeoutString(), equalTo(initialConnectionTimeout.toString()));
+        assertThat(info.isSkipUnavailable(), equalTo(skipUnavailable));
+        assertThat(info.getModeInfo().modeName(), equalTo(SniffModeInfo.NAME));
+        assertThat(info.getModeInfo().isConnected(), equalTo(true));
+        SniffModeInfo sniffModeInfo = (SniffModeInfo) info.getModeInfo();
+        assertThat(sniffModeInfo.getMaxConnectionsPerCluster(), equalTo(connectionsPerCluster));
+        assertThat(sniffModeInfo.getNumNodesConnected(), equalTo(1));
+        assertThat(sniffModeInfo.getSeedNodes(), equalTo(seeds));
     }
+
 }

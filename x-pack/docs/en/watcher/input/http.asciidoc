@@ -1,9 +1,10 @@
+[role="xpack"]
 [[input-http]]
-=== HTTP Input
+=== HTTP input
 
 Use the `http` input to submit a request to an HTTP endpoint and load the
 response into the watch execution context when the watch is triggered. See
-<<http-input-attributes, Input Attributes>> for all of the supported attributes.
+<<http-input-attributes>> for all of the supported attributes.
 
 With the `http` input, you can:
 
@@ -13,15 +14,14 @@ With the `http` input, you can:
   need to search clusters that are running different Elasticsearch versions.
 
 * Query Elasticsearch APIs other than the search API. For example, you might want
-  to load data from the {ref}/cluster-nodes-stats.html[Nodes Stats], 
-  {ref}/cluster-health.html[Cluster Health] or {ref}/cluster-state.html[Cluster 
-  State] APIs.
+  to load data from the <<cluster-nodes-stats,nodes stats>>, 
+  <<cluster-health,cluster health>> or <<cluster-state,cluster state>> APIs.
 
 * Query external web services. The `http` input enables you to load data from
   any service that exposes an HTTP endpoint. This provides a bridge
   between Elasticsearch clusters and other systems.
 
-==== Querying External Elasticsearch Clusters
+==== Querying external Elasticsearch clusters
 
 To query an external Elasticsearch cluster, you specify the cluster's
 `host` and `port` attributes and the index's search endpoint as the `path`. 
@@ -42,7 +42,7 @@ index:
 --------------------------------------------------
 // NOTCONSOLE
 
-You can use the full Elasticsearch {ref}/query-dsl.html[Query DSL] to perform
+You can use the full Elasticsearch <<query-dsl,query DSL>> to perform
 more sophisticated searches. For example, the following `http` input retrieves 
 all documents that contain `event` in the `category` field:
 
@@ -66,8 +66,7 @@ all documents that contain `event` in the `category` field:
 To load the data from other Elasticsearch APIs, specify the API
 endpoint as the `path` attribute. Use the `params` attribute to specify
 query string parameters. For example, the following `http` input 
-calls the {ref}/cluster-stats.html[Cluster 
-Stats] API and enables the `human` attribute:
+calls the <<cluster-stats,cluster stats>> API and enables the `human` attribute:
 
 [source,js]
 --------------------------------------------------
@@ -89,7 +88,7 @@ Stats] API and enables the `human` attribute:
     readable format.
 
 [[input-http-auth-basic-example]]
-==== Calling External Web Services
+==== Calling external web services
 
 You can use `http` input to get data from any external web service. The `http`
 input supports basic authentication. For example, the following input provides
@@ -137,9 +136,9 @@ http://openweathermap.org/appid[OpenWeatherMap] service:
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Using Templates
+==== Using templates
 
-The `http` input supports templating. You can use <<templates, templates>> when
+The `http` input supports templating. You can use <<templates,templates>> when
 specifying the `path`, `body`, header values, and parameter values.
 
 For example, the following snippet uses templates to specify what index to query
@@ -160,7 +159,7 @@ and restrict the results to documents added within the last five minutes:
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Accessing the HTTP Response
+==== Accessing the HTTP response
 
 If the response body is formatted in  JSON or YAML, it is parsed and loaded into
 the execution context. If the response body is not formatted in JSON or YAML, it 
@@ -176,7 +175,7 @@ In addition all the headers from the response can be accessed using the
 
       
 [[http-input-attributes]]
-==== HTTP Input Attributes
+==== HTTP input attributes
 
 [cols=",^,^,", options="header"]
 |======
@@ -189,17 +188,17 @@ In addition all the headers from the response can be accessed using the
 | `request.port`                | yes      | -       | The port the http service is listening on.
 
 | `request.path`                | no       | -       | The URL path. The path can be static text or contain `mustache`
-                                                       <<templates, templates>>. URL query string parameters must be
+                                                       <<templates,templates>>. URL query string parameters must be
                                                        specified via the `request.params` attribute.
 
 | `request.method`              | no       | get     | The HTTP method. Supported values are: `head`, `get`, `post`,
                                                        `put` and `delete`.
 
 | `request.headers`             | no       | -       | The HTTP request headers. The header values can be static text
-                                                       or include `mustache` <<templates, templates>>.
+                                                       or include `mustache` <<templates,templates>>.
 
 | `request.params`              | no       | -       | The URL query string parameters. The parameter values can be
-                                                       static text or contain `mustache` <<templates, templates>>.
+                                                       static text or contain `mustache` <<templates,templates>>.
 
 | `request.url`                 | no       | -       | Allows you to set `request.scheme`, `request.host`, `request.port`
                                                        and `request.params` add once by specifying a real URL, like
@@ -224,7 +223,7 @@ In addition all the headers from the response can be accessed using the
                                                       
 
 | `request.body`                | no       | -       | The HTTP request body. The body can be static text or include
-                                                       `mustache` <<templates, templates>>.
+                                                       `mustache` <<templates,templates>>.
 
 | `extract`                     | no       | -       | A array of JSON keys to extract from the input response and
                                                        use as payload. In cases when an input generates a large

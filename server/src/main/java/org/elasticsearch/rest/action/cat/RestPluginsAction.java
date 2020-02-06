@@ -28,7 +28,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -39,8 +38,8 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestPluginsAction extends AbstractCatAction {
-    public RestPluginsAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestPluginsAction(RestController controller) {
         controller.registerHandler(GET, "/_cat/plugins", this);
     }
 

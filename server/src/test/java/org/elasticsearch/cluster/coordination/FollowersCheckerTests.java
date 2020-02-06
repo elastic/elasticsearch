@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +32,10 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -41,12 +44,20 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
@@ -273,7 +284,7 @@ public class FollowersCheckerTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
         followersChecker.setCurrentNodes(discoveryNodes);
 
-        transportService.connectToNode(otherNode);
+        AbstractSimpleTransportTestCase.connectToNode(transportService, otherNode);
         transportService.disconnectFromNode(otherNode);
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(nodeFailed.get());
@@ -534,6 +545,48 @@ public class FollowersCheckerTests extends ESTestCase {
             assertThat(receivedException.get(), not(nullValue()));
             assertThat(receivedException.get().getRootCause().getMessage(), equalTo(exceptionMessage));
         }
+    }
+
+   public void testPreferMasterNodes() {
+        List<DiscoveryNode> nodes = randomNodes(10);
+        DiscoveryNodes.Builder discoNodesBuilder = DiscoveryNodes.builder();
+        nodes.forEach(dn -> discoNodesBuilder.add(dn));
+        DiscoveryNodes discoveryNodes = discoNodesBuilder.localNodeId(nodes.get(0).getId()).build();
+        CapturingTransport capturingTransport = new CapturingTransport();
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), nodes.get(0).getName()).build();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY,
+                deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> nodes.get(0), null, emptySet());
+        final FollowersChecker followersChecker = new FollowersChecker(Settings.EMPTY, transportService, fcr -> {
+            assert false : fcr;
+        }, (node, reason) -> {
+            assert false : node;
+        });
+        followersChecker.setCurrentNodes(discoveryNodes);
+        List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
+            .map(cr -> cr.node).collect(Collectors.toList());
+        List<DiscoveryNode> sortedFollowerTargets = new ArrayList<>(followerTargets);
+        Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> n.isMasterNode() == false));
+        assertEquals(sortedFollowerTargets, followerTargets);
+    }
+
+    private static List<DiscoveryNode> randomNodes(final int numNodes) {
+        List<DiscoveryNode> nodesList = new ArrayList<>();
+        for (int i = 0; i < numNodes; i++) {
+            Map<String, String> attributes = new HashMap<>();
+            if (frequently()) {
+                attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
+            }
+            final DiscoveryNode node = newNode(i, attributes,
+                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)));
+            nodesList.add(node);
+        }
+        return nodesList;
+    }
+
+    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
+            Version.CURRENT);
     }
 
     private static class ExpectsSuccess implements TransportResponseHandler<Empty> {

@@ -6,12 +6,11 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.SourceTests;
-import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.SourceTests;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
@@ -54,8 +53,7 @@ public class LeafQueryTests extends ESTestCase {
     public void testAddNestedField() {
         Query query = new DummyLeafQuery(SourceTests.randomSource());
         // Leaf queries don't contain nested fields.
-        assertSame(query, query.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), DocValueFieldsContext.USE_DEFAULT_FORMAT,
-                randomBoolean()));
+        assertSame(query, query.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), null, randomBoolean()));
     }
 
     public void testEnrichNestedSort() {

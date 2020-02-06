@@ -24,7 +24,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 
@@ -33,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest handler for handling access token invalidation requests
  */
-public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
+public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestInvalidateTokenAction.class));
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER =

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.rollup;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
@@ -28,7 +29,7 @@ import java.util.stream.IntStream;
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
-import static org.elasticsearch.test.ESTestCase.randomDateTimeZone;
+import static org.elasticsearch.test.ESTestCase.randomZone;
 
 public class ConfigTestHelpers {
 
@@ -69,11 +70,32 @@ public class ConfigTestHelpers {
 
     public static DateHistogramGroupConfig randomDateHistogramGroupConfig(final Random random) {
         final String field = randomField(random);
-        final DateHistogramInterval interval = randomInterval();
         final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
-        final String timezone = random.nextBoolean() ? randomDateTimeZone().toString() : null;
-        return new DateHistogramGroupConfig(field, interval, delay, timezone);
+        final String timezone = random.nextBoolean() ? randomZone().getId() : null;
+        if (random.nextBoolean()) {
+            return new DateHistogramGroupConfig.FixedInterval(field, randomInterval(), delay, timezone);
+        } else {
+            int i = random.nextInt(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.size());
+            List<String> units = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
+            Collections.shuffle(units, random);
+            return new DateHistogramGroupConfig.CalendarInterval(field, new DateHistogramInterval(units.get(0)), delay, timezone);
+        }
     }
+
+    public static DateHistogramGroupConfig randomLegacyDateHistogramGroupConfig(final Random random) {
+        final String field = randomField(random);
+        final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
+        final String timezone = random.nextBoolean() ? randomZone().getId() : null;
+        if (random.nextBoolean()) {
+            return new DateHistogramGroupConfig(field, randomInterval(), delay, timezone);
+        } else {
+            int i = random.nextInt(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.size());
+            List<String> units = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
+            Collections.shuffle(units, random);
+            return new DateHistogramGroupConfig(field, new DateHistogramInterval(units.get(0)), delay, timezone);
+        }
+    }
+
 
     public static  List<String> getFields() {
         return IntStream.range(0, ESTestCase.randomIntBetween(1, 10))

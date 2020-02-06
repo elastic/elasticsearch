@@ -5,32 +5,34 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.StringJoiner;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
  * The latter is used as metadata in assembling the results in the tabular response.
  */
-public class FieldHitExtractor implements HitExtractor {
-
-    private static final boolean ARRAYS_LENIENCY = false;
+public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
     /**
      * Stands for {@code field}. We try to use short names for {@link HitExtractor}s
@@ -38,45 +40,31 @@ public class FieldHitExtractor implements HitExtractor {
      */
     static final String NAME = "f";
 
-    /**
-     * Source extraction requires only the (relative) field name, without its parent path.
-     */
-    private static String[] sourcePath(String name, boolean useDocValue, String hitName) {
-        return useDocValue ? Strings.EMPTY_ARRAY : Strings
-                .tokenizeToStringArray(hitName == null ? name : name.substring(hitName.length() + 1), ".");
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, boolean arrayLeniency) {
+        super(name, dataType, zoneId, useDocValue, arrayLeniency);
     }
 
-    private final String fieldName, hitName;
-    private final DataType dataType;
-    private final boolean useDocValue;
-    private final String[] path;
-
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue) {
-        this(name, dataType, useDocValue, null);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
+        super(name, dataType, zoneId, useDocValue);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue, String hitName) {
-        this.fieldName = name;
-        this.dataType = dataType;
-        this.useDocValue = useDocValue;
-        this.hitName = hitName;
-
-        if (hitName != null) {
-            if (!name.contains(hitName)) {
-                throw new SqlIllegalArgumentException("Hitname [{}] specified but not part of the name [{}]", hitName, name);
-            }
-        }
-
-        this.path = sourcePath(fieldName, useDocValue, hitName);
+    public FieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName,
+            boolean arrayLeniency) {
+        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, arrayLeniency);
     }
 
-    FieldHitExtractor(StreamInput in) throws IOException {
-        fieldName = in.readString();
-        String esType = in.readOptionalString();
-        dataType = esType != null ? DataType.fromTypeName(esType) : null;
-        useDocValue = in.readBoolean();
-        hitName = in.readOptionalString();
-        path = sourcePath(fieldName, useDocValue, hitName);
+    public FieldHitExtractor(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    protected DataType loadTypeFromName(String typeName) {
+        return SqlDataTypes.fromTypeName(typeName);
+    }
+
+    @Override
+    protected ZoneId readZoneId(StreamInput in) throws IOException {
+        return SqlStreamInput.asSqlStream(in).zoneId();
     }
 
     @Override
@@ -84,136 +72,64 @@ public class FieldHitExtractor implements HitExtractor {
         return NAME;
     }
 
+    // let's make sure first that we are not dealing with an geo_point represented as an array
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeOptionalString(dataType == null ? null : dataType.esType);
-        out.writeBoolean(useDocValue);
-        out.writeOptionalString(hitName);
+    protected boolean isPrimitive(List<?> list) {
+        return isGeoPointArray(list);
+    }
+
+    private boolean isGeoPointArray(List<?> list) {
+        if (dataType() != GEO_POINT) {
+            return false;
+        }
+        // we expect the point in [lon lat] or [lon lat alt] formats
+        if (list.size() > 3 || list.size() < 1) {
+            return false;
+        }
+        return list.get(0) instanceof Number;
+    }
+
+    
+    @Override
+    protected boolean isFromDocValuesOnly(DataType dataType) {
+        return SqlDataTypes.isFromDocValuesOnly(dataType);
     }
 
     @Override
-    public Object extract(SearchHit hit) {
-        Object value = null;
-        if (useDocValue) {
-            DocumentField field = hit.field(fieldName);
-            if (field != null) {
-                value = unwrapMultiValue(field.getValues());
-            }
-        } else {
-            Map<String, Object> source = hit.getSourceAsMap();
-            if (source != null) {
-                value = extractFromSource(source);
-            }
-        }
-        return value;
-    }
+    protected Object unwrapCustomValue(Object values) {
+        DataType dataType = dataType();
 
-    private Object unwrapMultiValue(Object values) {
-        if (values == null) {
-            return null;
+        if (dataType == GEO_POINT) {
+            try {
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
+                return new GeoShape(geoPoint.lon(), geoPoint.lat());
+            } catch (ElasticsearchParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName());
+            }
         }
-        if (values instanceof List) {
-            List<?> list = (List<?>) values;
-            if (list.isEmpty()) {
-                return null;
-            } else {
-                if (ARRAYS_LENIENCY || list.size() == 1) {
-                    return unwrapMultiValue(list.get(0));
-                } else {
-                    throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
-                }
+        if (dataType == GEO_SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName());
+            }
+        }
+        if (dataType == SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read shape value [{}] (returned by [{}])", values, fieldName());
             }
         }
         if (values instanceof Map) {
-            throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName);
+            throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName());
         }
-        if (dataType == DataType.DATE) {
+        if (dataType == DATETIME) {
             if (values instanceof String) {
-                return DateUtils.of(Long.parseLong(values.toString()));
-            }
-            // returned by nested types...
-            if (values instanceof DateTime) {
-                return DateUtils.of((DateTime) values);
+                return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId());
             }
         }
-        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
-            return values;
-        }
-        throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
-    }
 
-    @SuppressWarnings("unchecked")
-    Object extractFromSource(Map<String, Object> map) {
-        Object value = null;
-
-        // Used to avoid recursive method calls
-        // Holds the sub-maps in the document hierarchy that are pending to be inspected.
-        // along with the current index of the `path`.
-        Deque<Tuple<Integer, Map<String, Object>>> queue = new ArrayDeque<>();
-        queue.add(new Tuple<>(-1, map));
-
-        while (!queue.isEmpty()) {
-            Tuple<Integer, Map<String, Object>> tuple = queue.removeLast();
-            int idx = tuple.v1();
-            Map<String, Object> subMap = tuple.v2();
-
-            // Find all possible entries by examining all combinations under the current level ("idx") of the "path"
-            // e.g.: If the path == "a.b.c.d" and the idx == 0, we need to check the current subMap against the keys:
-            //       "b", "b.c" and "b.c.d"
-            StringJoiner sj = new StringJoiner(".");
-            for (int i = idx + 1; i < path.length; i++) {
-                sj.add(path[i]);
-                Object node = subMap.get(sj.toString());
-                if (node instanceof Map) {
-                    // Add the sub-map to the queue along with the current path index
-                    queue.add(new Tuple<>(i, (Map<String, Object>) node));
-                } else if (node != null) {
-                    if (i < path.length - 1) {
-                        // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
-                        // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
-                        throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
-                    }
-                    if (value != null) {
-                        // A value has already been found so this means that there are more than one
-                        // values in the document for the same path but different hierarchy.
-                        // e.g.: {"a" : {"b" : {"c" : "value"}}}, {"a.b" : {"c" : "value"}}, ...
-                        throw new SqlIllegalArgumentException("Multiple values (returned by [{}]) are not supported", fieldName);
-                    }
-                    value = node;
-                }
-            }
-        }
-        return unwrapMultiValue(value);
-    }
-
-    @Override
-    public String hitName() {
-        return hitName;
-    }
-
-    public String fieldName() {
-        return fieldName;
-    }
-
-    @Override
-    public String toString() {
-        return fieldName + "@" + hitName;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        FieldHitExtractor other = (FieldHitExtractor) obj;
-        return fieldName.equals(other.fieldName)
-                && hitName.equals(other.hitName)
-                && useDocValue == other.useDocValue;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(fieldName, useDocValue, hitName);
+        return null;
     }
 }

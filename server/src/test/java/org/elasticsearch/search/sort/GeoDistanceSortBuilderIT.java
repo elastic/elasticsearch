@@ -69,9 +69,9 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * 1   2   3   4   5   6   7
          */
         Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+                : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
+        assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
         createShuffeldJSONArray(d1Builder, d1Points);
@@ -83,8 +83,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         logger.info("d1: {}", d1Builder);
         logger.info("d2: {}", d2Builder);
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
+                client().prepareIndex("index").setId("d1").setSource(d1Builder),
+                client().prepareIndex("index").setId("d2").setSource(d2Builder));
         GeoPoint[] q = new GeoPoint[2];
         if (randomBoolean()) {
             q[0] = new GeoPoint(2, 1);
@@ -143,9 +143,9 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
          */
         Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+                : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
+        assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(0, 1), new GeoPoint(0, 4), new GeoPoint(0, 10)};
         createShuffeldJSONArray(d1Builder, d1Points);
@@ -157,8 +157,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         logger.info("d1: {}", d1Builder);
         logger.info("d2: {}", d2Builder);
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
+                client().prepareIndex("index").setId("d1").setSource(d1Builder),
+                client().prepareIndex("index").setId("d2").setSource(d2Builder));
         GeoPoint q = new GeoPoint(0,0);
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -208,9 +208,9 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * 1   2   3   4   5   6
          */
         Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+                : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
+        assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
         createShuffeldJSONArray(d1Builder, d1Points);
@@ -220,8 +220,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         createShuffeldJSONArray(d2Builder, d2Points);
 
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
+                client().prepareIndex("index").setId("d1").setSource(d1Builder),
+                client().prepareIndex("index").setId("d2").setSource(d2Builder));
 
         List<GeoPoint> qPoints = Arrays.asList(new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4));
         Collections.shuffle(qPoints, random());
@@ -258,11 +258,11 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
     }
 
     public void testSinglePointGeoDistanceSort() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(prepareCreate("index").addMapping("type", LOCATION_FIELD, "type=geo_point"));
+        assertAcked(prepareCreate("index").setMapping(LOCATION_FIELD, "type=geo_point"));
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1")
+                client().prepareIndex("index").setId("d1")
                 .setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 1).endObject().endObject()),
-                client().prepareIndex("index", "type", "d2")
+                client().prepareIndex("index").setId("d2")
                 .setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 2).endObject()
                         .endObject()));
 
@@ -330,15 +330,15 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
     }
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {
-        assertAcked(prepareCreate("test1").addMapping(
-                "type", "str_field", "type=keyword",
+        assertAcked(prepareCreate("test1").setMapping(
+                "str_field", "type=keyword",
                 "long_field", "type=long",
                 "double_field", "type=double").get());
         assertAcked(prepareCreate("test2").get());
 
         indexRandom(true,
-                client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
-                client().prepareIndex("test2", "type").setSource());
+                client().prepareIndex("test1").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
+                client().prepareIndex("test2").setSource());
 
         SearchResponse resp = client().prepareSearch("test1", "test2")
                 .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))

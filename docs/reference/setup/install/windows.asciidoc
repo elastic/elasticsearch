@@ -12,14 +12,22 @@ You can continue using the `.zip` approach if you prefer.
 
 include::license.asciidoc[]
 
+NOTE: On Windows the Elasticsearch {ml} feature requires the Microsoft Universal
+C Runtime library. This is built into Windows 10, Windows Server 2016 and more
+recent versions of Windows. For older versions of Windows it can be installed
+via Windows Update, or from a
+https://support.microsoft.com/en-us/help/2999226/update-for-universal-c-runtime-in-windows[separate download].
+If you cannot install the Microsoft Universal C Runtime library you can still
+use the rest of Elasticsearch if you disable the {ml} feature.
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch requires Java 8 or later. Use the
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
-or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
+see the <<jvm-version, JVM version requirements>>
 
 [[download-msi]]
 ==== Download the `.msi` package
@@ -334,11 +342,10 @@ Consult the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=
 for additional rules related to values containing quotation marks.
 
 ifdef::include-xpack[]
+[role="xpack"]
 [[msi-installer-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+==== Enable automatic creation of system indices
 
-
-The {stack} features try to automatically create a number of indices within {es}.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]

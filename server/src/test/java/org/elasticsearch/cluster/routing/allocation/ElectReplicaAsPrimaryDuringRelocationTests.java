@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -63,16 +62,14 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
         clusterState = strategy.reroute(clusterState, "reroute");
 
         logger.info("Start the primary shards");
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("Start the replica shards");
-        routingNodes = clusterState.getRoutingNodes();
-        ClusterState resultingState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        ClusterState resultingState = startInitializingShardsAndReroute(strategy, clusterState);
         assertThat(resultingState, not(equalTo(clusterState)));
         clusterState = resultingState;
 
-        routingNodes = clusterState.getRoutingNodes();
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(2));
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(2));
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(2));
@@ -96,7 +93,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
                 indexShardRoutingTable.primaryShard().currentNodeId());
             clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
-            clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+            clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
 
             logger.info("make sure all the primary shards are active");
             assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().active(), equalTo(true));

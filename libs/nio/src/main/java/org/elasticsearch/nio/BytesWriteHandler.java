@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public abstract class BytesWriteHandler implements ReadWriteHandler {
+public abstract class BytesWriteHandler implements NioChannelHandler {
 
     private static final List<FlushOperation> EMPTY_LIST = Collections.emptyList();
 
@@ -34,14 +34,25 @@ public abstract class BytesWriteHandler implements ReadWriteHandler {
         return new FlushReadyWrite(context, (ByteBuffer[]) message, listener);
     }
 
+    @Override
+    public void channelActive() {}
+
+    @Override
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
         assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
         return Collections.singletonList((FlushReadyWrite) writeOperation);
     }
 
+    @Override
     public List<FlushOperation> pollFlushOperations() {
         return EMPTY_LIST;
     }
 
+    @Override
+    public boolean closeNow() {
+        return false;
+    }
+
+    @Override
     public void close() {}
 }

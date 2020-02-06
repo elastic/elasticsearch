@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[pause-export]]
-== Pausing Data Collection
+=== Pausing data collection
 
 To stop generating {monitoring} data in {es}, disable data collection:
 

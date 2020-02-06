@@ -19,14 +19,17 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
@@ -40,17 +43,13 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
-        try {
-            return blobStore.blobExists(buildKey(blobName));
-        } catch (Exception e) {
-            throw new BlobStoreException("Failed to check if blob [" + blobName + "] exists", e);
-        }
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
+        return blobStore.listBlobs(path);
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
-        return blobStore.listBlobs(path);
+    public Map<String, BlobContainer> children() throws IOException {
+        return blobStore.listChildren(path());
     }
 
     @Override
@@ -74,11 +73,16 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        blobStore.deleteBlob(buildKey(blobName));
+    public DeleteResult delete() throws IOException {
+        return blobStore.deleteDirectory(path().buildAsString());
     }
 
-    protected String buildKey(String blobName) {
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        blobStore.deleteBlobsIgnoringIfNotExists(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
+    }
+
+    private String buildKey(String blobName) {
         assert blobName != null;
         return path + blobName;
     }

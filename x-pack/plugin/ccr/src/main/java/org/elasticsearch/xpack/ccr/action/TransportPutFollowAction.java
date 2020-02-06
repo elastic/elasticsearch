@@ -6,52 +6,53 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.ccr.repository.CcrRepository;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 public final class TransportPutFollowAction
-        extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
+    extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutFollowAction.class);
 
     private final Client client;
-    private final AllocationService allocationService;
-    private final ActiveShardsObserver activeShardsObserver;
+    private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public TransportPutFollowAction(
@@ -61,7 +62,7 @@ public final class TransportPutFollowAction
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final Client client,
-            final AllocationService allocationService,
+            final RestoreService restoreService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
                 PutFollowAction.NAME,
@@ -72,19 +73,14 @@ public final class TransportPutFollowAction
                 PutFollowAction.Request::new,
                 indexNameExpressionResolver);
         this.client = client;
-        this.allocationService = allocationService;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
+        this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutFollowAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -94,9 +90,9 @@ public final class TransportPutFollowAction
 
     @Override
     protected void masterOperation(
-            final PutFollowAction.Request request,
-            final ClusterState state,
-            final ActionListener<PutFollowAction.Response> listener) throws Exception {
+        Task task, final PutFollowAction.Request request,
+        final ClusterState state,
+        final ActionListener<PutFollowAction.Response> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -111,118 +107,107 @@ public final class TransportPutFollowAction
             remoteCluster,
             leaderIndex,
             listener::onFailure,
-            (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
+            (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, request, listener));
     }
 
     private void createFollowerIndex(
             final IndexMetaData leaderIndexMetaData,
-            final String[] historyUUIDs,
             final PutFollowAction.Request request,
             final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
-        // soft deletes are enabled by default on indices created on 7.0.0 or later
-        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
-            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexMetaData.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
-            listener.onFailure(
-                new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetaData.getSettings()) == false) {
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
+                "] does not have soft deletes enabled"));
             return;
         }
 
-        ActionListener<Boolean> handler = ActionListener.wrap(
-                result -> {
-                    if (result) {
-                        initiateFollowing(request, listener);
-                    } else {
-                        listener.onResponse(new PutFollowAction.Response(true, false, false));
-                    }
-                },
-                listener::onFailure);
-        // Can't use create index api here, because then index templates can alter the mappings / settings.
-        // And index templates could introduce settings / mappings that are incompatible with the leader index.
-        clusterService.submitStateUpdateTask("create_following_index", new AckedClusterStateUpdateTask<Boolean>(request, handler) {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowerIndex())
+            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+        final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
+        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
+            .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
+            .renameReplacement(request.getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
+            .indexSettings(settingsBuilder);
+
+        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
             @Override
-            protected Boolean newResponse(final boolean acknowledged) {
-                return acknowledged;
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
             }
 
             @Override
-            public ClusterState execute(final ClusterState currentState) throws Exception {
-                String followIndex = request.getFollowRequest().getFollowerIndex();
-                IndexMetaData currentIndex = currentState.metaData().index(followIndex);
-                if (currentIndex != null) {
-                    throw new ResourceAlreadyExistsException(currentIndex.getIndex());
-                }
-
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                IndexMetaData.Builder imdBuilder = IndexMetaData.builder(followIndex);
-
-                // Adding the leader index uuid for each shard as custom metadata:
-                Map<String, String> metadata = new HashMap<>();
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, request.getRemoteCluster());
-                imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
-
-                // Copy all settings, but overwrite a few settings.
-                Settings.Builder settingsBuilder = Settings.builder();
-                settingsBuilder.put(leaderIndexMetaData.getSettings());
-                // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
-                settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
-                settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followIndex);
-                settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-                settingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
-                imdBuilder.settings(settingsBuilder);
-
-                // Copy mappings from leader IMD to follow IMD
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
-                    imdBuilder.putMapping(cursor.value);
-                }
-                imdBuilder.setRoutingNumShards(leaderIndexMetaData.getRoutingNumShards());
-                IndexMetaData followIMD = imdBuilder.build();
-                mdBuilder.put(followIMD, false);
-
-                ClusterState.Builder builder = ClusterState.builder(currentState);
-                builder.metaData(mdBuilder.build());
-                ClusterState updatedState = builder.build();
-
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                        .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()));
-                updatedState = allocationService.reroute(
-                        ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                        "follow index [" + request.getFollowRequest().getFollowerIndex() + "] created");
-
-                logger.info("[{}] creating index, cause [ccr_create_and_follow], shards [{}]/[{}]",
-                        followIndex, followIMD.getNumberOfShards(), followIMD.getNumberOfReplicas());
-
-                return updatedState;
+            protected void doRun() {
+                restoreService.restoreSnapshot(restoreRequest,
+                    ActionListener.delegateFailure(listener,
+                        (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)));
             }
         });
     }
 
+    private void afterRestoreStarted(Client clientWithHeaders, PutFollowAction.Request request,
+                                     ActionListener<PutFollowAction.Response> originalListener,
+                                     RestoreService.RestoreCompletionResponse response) {
+        final ActionListener<PutFollowAction.Response> listener;
+        if (ActiveShardCount.NONE.equals(request.waitForActiveShards())) {
+            originalListener.onResponse(new PutFollowAction.Response(true, false, false));
+            listener = new ActionListener<PutFollowAction.Response>() {
+
+                @Override
+                public void onResponse(PutFollowAction.Response response) {
+                    logger.debug("put follow {} completed with {}", request, response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(() -> new ParameterizedMessage("put follow {} failed during the restore process", request), e);
+                }
+            };
+        } else {
+            listener = originalListener;
+        }
+
+        RestoreClusterStateListener.createAndRegisterListener(clusterService, response,
+            ActionListener.delegateFailure(listener, (delegatedListener, restoreSnapshotResponse) -> {
+                RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
+                if (restoreInfo == null) {
+                    // If restoreInfo is null then it is possible there was a master failure during the
+                    // restore.
+                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
+                } else if (restoreInfo.failedShards() == 0) {
+                    initiateFollowing(clientWithHeaders, request, delegatedListener);
+                } else {
+                    assert restoreInfo.failedShards() > 0 : "Should have failed shards";
+                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
+                }
+            }));
+    }
+
     private void initiateFollowing(
-            final PutFollowAction.Request request,
-            final ActionListener<PutFollowAction.Response> listener) {
-        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
-                ActiveShardCount.DEFAULT, request.timeout(), result -> {
-                    if (result) {
-                        client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
-                                r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
-                                listener::onFailure
-                        ));
-                    } else {
-                        listener.onResponse(new PutFollowAction.Response(true, false, false));
-                    }
-                }, listener::onFailure);
+        final Client client,
+        final PutFollowAction.Request request,
+        final ActionListener<PutFollowAction.Response> listener) {
+        assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
+        FollowParameters parameters = request.getParameters();
+        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+        resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
+        resumeFollowRequest.setParameters(new FollowParameters(parameters));
+        client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
+            r -> activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
+                request.waitForActiveShards(), request.timeout(), result ->
+                    listener.onResponse(new PutFollowAction.Response(true, result, r.isAcknowledged())),
+                listener::onFailure),
+            listener::onFailure
+        ));
     }
 
     @Override
     protected ClusterBlockException checkBlock(final PutFollowAction.Request request, final ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowerIndex());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowerIndex());
     }
-
 }

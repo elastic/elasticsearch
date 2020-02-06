@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -203,8 +203,8 @@ public class MeanReciprocalRankTests extends ESTestCase {
     private static SearchHit[] createSearchHits(int from, int to, String index) {
         SearchHit[] hits = new SearchHit[to + 1 - from];
         for (int i = from; i <= to; i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0, null));
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;
     }

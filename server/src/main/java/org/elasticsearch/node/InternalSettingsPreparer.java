@@ -19,6 +19,11 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,25 +31,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.function.Function;
-
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
+import java.util.function.Supplier;
 
 public class InternalSettingsPreparer {
 
-    private static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
-    private static final String TEXT_PROMPT_VALUE = "${prompt.text}";
-
-    /**
-     * Prepares settings for the transport client by gathering all
-     * elasticsearch system properties and setting defaults.
-     */
+    // TODO: refactor this method out, it used to exist for the transport client
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, Collections.emptyMap());
@@ -88,13 +80,8 @@ public class InternalSettingsPreparer {
 
         // re-initialize settings now that the config file has been loaded
         initializeSettings(output, input, properties);
-        checkSettingsForTerminalDeprecation(output);
         finalizeSettings(output, defaultNodeName);
 
-        environment = new Environment(output.build(), configPath);
-
-        // we put back the path.logs so we can use it in the logging configuration file
-        output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
         return new Environment(output.build(), configPath);
     }
 
@@ -110,25 +97,6 @@ public class InternalSettingsPreparer {
         output.put(input);
         output.putProperties(esSettings, Function.identity());
         output.replacePropertyPlaceholders();
-    }
-
-    /**
-     * Checks all settings values to make sure they do not have the old prompt settings. These were deprecated in 6.0.0.
-     * This check should be removed in 8.0.0.
-     */
-    private static void checkSettingsForTerminalDeprecation(final Settings.Builder output) throws SettingsException {
-        // This method to be removed in 8.0.0, as it was deprecated in 6.0 and removed in 7.0
-        assert Version.CURRENT.major != 8: "Logic pertaining to config driven prompting should be removed";
-        for (String setting : output.keys()) {
-            switch (output.get(setting)) {
-                case SECRET_PROMPT_VALUE:
-                    throw new SettingsException("Config driven secret prompting was deprecated in 6.0.0. Use the keystore" +
-                        " for secure settings.");
-                case TEXT_PROMPT_VALUE:
-                    throw new SettingsException("Config driven text prompting was deprecated in 6.0.0. Use the keystore" +
-                        " for secure settings.");
-            }
-        }
     }
 
     /**

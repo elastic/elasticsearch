@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -47,13 +48,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 /**
  * {@link Script} represents used-defined input that can be used to
  * compile and execute a script from the {@link ScriptService}
  * based on the {@link ScriptType}.
  *
- * There are three types of scripts specified by {@link ScriptType}.
+ * There are two types of scripts specified by {@link ScriptType},
+ * <code>INLINE</code>, and <code>STORED</code>.
  *
  * The following describes the expected parameters for each type of script:
  *
@@ -266,6 +269,27 @@ public final class Script implements ToXContentObject, Writeable {
         PARSER.declareString(Builder::setLang, LANG_PARSE_FIELD);
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
         PARSER.declareField(Builder::setParams, XContentParser::map, PARAMS_PARSE_FIELD, ValueType.OBJECT);
+    }
+
+    /**
+     * Declare a script field on an {@link ObjectParser} with the standard name ({@code script}).
+     * @param <T> Whatever type the {@linkplain ObjectParser} is parsing.
+     * @param parser the parser itself
+     * @param consumer the consumer for the script
+     */
+    public static <T> void declareScript(AbstractObjectParser<T, ?> parser, BiConsumer<T, Script> consumer) {
+        declareScript(parser, consumer, Script.SCRIPT_PARSE_FIELD);
+    }
+
+    /**
+     * Declare a script field on an {@link ObjectParser}.
+     * @param <T> Whatever type the {@linkplain ObjectParser} is parsing.
+     * @param parser the parser itself
+     * @param consumer the consumer for the script
+     * @param parseField the field name
+     */
+    public static <T> void declareScript(AbstractObjectParser<T, ?> parser, BiConsumer<T, Script> consumer, ParseField parseField) {
+        parser.declareField(consumer, (p, c) -> Script.parse(p), parseField, ValueType.OBJECT_OR_STRING);
     }
 
     /**

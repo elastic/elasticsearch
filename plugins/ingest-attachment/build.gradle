@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -23,11 +25,10 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.19.1',
-  'pdfbox': '2.0.12',
-  'bouncycastle': '1.59',
-  'poi': '4.0.0',
-  'mime4j': '0.8.2'
+  'tika'  : '1.22',
+  'pdfbox': '2.0.16',
+  'poi'   : '4.0.1',
+  'mime4j': '0.8.3'
 ]
 
 dependencies {
@@ -67,11 +68,9 @@ dependencies {
   // Outlook documents
   compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
+  // EPUB books
+  compile 'org.apache.commons:commons-lang3:3.9'
 }
-
-// TODO: stop using LanguageIdentifier...
-compileJava.options.compilerArgs << "-Xlint:-deprecation"
-
 
 dependencyLicenses {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
@@ -85,12 +84,15 @@ forbiddenPatterns {
   exclude '**/*.vsdx'
 }
 
-thirdPartyAudit{ 
-    ignoreMissingClasses()
+thirdPartyAudit {
+  ignoreMissingClasses()
 }
 
-if (project.inFipsJvm) {
-    // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
-    // rather than provide a long list of exclusions, disable the check on FIPS.
-    thirdPartyAudit.enabled = false
+if (BuildParams.inFipsJvm) {
+  // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
+  // rather than provide a long list of exclusions, disable the check on FIPS.
+  jarHell.enabled = false
+  test.enabled = false
+  integTest.enabled = false;
+  testingConventions.enabled = false;
 }

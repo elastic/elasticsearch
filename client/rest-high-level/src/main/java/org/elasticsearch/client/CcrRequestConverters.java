@@ -25,11 +25,15 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.FollowInfoRequest;
 import org.elasticsearch.client.ccr.FollowStatsRequest;
+import org.elasticsearch.client.ccr.ForgetFollowerRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.PauseAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
+import org.elasticsearch.client.ccr.ResumeAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 
@@ -46,7 +50,10 @@ final class CcrRequestConverters {
             .addPathPartAsIs("_ccr", "follow")
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params();
+        parameters.withWaitForActiveShards(putFollowRequest.waitForActiveShards());
         request.setEntity(createEntity(putFollowRequest, REQUEST_BODY_CONTENT_TYPE));
+        request.addParameters(parameters.asMap());
         return request;
     }
 
@@ -76,6 +83,17 @@ final class CcrRequestConverters {
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
+    static Request forgetFollower(final ForgetFollowerRequest forgetFollowerRequest) throws IOException {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPart(forgetFollowerRequest.leaderIndex())
+                .addPathPartAsIs("_ccr")
+                .addPathPartAsIs("forget_follower")
+                .build();
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(forgetFollowerRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request putAutoFollowPattern(PutAutoFollowPatternRequest putAutoFollowPatternRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_ccr", "auto_follow")
@@ -102,6 +120,24 @@ final class CcrRequestConverters {
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
+    static Request pauseAutoFollowPattern(PauseAutoFollowPatternRequest pauseAutoFollowPatternRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_ccr", "auto_follow")
+            .addPathPart(pauseAutoFollowPatternRequest.getName())
+            .addPathPartAsIs("pause")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request resumeAutoFollowPattern(ResumeAutoFollowPatternRequest resumeAutoFollowPatternRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_ccr", "auto_follow")
+            .addPathPart(resumeAutoFollowPatternRequest.getName())
+            .addPathPartAsIs("resume")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
     static Request getCcrStats(CcrStatsRequest ccrStatsRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_ccr", "stats")
@@ -113,6 +149,14 @@ final class CcrRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPart(followStatsRequest.getFollowerIndex())
             .addPathPartAsIs("_ccr", "stats")
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
+    static Request getFollowInfo(FollowInfoRequest followInfoRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(followInfoRequest.getFollowerIndex())
+            .addPathPartAsIs("_ccr", "info")
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }

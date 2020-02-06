@@ -12,7 +12,7 @@ configured, stop words will also be removed.
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -20,11 +20,10 @@ POST _analyze
   "text": "Yes yes, Gödel said this sentence is consistent and."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -38,7 +37,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -68,7 +66,7 @@ The `fingerprint` analyzer accepts the following parameters:
 `stopwords`::
 
     A pre-defined stop words list like `_english_` or an array  containing a
-    list of stop words.  Defaults to `\_none_`.
+    list of stop words.  Defaults to `_none_`.
 
 `stopwords_path`::
 
@@ -84,9 +82,9 @@ about stop word configuration.
 In this example, we configure the `fingerprint` analyzer to use the
 pre-defined list of English stop words:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -106,11 +104,10 @@ POST my_index/_analyze
   "text": "Yes yes, Gödel said this sentence is consistent and."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -124,7 +121,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -156,9 +152,9 @@ it, usually by adding token filters. This would recreate the built-in
 `fingerprint` analyzer and you can use it as a starting point for further
 customization:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
-PUT /fingerprint_example?include_type_name=true
+PUT /fingerprint_example
 {
   "settings": {
     "analysis": {
@@ -176,5 +172,4 @@ PUT /fingerprint_example?include_type_name=true
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: fingerprint_example, first: fingerprint, second: rebuilt_fingerprint}\nendyaml\n/]

@@ -24,12 +24,12 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -63,7 +63,6 @@ public class ExternalMapper extends FieldMapper {
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
         private GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
         private GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
-        private LegacyGeoShapeFieldMapper.Builder legacyShapeBuilder = new LegacyGeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
         private Mapper.Builder stringBuilder;
         private String generatedValue;
         private String mapperName;
@@ -87,9 +86,7 @@ public class ExternalMapper extends FieldMapper {
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
             GeoPointFieldMapper pointMapper = latLonPointBuilder.build(context);
-            BaseGeoShapeFieldMapper shapeMapper = (context.indexCreatedVersion().before(Version.V_7_0_0))
-                ? legacyShapeBuilder.build(context)
-                : shapeBuilder.build(context);
+            AbstractGeometryFieldMapper shapeMapper = shapeBuilder.build(context);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
 
@@ -153,13 +150,13 @@ public class ExternalMapper extends FieldMapper {
     private BinaryFieldMapper binMapper;
     private BooleanFieldMapper boolMapper;
     private GeoPointFieldMapper pointMapper;
-    private BaseGeoShapeFieldMapper shapeMapper;
+    private AbstractGeometryFieldMapper shapeMapper;
     private FieldMapper stringMapper;
 
     public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          BaseGeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
+                          AbstractGeometryFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
         this.generatedValue = generatedValue;
@@ -185,10 +182,10 @@ public class ExternalMapper extends FieldMapper {
         pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        PointBuilder pb = new PointBuilder(-100, 45);
         if (shapeMapper instanceof GeoShapeFieldMapper) {
-            shapeMapper.parse(context.createExternalValueContext(pb.buildLucene()));
+            shapeMapper.parse(context.createExternalValueContext(new Point(-100, 45)));
         } else {
+            PointBuilder pb = new PointBuilder(-100, 45);
             shapeMapper.parse(context.createExternalValueContext(pb.buildS4J()));
         }
 
@@ -217,7 +214,7 @@ public class ExternalMapper extends FieldMapper {
         BinaryFieldMapper binMapperUpdate = (BinaryFieldMapper) binMapper.updateFieldType(fullNameToFieldType);
         BooleanFieldMapper boolMapperUpdate = (BooleanFieldMapper) boolMapper.updateFieldType(fullNameToFieldType);
         GeoPointFieldMapper pointMapperUpdate = (GeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
-        BaseGeoShapeFieldMapper shapeMapperUpdate = (BaseGeoShapeFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
+        AbstractGeometryFieldMapper shapeMapperUpdate = (AbstractGeometryFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
         TextFieldMapper stringMapperUpdate = (TextFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
         if (update == this
                 && multiFieldsUpdate == multiFields

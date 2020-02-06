@@ -53,7 +53,7 @@ public abstract class SamlTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void restoreLocale() throws Exception {
+    public static void restoreLocale() {
         if (restoreLocale != null) {
             Locale.setDefault(restoreLocale);
             restoreLocale = null;

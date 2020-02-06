@@ -4,55 +4,49 @@ setup:
         index: test
         body:
           mappings:
-            doc:
-              properties:
-                join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
+            properties:
+              join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
+              id: { "type": "keyword" }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
-        body:  { "join_field": { "name": "parent" } }
+        body:  { "id", "1", "join_field": { "name": "parent" } }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    2
-        body:  { "join_field": { "name": "parent" } }
+        body:  { "id", "2", "join_field": { "name": "parent" } }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    3
         routing: 1
-        body:  { "join_field": { "name": "child", "parent": "1" } }
+        body:  { "id", "3", "join_field": { "name": "child", "parent": "1" } }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    4
         routing: 1
-        body:  { "join_field": { "name": "child", "parent": "1" } }
+        body:  { "id", "4", "join_field": { "name": "child", "parent": "1" } }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    5
         routing: 1
-        body:  { "join_field": { "name": "child", "parent": "2" } }
+        body:  { "id", "5", "join_field": { "name": "child", "parent": "2" } }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    6
         routing: 1
-        body:  { "join_field": { "name": "grand_child", "parent": "5" } }
+        body:  { "id", "6", "join_field": { "name": "grand_child", "parent": "5" } }
 
   - do:
       indices.refresh: {}
@@ -62,39 +56,33 @@ setup:
     - do:
         search:
           rest_total_hits_as_int: true
-          body: { sort: ["join_field", "_id"] }
+          body: { sort: ["join_field", "id"] }
 
     - match: { hits.total: 6 }
     - match: { hits.hits.0._index: "test" }
-    - match: { hits.hits.0._type: "doc" }
     - match: { hits.hits.0._id: "3" }
     - match: { hits.hits.0._source.join_field.name: "child" }
     - match: { hits.hits.0._source.join_field.parent: "1" }
     - is_false: hits.hits.0.fields.join_field#child }
     - match: { hits.hits.1._index: "test" }
-    - match: { hits.hits.1._type: "doc" }
     - match: { hits.hits.1._id: "4" }
     - match: { hits.hits.1._source.join_field.name: "child" }
     - match: { hits.hits.1._source.join_field.parent: "1" }
     - is_false: hits.hits.1.fields.join_field#child }
     - match: { hits.hits.2._index: "test" }
-    - match: { hits.hits.2._type: "doc" }
     - match: { hits.hits.2._id: "5" }
     - match: { hits.hits.2._source.join_field.name: "child" }
     - match: { hits.hits.2._source.join_field.parent: "2" }
     - is_false: hits.hits.2.fields.join_field#child }
     - match: { hits.hits.3._index: "test" }
-    - match: { hits.hits.3._type: "doc" }
     - match: { hits.hits.3._id: "6" }
     - match: { hits.hits.3._source.join_field.name: "grand_child" }
     - match: { hits.hits.3._source.join_field.parent: "5" }
     - match: { hits.hits.4._index: "test" }
-    - match: { hits.hits.4._type: "doc" }
     - match: { hits.hits.4._id: "1" }
     - match: { hits.hits.4._source.join_field.name: "parent" }
     - is_false: hits.hits.4._source.join_field.parent
     - match: { hits.hits.5._index: "test" }
-    - match: { hits.hits.5._type: "doc" }
     - match: { hits.hits.5._id: "2" }
     - match: { hits.hits.5._source.join_field.name: "parent" }
     - is_false: hits.hits.5._source.join_field.parent
@@ -105,7 +93,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            sort: [ "_id" ]
+            sort: [ "id" ]
             query:
               parent_id:
                 type: child
@@ -113,14 +101,10 @@ setup:
 
     - match: { hits.total: 2 }
     - match: { hits.hits.0._index: "test" }
-    - match: { hits.hits.0._type: "doc" }
     - match: { hits.hits.0._id: "3" }
     - match: { hits.hits.0._source.join_field.name: "child" }
     - match: { hits.hits.0._source.join_field.parent: "1" }
     - match: { hits.hits.1._index: "test" }
-    - match: { hits.hits.1._type: "doc" }
     - match: { hits.hits.1._id: "4" }
     - match: { hits.hits.1._source.join_field.name: "child" }
     - match: { hits.hits.1._source.join_field.parent: "1" }
-
-

@@ -20,9 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -41,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,8 +48,6 @@ import java.util.Objects;
 import java.util.Set;
 
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexTemplateMetaData.class));
 
     private final String name;
 
@@ -98,7 +92,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         this.name = name;
         this.order = order;
         this.version = version;
-        this.patterns= patterns;
+        this.patterns = patterns;
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
@@ -188,11 +182,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            builder.patterns(in.readList(StreamInput::readString));
-        } else {
-            builder.patterns(Collections.singletonList(in.readString()));
-        }
+        builder.patterns(in.readStringList());
         builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
@@ -202,14 +192,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         for (int i = 0; i < aliasesSize; i++) {
             AliasMetaData aliasMd = new AliasMetaData(in);
             builder.putAlias(aliasMd);
-        }
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            // Previously we allowed custom metadata
-            int customSize = in.readVInt();
-            assert customSize == 0 : "expected no custom metadata";
-            if (customSize > 0) {
-                throw new IllegalStateException("unexpected custom metadata when none is supported");
-            }
         }
         builder.version(in.readOptionalVInt());
         return builder.build();
@@ -223,11 +205,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeInt(order);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeStringList(patterns);
-        } else {
-            out.writeString(patterns.get(0));
-        }
+        out.writeStringCollection(patterns);
         Settings.writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {
@@ -238,16 +216,13 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         for (ObjectCursor<AliasMetaData> cursor : aliases.values()) {
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().before(Version.V_6_5_0)) {
-            out.writeVInt(0);
-        }
         out.writeOptionalVInt(version);
     }
 
     public static class Builder {
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet(
-            "template", "order", "mappings", "settings", "index_patterns", "aliases", "version");
+            "order", "mappings", "settings", "index_patterns", "aliases", "version");
 
         private String name;
 
@@ -346,6 +321,19 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
 
         /**
+         * Removes the nested type in the xContent representation of {@link IndexTemplateMetaData}.
+         *
+         * This method is useful to help bridge the gap between an the internal representation which still uses (the legacy format) a
+         * nested type in the mapping, and the external representation which does not use a nested type in the mapping.
+         */
+        public static void removeType(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder) throws IOException {
+            builder.startObject();
+            toInnerXContent(indexTemplateMetaData, builder,
+                new ToXContent.MapParams(Collections.singletonMap("reduce_mappings", "true")), false);
+            builder.endObject();
+        }
+
+        /**
          * Serializes the template to xContent, making sure not to nest mappings under the
          * type name.
          *
@@ -360,6 +348,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             toInnerXContent(indexTemplateMetaData, builder, params, false);
             builder.endObject();
         }
+
 
         static void toInnerXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
                                              XContentBuilder builder,
@@ -388,12 +377,10 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 if (includeTypeName == false) {
                     Map<String, Object> documentMapping = null;
                     for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
-                        if (!cursor.key.equals(MapperService.DEFAULT_MAPPING)) {
-                            assert documentMapping == null;
-                            byte[] mappingSource = cursor.value.uncompressed();
-                            Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
-                            documentMapping = reduceMapping(cursor.key, mapping);
-                        }
+                        assert documentMapping == null;
+                        byte[] mappingSource = cursor.value.uncompressed();
+                        Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
+                        documentMapping = reduceMapping(cursor.key, mapping);
                     }
 
                     if (documentMapping != null) {
@@ -493,11 +480,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                         builder.patterns(index_patterns);
                     }
                 } else if (token.isValue()) {
-                    // Prior to 5.1.0, elasticsearch only supported a single index pattern called `template` (#21009)
-                    if("template".equals(currentFieldName)) {
-                        deprecationLogger.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
-                        builder.patterns(Collections.singletonList(parser.text()));
-                    } else if ("order".equals(currentFieldName)) {
+                    if ("order".equals(currentFieldName)) {
                         builder.order(parser.intValue());
                     } else if ("version".equals(currentFieldName)) {
                         builder.version(parser.intValue());

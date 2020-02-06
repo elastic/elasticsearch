@@ -10,9 +10,9 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.ArrayList;
@@ -99,6 +99,15 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
         Token stop = end.stop != null ? end.stop : begin.stop;
         Interval interval = new Interval(start.getStartIndex(), stop.getStopIndex());
         String text = start.getInputStream().getText(interval);
+        return new Source(new Location(start.getLine(), start.getCharPositionInLine()), text);
+    }
+
+    static Source source(TerminalNode begin, ParserRuleContext end) {
+        Check.notNull(begin, "begin is null");
+        Check.notNull(end, "end is null");
+        Token start = begin.getSymbol();
+        Token stop = end.stop != null ? end.stop : start;
+        String text = start.getInputStream().getText(new Interval(start.getStartIndex(), stop.getStopIndex()));
         return new Source(new Location(start.getLine(), start.getCharPositionInLine()), text);
     }
 

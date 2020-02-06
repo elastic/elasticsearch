@@ -35,7 +35,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-custom-all-test-1
-        type:   doc
         id:     custom_all_1464739200000_1_1
         body:
           {
@@ -62,7 +61,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-custom-all-test-2
-        type:   doc
         id:     custom_all_1464739200000_1_2
         body:
           {

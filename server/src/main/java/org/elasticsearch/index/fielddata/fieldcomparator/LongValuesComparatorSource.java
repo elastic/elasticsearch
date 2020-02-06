@@ -26,12 +26,15 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 /**
  * Comparator source for long values.
@@ -39,16 +42,35 @@ import java.io.IOException;
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
+    private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode,
-            Nested nested) {
+    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
+                                      MultiValueMode sortMode, Nested nested) {
+        this(indexFieldData, missingValue, sortMode, nested, null);
+    }
+
+    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
+                                      MultiValueMode sortMode, Nested nested,
+                                      Function<SortedNumericDocValues, SortedNumericDocValues> converter) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
+        this.converter = converter;
     }
 
     @Override
     public SortField.Type reducedType() {
         return SortField.Type.LONG;
+    }
+
+    private SortedNumericDocValues loadDocValues(LeafReaderContext context) {
+        final AtomicNumericFieldData data = indexFieldData.load(context);
+        SortedNumericDocValues values;
+        if (data instanceof SortedNumericDVIndexFieldData.NanoSecondFieldData) {
+            values = ((SortedNumericDVIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
+        } else {
+            values = data.getLongValues();
+        }
+        return converter != null ? converter.apply(values) : values;
     }
 
     @Override
@@ -61,7 +83,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return new FieldComparator.LongComparator(numHits, null, null) {
             @Override
             protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                final SortedNumericDocValues values = indexFieldData.load(context).getLongValues();
+                final SortedNumericDocValues values = loadDocValues(context);
                 final NumericDocValues selectedValues;
                 if (nested == null) {
                     selectedValues = FieldData.replaceMissing(sortMode.select(values), dMissingValue);

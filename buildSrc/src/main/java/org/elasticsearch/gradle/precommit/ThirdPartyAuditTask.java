@@ -18,21 +18,28 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.JdkJarHellCheck;
+import org.elasticsearch.gradle.OS;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.provider.Property;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecResult;
@@ -43,8 +50,10 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -60,8 +69,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
         "WARNING: Class '(.*)' cannot be loaded \\(.*\\)\\. Please fix the classpath!"
     );
 
-    private static final Pattern VIOLATION_PATTERN = Pattern.compile(
-        "\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)"
+    private static final Pattern VIOLATION_PATTERN = Pattern.compile("\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)");
+    private static final int SIG_KILL_EXIT_VALUE = 137;
+    private static final List<Integer> EXPECTED_EXIT_CODES = Arrays.asList(
+        CliMain.EXIT_SUCCESS,
+        CliMain.EXIT_VIOLATION,
+        CliMain.EXIT_UNSUPPORTED_JDK
     );
 
     private Set<String> missingClassExcludes = new TreeSet<>();
@@ -74,23 +87,21 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String javaHome;
 
-    private JavaVersion targetCompatibility;
+    private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
 
     @Input
-    public JavaVersion getTargetCompatibility() {
+    public Property<JavaVersion> getTargetCompatibility() {
         return targetCompatibility;
     }
 
-    public void setTargetCompatibility(JavaVersion targetCompatibility) {
-        this.targetCompatibility = targetCompatibility;
-    }
-
     @InputFiles
+    @PathSensitive(PathSensitivity.NAME_ONLY)
     public Configuration getForbiddenAPIsConfiguration() {
         return getProject().getConfigurations().getByName("forbiddenApisCliJar");
     }
 
     @InputFile
+    @PathSensitive(PathSensitivity.NONE)
     public File getSignatureFile() {
         return signatureFile;
     }
@@ -109,12 +120,14 @@ public class ThirdPartyAuditTask extends DefaultTask {
         this.javaHome = javaHome;
     }
 
-    @OutputDirectory
+    @Internal
     public File getJarExpandDir() {
-        return new File(
-            new File(getProject().getBuildDir(), "precommit/thirdPartyAudit"),
-            getName()
-        );
+        return new File(new File(getProject().getBuildDir(), "precommit/thirdPartyAudit"), getName());
+    }
+
+    @OutputFile
+    public File getSuccessMarker() {
+        return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
     public void ignoreMissingClasses(String... classesOrPackages) {
@@ -136,7 +149,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         }
     }
 
-    public void ignoreJarHellWithJDK(String ...classes) {
+    public void ignoreJarHellWithJDK(String... classes) {
         for (String each : classes) {
             jdkJarHellExcludes.add(each);
         }
@@ -153,18 +166,17 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return missingClassExcludes;
     }
 
-    @InputFiles
+    @Classpath
     @SkipWhenEmpty
     public Set<File> getJarsToScan() {
-        // These are SelfResolvingDependency, and some of them backed by file collections, like  the Gradle API files,
+        // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
         // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
         // err on the side of scanning these to make sure we don't miss anything
-        Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null &&
-            dep.getGroup().startsWith("org.elasticsearch") == false;
-        Set<File> jars = getRuntimeConfiguration()
+        Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null && dep.getGroup().startsWith("org.elasticsearch") == false;
+        Set<File> jars = getRuntimeConfiguration().getResolvedConfiguration().getFiles(reallyThirdParty);
+        Set<File> compileOnlyConfiguration = getProject().getConfigurations()
+            .getByName("compileOnly")
             .getResolvedConfiguration()
-            .getFiles(reallyThirdParty);
-        Set<File> compileOnlyConfiguration = getProject().getConfigurations().getByName("compileOnly").getResolvedConfiguration()
             .getFiles(reallyThirdParty);
         // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
         if (compileOnlyConfiguration != null) {
@@ -203,8 +215,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             if (bogousExcludesCount != 0 && bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
                 logForbiddenAPIsOutput(forbiddenApisOutput);
                 throw new IllegalStateException(
-                    "All excluded classes seem to have no issues. " +
-                        "This is sometimes an indication that the check silently failed"
+                    "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed"
                 );
             }
             assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
@@ -214,10 +225,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         assertNoPointlessExclusions("do not generate jar hell with the JDK", jdkJarHellExcludes, jdkJarHellClasses);
 
         if (missingClassExcludes == null && (missingClasses.isEmpty() == false)) {
-            getLogger().info(
-                "Found missing classes, but task is configured to ignore all of them:\n {}",
-                formatClassList(missingClasses)
-            );
+            getLogger().info("Found missing classes, but task is configured to ignore all of them:\n {}", formatClassList(missingClasses));
             missingClasses.clear();
         }
 
@@ -229,13 +237,17 @@ public class ThirdPartyAuditTask extends DefaultTask {
             if (missingClasses.isEmpty() == false) {
                 getLogger().error("Missing classes:\n{}", formatClassList(missingClasses));
             }
-            if(violationsClasses.isEmpty() == false) {
+            if (violationsClasses.isEmpty() == false) {
                 getLogger().error("Classes with violations:\n{}", formatClassList(violationsClasses));
             }
             throw new IllegalStateException("Audit of third party dependencies failed");
         }
 
         assertNoJarHell(jdkJarHellClasses);
+
+        // Mark successful third party audit check
+        getSuccessMarker().getParentFile().mkdirs();
+        Files.write(getSuccessMarker().toPath(), new byte[] {});
     }
 
     private void logForbiddenAPIsOutput(String forbiddenApisOutput) {
@@ -271,7 +283,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             // pther version specific implementation of said classes.
             IntStream.rangeClosed(
                 Integer.parseInt(JavaVersion.VERSION_1_9.getMajorVersion()),
-                Integer.parseInt(targetCompatibility.getMajorVersion())
+                Integer.parseInt(targetCompatibility.get().getMajorVersion())
             ).forEach(majorVersion -> getProject().copy(spec -> {
                 spec.from(getProject().zipTree(jar));
                 spec.into(jarExpandDir);
@@ -288,8 +300,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         jdkJarHellClasses.removeAll(jdkJarHellExcludes);
         if (jdkJarHellClasses.isEmpty() == false) {
             throw new IllegalStateException(
-                "Audit of third party dependencies failed:\n" +
-                    "  Jar Hell with the JDK:\n" + formatClassList(jdkJarHellClasses)
+                "Audit of third party dependencies failed:\n  Jar Hell with the JDK:\n" + formatClassList(jdkJarHellClasses)
             );
         }
     }
@@ -306,15 +317,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
     }
 
     private String formatClassList(Set<String> classList) {
-        return classList.stream()
-            .map(name -> "  * " + name)
-            .sorted()
-            .collect(Collectors.joining("\n"));
+        return classList.stream().map(name -> "  * " + name).sorted().collect(Collectors.joining("\n"));
     }
 
     private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-        getProject().javaexec(spec -> {
+        ExecResult result = getProject().javaexec(spec -> {
             if (javaHome != null) {
                 spec.setExecutable(javaHome + "/bin/java");
             }
@@ -323,21 +331,24 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 getRuntimeConfiguration(),
                 getProject().getConfigurations().getByName("compileOnly")
             );
+            spec.jvmArgs("-Xmx1g");
             spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
-            spec.args(
-                "-f", getSignatureFile().getAbsolutePath(),
-                "-d", getJarExpandDir(),
-                "--allowmissingclasses"
-            );
+            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
             spec.setErrorOutput(errorOut);
             if (getLogger().isInfoEnabled() == false) {
                 spec.setStandardOutput(new NullOutputStream());
             }
             spec.setIgnoreExitValue(true);
         });
+        if (OS.current().equals(OS.LINUX) && result.getExitValue() == SIG_KILL_EXIT_VALUE) {
+            throw new IllegalStateException("Third party audit was killed buy SIGKILL, could be a victim of the Linux OOM killer");
+        }
         final String forbiddenApisOutput;
         try (ByteArrayOutputStream outputStream = errorOut) {
             forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
+        }
+        if (EXPECTED_EXIT_CODES.contains(result.getExitValue()) == false) {
+            throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
         }
         return forbiddenApisOutput;
     }

@@ -33,7 +33,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -83,7 +82,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC, threadPool,
                 (e) -> {}, (e) -> {});
         // this call was made during construction of the runnable
-        verify(threadPool, times(1)).schedule(delay, Names.GENERIC, reschedulingRunnable);
+        verify(threadPool, times(1)).schedule(reschedulingRunnable, delay, Names.GENERIC);
 
         // create a thread and start the runnable
         Thread runThread = new Thread() {
@@ -103,7 +102,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         runThread.join();
 
         // validate schedule was called again
-        verify(threadPool, times(2)).schedule(delay, Names.GENERIC, reschedulingRunnable);
+        verify(threadPool, times(2)).schedule(reschedulingRunnable, delay, Names.GENERIC);
     }
 
     public void testThatRunnableIsRescheduled() throws Exception {
@@ -179,7 +178,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
 
         // rarely wait and make sure the runnable didn't run at the next interval
         if (rarely()) {
-            assertFalse(awaitBusy(runAfterDone::get, 1L, TimeUnit.SECONDS));
+            assertBusy(() -> assertFalse("Runnable was run after being cancelled", runAfterDone.get()), 1L, TimeUnit.SECONDS);
         }
     }
 
@@ -251,7 +250,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         terminate(threadPool);
         threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build()) {
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
                 if (command instanceof ReschedulingRunnable) {
                     ((ReschedulingRunnable) command).onRejection(new EsRejectedExecutionException());
                 } else {
@@ -284,10 +283,10 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         assertThat(counterValue, equalTo(iterations));
 
         if (rarely()) {
-            awaitBusy(() -> {
-                final int value = counter.get();
-                return value == iterations;
-            }, 5 * interval.millis(), TimeUnit.MILLISECONDS);
+            assertBusy(
+                () -> assertThat(counter.get(), equalTo(iterations)),
+                5 * interval.millis(),
+                TimeUnit.MILLISECONDS);
         }
     }
 

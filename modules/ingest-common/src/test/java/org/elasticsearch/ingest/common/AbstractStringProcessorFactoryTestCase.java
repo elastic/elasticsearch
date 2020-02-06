@@ -37,7 +37,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         return config;
     }
 
-    protected void assertProcessor(AbstractStringProcessor processor) {}
+    protected void assertProcessor(AbstractStringProcessor<?> processor) {}
 
     public void testCreate() throws Exception {
         AbstractStringProcessor.Factory factory = newFactory();
@@ -47,7 +47,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         Map<String, Object> config = new HashMap<>();
         config.put("field", fieldName);
 
-        AbstractStringProcessor processor = factory.create(null, processorTag, modifyConfig(config));
+        AbstractStringProcessor<?> processor = factory.create(null, processorTag, modifyConfig(config));
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(fieldName));
         assertThat(processor.isIgnoreMissing(), is(false));
@@ -64,7 +64,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         config.put("field", fieldName);
         config.put("ignore_missing", true);
 
-        AbstractStringProcessor processor = factory.create(null, processorTag, modifyConfig(config));
+        AbstractStringProcessor<?> processor = factory.create(null, processorTag, modifyConfig(config));
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(fieldName));
         assertThat(processor.isIgnoreMissing(), is(true));
@@ -82,7 +82,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         config.put("field", fieldName);
         config.put("target_field", targetFieldName);
 
-        AbstractStringProcessor processor = factory.create(null, processorTag, modifyConfig(config));
+        AbstractStringProcessor<?> processor = factory.create(null, processorTag, modifyConfig(config));
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(fieldName));
         assertThat(processor.isIgnoreMissing(), is(false));

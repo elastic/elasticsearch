@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -38,8 +37,8 @@ import java.io.IOException;
 
 
 public class RestNodesHotThreadsAction extends BaseRestHandler {
-    public RestNodesHotThreadsAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestNodesHotThreadsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hotthreads", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hot_threads", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hotthreads", this);

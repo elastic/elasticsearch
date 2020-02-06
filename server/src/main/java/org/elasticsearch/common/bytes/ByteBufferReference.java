@@ -20,9 +20,9 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FutureObjects;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 /**
  * This is a {@link BytesReference} backed by a {@link ByteBuffer}. The byte buffer can either be a heap or
@@ -31,7 +31,7 @@ import java.nio.ByteBuffer;
  * changed, those changes will not be reflected in this reference. Any changes to the underlying data in the
  * byte buffer will be reflected in this reference.
  */
-public class ByteBufferReference extends BytesReference {
+public class ByteBufferReference extends AbstractBytesReference {
 
     private final ByteBuffer buffer;
     private final int length;
@@ -47,13 +47,18 @@ public class ByteBufferReference extends BytesReference {
     }
 
     @Override
+    public int getInt(int index) {
+        return buffer.getInt(index);
+    }
+
+    @Override
     public int length() {
         return length;
     }
 
     @Override
     public BytesReference slice(int from, int length) {
-        FutureObjects.checkFromIndexSize(from, length, this.length);
+        Objects.checkFromIndexSize(from, length, this.length);
         buffer.position(from);
         buffer.limit(from + length);
         ByteBufferReference newByteBuffer = new ByteBufferReference(buffer);

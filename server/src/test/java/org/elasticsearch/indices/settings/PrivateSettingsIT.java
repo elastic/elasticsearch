@@ -41,11 +41,6 @@ public class PrivateSettingsIT extends ESIntegTestCase {
         return Collections.singletonList(InternalOrPrivateSettingsPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(InternalOrPrivateSettingsPlugin.class);
-    }
-
     public void testSetPrivateIndexSettingOnCreate() {
         final Settings settings = Settings.builder().put("index.private", "private").build();
         final Exception e = expectThrows(Exception.class, () -> createIndex("index", settings));

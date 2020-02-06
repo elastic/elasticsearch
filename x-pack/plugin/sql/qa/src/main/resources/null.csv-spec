@@ -1,9 +1,11 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Null expressions
 //
 
 dateTimeOverNull
-SELECT YEAR(CAST(NULL AS DATE)) d;
+SELECT YEAR(CAST(NULL AS DATETIME)) d;
 
 d:i
 null
@@ -38,38 +40,9 @@ c
 null
 ;
 
-coalesceFirstNotNull
-SELECT COALESCE(123) AS c;
-
-c
-123
-;
-
-
-coalesceWithFirstNullOfString
-SELECT COALESCE(null, 'first') AS c;
-
-c:s
-first
-;
-
-coalesceWithFirstNullOfNumber
-SELECT COALESCE(null, 123) AS c;
-
-c:i
-123
-;
-
 coalesceMixed
-SELECT COALESCE(null, 123, null, 321) AS c;
+SELECT COALESCE(null, 123, null, 321);
 
-c:i
+COALESCE(null, 123, null, 321):i
 123
-;
-
-coalesceScalar
-SELECT COALESCE(null, ABS(123) + 1) AS c;
-
-c:i
-124
 ;

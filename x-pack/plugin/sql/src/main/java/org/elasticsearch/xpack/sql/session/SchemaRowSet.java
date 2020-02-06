@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.xpack.sql.type.Schema;
+import org.elasticsearch.xpack.ql.type.Schema;
 
 /**
  * A {@linkplain RowSet} with the {@link Schema} for the results
@@ -19,6 +19,6 @@ public interface SchemaRowSet extends RowSet {
 
     @Override
     default int columnCount() {
-        return schema().names().size();
+        return schema().size();
     }
 }

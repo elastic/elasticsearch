@@ -1,0 +1,22 @@
+[role="xpack"]
+[[transform-api-quickref]]
+=== API quick reference
+
+All {transform} endpoints have the following base:
+
+[source,js]
+----
+_transform/
+----
+// NOTCONSOLE
+
+* {ref}/put-transform.html[Create {transforms}]
+* {ref}/delete-transform.html[Delete {transforms}]
+* {ref}/get-transform.html[Get {transforms}]
+* {ref}/get-transform-stats.html[Get {transforms} statistics]
+* {ref}/preview-transform.html[Preview {transforms}]
+* {ref}/start-transform.html[Start {transforms}]
+* {ref}/stop-transform.html[Stop {transforms}]
+* {ref}/update-transform.html[Update {transforms}]
+
+For the full list, see {ref}/transform-apis.html[{transform-cap} APIs].

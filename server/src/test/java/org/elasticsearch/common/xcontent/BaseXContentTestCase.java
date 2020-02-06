@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -78,6 +79,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -525,11 +527,11 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDateTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((LocalDateTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (LocalDateTime) null).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000'}",
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
             () -> builder().startObject().timeField("d1", d1.toLocalDateTime()).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000'}",
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
             () -> builder().startObject().field("d1").timeValue(d1.toLocalDateTime()).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000'}", () -> builder().startObject().field("d1", d1.toLocalDateTime()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1.toLocalDateTime()).endObject());
 
         // LocalDate (no time, no time zone)
         assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDate) null).endObject());
@@ -752,7 +754,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                     .field("xcontent", xcontent0)
                 .endObject());
 
-        ToXContent xcontent1 = (builder, params) -> {
+        ToXContentObject xcontent1 = (builder, params) -> {
             builder.startObject();
             builder.field("field", "value");
             builder.startObject("foo");
@@ -762,7 +764,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             return builder;
         };
 
-        ToXContent xcontent2 = (builder, params) -> {
+        ToXContentObject xcontent2 = (builder, params) -> {
             builder.startObject();
             builder.field("root", xcontent0);
             builder.array("childs", xcontent0, xcontent1);
@@ -1169,16 +1171,17 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             {
                 NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
-                assertThat(e.getMessage(), endsWith("unable to parse Object with name [unknown]: parser not found"));
+                assertThat(e.getMessage(), endsWith("unknown field [unknown]"));
+                assertThat(e.getCandidates(), containsInAnyOrder("test1", "test2", "deprecated", "str"));
             }
             {
-                Exception e = expectThrows(NamedObjectNotFoundException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+                Exception e = expectThrows(XContentParseException.class, () -> p.namedObject(String.class, "doesn't matter", null));
                 assertEquals("unknown named object category [java.lang.String]", e.getMessage());
             }
         }
         try (XContentParser emptyRegistryParser = xcontentType().xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {})) {
-            Exception e = expectThrows(NamedObjectNotFoundException.class,
+            Exception e = expectThrows(XContentParseException.class,
                 () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
             assertEquals("named objects are not supported for this parser", e.getMessage());
         }
@@ -1205,11 +1208,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     private static void expectNonNullFieldException(ThrowingRunnable runnable) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
         assertThat(e.getMessage(), containsString("Field name cannot be null"));
-    }
-
-    private static void expectNonNullFormatterException(ThrowingRunnable runnable) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
-        assertThat(e.getMessage(), containsString("DateTimeFormatter cannot be null"));
     }
 
     private static void expectObjectException(ThrowingRunnable runnable) {

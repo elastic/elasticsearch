@@ -1,10 +1,6 @@
 ---
 "Basic":
 
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
-
   - do:
       index:
         index: test_1
@@ -17,6 +13,5 @@
         id:    中文
 
   - match: { _index:   test_1 }
-  - match: { _type: _doc }
   - match: { _id:      中文      }
   - match: { _source:  { foo: "Hello: 中文" } }

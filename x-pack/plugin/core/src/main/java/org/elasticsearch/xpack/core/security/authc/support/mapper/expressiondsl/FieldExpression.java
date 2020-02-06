@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An expression that evaluates to <code>true</code> if a field (map element) matches
@@ -118,15 +119,11 @@ public final class FieldExpression implements RoleMapperExpression {
         private static CharacterRunAutomaton buildAutomaton(Object value) {
             if (value instanceof String) {
                 final String str = (String) value;
-                if (Regex.isSimpleMatchPattern(str) || isLuceneRegex(str)) {
+                if (Regex.isSimpleMatchPattern(str) || Automatons.isLuceneRegex(str)) {
                     return new CharacterRunAutomaton(Automatons.patterns(str));
                 }
             }
             return null;
-        }
-
-        private static boolean isLuceneRegex(String str) {
-            return str.length() > 1 && str.charAt(0) == '/' && str.charAt(str.length() - 1) == '/';
         }
 
         public Object getValue() {
@@ -151,6 +148,22 @@ public final class FieldExpression implements RoleMapperExpression {
             return builder.value(value);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final FieldValue that = (FieldValue) o;
+            return Objects.equals(this.value, that.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value);
+        }
     }
 
 }

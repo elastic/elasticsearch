@@ -22,7 +22,6 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FutureObjects;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
@@ -35,7 +34,7 @@ import java.util.Objects;
  *
  * Note, {@link #toBytesRef()} will materialize all pages in this BytesReference.
  */
-public final class CompositeBytesReference extends BytesReference {
+public final class CompositeBytesReference extends AbstractBytesReference {
 
     private final BytesReference[] references;
     private final int[] offsets;
@@ -78,7 +77,7 @@ public final class CompositeBytesReference extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        FutureObjects.checkFromIndexSize(from, length, this.length);
+        Objects.checkFromIndexSize(from, length, this.length);
 
         if (length == 0) {
             return BytesArray.EMPTY;

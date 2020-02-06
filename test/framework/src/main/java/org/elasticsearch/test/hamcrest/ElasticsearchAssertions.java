@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -89,7 +88,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -223,8 +221,8 @@ public class ElasticsearchAssertions {
         Set<String> idsSet = new HashSet<>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(
-                    "id [" + hit.getId() + "] was found in search results but wasn't expected (type [" + hit.getType()
-                        + "], index [" + hit.getIndex() + "])" + shardStatus, idsSet.remove(hit.getId()),
+                    "id [" + hit.getId() + "] was found in search results but wasn't expected (index ["
+                        + hit.getIndex() + "])" + shardStatus, idsSet.remove(hit.getId()),
                     equalTo(true));
         }
         assertThat("Some expected ids were not found in search results: " + Arrays.toString(idsSet.toArray(new String[idsSet.size()])) + "."
@@ -259,8 +257,8 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertExists(GetResponse response) {
-        String message = String.format(Locale.ROOT, "Expected %s/%s/%s to exist, but does not",
-                response.getIndex(), response.getType(), response.getId());
+        String message = String.format(Locale.ROOT, "Expected %s/%s to exist, but does not",
+                response.getIndex(), response.getId());
         assertThat(message, response.isExists(), is(true));
     }
 
@@ -278,10 +276,6 @@ public class ElasticsearchAssertions {
 
     public static void assertFourthHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
         assertSearchHit(searchResponse, 4, matcher);
-    }
-
-    public static void assertFifthHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
-        assertSearchHit(searchResponse, 5, matcher);
     }
 
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
@@ -456,29 +450,12 @@ public class ElasticsearchAssertions {
         assertThat(templateNames, hasItem(name));
     }
 
-    /**
-     * Assert that aliases are missing
-     */
-    public static void assertAliasesMissing(AliasesExistResponse aliasesExistResponse) {
-        assertFalse("Aliases shouldn't exist", aliasesExistResponse.exists());
-    }
-
-    /**
-     * Assert that aliases exist
-     */
-    public static void assertAliasesExist(AliasesExistResponse aliasesExistResponse) {
-        assertTrue("Aliases should exist", aliasesExistResponse.exists());
-    }
-
+    /*
     /*
      * matchers
      */
     public static Matcher<SearchHit> hasId(final String id) {
         return new ElasticsearchMatchers.SearchHitHasIdMatcher(id);
-    }
-
-    public static Matcher<SearchHit> hasType(final String type) {
-        return new ElasticsearchMatchers.SearchHitHasTypeMatcher(type);
     }
 
     public static Matcher<SearchHit> hasIndex(final String index) {
@@ -655,14 +632,6 @@ public class ElasticsearchAssertions {
      */
     public static void assertFileNotExists(Path file) {
         assertThat("file/dir [" + file + "] should not exist.", Files.exists(file), is(false));
-    }
-
-    /**
-     * Check if a directory exists
-     */
-    public static void assertDirectoryExists(Path dir) {
-        assertFileExists(dir);
-        assertThat("file [" + dir + "] should be a directory.", Files.isDirectory(dir), is(true));
     }
 
     /**

@@ -24,6 +24,7 @@ import org.elasticsearch.action.ingest.SimulateProcessorResult;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 /**
  * Processor to be used within Simulate API to keep track of processors executed in pipeline.
@@ -41,51 +42,76 @@ public final class TrackingResultProcessor implements Processor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        Processor processor = actualProcessor;
-        try {
-            if (processor instanceof ConditionalProcessor) {
-                ConditionalProcessor conditionalProcessor = (ConditionalProcessor) processor;
-                if (conditionalProcessor.evaluate(ingestDocument) == false) {
-                    return ingestDocument;
-                }
-                if (conditionalProcessor.getProcessor() instanceof PipelineProcessor) {
-                    processor = conditionalProcessor.getProcessor();
-                }
-            }
-            if (processor instanceof PipelineProcessor) {
-                PipelineProcessor pipelineProcessor = ((PipelineProcessor) processor);
-                Pipeline pipeline = pipelineProcessor.getPipeline();
-                //runtime check for cycles against a copy of the document. This is needed to properly handle conditionals around pipelines
-                try {
-                    IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
-                    ingestDocumentCopy.executePipeline(pipelineProcessor.getPipeline());
-                } catch (ElasticsearchException elasticsearchException) {
-                    if (elasticsearchException.getCause().getCause() instanceof IllegalStateException) {
-                        throw elasticsearchException;
-                    }
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        if (actualProcessor instanceof PipelineProcessor) {
+            PipelineProcessor pipelineProcessor = ((PipelineProcessor) actualProcessor);
+            Pipeline pipeline = pipelineProcessor.getPipeline(ingestDocument);
+            //runtime check for cycles against a copy of the document. This is needed to properly handle conditionals around pipelines
+            IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
+            ingestDocumentCopy.executePipeline(pipelineProcessor.getPipeline(ingestDocument), (result, e) -> {
+                // do nothing, let the tracking processors throw the exception while recording the path up to the failure
+                if (e instanceof ElasticsearchException) {
+                    ElasticsearchException elasticsearchException = (ElasticsearchException) e;
                     //else do nothing, let the tracking processors throw the exception while recording the path up to the failure
-                } catch (Exception e) {
-                    // do nothing, let the tracking processors throw the exception while recording the path up to the failure
+                    if (elasticsearchException.getCause() instanceof IllegalStateException) {
+                        if (ignoreFailure) {
+                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
+                                new IngestDocument(ingestDocument), e));
+                        } else {
+                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(), e));
+                        }
+                        handler.accept(null, elasticsearchException);
+                    }
+                } else {
+                    //now that we know that there are no cycles between pipelines, decorate the processors for this pipeline and execute it
+                    CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), processorResultList);
+                    Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
+                        verbosePipelineProcessor);
+                    ingestDocument.executePipeline(verbosePipeline, handler);
                 }
-                //now that we know that there are no cycles between pipelines, decorate the processors for this pipeline and execute it
-                CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), processorResultList);
-                Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
-                    verbosePipelineProcessor);
-                ingestDocument.executePipeline(verbosePipeline);
-            } else {
-                processor.execute(ingestDocument);
-                processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument)));
-            }
-        } catch (Exception e) {
-            if (ignoreFailure) {
-                processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument), e));
-            } else {
-                processorResultList.add(new SimulateProcessorResult(processor.getTag(), e));
-            }
-            throw e;
+            });
+            return;
         }
-        return ingestDocument;
+
+        final Processor processor;
+        if (actualProcessor instanceof ConditionalProcessor) {
+            ConditionalProcessor conditionalProcessor = (ConditionalProcessor) actualProcessor;
+            if (conditionalProcessor.evaluate(ingestDocument) == false) {
+                handler.accept(ingestDocument, null);
+                return;
+            }
+            if (conditionalProcessor.getInnerProcessor() instanceof PipelineProcessor) {
+                processor = conditionalProcessor.getInnerProcessor();
+            } else {
+                processor = actualProcessor;
+            }
+        } else {
+            processor = actualProcessor;
+        }
+
+        processor.execute(ingestDocument, (result, e) -> {
+            if (e != null) {
+                if (ignoreFailure) {
+                    processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument), e));
+                } else {
+                    processorResultList.add(new SimulateProcessorResult(processor.getTag(), e));
+                }
+                handler.accept(null, e);
+            } else {
+                if (result != null) {
+                    processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument)));
+                    handler.accept(result, null);
+                } else {
+                    processorResultList.add(new SimulateProcessorResult(processor.getTag()));
+                    handler.accept(null, null);
+                }
+            }
+        });
+    }
+
+    @Override
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        throw new UnsupportedOperationException();
     }
 
     @Override

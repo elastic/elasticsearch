@@ -20,6 +20,8 @@
 package org.apache.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.custom.CustomAnalyzer;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -30,9 +32,9 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -126,7 +128,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         final String[] outputs = {
             "The quick <b>brown</b> fox."
         };
-        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery();
+        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("text");
         query.add(new Term("text", "bro"));
         assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
             BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
@@ -139,25 +141,10 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         final String[] outputs = {
             "The <b>quick</b> <b>brown</b> <b>fox</b>."
         };
-        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery();
+        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("text");
         query.add(new Term("text", "quick"));
         query.add(new Term("text", "brown"));
         query.add(new Term("text", "fo"));
-        assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
-            BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
-    }
-
-    public void testCommonTermsQuery() throws Exception {
-        final String[] inputs = {
-            "The quick brown fox."
-        };
-        final String[] outputs = {
-            "The <b>quick</b> <b>brown</b> <b>fox</b>."
-        };
-        CommonTermsQuery query = new CommonTermsQuery(BooleanClause.Occur.SHOULD, BooleanClause.Occur.SHOULD, 128);
-        query.add(new Term("text", "quick"));
-        query.add(new Term("text", "brown"));
-        query.add(new Term("text", "fox"));
         assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
             BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }
@@ -238,6 +225,35 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             .build();
         assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
             BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 20), 0, outputs);
+    }
+
+    public void testOverlappingTerms() throws Exception {
+        final String[] inputs = {
+            "bro",
+            "brown",
+            "brownie",
+            "browser"
+        };
+        final String[] outputs = {
+            "<b>bro</b>",
+            "<b>brown</b>",
+            "<b>browni</b>e",
+            "<b>browser</b>"
+        };
+        BooleanQuery query = new BooleanQuery.Builder()
+            .add(new FuzzyQuery(new Term("text", "brow")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "b")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "br")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "bro")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "brown")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "browni")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "browser")), BooleanClause.Occur.SHOULD)
+            .build();
+        Analyzer analyzer = CustomAnalyzer.builder()
+            .withTokenizer(EdgeNGramTokenizerFactory.class, "minGramSize", "1", "maxGramSize", "7")
+            .build();
+        assertHighlightOneDoc("text", inputs,
+            analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }
 
 }

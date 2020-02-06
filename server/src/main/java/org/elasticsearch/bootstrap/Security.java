@@ -29,7 +29,6 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.SocketPermission;
@@ -61,7 +60,7 @@ import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 /**
  * Initializes SecurityManager with necessary permissions.
  * <br>
- * <h1>Initialization</h1>
+ * <h2>Initialization</h2>
  * The JVM is not initially started with security manager enabled,
  * instead we turn it on early in the startup process. This is a tradeoff
  * between security and ease of use:
@@ -72,7 +71,7 @@ import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  *       otherwise be permitted.</li>
  * </ul>
  * <br>
- * <h1>Permissions</h1>
+ * <h2>Permissions</h2>
  * Permissions use a policy file packaged as a resource, this file is
  * also used in tests. File permissions are generated dynamically and
  * combined with this policy file.
@@ -92,7 +91,7 @@ import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * cleanups to the scripting apis). But still it can provide some defense for users
  * that enable dynamic scripting without being fully aware of the consequences.
  * <br>
- * <h1>Debugging Security</h1>
+ * <h2>Debugging Security</h2>
  * A good place to start when there is a problem is to turn on security debugging:
  * <pre>
  * ES_JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
@@ -360,17 +359,6 @@ final class Security {
                 addSocketPermissionForPortRange(policy, profile.portOrRange);
             }
         }
-    }
-
-    /**
-     * Add dynamic {@link SocketPermission} based on transport settings.
-     *
-     * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
-     * @param settings        the {@link Settings} instance to read the transport settings from
-     */
-    private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
-        final String transportRange = TransportSettings.PORT.get(settings);
-        addSocketPermissionForPortRange(policy, transportRange);
     }
 
     /**

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.restart;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -13,6 +12,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -20,17 +23,16 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -52,14 +54,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = XPackRestTestHelper.ML_POST_V660_TEMPLATES;
-
-        // If upgrading from a version prior to v6.6.0 the set of templates
-        // to wait for is different
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_6_0) ) {
-                templatesToWaitFor = XPackRestTestHelper.ML_PRE_V660_TEMPLATES;
-        }
-
+        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
@@ -73,6 +68,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(createTestIndex);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36816")
     public void testMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createTestIndex();
@@ -98,9 +94,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(putClosedJob);
 
         DatafeedConfig.Builder stoppedDfBuilder = new DatafeedConfig.Builder(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_CLOSED_JOB_ID);
-        if (getOldClusterVersion().before(Version.V_6_6_0)) {
-            stoppedDfBuilder.setDelayedDataCheckConfig(null);
-        }
         stoppedDfBuilder.setIndices(Collections.singletonList("airline-data"));
 
         Request putStoppedDatafeed = new Request("PUT", "/_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_ID);
@@ -119,10 +112,8 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(openOpenJob);
 
         DatafeedConfig.Builder dfBuilder = new DatafeedConfig.Builder(OLD_CLUSTER_STARTED_DATAFEED_ID, OLD_CLUSTER_OPEN_JOB_ID);
-        if (getOldClusterVersion().before(Version.V_6_6_0)) {
-            dfBuilder.setDelayedDataCheckConfig(null);
-        }
         dfBuilder.setIndices(Collections.singletonList("airline-data"));
+        addAggregations(dfBuilder);
 
         Request putDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID);
         putDatafeed.setJsonEntity(Strings.toString(dfBuilder.build()));
@@ -133,10 +124,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     private void upgradedClusterTests() throws Exception {
-        // wait for the closed and open jobs and datafeed to be migrated
-        waitForMigration(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID),
-                Arrays.asList(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_STARTED_DATAFEED_ID));
-
         waitForJobToBeAssigned(OLD_CLUSTER_OPEN_JOB_ID);
         waitForDatafeedToBeAssigned(OLD_CLUSTER_STARTED_DATAFEED_ID);
         // The persistent task params for the job & datafeed left open
@@ -187,40 +174,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     @SuppressWarnings("unchecked")
-    private void waitForMigration(List<String> expectedMigratedJobs, List<String> expectedMigratedDatafeeds) throws Exception {
-
-        // After v6.6.0 jobs are created in the index so no migration will take place
-        if (getOldClusterVersion().onOrAfter(Version.V_6_6_0)) {
-            return;
-        }
-
-        assertBusy(() -> {
-            // wait for the eligible configs to be moved from the clusterstate
-            Request getClusterState = new Request("GET", "/_cluster/state/metadata");
-            Response response = client().performRequest(getClusterState);
-            Map<String, Object> responseMap = entityAsMap(response);
-
-            List<Map<String, Object>> jobs =
-                    (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", responseMap);
-
-            if (jobs != null) {
-                for (String jobId : expectedMigratedJobs) {
-                    assertJobNotPresent(jobId, jobs);
-                }
-            }
-
-            List<Map<String, Object>> datafeeds =
-                    (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", responseMap);
-
-            if (datafeeds != null) {
-                for (String datafeedId : expectedMigratedDatafeeds) {
-                    assertDatafeedNotPresent(datafeedId, datafeeds);
-                }
-            }
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    @SuppressWarnings("unchecked")
     private void checkTaskParamsAreUpdated(String jobId, String datafeedId) throws Exception {
         Request getClusterState = new Request("GET", "/_cluster/state/metadata");
         Response response = client().performRequest(getClusterState);
@@ -245,15 +198,10 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         }
     }
 
-    private void assertDatafeedNotPresent(String datafeedId, List<Map<String, Object>> datafeeds) {
-        Optional<Object> config = datafeeds.stream().map(map -> map.get("datafeed_id"))
-                .filter(id -> id.equals(datafeedId)).findFirst();
-        assertFalse(config.isPresent());
-    }
-
-    private void assertJobNotPresent(String jobId, List<Map<String, Object>> jobs) {
-        Optional<Object> config = jobs.stream().map(map -> map.get("job_id"))
-                .filter(id -> id.equals(jobId)).findFirst();
-        assertFalse(config.isPresent());
+    private void addAggregations(DatafeedConfig.Builder dfBuilder) {
+        TermsAggregationBuilder airline = AggregationBuilders.terms("airline");
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time").subAggregation(airline);
+        dfBuilder.setParsedAggregations(AggregatorFactories.builder().addAggregator(
+                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
     }
 }

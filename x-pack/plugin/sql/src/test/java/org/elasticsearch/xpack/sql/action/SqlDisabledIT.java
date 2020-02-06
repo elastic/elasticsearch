@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collection;
@@ -20,7 +20,7 @@ public class SqlDisabledIT extends AbstractSqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(XPackPlugin.class);
+        return Collections.singletonList(LocalStateCompositeXPackPlugin.class);
     }
 
     @Override
@@ -28,14 +28,6 @@ public class SqlDisabledIT extends AbstractSqlIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.SQL_ENABLED.getKey(), false)
-                .build();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder()
-                .put(super.transportClientSettings())
-                .put(XPackSettings.SQL_ENABLED.getKey(), randomBoolean())
                 .build();
     }
 

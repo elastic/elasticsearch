@@ -26,6 +26,9 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
@@ -51,14 +54,18 @@ import org.elasticsearch.node.NodeValidationException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Internal startup code.
@@ -183,8 +190,15 @@ final class Bootstrap {
                         IOUtils.close(node, spawner);
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
+                        if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
+                            throw new IllegalStateException("Node didn't stop within 10 seconds. " +
+                                    "Any outstanding requests or tasks might get killed.");
+                        }
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to stop node", ex);
+                    } catch (InterruptedException e) {
+                        LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
+                        Thread.currentThread().interrupt();
                     }
                 }
             });
@@ -226,19 +240,55 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
+        SecureString password;
         try {
+            if (keystore != null && keystore.hasPassword()) {
+                password = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
+            } else {
+                password = new SecureString(new char[0]);
+            }
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+
+        try (password) {
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
                 return keyStoreWrapper;
             } else {
-                keystore.decrypt(new char[0] /* TODO: read password from stdin */);
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), new char[0]);
+                keystore.decrypt(password.getChars());
+                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password.getChars());
             }
         } catch (Exception e) {
             throw new BootstrapException(e);
         }
         return keystore;
+    }
+
+    // visible for tests
+    /**
+     * Read from an InputStream up to the first carriage return or newline,
+     * returning no more than maxLength characters.
+     */
+    static SecureString readPassphrase(InputStream stream, int maxLength) throws IOException {
+        SecureString passphrase;
+
+        try(InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+            passphrase = new SecureString(Terminal.readLineToCharArray(reader, maxLength));
+        } catch (RuntimeException e) {
+            if (e.getMessage().startsWith("Input exceeded maximum length")) {
+                throw new IllegalStateException("Password exceeded maximum length of " + maxLength, e);
+            }
+            throw e;
+        }
+
+        if (passphrase.length() == 0) {
+            passphrase.close();
+            throw new IllegalStateException("Keystore passphrase required but none provided.");
+        }
+
+        return passphrase;
     }
 
     private static Environment createEnvironment(
@@ -248,7 +298,7 @@ final class Bootstrap {
             final Path configPath) {
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
-            builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
+            builder.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile);
         }
         builder.put(initialSettings);
         if (secureSettings != null) {
@@ -267,6 +317,12 @@ final class Bootstrap {
     static void stop() throws IOException {
         try {
             IOUtils.close(INSTANCE.node, INSTANCE.spawner);
+            if (INSTANCE.node != null && INSTANCE.node.awaitClose(10, TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed.");
+            }
+        } catch (InterruptedException e) {
+            LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
+            Thread.currentThread().interrupt();
         } finally {
             INSTANCE.keepAliveLatch.countDown();
         }
@@ -333,7 +389,12 @@ final class Bootstrap {
 
             INSTANCE.start();
 
-            if (closeStandardStreams) {
+            // We don't close stderr if `--quiet` is passed, because that
+            // hides fatal startup errors. For example, if Elasticsearch is
+            // running via systemd, the init script only specifies
+            // `--quiet`, not `-d`, so we want users to be able to see
+            // startup errors via journalctl.
+            if (foreground == false) {
                 closeSysError();
             }
         } catch (NodeValidationException | RuntimeException e) {

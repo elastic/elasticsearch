@@ -23,14 +23,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Map;
 
@@ -44,14 +42,13 @@ public class UsageServiceTests extends ESTestCase {
     public void testRestUsage() throws Exception {
         DiscoveryNode discoveryNode = new DiscoveryNode("foo", new TransportAddress(InetAddress.getByName("localhost"), 12345),
                 Version.CURRENT);
-        Settings settings = Settings.EMPTY;
         RestRequest restRequest = new FakeRestRequest();
-        BaseRestHandler handlerA = new MockRestHandler("a", settings);
-        BaseRestHandler handlerB = new MockRestHandler("b", settings);
-        BaseRestHandler handlerC = new MockRestHandler("c", settings);
-        BaseRestHandler handlerD = new MockRestHandler("d", settings);
-        BaseRestHandler handlerE = new MockRestHandler("e", settings);
-        BaseRestHandler handlerF = new MockRestHandler("f", settings);
+        BaseRestHandler handlerA = new MockRestHandler("a");
+        BaseRestHandler handlerB = new MockRestHandler("b");
+        BaseRestHandler handlerC = new MockRestHandler("c");
+        BaseRestHandler handlerD = new MockRestHandler("d");
+        BaseRestHandler handlerE = new MockRestHandler("e");
+        BaseRestHandler handlerF = new MockRestHandler("f");
         UsageService usageService = new UsageService();
         usageService.addRestHandler(handlerA);
         usageService.addRestHandler(handlerB);
@@ -94,8 +91,7 @@ public class UsageServiceTests extends ESTestCase {
 
         private String name;
 
-        protected MockRestHandler(String name, Settings settings) {
-            super(settings);
+        protected MockRestHandler(String name) {
             this.name = name;
         }
 
@@ -105,7 +101,7 @@ public class UsageServiceTests extends ESTestCase {
         }
 
         @Override
-        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
             return channel -> {
             };
         }

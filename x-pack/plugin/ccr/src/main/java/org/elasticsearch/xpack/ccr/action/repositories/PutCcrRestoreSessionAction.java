@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -30,23 +30,13 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
 
-public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
+public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
 
     public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction();
-    private static final String NAME = "internal:admin/ccr/restore/session/put";
+    public static final String NAME = "internal:admin/ccr/restore/session/put";
 
     private PutCcrRestoreSessionAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutCcrRestoreSessionResponse newResponse() {
-        return new PutCcrRestoreSessionResponse();
-    }
-
-    @Override
-    public Writeable.Reader<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> getResponseReader() {
-        return PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse::new;
+        super(NAME, PutCcrRestoreSessionResponse::new);
     }
 
     public static class TransportPutCcrRestoreSessionAction
@@ -72,12 +62,13 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
                 throw new ShardNotFoundException(shardId);
             }
             Store.MetadataSnapshot storeFileMetaData = ccrRestoreService.openSession(request.getSessionUUID(), indexShard);
-            return new PutCcrRestoreSessionResponse(clusterService.localNode(), storeFileMetaData);
+            long mappingVersion = indexShard.indexSettings().getIndexMetaData().getMappingVersion();
+            return new PutCcrRestoreSessionResponse(clusterService.localNode(), storeFileMetaData, mappingVersion);
         }
 
         @Override
-        protected PutCcrRestoreSessionResponse newResponse() {
-            return new PutCcrRestoreSessionResponse();
+        protected Writeable.Reader<PutCcrRestoreSessionResponse> getResponseReader() {
+            return PutCcrRestoreSessionResponse::new;
         }
 
         @Override
@@ -97,33 +88,26 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
 
         private DiscoveryNode node;
         private Store.MetadataSnapshot storeFileMetaData;
+        private long mappingVersion;
 
-        PutCcrRestoreSessionResponse() {
-        }
-
-        PutCcrRestoreSessionResponse(DiscoveryNode node, Store.MetadataSnapshot storeFileMetaData) {
+        PutCcrRestoreSessionResponse(DiscoveryNode node, Store.MetadataSnapshot storeFileMetaData, long mappingVersion) {
             this.node = node;
             this.storeFileMetaData = storeFileMetaData;
+            this.mappingVersion = mappingVersion;
         }
 
         PutCcrRestoreSessionResponse(StreamInput in) throws IOException {
             super(in);
             node = new DiscoveryNode(in);
             storeFileMetaData = new Store.MetadataSnapshot(in);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            node = new DiscoveryNode(in);
-            storeFileMetaData = new Store.MetadataSnapshot(in);
+            mappingVersion = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             node.writeTo(out);
             storeFileMetaData.writeTo(out);
+            out.writeVLong(mappingVersion);
         }
 
         public DiscoveryNode getNode() {
@@ -132,6 +116,10 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
 
         public Store.MetadataSnapshot getStoreFileMetaData() {
             return storeFileMetaData;
+        }
+
+        public long getMappingVersion() {
+            return mappingVersion;
         }
     }
 }

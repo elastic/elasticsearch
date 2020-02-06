@@ -23,6 +23,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,10 +40,12 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     /**
      * Constructor for deserialization.
      */
-    public ReplicatedWriteRequest() {
+    public ReplicatedWriteRequest(StreamInput in) throws IOException {
+        super(in);
+        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
-    public ReplicatedWriteRequest(ShardId shardId) {
+    public ReplicatedWriteRequest(@Nullable ShardId shardId) {
         super(shardId);
     }
 
@@ -56,12 +59,6 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     @Override
     public RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

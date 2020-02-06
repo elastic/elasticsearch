@@ -61,6 +61,12 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;
 
+    public ClusterUpdateSettingsRequest(StreamInput in) throws IOException {
+        super(in);
+        transientSettings = readSettingsFromStream(in);
+        persistentSettings = readSettingsFromStream(in);
+    }
+
     public ClusterUpdateSettingsRequest() {
     }
 
@@ -155,13 +161,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        transientSettings = readSettingsFromStream(in);
-        persistentSettings = readSettingsFromStream(in);
     }
 
     @Override

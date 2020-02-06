@@ -23,7 +23,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -34,8 +33,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
-    public RestFieldCapabilitiesAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestFieldCapabilitiesAction(RestController controller) {
         controller.registerHandler(GET, "/_field_caps", this);
         controller.registerHandler(POST, "/_field_caps", this);
         controller.registerHandler(GET, "/{index}/_field_caps", this);
@@ -57,6 +56,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
         fieldRequest.indicesOptions(
             IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
+        fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));
         return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
     }
 }

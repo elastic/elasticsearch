@@ -25,9 +25,13 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -43,11 +47,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -60,14 +66,10 @@ public class MultiSearchRequestTests extends ESTestCase {
                 equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
                 equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
-        assertThat(request.requests().get(0).types().length,
-                equalTo(0));
         assertThat(request.requests().get(1).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(1).indicesOptions(),
                 equalTo(IndicesOptions.fromOptions(false, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
-        assertThat(request.requests().get(1).types()[0],
-                equalTo("type1"));
         assertThat(request.requests().get(2).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(2).indicesOptions(),
@@ -82,12 +84,9 @@ public class MultiSearchRequestTests extends ESTestCase {
                 equalTo(IndicesOptions.fromOptions(true, false, false, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
 
         assertThat(request.requests().get(5).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(5).types().length, equalTo(0));
         assertThat(request.requests().get(6).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(6).types().length, equalTo(0));
         assertThat(request.requests().get(6).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(7).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(7).types().length, equalTo(0));
     }
 
     public void testFailWithUnknownKey() {
@@ -110,7 +109,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
             equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
-        assertThat(request.requests().get(0).types().length, equalTo(0));
     }
 
     public void testDefaultIndicesOptions() throws IOException {
@@ -125,23 +123,17 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
             equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
-        assertThat(request.requests().get(0).types().length, equalTo(0));
     }
 
     public void testSimpleAdd2() throws Exception {
         MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/simple-msearch2.json");
         assertThat(request.requests().size(), equalTo(5));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(0).types().length, equalTo(0));
         assertThat(request.requests().get(1).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(2).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(2).types().length, equalTo(0));
         assertThat(request.requests().get(3).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(3).types().length, equalTo(0));
         assertThat(request.requests().get(3).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(4).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(4).types().length, equalTo(0));
     }
 
     public void testSimpleAdd3() throws Exception {
@@ -151,13 +143,9 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
         assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
         assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
         assertThat(request.requests().get(2).indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(2).types()[0], equalTo("type2"));
-        assertThat(request.requests().get(2).types()[1], equalTo("type1"));
         assertThat(request.requests().get(3).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(3).types().length, equalTo(0));
         assertThat(request.requests().get(3).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
     }
 
@@ -170,17 +158,23 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).preference(), nullValue());
         assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
         assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(1).requestCache(), nullValue());
         assertThat(request.requests().get(1).preference(), equalTo("_local"));
         assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
         assertThat(request.requests().get(2).indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(2).types()[0], equalTo("type2"));
-        assertThat(request.requests().get(2).types()[1], equalTo("type1"));
         assertThat(request.requests().get(2).routing(), equalTo("123"));
     }
 
-    public void testResponseErrorToXContent() throws IOException {
+    public void testNoMetadata() throws Exception {
+        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-no-metadata.json");
+        assertThat(request.requests().size(), equalTo(4));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertThat(searchRequest.indices().length, equalTo(0));
+            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
+        }
+    }
+
+    public void testResponseErrorToXContent() {
         long tookInMillis = randomIntBetween(1, 1000);
         MultiSearchResponse response = new MultiSearchResponse(
                 new MultiSearchResponse.Item[] {
@@ -267,7 +261,38 @@ public class MultiSearchRequestTests extends ESTestCase {
         }
     }
 
-    public void testEqualsAndHashcode() throws IOException {
+    public void testWritingExpandWildcards() throws IOException {
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "all");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "open,closed");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "open,hidden");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "open");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "closed,hidden");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "closed");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "hidden");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "none");
+    }
+
+    private void assertExpandWildcardsValue(IndicesOptions options, String expectedValue) throws IOException {
+        SearchRequest request = new SearchRequest();
+        request.indicesOptions(options);
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            MultiSearchRequest.writeSearchRequestParams(request, builder);
+            Map<String, Object> map =
+                XContentHelper.convertToMap(XContentType.JSON.xContent(), BytesReference.bytes(builder).streamInput(), false);
+            final String value = (String) map.get("expand_wildcards");
+            assertEquals(expectedValue, value);
+        }
+    }
+
+    public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
     }
 
@@ -282,7 +307,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return mutation;
     }
 
-    private static MultiSearchRequest copyRequest(MultiSearchRequest request) throws IOException {
+    private static MultiSearchRequest copyRequest(MultiSearchRequest request) {
         MultiSearchRequest copy = new MultiSearchRequest();
         if (request.maxConcurrentSearchRequests() > 0) {
             copy.maxConcurrentSearchRequests(request.maxConcurrentSearchRequests());
@@ -294,7 +319,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return copy;
     }
 
-    private static MultiSearchRequest createMultiSearchRequest() throws IOException {
+    private static MultiSearchRequest createMultiSearchRequest() {
         int numSearchRequest = randomIntBetween(1, 128);
         MultiSearchRequest request = new MultiSearchRequest();
         for (int j = 0; j < numSearchRequest; j++) {
@@ -321,7 +346,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return request;
     }
 
-    private static SearchRequest createSimpleSearchRequest() throws IOException {
+    private static SearchRequest createSimpleSearchRequest() {
         return randomSearchRequest(() -> {
             // No need to return a very complex SearchSourceBuilder here, that is tested elsewhere
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();

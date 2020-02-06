@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -30,7 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 public interface ElasticsearchClient {
 
     /**
-     * Executes a generic action, denoted by an {@link org.elasticsearch.action.Action}.
+     * Executes a generic action, denoted by an {@link ActionType}.
      *
      * @param action           The action type to execute.
      * @param request          The action request.
@@ -39,10 +39,10 @@ public interface ElasticsearchClient {
      * @return A future allowing to get back the response.
      */
     <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-        Action<Response> action, Request request);
+        ActionType<Response> action, Request request);
 
     /**
-     * Executes a generic action, denoted by an {@link Action}.
+     * Executes a generic action, denoted by an {@link ActionType}.
      *
      * @param action           The action type to execute.
      * @param request          The action request.
@@ -51,7 +51,7 @@ public interface ElasticsearchClient {
      * @param <Response>       The response type.
      */
     <Request extends ActionRequest, Response extends ActionResponse> void execute(
-        Action<Response> action, Request request, ActionListener<Response> listener);
+        ActionType<Response> action, Request request, ActionListener<Response> listener);
 
     /**
      * Returns the threadpool used to execute requests on this client

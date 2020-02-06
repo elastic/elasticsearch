@@ -1,5 +1,5 @@
 # -*- mode: ruby -*-
-# vi: set ft=ruby :
+# vim: ft=ruby ts=2 sw=2 sts=2 et:
 
 # This Vagrantfile exists to test packaging. Read more about its use in the
 # vagrant section in TESTING.asciidoc.
@@ -41,17 +41,21 @@ Vagrant.configure(2) do |config|
   # the elasticsearch project called vagrant....
   config.vm.synced_folder '.', '/vagrant', disabled: true
   config.vm.synced_folder '.', '/elasticsearch'
+  # TODO: make these syncs work for windows!!!
+  config.vm.synced_folder "#{Dir.home}/.vagrant/gradle/caches/jars-3", "/root/.gradle/caches/jars-3",
+      create: true,
+      owner: "vagrant"
+  config.vm.synced_folder "#{Dir.home}/.vagrant/gradle/caches/modules-2", "/root/.gradle/caches/modules-2",
+      create: true,
+      owner: "vagrant"
+  config.vm.synced_folder "#{Dir.home}/.gradle/wrapper", "/root/.gradle/wrapper",
+      create: true,
+      owner: "vagrant"
 
   # Expose project directory. Note that VAGRANT_CWD may not be the same as Dir.pwd
   PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
   config.vm.synced_folder PROJECT_DIR, '/project'
 
-  'ubuntu-1404'.tap do |box|
-    config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/ubuntu-14.04-x86_64'
-      deb_common config, box
-    end
-  end
   'ubuntu-1604'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/ubuntu-16.04-x86_64'
@@ -59,6 +63,7 @@ Vagrant.configure(2) do |config|
         # Install Jayatana so we can work around it being present.
         [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
+      ubuntu_docker config
     end
   end
   'ubuntu-1804'.tap do |box|
@@ -68,21 +73,23 @@ Vagrant.configure(2) do |config|
        # Install Jayatana so we can work around it being present.
        [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
+      ubuntu_docker config
     end
   end
-  # Wheezy's backports don't contain Openjdk 8 and the backflips
-  # required to get the sun jdk on there just aren't worth it. We have
-  # jessie and stretch for testing debian and it works fine.
   'debian-8'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/debian-8-x86_64'
-      deb_common config, box
+      deb_common config, box, extra: <<-SHELL
+        # this sometimes gets a bad ip, and doesn't appear to be needed
+        rm -f /etc/apt/sources.list.d/http_debian_net_debian.list
+      SHELL
     end
   end
   'debian-9'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/debian-9-x86_64'
       deb_common config, box
+      deb_docker config
     end
   end
   'centos-6'.tap do |box|
@@ -95,6 +102,7 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/centos-7-x86_64'
       rpm_common config, box
+      rpm_docker config
     end
   end
   'oel-6'.tap do |box|
@@ -109,16 +117,18 @@ Vagrant.configure(2) do |config|
       rpm_common config, box
     end
   end
-  'fedora-27'.tap do |box|
-    config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-27-x86_64'
-      dnf_common config, box
-    end
-  end
   'fedora-28'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
+      dnf_docker config
+    end
+  end
+  'fedora-29'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/fedora-29-x86_64'
+      dnf_common config, box
+      dnf_docker config
     end
   end
   'opensuse-42'.tap do |box|
@@ -131,6 +141,12 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/sles-12-x86_64'
       sles_common config, box
+    end
+  end
+  'rhel-8'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/rhel-8-x86_64'
+      rpm_common config, box
     end
   end
 
@@ -161,14 +177,79 @@ def deb_common(config, name, extra: '')
       s.privileged = false
       s.inline = "sudo sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
   end
+  extra_with_lintian = <<-SHELL
+    #{extra}
+    install lintian
+  SHELL
   linux_common(
     config,
     name,
     update_command: 'apt-get update',
     update_tracking_file: '/var/cache/apt/archives/last_update',
     install_command: 'apt-get install -y',
-    extra: extra
+    extra: extra_with_lintian
   )
+end
+
+def ubuntu_docker(config)
+  config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
+    # Install packages to allow apt to use a repository over HTTPS
+    apt-get install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg2 \
+      software-properties-common
+
+    # Add Docker’s official GPG key
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+
+    # Set up the stable Docker repository
+    add-apt-repository \
+      "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) \
+      stable"
+
+    # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+
+    # Enable IPv4 forwarding
+    sed -i '/net.ipv4.ip_forward/s/^#//' /etc/sysctl.conf
+    systemctl restart networking
+  SHELL
+end
+
+
+def deb_docker(config)
+  config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
+    # Install packages to allow apt to use a repository over HTTPS
+    apt-get install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg2 \
+      software-properties-common
+
+    # Add Docker’s official GPG key
+    curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+
+    # Set up the stable Docker repository
+    add-apt-repository \
+      "deb [arch=amd64] https://download.docker.com/linux/debian \
+      $(lsb_release -cs) \
+      stable"
+
+    # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
 end
 
 def rpm_common(config, name)
@@ -179,6 +260,25 @@ def rpm_common(config, name)
     update_tracking_file: '/var/cache/yum/last_update',
     install_command: 'yum install -y'
   )
+end
+
+def rpm_docker(config)
+  config.vm.provision 'install Docker using yum', type: 'shell', inline: <<-SHELL
+    # Install prerequisites
+    yum install -y yum-utils device-mapper-persistent-data lvm2
+
+    # Add repository
+    yum-config-manager -y --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+    # Install Docker
+    yum install -y docker-ce docker-ce-cli containerd.io
+
+    # Start Docker
+    systemctl enable --now docker
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
 end
 
 def dnf_common(config, name)
@@ -195,6 +295,25 @@ def dnf_common(config, name)
     install_command: 'dnf install -y',
     install_command_retries: 5
   )
+end
+
+def dnf_docker(config)
+  config.vm.provision 'install Docker using dnf', type: 'shell', inline: <<-SHELL
+    # Install prerequisites
+    dnf -y install dnf-plugins-core
+
+    # Add repository
+    dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+
+    # Install Docker
+    dnf install -y docker-ce docker-ce-cli containerd.io
+
+    # Start Docker
+    systemctl enable --now docker
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
 end
 
 def suse_common(config, name, extra: '')
@@ -254,7 +373,7 @@ def linux_common(config,
 
   # This prevents leftovers from previous tests using the
   # same VM from messing up the current test
-  config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'clean es installs in tmp', type: 'shell', inline: <<-SHELL
     rm -rf /tmp/elasticsearch*
   SHELL
 
@@ -346,10 +465,17 @@ def sh_install_deps(config,
       echo "==> Java is not installed"
       return 1
     }
+    cat \<\<JAVA > /etc/profile.d/java_home.sh
+if [ ! -z "\\\$JAVA_HOME" ]; then
+  export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
+  unset JAVA_HOME
+fi
+JAVA
     ensure tar
     ensure curl
     ensure unzip
     ensure rsync
+    ensure expect
 
     installed bats || {
       # Bats lives in a git repository....
@@ -366,10 +492,6 @@ export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
 export RPM=/elasticsearch/distribution/rpm/build/distributions
 export DEB=/elasticsearch/distribution/deb/build/distributions
-export BATS=/project/build/bats
-export BATS_UTILS=/project/build/packaging/bats/utils
-export BATS_TESTS=/project/build/packaging/bats/tests
-export PACKAGING_ARCHIVES=/project/build/packaging/archives
 export PACKAGING_TESTS=/project/build/packaging/tests
 VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
@@ -377,11 +499,12 @@ Defaults   env_keep += "ZIP"
 Defaults   env_keep += "TAR"
 Defaults   env_keep += "RPM"
 Defaults   env_keep += "DEB"
-Defaults   env_keep += "BATS"
-Defaults   env_keep += "BATS_UTILS"
-Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "PACKAGING_ARCHIVES"
 Defaults   env_keep += "PACKAGING_TESTS"
+Defaults   env_keep += "BATS_UTILS"
+Defaults   env_keep += "BATS_TESTS"
+Defaults   env_keep += "JAVA_HOME"
+Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
@@ -403,5 +526,6 @@ def windows_common(config, name)
     $ErrorActionPreference = "Stop"
     [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
     [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
+    [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
   SHELL
 end

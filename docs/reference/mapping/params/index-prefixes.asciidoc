@@ -17,46 +17,40 @@ up prefix searches.  It accepts the following optional settings:
 
 This example creates a text field using the default prefix length settings:
 
-[source,js]
+[source,console]
 --------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "body_text": {
-          "type": "text",
-          "index_prefixes": { }    <1>
-        }
+    "properties": {
+      "body_text": {
+        "type": "text",
+        "index_prefixes": { }    <1>
       }
     }
   }
 }
 --------------------------------
-// CONSOLE
 
 <1> An empty settings object will use the default `min_chars` and `max_chars`
 settings
 
 This example uses custom prefix length settings:
 
-[source,js]
+[source,console]
 --------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "full_name": {
-          "type": "text",
-          "index_prefixes": {
-            "min_chars" : 1,
-            "max_chars" : 10
-          }
+    "properties": {
+      "full_name": {
+        "type": "text",
+        "index_prefixes": {
+          "min_chars" : 1,
+          "max_chars" : 10
         }
       }
     }
   }
 }
 --------------------------------
-// CONSOLE

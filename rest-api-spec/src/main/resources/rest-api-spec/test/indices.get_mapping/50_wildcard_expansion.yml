@@ -8,7 +8,9 @@ setup:
               index:
                 number_of_replicas: 0
             mappings:
-              type_1: {}
+              properties:
+                foo:
+                  type: keyword
   - do:
         indices.create:
           index: test-xxy
@@ -17,7 +19,9 @@ setup:
               index:
                 number_of_replicas: 0
             mappings:
-              type_2: {}
+              properties:
+                foo2:
+                  type: keyword
   - do:
         indices.create:
           index: test-xyy
@@ -26,7 +30,9 @@ setup:
               index:
                 number_of_replicas: 0
             mappings:
-              type_3: {}
+              properties:
+                foo3:
+                  type: keyword
   - do:
         indices.create:
           index: test-yyy
@@ -35,7 +41,9 @@ setup:
               index:
                 number_of_replicas: 0
             mappings:
-              type_4: {}
+              properties:
+                foo4:
+                  type: keyword
 
   - do:
         cluster.health:
@@ -54,7 +62,6 @@ setup:
 
  - do:
     indices.get_mapping:
-        include_type_name: false
         index: test-x*
 
  - is_true: test-xxx.mappings
@@ -65,7 +72,6 @@ setup:
 
  - do:
     indices.get_mapping:
-        include_type_name: false
         index: test-x*
         expand_wildcards: all
 
@@ -78,7 +84,6 @@ setup:
 
  - do:
     indices.get_mapping:
-        include_type_name: false
         index: test-x*
         expand_wildcards: open
 
@@ -90,7 +95,6 @@ setup:
 
  - do:
     indices.get_mapping:
-        include_type_name: false
         index: test-x*
         expand_wildcards: closed
 
@@ -98,25 +102,17 @@ setup:
 
 ---
 "Get test-* with wildcard_expansion=none":
- - skip:
-    version: " - 6.99.99"
-    reason: allow_no_indices (defaults to true) was ignored in previous versions
  - do:
     indices.get_mapping:
-        include_type_name: false
         index: test-x*
         expand_wildcards: none
 
  - match: { '':  {} }
 ---
 "Get test-* with wildcard_expansion=none allow_no_indices=false":
- - skip:
-    version: " - 6.99.99"
-    reason: allow_no_indices was ignored in previous versions
  - do:
     catch: missing
     indices.get_mapping:
-        include_type_name: false
         index: test-x*
         expand_wildcards: none
         allow_no_indices: false
@@ -125,7 +121,6 @@ setup:
 
  - do:
     indices.get_mapping:
-        include_type_name: false
         index: test-x*
         expand_wildcards: open,closed
 

@@ -1,0 +1,14 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: xpackModule('enrich'), configuration: 'runtime')
+  testCompile project(path: xpackModule('enrich:qa:common'), configuration: 'runtime')
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+}

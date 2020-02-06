@@ -19,13 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-
-import java.util.Objects;
-import java.util.Set;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ReturnNode;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * Represents a return statement.
@@ -37,20 +36,23 @@ public final class SReturn extends AStatement {
     public SReturn(Location location, AExpression expression) {
         super(location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.expression = expression;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        expression.expected = locals.getReturnType();
-        expression.internal = true;
-        expression.analyze(locals);
-        expression = expression.cast(locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (expression == null) {
+            if (scope.getReturnType() != void.class) {
+                throw location.createError(new ClassCastException("Cannot cast from " +
+                        "[" + scope.getReturnCanonicalTypeName() + "] to " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
+            }
+        } else {
+            expression.expected = scope.getReturnType();
+            expression.internal = true;
+            expression.analyze(scriptRoot, scope);
+            expression = expression.cast(scriptRoot, scope);
+        }
 
         methodEscape = true;
         loopEscape = true;
@@ -60,14 +62,18 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-        expression.write(writer, globals);
-        writer.returnValue();
+    ReturnNode write(ClassNode classNode) {
+        ReturnNode returnNode = new ReturnNode();
+
+        returnNode.setExpressionNode(expression == null ? null : expression.write(classNode));
+
+        returnNode.setLocation(location);
+
+        return returnNode;
     }
 
     @Override
     public String toString() {
-        return singleLineToString(expression);
+        return expression == null ? singleLineToString() : singleLineToString(expression);
     }
 }

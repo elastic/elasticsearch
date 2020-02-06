@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.EQ;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.EQ;
 
 public class NullIfProcessor implements Processor {
 
@@ -59,8 +59,12 @@ public class NullIfProcessor implements Processor {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         NullIfProcessor that = (NullIfProcessor) o;
         return Objects.equals(leftProcessor, that.leftProcessor) &&
             Objects.equals(rightProcessor, that.rightProcessor);

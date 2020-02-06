@@ -1,0 +1,41 @@
+[float]
+[[breaking_80_mappings_changes]]
+=== Mapping changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+==== Limiting the number of completion contexts
+
+The number of completion contexts within a single completion field
+has been limited to 10.
+
+[float]
+==== Removal of types
+
+The typed REST endpoints of the Put Mapping, Get Mapping and Get Field mapping
+APIs have been removed in favour of their typeless REST endpoints, since indexes
+no longer contain types, these typed endpoints are obsolete.
+
+[float]
+==== Defining multi-fields within multi-fields
+
+Previously, it was possible to define a multi-field within a multi-field.
+Defining chained multi-fields was deprecated in 7.3 and is now no longer
+supported. To migrate the mappings, all instances of `fields` that occur within
+a `fields` block should be removed, either by flattening the chained `fields`
+blocks into a single level, or by switching to `copy_to` if appropriate.
+
+[float]
+[[fieldnames-enabling]]
+==== Disallow use of the `enabled` setting on the  `_field_names` field
+
+The setting has been deprecated with 7.5 and is no longer supported on new indices.
+Mappings for older indices will continue to work but emit a deprecation warning.
+The `enabled` setting for `_field_names` should be removed from templates and mappings. 
+Disabling _field_names is not necessary because it no longer carries a large index overhead.

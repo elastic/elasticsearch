@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,8 +17,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -29,18 +29,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCategoriesAction extends Action<GetCategoriesAction.Response> {
+public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response> {
 
     public static final GetCategoriesAction INSTANCE = new GetCategoriesAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/categories/get";
 
     private GetCategoriesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -76,6 +71,13 @@ public class GetCategoriesAction extends Action<GetCategoriesAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            categoryId = in.readOptionalLong();
+            pageParams = in.readOptionalWriteable(PageParams::new);
+        }
+
         public String getJobId() { return jobId; }
 
         public PageParams getPageParams() { return pageParams; }
@@ -107,14 +109,6 @@ public class GetCategoriesAction extends Action<GetCategoriesAction.Response> {
                         + "cannot be null" , validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            categoryId = in.readOptionalLong();
-            pageParams = in.readOptionalWriteable(PageParams::new);
         }
 
         @Override
@@ -164,54 +158,23 @@ public class GetCategoriesAction extends Action<GetCategoriesAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private QueryPage<CategoryDefinition> result;
+    public static class Response extends AbstractGetResourcesResponse<CategoryDefinition> implements ToXContentObject {
 
         public Response(QueryPage<CategoryDefinition> result) {
-            this.result = result;
+            super(result);
         }
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public QueryPage<CategoryDefinition> getResult() {
-            return result;
+            return getResources();
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            result = new QueryPage<>(in, CategoryDefinition::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            result.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            result.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
-            Response response = (Response) o;
-            return Objects.equals(result, response.result);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(result);
+        protected Reader<CategoryDefinition> getReader() {
+            return CategoryDefinition::new;
         }
     }
 

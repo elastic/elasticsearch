@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,7 +46,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
 
     @Before
     public void createMapper() throws Exception {
-        mapperService = createMapperService("test");
+        mapperService = createMapperService();
     }
 
     @Override
@@ -75,7 +76,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             if (randomBoolean()) {
                 engine.index(indexForDoc(doc));
             } else {
-                engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                engine.delete(new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get()));
             }
             if (rarely()) {
                 if (randomBoolean()) {
@@ -92,7 +93,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
 
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
+                    searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
                 searcher = null;
                 assertThat(snapshot, SnapshotMatchers.size(0));
             } finally {
@@ -114,7 +115,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             toSeqNo = randomLongBetween(refreshedSeqNo + 1, numOps * 2);
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
+                    searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
                 searcher = null;
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, refreshedSeqNo));
             } finally {
@@ -133,7 +134,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             toSeqNo = randomLongBetween(fromSeqNo, refreshedSeqNo);
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, true)) {
+                    searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, true)) {
                 searcher = null;
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, toSeqNo));
             } finally {
@@ -149,24 +150,16 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     /**
-     * If an operation above the local checkpoint is delivered multiple times, an engine will add multiple copies of that operation
-     * into Lucene (only the first copy is non-stale; others are stale and soft-deleted). Moreover, a nested document is indexed into
-     * Lucene as multiple documents (only the root document has both seq_no and term, non-root docs only have seq_no). This test verifies
-     * that {@link LuceneChangesSnapshot} returns exactly one operation per seq_no, and skip non-root nested documents or stale copies.
+     * A nested document is indexed into Lucene as multiple documents. While the root document has both sequence number and primary term,
+     * non-root documents don't have primary term but only sequence numbers. This test verifies that {@link LuceneChangesSnapshot}
+     * correctly skip non-root documents and returns at most one operation per sequence number.
      */
-    public void testSkipStaleOrNonRootOfNestedDocuments() throws Exception {
+    public void testSkipNonRootOfNestedDocuments() throws Exception {
         Map<Long, Long> seqNoToTerm = new HashMap<>();
         List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
-        int totalOps = 0;
         for (Engine.Operation op : operations) {
-            // Engine skips deletes or indexes below the local checkpoint
-            if (engine.getLocalCheckpoint() < op.seqNo() || op instanceof Engine.NoOp) {
+            if (engine.getLocalCheckpointTracker().hasProcessed(op.seqNo()) == false) {
                 seqNoToTerm.put(op.seqNo(), op.primaryTerm());
-                if (op instanceof Engine.Index) {
-                    totalOps += ((Engine.Index) op).docs().size();
-                } else {
-                    totalOps++;
-                }
             }
             applyOperation(engine, op);
             if (rarely()) {
@@ -183,14 +176,12 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         engine.refresh("test");
         Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
         try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, between(1, 100), 0, maxSeqNo, false)) {
-            searcher = null;
+            assertThat(snapshot.totalOperations(), equalTo(seqNoToTerm.size()));
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(seqNoToTerm.get(op.seqNo())));
             }
-            assertThat(snapshot.skippedOperations(), equalTo(totalOps - seqNoToTerm.size()));
-        } finally {
-            IOUtils.close(searcher);
+            assertThat(snapshot.skippedOperations(), equalTo(0));
         }
     }
 
@@ -213,7 +204,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 if (randomBoolean()) {
                     op = new Engine.Index(newUid(doc), primaryTerm.get(), doc);
                 } else {
-                    op = new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get());
+                    op = new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get());
                 }
             } else {
                 if (randomBoolean()) {
@@ -227,7 +218,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         readyLatch.countDown();
         readyLatch.await();
         concurrentlyApplyOps(operations, engine);
-        assertThat(engine.getLocalCheckpointTracker().getCheckpoint(), equalTo(operations.size() - 1L));
+        assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), equalTo(operations.size() - 1L));
         isDone.set(true);
         for (Follower follower : followers) {
             follower.join();
@@ -236,13 +227,13 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     class Follower extends Thread {
-        private final Engine leader;
+        private final InternalEngine leader;
         private final InternalEngine engine;
         private final TranslogHandler translogHandler;
         private final AtomicBoolean isDone;
         private final CountDownLatch readLatch;
 
-        Follower(Engine leader, AtomicBoolean isDone, CountDownLatch readLatch) throws IOException {
+        Follower(InternalEngine leader, AtomicBoolean isDone, CountDownLatch readLatch) throws IOException {
             this.leader = leader;
             this.isDone = isDone;
             this.readLatch = readLatch;
@@ -251,9 +242,9 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             this.engine = createEngine(createStore(), createTempDir());
         }
 
-        void pullOperations(Engine follower) throws IOException {
-            long leaderCheckpoint = leader.getLocalCheckpoint();
-            long followerCheckpoint = follower.getLocalCheckpoint();
+        void pullOperations(InternalEngine follower) throws IOException {
+            long leaderCheckpoint = leader.getLocalCheckpointTracker().getProcessedCheckpoint();
+            long followerCheckpoint = follower.getLocalCheckpointTracker().getProcessedCheckpoint();
             if (followerCheckpoint < leaderCheckpoint) {
                 long fromSeqNo = followerCheckpoint + 1;
                 long batchSize = randomLongBetween(0, 100);
@@ -270,11 +261,19 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 readLatch.countDown();
                 readLatch.await();
                 while (isDone.get() == false ||
-                    engine.getLocalCheckpointTracker().getCheckpoint() < leader.getLocalCheckpoint()) {
+                    engine.getLocalCheckpointTracker().getProcessedCheckpoint() <
+                        leader.getLocalCheckpointTracker().getProcessedCheckpoint()) {
                     pullOperations(engine);
                 }
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
-                assertThat(getDocIds(engine, true), equalTo(getDocIds(leader, true)));
+                // have to verify without source since we are randomly testing without _source
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = getDocIds(engine, true).stream()
+                    .map(d -> new DocIdSeqNoAndSource(d.getId(), null, d.getSeqNo(), d.getPrimaryTerm(), d.getVersion()))
+                    .collect(Collectors.toList());
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = getDocIds(leader, true).stream()
+                    .map(d -> new DocIdSeqNoAndSource(d.getId(), null, d.getSeqNo(), d.getPrimaryTerm(), d.getVersion()))
+                    .collect(Collectors.toList());
+                assertThat(docsWithoutSourceOnFollower, equalTo(docsWithoutSourceOnLeader));
             } catch (Exception ex) {
                 throw new AssertionError(ex);
             }

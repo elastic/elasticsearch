@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.sql.stats;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.type.TypesTests;
+import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
 import java.util.Map;
 
@@ -33,8 +33,7 @@ public class VerifierMetricsTests extends ESTestCase {
     
     private SqlParser parser = new SqlParser();
     private String[] commands = {"SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
-                                 "SHOW TABLES", "SYS CATALOGS", "SYS COLUMNS LIKE '%name'",
-                                 "SYS TABLES", "SYS TYPES"};
+                                 "SHOW TABLES", "SYS COLUMNS LIKE '%name'", "SYS TABLES", "SYS TYPES"};
     
     public void testWhereQuery() {
         Counters c = sql("SELECT emp_no FROM test WHERE languages > 2");
@@ -230,7 +229,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     private Counters sql(String sql, Verifier v) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
+        Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping);
         
         Verifier verifier = v;
@@ -240,7 +239,7 @@ public class VerifierMetricsTests extends ESTestCase {
             verifier = new Verifier(metrics);
         }
 
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test), verifier);
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), IndexResolution.valid(test), verifier);
         analyzer.analyze(parser.createStatement(sql), true);
         
         return metrics == null ? null : metrics.stats();

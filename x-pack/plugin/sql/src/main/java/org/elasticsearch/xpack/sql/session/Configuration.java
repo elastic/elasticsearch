@@ -11,37 +11,37 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 
 // Typed object holding properties for a given query
-public class Configuration {
-    private final ZoneId zoneId;
+public class Configuration extends org.elasticsearch.xpack.ql.session.Configuration {
+    
     private final int pageSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
     private final Mode mode;
-    private final String username;
-    private final String clusterName;
-    private final ZonedDateTime now;
+    private final String clientId;
+    private final boolean multiValueFieldLeniency;
+    private final boolean includeFrozenIndices;
 
     @Nullable
     private QueryBuilder filter;
 
-    public Configuration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter, Mode mode,
-                         String username, String clusterName) {
-        this.zoneId = zi.normalized();
+    public Configuration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
+                         Mode mode, String clientId,
+                         String username, String clusterName,
+                         boolean multiValueFieldLeniency,
+                         boolean includeFrozen) {
+
+        super(zi, username, clusterName);
+
         this.pageSize = pageSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
         this.filter = filter;
         this.mode = mode == null ? Mode.PLAIN : mode;
-        this.username = username;
-        this.clusterName = clusterName;
-        this.now = ZonedDateTime.now(zoneId);
-    }
-
-    public ZoneId zoneId() {
-        return zoneId;
+        this.clientId = clientId;
+        this.multiValueFieldLeniency = multiValueFieldLeniency;
+        this.includeFrozenIndices = includeFrozen;
     }
 
     public int pageSize() {
@@ -63,15 +63,15 @@ public class Configuration {
         return mode;
     }
 
-    public String username() {
-        return username;
+    public String clientId() {
+        return clientId;
     }
 
-    public String clusterName() {
-        return clusterName;
+    public boolean multiValueFieldLeniency() {
+        return multiValueFieldLeniency;
     }
 
-    public ZonedDateTime now() {
-        return now;
+    public boolean includeFrozen() {
+        return includeFrozenIndices;
     }
 }

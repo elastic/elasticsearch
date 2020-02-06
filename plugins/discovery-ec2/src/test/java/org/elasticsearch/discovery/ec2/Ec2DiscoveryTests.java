@@ -77,7 +77,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
             new NoneCircuitBreakerService()) {
             @Override
-            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+            public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
                 // we just need to ensure we don't resolve DNS here
                 return new TransportAddress[] {poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress())};
             }
@@ -92,8 +92,8 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     protected List<TransportAddress> buildDynamicHosts(Settings nodeSettings, int nodes, List<List<Tag>> tagsList) {
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY, nodes, tagsList)) {
-            AwsEc2UnicastHostsProvider provider = new AwsEc2UnicastHostsProvider(nodeSettings, transportService, plugin.ec2Service);
-            List<TransportAddress> dynamicHosts = provider.buildDynamicHosts(null);
+            AwsEc2SeedHostsProvider provider = new AwsEc2SeedHostsProvider(nodeSettings, transportService, plugin.ec2Service);
+            List<TransportAddress> dynamicHosts = provider.getSeedAddresses(null);
             logger.debug("--> addresses found: {}", dynamicHosts);
             return dynamicHosts;
         } catch (IOException e) {
@@ -257,7 +257,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         assertThat(dynamicHosts, hasSize(prodInstances));
     }
 
-    public void testReadHostFromTag() throws InterruptedException, UnknownHostException {
+    public void testReadHostFromTag() throws UnknownHostException {
         int nodes = randomIntBetween(5, 10);
 
         String[] addresses = new String[nodes];
@@ -290,33 +290,33 @@ public class Ec2DiscoveryTests extends ESTestCase {
     }
 
 
-    abstract class DummyEc2HostProvider extends AwsEc2UnicastHostsProvider {
+    abstract class DummyEc2SeedHostsProvider extends AwsEc2SeedHostsProvider {
         public int fetchCount = 0;
-        DummyEc2HostProvider(Settings settings, TransportService transportService, AwsEc2Service service) {
+        DummyEc2SeedHostsProvider(Settings settings, TransportService transportService, AwsEc2Service service) {
             super(settings, transportService, service);
         }
     }
 
-    public void testGetNodeListEmptyCache() throws Exception {
+    public void testGetNodeListEmptyCache() {
         AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(1, null);
-        DummyEc2HostProvider provider = new DummyEc2HostProvider(Settings.EMPTY, transportService, awsEc2Service) {
+        DummyEc2SeedHostsProvider provider = new DummyEc2SeedHostsProvider(Settings.EMPTY, transportService, awsEc2Service) {
             @Override
             protected List<TransportAddress> fetchDynamicNodes() {
                 fetchCount++;
                 return new ArrayList<>();
             }
         };
-        for (int i=0; i<3; i++) {
-            provider.buildDynamicHosts(null);
+        for (int i = 0; i < 3; i++) {
+            provider.getSeedAddresses(null);
         }
-        assertThat(provider.fetchCount, is(3));
+        assertThat(provider.fetchCount, is(1));
     }
 
     public void testGetNodeListCached() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(AwsEc2Service.NODE_CACHE_TIME_SETTING.getKey(), "500ms");
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY)) {
-            DummyEc2HostProvider provider = new DummyEc2HostProvider(builder.build(), transportService, plugin.ec2Service) {
+            DummyEc2SeedHostsProvider provider = new DummyEc2SeedHostsProvider(builder.build(), transportService, plugin.ec2Service) {
                 @Override
                 protected List<TransportAddress> fetchDynamicNodes() {
                     fetchCount++;
@@ -324,12 +324,12 @@ public class Ec2DiscoveryTests extends ESTestCase {
                 }
             };
             for (int i=0; i<3; i++) {
-                provider.buildDynamicHosts(null);
+                provider.getSeedAddresses(null);
             }
             assertThat(provider.fetchCount, is(1));
             Thread.sleep(1_000L); // wait for cache to expire
             for (int i=0; i<3; i++) {
-                provider.buildDynamicHosts(null);
+                provider.getSeedAddresses(null);
             }
             assertThat(provider.fetchCount, is(2));
         }

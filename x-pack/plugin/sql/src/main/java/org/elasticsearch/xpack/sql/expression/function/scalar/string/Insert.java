@@ -5,24 +5,27 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.InsertFunctionProcessor.doProcess;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Returns a character string where length characters have been deleted from the source string, beginning at start,
@@ -46,22 +49,22 @@ public class Insert extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
-        
-        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, sourceText(), ParamOrdinal.SECOND);
+
+        TypeResolution startResolution = isNumeric(start, sourceText(), ParamOrdinal.SECOND);
         if (startResolution.unresolved()) {
             return startResolution;
         }
         
-        TypeResolution lengthResolution = Expressions.typeMustBeNumeric(length, sourceText(), ParamOrdinal.THIRD);
+        TypeResolution lengthResolution = isNumeric(length, sourceText(), ParamOrdinal.THIRD);
         if (lengthResolution.unresolved()) {
             return lengthResolution;
         }
         
-        return Expressions.typeMustBeString(replacement, sourceText(), ParamOrdinal.FOURTH);
+        return isStringAndExact(replacement, sourceText(), ParamOrdinal.FOURTH);
     }
 
     @Override
@@ -119,13 +122,13 @@ public class Insert extends ScalarFunction {
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
-                paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+                paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataTypes.KEYWORD;
     }
 
     @Override

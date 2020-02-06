@@ -38,7 +38,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -46,8 +45,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -94,6 +95,11 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
     private static final String repositoryName = "test_repository";
     private static final String snapshotName = "test_snapshot";
     private static final String indexName = "test_index";
+
+    @Override
+    protected boolean waitForAllSnapshotsWiped() {
+        return true;
+    }
 
     public void testSnapshotCreateRepository() throws IOException {
         RestHighLevelClient client = highLevelClient();
@@ -301,7 +307,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
 
         // tag::restore-snapshot-request-indices
-        request.indices("test_index");
+        request.indices("test_index"); // <1>
         // end::restore-snapshot-request-indices
 
         String restoredIndexName = "restored_index";
@@ -452,7 +458,12 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         List<VerifyRepositoryResponse.NodeView> repositoryMetaDataResponse = response.getNodes();
         // end::verify-repository-response
         assertThat(1, equalTo(repositoryMetaDataResponse.size()));
-        assertThat("node-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
+        final boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
+        if (async) {
+            assertThat("asyncIntegTest-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
+        } else {
+            assertThat("integTest-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
+        }
     }
 
     public void testSnapshotVerifyRepositoryAsync() throws InterruptedException {
@@ -590,7 +601,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-request
 
         // tag::get-snapshots-request-repositoryName
-        request.repository(repositoryName); // <1>
+        request.repositories(repositoryName); // <1>
         // end::get-snapshots-request-repositoryName
 
         // tag::get-snapshots-request-snapshots
@@ -616,7 +627,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-execute
 
         // tag::get-snapshots-response
-        List<SnapshotInfo> snapshotsInfos = response.getSnapshots();
+        List<SnapshotInfo> snapshotsInfos = response.getSnapshots(repositoryName);
         SnapshotInfo snapshotInfo = snapshotsInfos.get(0);
         RestStatus restStatus = snapshotInfo.status(); // <1>
         SnapshotId snapshotId = snapshotInfo.snapshotId(); // <2>

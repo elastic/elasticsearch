@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -28,12 +28,12 @@ import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramA
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,7 +44,6 @@ import java.util.TreeMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.createRounding;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
@@ -64,7 +63,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                                                        Map<String, Object> metaData,
                                                        InternalAggregations aggregations) {
 
-        roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null);
+        roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
         int nbBuckets = randomNumberOfBuckets();
         int targetBuckets = randomIntBetween(1, nbBuckets * 2 + 1);
         List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
@@ -89,15 +88,15 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
      */
     public void testGetAppropriateRoundingUsesCorrectIntervals() {
         RoundingInfo[] roundings = new RoundingInfo[6];
-        DateTimeZone timeZone = DateTimeZone.UTC;
+        ZoneId timeZone = ZoneOffset.UTC;
         // Since we pass 0 as the starting index to getAppropriateRounding, we'll also use
         // an innerInterval that is quite large, such that targetBuckets * roundings[i].getMaximumInnerInterval()
         // will be larger than the estimate.
-        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE, timeZone),
+        roundings[0] = new RoundingInfo(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone,
             1000L, "s", 1000);
-        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR, timeZone),
+        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone,
             60 * 1000L, "m", 1, 5, 10, 30);
-        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY, timeZone),
+        roundings[2] = new RoundingInfo(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone,
             60 * 60 * 1000L, "h", 1, 3, 12);
 
         OffsetDateTime timestamp = Instant.parse("2018-01-01T00:00:01.000Z").atOffset(ZoneOffset.UTC);
@@ -109,6 +108,10 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertThat(result, equalTo(2));
     }
 
+    public void testReduceRandom() {
+        super.testReduceRandom();
+    }
+
     @Override
     protected void assertReduced(InternalAutoDateHistogram reduced, List<InternalAutoDateHistogram> inputs) {
 
@@ -117,7 +120,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         for (InternalAutoDateHistogram histogram : inputs) {
             for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                long bucketKey = ((DateTime) bucket.getKey()).getMillis();
+                long bucketKey = ((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli();
                 if (bucketKey < lowest) {
                     lowest = bucketKey;
                 }
@@ -173,7 +176,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
             for (InternalAutoDateHistogram histogram : inputs) {
                 for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                    long roundedBucketKey = roundingInfo.rounding.round(((DateTime) bucket.getKey()).getMillis());
+                    long roundedBucketKey = roundingInfo.rounding.round(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli());
                     long docCount = bucket.getDocCount();
                     if (roundedBucketKey >= keyForBucket
                         && roundedBucketKey < keyForBucket + intervalInMillis) {
@@ -194,7 +197,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         // pick out the actual reduced values to the make the assertion more readable
         Map<Long, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {
-            actualCounts.compute(((DateTime) bucket.getKey()).getMillis(),
+            actualCounts.compute(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli(),
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);

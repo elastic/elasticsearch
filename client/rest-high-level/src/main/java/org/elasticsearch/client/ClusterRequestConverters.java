@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -36,22 +37,21 @@ final class ClusterRequestConverters {
     static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
         Request request = new Request(HttpPut.METHOD_NAME, "/_cluster/settings");
 
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
-
+        request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(clusterUpdateSettingsRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request clusterGetSettings(ClusterGetSettingsRequest clusterGetSettingsRequest) throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/settings");
-
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withLocal(clusterGetSettingsRequest.local());
         parameters.withIncludeDefaults(clusterGetSettingsRequest.includeDefaults());
         parameters.withMasterTimeout(clusterGetSettingsRequest.masterNodeTimeout());
-
+        request.addParameters(parameters.asMap());
         return request;
     }
 
@@ -63,7 +63,7 @@ final class ClusterRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        new RequestConverters.Params(request)
+        RequestConverters.Params params = new RequestConverters.Params()
             .withWaitForStatus(healthRequest.waitForStatus())
             .withWaitForNoRelocatingShards(healthRequest.waitForNoRelocatingShards())
             .withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards())
@@ -74,6 +74,11 @@ final class ClusterRequestConverters {
             .withMasterTimeout(healthRequest.masterNodeTimeout())
             .withLocal(healthRequest.local())
             .withLevel(healthRequest.level());
+        request.addParameters(params.asMap());
         return request;
+    }
+
+    static Request remoteInfo(RemoteInfoRequest remoteInfoRequest) {
+        return new Request(HttpGet.METHOD_NAME, "/_remote/info");
     }
 }

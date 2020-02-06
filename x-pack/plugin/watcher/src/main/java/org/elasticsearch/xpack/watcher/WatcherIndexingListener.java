@@ -29,10 +29,12 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,7 +47,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.joda.time.DateTimeZone.UTC;
 
 /**
  * This index listener ensures, that watches that are being indexed are put into the trigger service
@@ -100,10 +101,11 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      */
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
-        if (isWatchDocument(shardId.getIndexName(), operation.type())) {
-            DateTime now = new DateTime(clock.millis(), UTC);
+        if (isWatchDocument(shardId.getIndexName())) {
+            ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
             try {
-                Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON);
+                Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON,
+                    operation.getIfSeqNo(), operation.getIfPrimaryTerm());
                 ShardAllocationConfiguration shardAllocationConfiguration = configuration.localShards.get(shardId);
                 if (shardAllocationConfiguration == null) {
                     logger.debug("no distributed watch execution info found for watch [{}] on shard [{}], got configuration for {}",
@@ -133,8 +135,19 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     }
 
     /**
-     *
-     * In case of an error, we have to ensure that the triggerservice does not leave anything behind
+     * In case of a document related failure (for example version conflict), then clean up resources for a watch
+     * in the trigger service.
+     */
+    @Override
+    public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+        if (result.getResultType() == Engine.Result.Type.FAILURE) {
+            assert result.getFailure() != null;
+            postIndex(shardId, index, result.getFailure());
+        }
+    }
+
+    /**
+     * In case of an engine related error, we have to ensure that the triggerservice does not leave anything behind
      *
      * TODO: If the configuration changes between preindex and postindex methods and we add a
      *       watch, that could not be indexed
@@ -148,7 +161,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      */
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
-        if (isWatchDocument(shardId.getIndexName(), index.type())) {
+        if (isWatchDocument(shardId.getIndexName())) {
             logger.debug(() -> new ParameterizedMessage("removing watch [{}] from trigger", index.id()), ex);
             triggerService.remove(index.id());
         }
@@ -164,10 +177,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      */
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-        if (isWatchDocument(shardId.getIndexName(), delete.type())) {
+        if (isWatchDocument(shardId.getIndexName())) {
+            logger.debug("removing watch [{}] to trigger service via delete", delete.id());
             triggerService.remove(delete.id());
         }
-
         return delete;
     }
 
@@ -175,11 +188,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      * Check if a supplied index and document matches the current configuration for watcher
      *
      * @param index   The index to check for
-     * @param docType The document type
      * @return true if this is a watch in the active watcher index, false otherwise
      */
-    private boolean isWatchDocument(String index, String docType) {
-        return configuration.isIndexAndActive(index) && docType.equals(Watch.DOC_TYPE);
+    private boolean isWatchDocument(String index) {
+        return configuration.isIndexAndActive(index);
     }
 
     /**
@@ -359,7 +371,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
          * @return false if watcher is not active or the passed index is not the watcher index
          */
         public boolean isIndexAndActive(String index) {
-            return active == true && index.equals(this.index);
+            return active && index.equals(this.index);
         }
     }
 

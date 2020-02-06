@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 //  Nested documents
 //
@@ -8,22 +10,22 @@ DESCRIBE test_emp;
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |DATE           
-dep                 |STRUCT         |NESTED         
-dep.dep_id          |VARCHAR        |KEYWORD        
-dep.dep_name        |VARCHAR        |TEXT           
-dep.dep_name.keyword|VARCHAR        |KEYWORD        
-dep.from_date       |TIMESTAMP      |DATE           
-dep.to_date         |TIMESTAMP      |DATE           
-emp_no              |INTEGER        |INTEGER        
-first_name          |VARCHAR        |TEXT           
-first_name.keyword  |VARCHAR        |KEYWORD        
-gender              |VARCHAR        |KEYWORD        
-hire_date           |TIMESTAMP      |DATE           
-languages           |TINYINT        |BYTE           
-last_name           |VARCHAR        |TEXT           
-last_name.keyword   |VARCHAR        |KEYWORD        
-salary              |INTEGER        |INTEGER   
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+salary              |INTEGER        |integer
 ;
 
 nestedStar
@@ -100,27 +102,15 @@ Mayuko     | 12
 ;
 
 selectWithScalarOnNested
-SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM test_emp WHERE dep.dep_name = 'Production' AND languages > 1 ORDER BY start LIMIT 5;
+SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM test_emp WHERE dep.dep_name = 'Production' AND languages > 1 ORDER BY dep.from_date LIMIT 5;
 
 f:s                  | l:s           | start:i
 
-Sreekrishna          |Servieres      |1985           
-Zhongwei             |Rosen          |1986           
-Chirstian            |Koblick        |1986           
-null                 |Chappelet      |1988           
-Zvonko               |Nyanchama      |1989     
-;
-
-selectWithScalarOnNestedWithoutProjection
-SELECT first_name f, last_name l FROM test_emp WHERE dep.dep_name = 'Production' AND languages > 1 ORDER BY YEAR(dep.from_date) LIMIT 5;
-
-f:s                  | l:s
-
-Sreekrishna          |Servieres      
-Zhongwei             |Rosen          
-Chirstian            |Koblick        
-null                 |Chappelet      
-Zvonko               |Nyanchama  
+Sreekrishna          |Servieres      |1985
+Zhongwei             |Rosen          |1986
+Chirstian            |Koblick        |1986
+null                 |Chappelet      |1988
+Zvonko               |Nyanchama      |1989
 ;
 
 //
@@ -296,4 +286,55 @@ SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=1
  dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
 ---------------+----------------+---------------+---------------
 d007           |Sales           |Valter         |10099
+;
+
+selectNestedFieldsWithTwoNestedConditions
+SELECT CONCAT(CONCAT(first_name, ' '), last_name) AS name, dep.dep_name, dep.dep_id, dep.from_date FROM test_emp WHERE dep.dep_name = 'Production' AND dep.from_date > '1990-01-01' AND first_name IS NOT NULL;
+
+
+      name:s         |  dep.dep_name:s  | dep.dep_id:s  |    dep.from_date:ts      
+---------------------+------------------+---------------+------------------------
+Parto Bamford        |Production        |d004           |1995-12-03T00:00:00.000Z
+Duangkaew Piveteau   |Production        |d004           |1996-11-24T00:00:00.000Z
+Duangkaew Piveteau   |Quality Management|d006           |2000-06-26T00:00:00.000Z
+Kazuhide Peha        |Production        |d004           |1992-07-29T00:00:00.000Z
+Mayuko Warwick       |Production        |d004           |1997-12-30T00:00:00.000Z
+Suzette Pettey       |Production        |d004           |1998-06-14T00:00:00.000Z
+Yongqiao Berztiss    |Production        |d004           |1995-03-20T00:00:00.000Z
+Otmar Herbst         |Production        |d004           |1991-09-18T00:00:00.000Z
+Otmar Herbst         |Quality Management|d006           |1999-07-08T00:00:00.000Z
+Mingsen Casley       |Production        |d004           |1994-05-21T00:00:00.000Z
+Moss Shanbhogue      |Production        |d004           |1996-11-16T00:00:00.000Z
+Hidefumi Caine       |Production        |d004           |1992-10-15T00:00:00.000Z
+Margareta Bierman    |Production        |d004           |1992-06-14T00:00:00.000Z
+Tuval Kalloufi       |Production        |d004           |1995-12-15T00:00:00.000Z
+Kenroku Malabarba    |Production        |d004           |1994-04-09T00:00:00.000Z
+Jayson Mandell       |Production        |d004           |1999-01-23T00:00:00.000Z
+Sreekrishna Servieres|Production        |d004           |1985-05-13T00:00:00.000Z
+Sreekrishna Servieres|Research          |d008           |1992-12-11T00:00:00.000Z
+Sreekrishna Servieres|Sales             |d007           |1993-05-05T00:00:00.000Z
+;
+
+selectNestedAndRootDocument_WithTwoNestedConditions_AndOneRootCondition
+SELECT last_name AS name, dep.dep_name, dep.dep_id, dep.from_date FROM test_emp WHERE dep.dep_name = 'Production' AND dep.from_date > '1990-01-01' AND last_name LIKE 'M%' ORDER BY last_name DESC;
+
+    name:s     | dep.dep_name:s | dep.dep_id:s  |    dep.from_date:ts      
+---------------+----------------+---------------+------------------------
+Mandell        |Production      |d004           |1999-01-23T00:00:00.000Z
+Malabarba      |Production      |d004           |1994-04-09T00:00:00.000Z
+;
+
+selectNestedAndRootDocument_WithMultipleConditions_AndNestedSorting
+SELECT CONCAT(CONCAT(first_name, ' '), last_name) AS name, dep.dep_name, dep.dep_id, dep.from_date, dep.to_date FROM test_emp WHERE dep.from_date > '1990-01-01' AND dep.dep_name='Production' AND dep.to_date < '2000-01-01' ORDER BY dep.dep_id, dep.from_date, name;
+
+       name:s        |  dep.dep_name:s  | dep.dep_id:s  |    dep.from_date:ts    |    dep.to_date:ts       
+---------------------+------------------+---------------+------------------------+------------------------
+Otmar Herbst         |Production        |d004           |1991-09-18T00:00:00.000Z|1999-07-08T00:00:00.000Z
+Otmar Herbst         |Quality Management|d006           |1999-07-08T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Kazuhide Peha        |Production        |d004           |1992-07-29T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Kazuhide Peha        |Development       |d005           |1987-04-03T00:00:00.000Z|1992-07-29T00:00:00.000Z
+Sreekrishna Servieres|Production        |d004           |1985-05-13T00:00:00.000Z|1989-06-29T00:00:00.000Z
+Sreekrishna Servieres|Customer Service  |d009           |1989-06-29T00:00:00.000Z|1992-12-11T00:00:00.000Z
+Sreekrishna Servieres|Research          |d008           |1992-12-11T00:00:00.000Z|1993-05-05T00:00:00.000Z
+Sreekrishna Servieres|Sales             |d007           |1993-05-05T00:00:00.000Z|1994-02-01T00:00:00.000Z
 ;

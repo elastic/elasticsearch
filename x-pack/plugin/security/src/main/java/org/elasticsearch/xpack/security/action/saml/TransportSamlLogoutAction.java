@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
 import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -73,7 +72,7 @@ public final class TransportSamlLogoutAction
                             ));
                         }, listener::onFailure
                 ));
-            } catch (IOException | ElasticsearchException e) {
+            } catch (ElasticsearchException e) {
                 logger.debug("Internal exception during SAML logout", e);
                 listener.onFailure(e);
             }
@@ -113,7 +112,7 @@ public final class TransportSamlLogoutAction
         final String session = getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_SESSION);
         final LogoutRequest logout = realm.buildLogoutRequest(nameId.asXml(), session);
         if (logout == null) {
-            return new SamlLogoutResponse(null);
+            return new SamlLogoutResponse((String)null);
         }
         final String uri = new SamlRedirect(logout, realm.getSigningConfiguration()).getRedirectUrl();
         return new SamlLogoutResponse(uri);

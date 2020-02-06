@@ -170,7 +170,7 @@ public enum GeoShapeType {
             // close linear ring iff coerce is set and ring is open, otherwise throw parse exception
             if (!coordinates.children.get(0).coordinate.equals(
                 coordinates.children.get(coordinates.children.size() - 1).coordinate)) {
-                if (coerce == true) {
+                if (coerce) {
                     coordinates.children.add(coordinates.children.get(0));
                 } else {
                     throw new ElasticsearchParseException("invalid LinearRing found (coordinates are not closed)");
@@ -258,7 +258,7 @@ public enum GeoShapeType {
     },
     GEOMETRYCOLLECTION("geometrycollection") {
         @Override
-        public ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             // noop, handled in parser
             return null;
@@ -298,7 +298,7 @@ public enum GeoShapeType {
         throw new IllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
     }
 
-    public abstract ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+    public abstract ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                             ShapeBuilder.Orientation orientation, boolean coerce);
     abstract CoordinateNode validate(CoordinateNode coordinates, boolean coerce);
 

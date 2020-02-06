@@ -1,0 +1,70 @@
+setup:
+  - do:
+      indices.create:
+        index: index-source
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "stop_data_frame_analytics_test_job"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test stop given missing config and allow_no_match is true":
+  - do:
+      catch: missing
+      ml.stop_data_frame_analytics:
+        id: "missing_config"
+        allow_no_match: true
+
+---
+"Test stop given missing config and allow_no_match is false":
+  - do:
+      catch: missing
+      ml.stop_data_frame_analytics:
+        id: "missing_config"
+        allow_no_match: false
+
+---
+"Test stop with expression that does not match and allow_no_match is true":
+  - do:
+      ml.stop_data_frame_analytics:
+        id: "missing-*"
+        allow_no_match: true
+  - match: { stopped: true }
+
+---
+"Test stop with expression that does not match and allow_no_match is false":
+  - do:
+      catch: missing
+      ml.stop_data_frame_analytics:
+        id: "missing-*"
+        allow_no_match: false
+
+---
+"Test stop given stopped":
+
+  - do:
+      ml.stop_data_frame_analytics:
+        id: "stop_data_frame_analytics_test_job"
+  - match: { stopped: true }
+
+---
+"Test stop with inconsistent body/param ids":
+
+  - do:
+      catch: /Inconsistent id; 'body_id' specified in the body differs from 'url_id' specified as a URL argument/
+      ml.stop_data_frame_analytics:
+        id: "url_id"
+        body: >
+          {
+            "id": "body_id"
+          }

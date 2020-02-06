@@ -1,20 +1,11 @@
 ---
 "Test url escaping with url mustache function":
   - do:
-      cluster.health:
-          wait_for_status: yellow
-
-  - do:
       index:
         index:   <date-index-{now/d}>
-        type:    log
         id:      1
         refresh: true
         body:    { foo: bar }
-
-  - do: {xpack.watcher.stats:{}}
-  - match: { "stats.0.watcher_state": "started" }
-  - match: { "stats.0.watch_count": 0 }
 
   # extract http host and port from master node
   - do:
@@ -33,12 +24,17 @@
           pipeline:
             description: _description
             processors: [ grok: { field: host, patterns : ["%{IPORHOST:hostname}:%{NUMBER:port:int}"] } ]
-          docs: [ { _index: index, _type: type, _id: id, _source: { host: $host } } ]
+          docs: [ { _index: index, _id: id, _source: { host: $host } } ]
   - set: { docs.0.doc._source.hostname: hostname }
   - set: { docs.0.doc._source.port: port }
 
   - do:
-      xpack.watcher.put_watch:
+      count:
+        index: <date-index-{now/d}>
+  - match: {count: 1}
+
+  - do:
+      watcher.put_watch:
           id: "test_watch"
           body:
             metadata:
@@ -64,7 +60,7 @@
                   method: PUT
                   host: $hostname
                   port: $port
-                  path: "/{{#url}}{{ctx.metadata.index}}{{/url}}/log/2"
+                  path: "/{{#url}}{{ctx.metadata.index}}{{/url}}/_doc/2"
                   params:
                     refresh: "true"
                   body: "{ \"foo\": \"bar\" }"
@@ -73,13 +69,14 @@
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
           id: "test_watch"
+  - match: {watch_record.result.condition.met: true}
+  - match: {watch_record.result.actions.0.status: 'success'}
 
   - do:
       count:
           index: <date-index-{now/d}>
-          type: log
 
   - match: {count : 2}
 

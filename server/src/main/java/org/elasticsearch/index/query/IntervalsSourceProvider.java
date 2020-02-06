@@ -19,19 +19,28 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.intervals.FilteredIntervalsSource;
-import org.apache.lucene.search.intervals.IntervalIterator;
-import org.apache.lucene.search.intervals.Intervals;
-import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.XIntervals;
+import org.apache.lucene.queries.intervals.FilteredIntervalsSource;
+import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -43,6 +52,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -59,6 +69,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
     public abstract IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException;
 
+    public abstract void extractFields(Set<String> fields);
+
     @Override
     public abstract int hashCode();
 
@@ -74,9 +86,15 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return Disjunction.fromXContent(parser);
             case "all_of":
                 return Combine.fromXContent(parser);
+            case "prefix":
+                return Prefix.fromXContent(parser);
+            case "wildcard":
+                return Wildcard.fromXContent(parser);
+            case "fuzzy":
+                return Fuzzy.fromXContent(parser);
         }
         throw new ParsingException(parser.getTokenLocation(),
-            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of]");
+            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix, wildcard]");
     }
 
     private static IntervalsSourceProvider parseInnerIntervals(XContentParser parser) throws IOException {
@@ -99,13 +117,15 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private final boolean ordered;
         private final String analyzer;
         private final IntervalFilter filter;
+        private final String useField;
 
-        public Match(String query, int maxGaps, boolean ordered, String analyzer, IntervalFilter filter) {
+        public Match(String query, int maxGaps, boolean ordered, String analyzer, IntervalFilter filter, String useField) {
             this.query = query;
             this.maxGaps = maxGaps;
             this.ordered = ordered;
             this.analyzer = analyzer;
             this.filter = filter;
+            this.useField = useField;
         }
 
         public Match(StreamInput in) throws IOException {
@@ -114,6 +134,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.ordered = in.readBoolean();
             this.analyzer = in.readOptionalString();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
+            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+                this.useField = in.readOptionalString();
+            }
+            else {
+                this.useField = null;
+            }
         }
 
         @Override
@@ -122,11 +148,26 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (this.analyzer != null) {
                 analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
             }
-            IntervalsSource source = fieldType.intervals(query, maxGaps, ordered, analyzer);
+            IntervalsSource source;
+            if (useField != null) {
+                fieldType = context.fieldMapper(useField);
+                assert fieldType != null;
+                source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer, false));
+            }
+            else {
+                source = fieldType.intervals(query, maxGaps, ordered, analyzer, false);
+            }
             if (filter != null) {
                 return filter.filter(source, context, fieldType);
             }
             return source;
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
         }
 
         @Override
@@ -138,12 +179,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 ordered == match.ordered &&
                 Objects.equals(query, match.query) &&
                 Objects.equals(filter, match.filter) &&
+                Objects.equals(useField, match.useField) &&
                 Objects.equals(analyzer, match.analyzer);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(query, maxGaps, ordered, analyzer, filter);
+            return Objects.hash(query, maxGaps, ordered, analyzer, filter, useField);
         }
 
         @Override
@@ -158,6 +200,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeBoolean(ordered);
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(filter);
+            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+                out.writeOptionalString(useField);
+            }
         }
 
         @Override
@@ -173,6 +218,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (filter != null) {
                 builder.field("filter", filter);
             }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
             return builder.endObject();
         }
 
@@ -183,7 +231,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 boolean ordered = (args[2] != null && (boolean) args[2]);
                 String analyzer = (String) args[3];
                 IntervalFilter filter = (IntervalFilter) args[4];
-                return new Match(query, max_gaps, ordered, analyzer, filter);
+                String useField = (String) args[5];
+                return new Match(query, max_gaps, ordered, analyzer, filter, useField);
             });
         static {
             PARSER.declareString(constructorArg(), new ParseField("query"));
@@ -191,10 +240,35 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> IntervalFilter.fromXContent(p), new ParseField("filter"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
         }
 
         public static Match fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
+        }
+
+        String getQuery() {
+            return query;
+        }
+
+        int getMaxGaps() {
+            return maxGaps;
+        }
+
+        boolean isOrdered() {
+            return ordered;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        IntervalFilter getFilter() {
+            return filter;
+        }
+
+        String getUseField() {
+            return useField;
         }
     }
 
@@ -229,16 +303,24 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
+        public void extractFields(Set<String> fields) {
+            for (IntervalsSourceProvider provider : subSources) {
+                provider.extractFields(fields);
+            }
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Disjunction that = (Disjunction) o;
-            return Objects.equals(subSources, that.subSources);
+            return Objects.equals(subSources, that.subSources) &&
+                Objects.equals(filter, that.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources);
+            return Objects.hash(subSources, filter);
         }
 
         @Override
@@ -285,6 +367,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public static Disjunction fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
+
+        List<IntervalsSourceProvider> getSubSources() {
+            return subSources;
+        }
+
+        IntervalFilter getFilter() {
+            return filter;
+        }
     }
 
     public static class Combine extends IntervalsSourceProvider {
@@ -324,17 +414,26 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
+        public void extractFields(Set<String> fields) {
+            for (IntervalsSourceProvider provider : subSources) {
+                provider.extractFields(fields);
+            }
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Combine combine = (Combine) o;
             return Objects.equals(subSources, combine.subSources) &&
-                ordered == combine.ordered && maxGaps == combine.maxGaps;
+                ordered == combine.ordered &&
+                maxGaps == combine.maxGaps &&
+                Objects.equals(filter, combine.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources, ordered, maxGaps);
+            return Objects.hash(subSources, ordered, maxGaps, filter);
         }
 
         @Override
@@ -388,6 +487,432 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public static Combine fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
+
+        List<IntervalsSourceProvider> getSubSources() {
+            return subSources;
+        }
+
+        boolean isOrdered() {
+            return ordered;
+        }
+
+        int getMaxGaps() {
+            return maxGaps;
+        }
+
+        IntervalFilter getFilter() {
+            return filter;
+        }
+    }
+
+    public static class Prefix extends IntervalsSourceProvider {
+
+        public static final String NAME = "prefix";
+
+        private final String prefix;
+        private final String analyzer;
+        private final String useField;
+
+        public Prefix(String prefix, String analyzer, String useField) {
+            this.prefix = prefix;
+            this.analyzer = analyzer;
+            this.useField = useField;
+        }
+
+        public Prefix(StreamInput in) throws IOException {
+            this.prefix = in.readString();
+            this.analyzer = in.readOptionalString();
+            this.useField = in.readOptionalString();
+        }
+
+        @Override
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException {
+            NamedAnalyzer analyzer = null;
+            if (this.analyzer != null) {
+                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+            }
+            IntervalsSource source;
+            if (useField != null) {
+                fieldType = context.fieldMapper(useField);
+                assert fieldType != null;
+                source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, analyzer, true));
+            }
+            else {
+                source = fieldType.intervals(prefix, 0, false, analyzer, true);
+            }
+            return source;
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Prefix prefix = (Prefix) o;
+            return Objects.equals(this.prefix, prefix.prefix) &&
+                Objects.equals(analyzer, prefix.analyzer) &&
+                Objects.equals(useField, prefix.useField);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(prefix, analyzer, useField);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(prefix);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalString(useField);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.field("prefix", prefix);
+            if (analyzer != null) {
+                builder.field("analyzer", analyzer);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Prefix, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String term = (String) args[0];
+            String analyzer = (String) args[1];
+            String useField = (String) args[2];
+            return new Prefix(term, analyzer, useField);
+        });
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("prefix"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+        }
+
+        public static Prefix fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        String getPrefix() {
+            return prefix;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
+        }
+    }
+
+    public static class Wildcard extends IntervalsSourceProvider {
+
+        public static final String NAME = "wildcard";
+
+        private final String pattern;
+        private final String analyzer;
+        private final String useField;
+
+        public Wildcard(String pattern, String analyzer, String useField) {
+            this.pattern = pattern;
+            this.analyzer = analyzer;
+            this.useField = useField;
+        }
+
+        public Wildcard(StreamInput in) throws IOException {
+            this.pattern = in.readString();
+            this.analyzer = in.readOptionalString();
+            this.useField = in.readOptionalString();
+        }
+
+        @Override
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
+            NamedAnalyzer analyzer = fieldType.searchAnalyzer();
+            if (this.analyzer != null) {
+                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+            }
+            IntervalsSource source;
+            if (useField != null) {
+                fieldType = context.fieldMapper(useField);
+                assert fieldType != null;
+                checkPositions(fieldType);
+                if (this.analyzer == null) {
+                    analyzer = fieldType.searchAnalyzer();
+                }
+                BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
+                // TODO Intervals.wildcard() should take BytesRef
+                source = Intervals.fixField(useField, XIntervals.wildcard(normalizedTerm));
+            }
+            else {
+                checkPositions(fieldType);
+                BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
+                source = XIntervals.wildcard(normalizedTerm);
+            }
+            return source;
+        }
+
+        private void checkPositions(MappedFieldType type) {
+            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
+            }
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Wildcard wildcard = (Wildcard) o;
+            return Objects.equals(pattern, wildcard.pattern) &&
+                Objects.equals(analyzer, wildcard.analyzer) &&
+                Objects.equals(useField, wildcard.useField);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pattern, analyzer, useField);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(pattern);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalString(useField);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.field("pattern", pattern);
+            if (analyzer != null) {
+                builder.field("analyzer", analyzer);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Wildcard, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String term = (String) args[0];
+            String analyzer = (String) args[1];
+            String useField = (String) args[2];
+            return new Wildcard(term, analyzer, useField);
+        });
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("pattern"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+        }
+
+        public static Wildcard fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        String getPattern() {
+            return pattern;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
+        }
+    }
+
+    public static class Fuzzy extends IntervalsSourceProvider {
+
+        public static final String NAME = "fuzzy";
+
+        private final String term;
+        private final int prefixLength;
+        private final boolean transpositions;
+        private final Fuzziness fuzziness;
+        private final String analyzer;
+        private final String useField;
+
+        public Fuzzy(String term, int prefixLength, boolean transpositions, Fuzziness fuzziness, String analyzer, String useField) {
+            this.term = term;
+            this.prefixLength = prefixLength;
+            this.transpositions = transpositions;
+            this.fuzziness = fuzziness;
+            this.analyzer = analyzer;
+            this.useField = useField;
+        }
+
+        public Fuzzy(StreamInput in) throws IOException {
+            this.term = in.readString();
+            this.prefixLength = in.readVInt();
+            this.transpositions = in.readBoolean();
+            this.fuzziness = new Fuzziness(in);
+            this.analyzer = in.readOptionalString();
+            this.useField = in.readOptionalString();
+        }
+
+        @Override
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
+            NamedAnalyzer analyzer = fieldType.searchAnalyzer();
+            if (this.analyzer != null) {
+                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+            }
+            IntervalsSource source;
+            if (useField != null) {
+                fieldType = context.fieldMapper(useField);
+                assert fieldType != null;
+                checkPositions(fieldType);
+                if (this.analyzer == null) {
+                    analyzer = fieldType.searchAnalyzer();
+                }
+            }
+            checkPositions(fieldType);
+            BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), term);
+            FuzzyQuery fq = new FuzzyQuery(new Term(fieldType.name(), normalizedTerm),
+                fuzziness.asDistance(term), prefixLength, 128, transpositions);
+            CompiledAutomaton[] automata = fq.getAutomata();
+            source = XIntervals.multiterm(automata[automata.length - 1], term);
+            if (useField != null) {
+                source = Intervals.fixField(useField, source);
+            }
+            return source;
+        }
+
+        private void checkPositions(MappedFieldType type) {
+            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
+            }
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Fuzzy fuzzy = (Fuzzy) o;
+            return prefixLength == fuzzy.prefixLength &&
+                transpositions == fuzzy.transpositions &&
+                Objects.equals(term, fuzzy.term) &&
+                Objects.equals(fuzziness, fuzzy.fuzziness) &&
+                Objects.equals(analyzer, fuzzy.analyzer) &&
+                Objects.equals(useField, fuzzy.useField);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(term, prefixLength, transpositions, fuzziness, analyzer, useField);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(term);
+            out.writeVInt(prefixLength);
+            out.writeBoolean(transpositions);
+            fuzziness.writeTo(out);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalString(useField);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.field("term", term);
+            builder.field("prefix_length", prefixLength);
+            builder.field("transpositions", transpositions);
+            fuzziness.toXContent(builder, params);
+            if (analyzer != null) {
+                builder.field("analyzer", analyzer);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Fuzzy, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String term = (String) args[0];
+            int prefixLength = (args[1] == null) ? FuzzyQueryBuilder.DEFAULT_PREFIX_LENGTH : (int) args[1];
+            boolean transpositions = (args[2] == null) ? FuzzyQueryBuilder.DEFAULT_TRANSPOSITIONS : (boolean) args[2];
+            Fuzziness fuzziness = (args[3] == null) ? FuzzyQueryBuilder.DEFAULT_FUZZINESS : (Fuzziness) args[3];
+            String analyzer = (String) args[4];
+            String useField = (String) args[5];
+            return new Fuzzy(term, prefixLength, transpositions, fuzziness, analyzer, useField);
+        });
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("term"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("prefix_length"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("transpositions"));
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> Fuzziness.parse(p), Fuzziness.FIELD, ObjectParser.ValueType.VALUE);
+            PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+        }
+
+        public static Fuzzy fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        String getTerm() {
+            return term;
+        }
+
+        int getPrefixLength() {
+            return prefixLength;
+        }
+
+        boolean isTranspositions() {
+            return transpositions;
+        }
+
+        Fuzziness getFuzziness() {
+            return fuzziness;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
+        }
     }
 
     static class ScriptFilterSource extends FilteredIntervalsSource {
@@ -407,7 +932,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
-    public static class IntervalFilter implements ToXContent, Writeable {
+    public static class IntervalFilter implements ToXContentObject, Writeable {
 
         public static final String NAME = "filter";
 
@@ -440,7 +965,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public IntervalsSource filter(IntervalsSource input, QueryShardContext context, MappedFieldType fieldType) throws IOException {
             if (script != null) {
-                IntervalFilterScript ifs = context.getScriptService().compile(script, IntervalFilterScript.CONTEXT).newInstance();
+                IntervalFilterScript ifs = context.compile(script, IntervalFilterScript.CONTEXT).newInstance();
                 return new ScriptFilterSource(input, script.getIdOrCode(), ifs);
             }
             IntervalsSource filterSource = filter.getSource(context, fieldType);
@@ -453,8 +978,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                     return Intervals.notContaining(input, filterSource);
                 case "not_contained_by":
                     return Intervals.notContainedBy(input, filterSource);
+                case "overlapping":
+                    return Intervals.overlapping(input, filterSource);
                 case "not_overlapping":
                     return Intervals.nonOverlapping(input, filterSource);
+                case "before":
+                    return Intervals.before(input, filterSource);
+                case "after":
+                    return Intervals.after(input, filterSource);
                 default:
                     throw new IllegalArgumentException("Unknown filter type [" + type + "]");
             }
@@ -466,12 +997,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (o == null || getClass() != o.getClass()) return false;
             IntervalFilter that = (IntervalFilter) o;
             return Objects.equals(type, that.type) &&
+                Objects.equals(script, that.script) &&
                 Objects.equals(filter, that.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, filter);
+            return Objects.hash(type, filter, script);
         }
 
         @Override
@@ -490,10 +1022,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(type);
-            builder.startObject();
-            filter.toXContent(builder, params);
-            builder.endObject();
+            if (filter != null) {
+                builder.startObject(type);
+                filter.toXContent(builder, params);
+                builder.endObject();
+            } else {
+                builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
+            }
             builder.endObject();
             return builder;
         }
@@ -524,6 +1059,18 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 throw new ParsingException(parser.getTokenLocation(), "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
             }
             return new IntervalFilter(intervals, type);
+        }
+
+        String getType() {
+            return type;
+        }
+
+        IntervalsSourceProvider getFilter() {
+            return filter;
+        }
+
+        Script getScript() {
+            return script;
         }
     }
 

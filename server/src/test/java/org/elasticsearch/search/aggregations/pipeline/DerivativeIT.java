@@ -42,13 +42,12 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -119,7 +118,7 @@ public class DerivativeIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numValueBuckets; i++) {
             for (int docs = 0; docs < valueCounts[i]; docs++) {
-                builders.add(client().prepareIndex("idx", "type").setSource(newDocBuilder(i * interval)));
+                builders.add(client().prepareIndex("idx").setSource(newDocBuilder(i * interval)));
             }
         }
 
@@ -127,10 +126,10 @@ public class DerivativeIT extends ESIntegTestCase {
         valueCounts_empty = new Long[] { 1L, 1L, 2L, 0L, 2L, 2L, 0L, 0L, 0L, 3L, 2L, 1L };
         firstDerivValueCounts_empty = new Double[] { null, 0d, 1d, -2d, 2d, 0d, -2d, 0d, 0d, 3d, -1d, -1d };
 
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < valueCounts_empty.length; i++) {
             for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
-                builders.add(client().prepareIndex("empty_bucket_idx", "type").setSource(newDocBuilder(i)));
+                builders.add(client().prepareIndex("empty_bucket_idx").setSource(newDocBuilder(i)));
                 numDocsEmptyIdx++;
             }
         }
@@ -141,14 +140,14 @@ public class DerivativeIT extends ESIntegTestCase {
         firstDerivValueCounts_empty_rnd = new Double[numBuckets_empty_rnd];
         firstDerivValueCounts_empty_rnd[0] = null;
 
-        assertAcked(prepareCreate("empty_bucket_idx_rnd").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx_rnd").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < numBuckets_empty_rnd; i++) {
             valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
             // make approximately half of the buckets empty
             if (randomBoolean())
                 valueCounts_empty_rnd[i] = 0L;
             for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
-                builders.add(client().prepareIndex("empty_bucket_idx_rnd", "type").setSource(newDocBuilder(i)));
+                builders.add(client().prepareIndex("empty_bucket_idx_rnd").setSource(newDocBuilder(i)));
                 numDocsEmptyIdx_rnd++;
             }
             if (i > 0) {
@@ -615,8 +614,8 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    public void testAvgMovavgDerivNPE() throws Exception {
-        createIndex("movavg_npe");
+    public void testDerivDerivNPE() throws Exception {
+        createIndex("deriv_npe");
 
         for (int i = 0; i < 10; i++) {
             Integer value = i;
@@ -629,18 +628,18 @@ public class DerivativeIT extends ESIntegTestCase {
                     .field("tick", i)
                     .field("value", value)
                     .endObject();
-            client().prepareIndex("movavg_npe", "type").setSource(doc).get();
+            client().prepareIndex("deriv_npe").setSource(doc).get();
         }
 
         refresh();
 
         SearchResponse response = client()
-                .prepareSearch("movavg_npe")
+                .prepareSearch("deriv_npe")
                 .addAggregation(
                         histogram("histo").field("tick").interval(1)
                                 .subAggregation(avg("avg").field("value"))
-                                .subAggregation(movingAvg("movavg", "avg").modelBuilder(new SimpleModel.SimpleModelBuilder()).window(3))
-                                .subAggregation(derivative("deriv", "movavg"))).get();
+                                .subAggregation(derivative("deriv1", "avg"))
+                                .subAggregation(derivative("deriv2", "deriv1"))).get();
 
         assertSearchResponse(response);
     }

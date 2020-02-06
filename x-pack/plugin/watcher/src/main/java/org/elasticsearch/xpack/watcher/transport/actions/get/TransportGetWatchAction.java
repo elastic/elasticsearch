@@ -24,16 +24,17 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequest, GetWatchResponse> {
 
@@ -43,16 +44,16 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
 
     @Inject
     public TransportGetWatchAction(TransportService transportService, ActionFilters actionFilters,
-                                   XPackLicenseState licenseState, WatchParser parser, Clock clock, Client client) {
+                                   XPackLicenseState licenseState, WatchParser parser, ClockHolder clockHolder, Client client) {
         super(GetWatchAction.NAME, transportService, actionFilters, licenseState, GetWatchRequest::new);
         this.parser = parser;
-        this.clock = clock;
+        this.clock = clockHolder.clock;
         this.client = client;
     }
 
     @Override
     protected void doExecute(GetWatchRequest request, ActionListener<GetWatchResponse> listener) {
-        GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId())
+        GetRequest getRequest = new GetRequest(Watch.INDEX, request.getId())
                 .preference(Preference.LOCAL.type()).realtime(true);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
@@ -61,18 +62,18 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                         try (XContentBuilder builder = jsonBuilder()) {
                             // When we return the watch via the Get Watch REST API, we want to return the watch as was specified in
                             // the put api, we don't include the status in the watch source itself, but as a separate top level field,
-                            // so that it indicates the the status is managed by watcher itself.
-                            DateTime now = new DateTime(clock.millis(), UTC);
+                            // so that it indicates the status is managed by watcher itself.
+                            ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                             Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now,
-                                    XContentType.JSON);
+                                    XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
                             watch.toXContent(builder, WatcherParams.builder()
                                     .hideSecrets(true)
                                     .includeStatus(false)
                                     .build());
-                            watch.version(getResponse.getVersion());
                             watch.status().version(getResponse.getVersion());
-                            listener.onResponse(new GetWatchResponse(watch.id(), getResponse.getVersion(), watch.status(),
-                                            new XContentSource(BytesReference.bytes(builder), XContentType.JSON)));
+                            listener.onResponse(new GetWatchResponse(watch.id(), getResponse.getVersion(),
+                                watch.getSourceSeqNo(), watch.getSourcePrimaryTerm(),
+                                watch.status(), new XContentSource(BytesReference.bytes(builder), XContentType.JSON)));
                         }
                     } else {
                         listener.onResponse(new GetWatchResponse(request.getId()));

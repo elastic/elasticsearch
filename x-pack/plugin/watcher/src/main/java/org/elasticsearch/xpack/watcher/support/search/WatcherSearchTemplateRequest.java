@@ -36,17 +36,15 @@ import java.util.Objects;
 public class WatcherSearchTemplateRequest implements ToXContentObject {
 
     private final String[] indices;
-    private final String[] types;
     private final SearchType searchType;
     private final IndicesOptions indicesOptions;
     private final Script template;
     private final BytesReference searchSource;
     private boolean restTotalHitsAsInt = true;
 
-    public WatcherSearchTemplateRequest(String[] indices, String[] types, SearchType searchType, IndicesOptions indicesOptions,
+    public WatcherSearchTemplateRequest(String[] indices, SearchType searchType, IndicesOptions indicesOptions,
                                         BytesReference searchSource) {
         this.indices = indices;
-        this.types = types;
         this.searchType = searchType;
         this.indicesOptions = indicesOptions;
         // Here we convert a watch search request body into an inline search template,
@@ -55,10 +53,9 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         this.searchSource = BytesArray.EMPTY;
     }
 
-    public WatcherSearchTemplateRequest(String[] indices, String[] types, SearchType searchType, IndicesOptions indicesOptions,
+    public WatcherSearchTemplateRequest(String[] indices, SearchType searchType, IndicesOptions indicesOptions,
                                         Script template) {
         this.indices = indices;
-        this.types = types;
         this.searchType = searchType;
         this.indicesOptions = indicesOptions;
         this.template = template;
@@ -67,7 +64,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
 
     public WatcherSearchTemplateRequest(WatcherSearchTemplateRequest original, BytesReference source) {
         this.indices = original.indices;
-        this.types = original.types;
         this.searchType = original.searchType;
         this.indicesOptions = original.indicesOptions;
         this.searchSource = source;
@@ -75,10 +71,9 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         this.restTotalHitsAsInt = original.restTotalHitsAsInt;
     }
 
-    private WatcherSearchTemplateRequest(String[] indices, String[] types, SearchType searchType, IndicesOptions indicesOptions,
+    private WatcherSearchTemplateRequest(String[] indices, SearchType searchType, IndicesOptions indicesOptions,
                                  BytesReference searchSource, Script template) {
         this.indices = indices;
-        this.types = types;
         this.searchType = searchType;
         this.indicesOptions = indicesOptions;
         this.template = template;
@@ -92,10 +87,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
 
     public String[] getIndices() {
         return indices;
-    }
-
-    public String[] getTypes() {
-        return types;
     }
 
     public SearchType getSearchType() {
@@ -140,9 +131,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         if (indices != null) {
             builder.array(INDICES_FIELD.getPreferredName(), indices);
         }
-        if (types != null) {
-            builder.array(TYPES_FIELD.getPreferredName(), types);
-        }
         if (restTotalHitsAsInt) {
             builder.field(REST_TOTAL_HITS_AS_INT_FIELD.getPreferredName(), restTotalHitsAsInt);
         }
@@ -180,7 +168,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
      */
     public static WatcherSearchTemplateRequest fromXContent(XContentParser parser, SearchType searchType) throws IOException {
         List<String> indices = new ArrayList<>();
-        List<String> types = new ArrayList<>();
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         BytesReference searchSource = null;
         Script template = null;
@@ -197,15 +184,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             indices.add(parser.textOrNull());
-                        } else {
-                            throw new ElasticsearchParseException("could not read search request. expected string values in [" +
-                                    currentFieldName + "] field, but instead found [" + token + "]");
-                        }
-                    }
-                } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            types.add(parser.textOrNull());
                         } else {
                             throw new ElasticsearchParseException("could not read search request. expected string values in [" +
                                     currentFieldName + "] field, but instead found [" + token + "]");
@@ -277,9 +255,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                 if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     String indicesStr = parser.text();
                     indices.addAll(Arrays.asList(Strings.delimitedListToStringArray(indicesStr, ",", " \t")));
-                } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    String typesStr = parser.text();
-                    types.addAll(Arrays.asList(Strings.delimitedListToStringArray(typesStr, ",", " \t")));
                 } else if (SEARCH_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT));
                 } else if (REST_TOTAL_HITS_AS_INT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -305,7 +280,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         }
 
         WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(indices.toArray(new String[0]),
-            types.toArray(new String[0]), searchType, indicesOptions, searchSource, template);
+            searchType, indicesOptions, searchSource, template);
         request.setRestTotalHitsAsInt(totalHitsAsInt);
         return request;
     }
@@ -317,7 +292,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
 
         WatcherSearchTemplateRequest other = (WatcherSearchTemplateRequest) o;
         return Arrays.equals(indices, other.indices) &&
-                Arrays.equals(types, other.types) &&
                 Objects.equals(searchType, other.searchType) &&
                 Objects.equals(indicesOptions, other.indicesOptions) &&
                 Objects.equals(searchSource, other.searchSource) &&
@@ -328,11 +302,10 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indices, types, searchType, indicesOptions, searchSource, template, restTotalHitsAsInt);
+        return Objects.hash(indices, searchType, indicesOptions, searchSource, template, restTotalHitsAsInt);
     }
 
     private static final ParseField INDICES_FIELD = new ParseField("indices");
-    private static final ParseField TYPES_FIELD = new ParseField("types");
     private static final ParseField BODY_FIELD = new ParseField("body");
     private static final ParseField SEARCH_TYPE_FIELD = new ParseField("search_type");
     private static final ParseField INDICES_OPTIONS_FIELD = new ParseField("indices_options");

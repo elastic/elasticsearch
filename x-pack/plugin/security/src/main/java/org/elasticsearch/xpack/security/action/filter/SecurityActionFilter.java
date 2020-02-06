@@ -32,13 +32,11 @@ import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivi
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
-import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.function.Predicate;
 
 public class SecurityActionFilter implements ActionFilter {
@@ -50,19 +48,17 @@ public class SecurityActionFilter implements ActionFilter {
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
     private final SecurityActionMapper actionMapper = new SecurityActionMapper();
-    private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
 
     public SecurityActionFilter(AuthenticationService authcService, AuthorizationService authzService,
-                                XPackLicenseState licenseState, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
+                                XPackLicenseState licenseState, ThreadPool threadPool,
                                 SecurityContext securityContext, DestructiveOperations destructiveOperations) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.licenseState = licenseState;
-        this.requestInterceptors = requestInterceptors;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = securityContext;
         this.destructiveOperations = destructiveOperations;
@@ -115,8 +111,9 @@ public class SecurityActionFilter implements ActionFilter {
                 listener.onFailure(e);
             }
         } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            if (licenseState.isSecurityDisabledByTrialLicense()) {
-                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a trial license. " +
+            if (licenseState.isSecurityDisabledByLicenseDefaults()) {
+                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a [" +
+                        licenseState.getOperationMode().description() + "] license. " +
                         "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
                         "and restart the node."));
             } else {
@@ -156,7 +153,15 @@ public class SecurityActionFilter implements ActionFilter {
          */
         final String securityAction = actionMapper.action(action, request);
         authcService.authenticate(securityAction, request, SystemUser.INSTANCE,
-                ActionListener.wrap((authc) -> authorizeRequest(authc, securityAction, request, listener), listener::onFailure));
+                ActionListener.wrap((authc) -> {
+                    if (authc != null) {
+                        authorizeRequest(authc, securityAction, request, listener);
+                    } else if (licenseState.isAuthAllowed() == false) {
+                        listener.onResponse(null);
+                    } else {
+                        listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                    }
+                }, listener::onFailure));
     }
 
     private <Request extends ActionRequest> void authorizeRequest(Authentication authentication, String securityAction, Request request,
@@ -164,21 +169,8 @@ public class SecurityActionFilter implements ActionFilter {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
         } else {
-            final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer = new AuthorizationUtils.AsyncAuthorizer(authentication, listener,
-                    (userRoles, runAsRoles) -> {
-                        authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                        /*
-                         * We use a separate concept for code that needs to be run after authentication and authorization that could
-                         * affect the running of the action. This is done to make it more clear of the state of the request.
-                         */
-                        for (RequestInterceptor interceptor : requestInterceptors) {
-                            if (interceptor.supports(request)) {
-                                interceptor.intercept(request, authentication, runAsRoles != null ? runAsRoles : userRoles, securityAction);
-                            }
-                        }
-                        listener.onResponse(null);
-                    });
-            asyncAuthorizer.authorize(authzService);
+            authzService.authorize(authentication, securityAction, request, ActionListener.wrap(ignore -> listener.onResponse(null),
+                listener::onFailure));
         }
     }
 }

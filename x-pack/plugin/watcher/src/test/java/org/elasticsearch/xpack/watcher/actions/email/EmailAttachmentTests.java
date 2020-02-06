@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.email;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -15,8 +16,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
@@ -34,7 +35,6 @@ import javax.mail.BodyPart;
 import javax.mail.Multipart;
 import javax.mail.Part;
 import javax.mail.internet.MimeMessage;
-
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -82,13 +82,15 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.email.account.test.smtp.secure_password", EmailServer.PASSWORD);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("xpack.notification.email.account.test.smtp.auth", true)
                 .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
-                .put("xpack.notification.email.account.test.smtp.password", EmailServer.PASSWORD)
                 .put("xpack.notification.email.account.test.smtp.port", server.port())
                 .put("xpack.notification.email.account.test.smtp.host", "localhost")
+                .setSecureSettings(secureSettings)
                 .build();
     }
 
@@ -147,10 +149,9 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
             latch.countDown();
         });
 
-        WatcherClient watcherClient = watcherClient();
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        client().prepareIndex("idx", "type").setSource("field", "value").get();
+        client().prepareIndex("idx").setSource("field", "value").get();
         refresh();
 
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
@@ -178,7 +179,8 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 .addAction("_email", emailAction(emailBuilder).setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));
 
-        watcherClient.preparePutWatch("_test_id")
+        new PutWatchRequestBuilder(client())
+                .setId("_test_id")
                 .setSource(watchSourceBuilder)
                 .get();
 

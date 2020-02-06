@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -85,10 +88,9 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final NodeClient client;
-    private final Consumer<ClusterInfo> listener;
+    private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
 
-    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client,
-                                      Consumer<ClusterInfo> listener) {
+    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
         this.shardRoutingToDataPath = ImmutableOpenMap.of();
@@ -109,7 +111,6 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         this.clusterService.addLocalNodeMasterListener(this);
         // Add to listen for state changes (when nodes are added)
         this.clusterService.addListener(this);
-        this.listener = listener;
     }
 
     private void setEnabled(boolean enabled) {
@@ -130,17 +131,17 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         if (logger.isTraceEnabled()) {
             logger.trace("I have been elected master, scheduling a ClusterInfoUpdateJob");
         }
+
+        // Submit a job that will reschedule itself after running
+        threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
+
         try {
-            // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
-            threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
-                threadPool.executor(executorName()).execute(() -> maybeRefresh());
+                threadPool.executor(executorName()).execute(this::maybeRefresh);
             }
         } catch (EsRejectedExecutionException ex) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
-            }
+            logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
         }
     }
 
@@ -173,7 +174,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
-            threadPool.executor(executorName()).execute(() -> maybeRefresh());
+            threadPool.executor(executorName()).execute(this::maybeRefresh);
         }
 
         if (this.isMaster && event.nodesRemoved()) {
@@ -223,11 +224,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
                             }
-                            try {
-                                threadPool.schedule(updateFrequency, executorName(), this);
-                            } catch (EsRejectedExecutionException ex) {
-                                logger.debug("Reschedule cluster info service was rejected", ex);
-                            }
+                            threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), this);
                         }
                     }
                 });
@@ -262,6 +259,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.clear();
         indicesStatsRequest.store(true);
+        indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED);
 
         client.admin().indices().stats(indicesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;
@@ -278,6 +276,11 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
     }
 
+    // allow tests to adjust the node stats on receipt
+    List<NodeStats> adjustNodesStats(List<NodeStats> nodeStats) {
+        return nodeStats;
+    }
+
     /**
      * Refreshes the ClusterInfo in a blocking fashion
      */
@@ -287,12 +290,13 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
         final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
             @Override
-            public void onResponse(NodesStatsResponse nodeStatses) {
-                ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages = ImmutableOpenMap.builder();
-                ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages = ImmutableOpenMap.builder();
-                fillDiskUsagePerNode(logger, nodeStatses.getNodes(), newLeastAvaiableUsages, newMostAvaiableUsages);
-                leastAvailableSpaceUsages = newLeastAvaiableUsages.build();
-                mostAvailableSpaceUsages = newMostAvaiableUsages.build();
+            public void onResponse(NodesStatsResponse nodesStatsResponse) {
+                ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                fillDiskUsagePerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()),
+                    leastAvailableUsagesBuilder, mostAvailableUsagesBuilder);
+                leastAvailableSpaceUsages = leastAvailableUsagesBuilder.build();
+                mostAvailableSpaceUsages = mostAvailableUsagesBuilder.build();
             }
 
             @Override
@@ -320,7 +324,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                 ShardStats[] stats = indicesStatsResponse.getShards();
                 ImmutableOpenMap.Builder<String, Long> newShardSizes = ImmutableOpenMap.builder();
                 ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath = ImmutableOpenMap.builder();
-                buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath, clusterService.state());
+                buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath);
                 shardSizes = newShardSizes.build();
                 shardRoutingToDataPath = newShardRoutingToDataPath.build();
             }
@@ -360,16 +364,27 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             Thread.currentThread().interrupt(); // restore interrupt status
         }
         ClusterInfo clusterInfo = getClusterInfo();
-        try {
-            listener.accept(clusterInfo);
-        } catch (Exception e) {
-            logger.info("Failed executing ClusterInfoService listener", e);
+        boolean anyListeners = false;
+        for (final Consumer<ClusterInfo> listener : listeners) {
+            anyListeners = true;
+            try {
+                logger.trace("notifying [{}] of new cluster info", listener);
+                listener.accept(clusterInfo);
+            } catch (Exception e) {
+                logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+            }
         }
+        assert anyListeners : "expected to notify at least one listener";
         return clusterInfo;
     }
 
+    @Override
+    public void addListener(Consumer<ClusterInfo> clusterInfoConsumer) {
+        listeners.add(clusterInfoConsumer);
+    }
+
     static void buildShardLevelInfo(Logger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,
-                                    ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath, ClusterState state) {
+                                    ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath) {
         for (ShardStats s : stats) {
             newShardRoutingToDataPath.put(s.getShardRouting(), s.getDataPath());
             long size = s.getStats().getStore().sizeInBytes();
@@ -394,7 +409,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                     if (leastAvailablePath == null) {
                         assert mostAvailablePath == null;
                         mostAvailablePath = leastAvailablePath = info;
-                    } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()){
+                    } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()) {
                         leastAvailablePath = info;
                     } else if (mostAvailablePath.getAvailable().getBytes() < info.getAvailable().getBytes()) {
                         mostAvailablePath = info;

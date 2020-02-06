@@ -1,0 +1,85 @@
+[[query-dsl-match-bool-prefix-query]]
+=== Match boolean prefix query
+++++
+<titleabbrev>Match boolean prefix</titleabbrev>
+++++
+
+A `match_bool_prefix` query analyzes its input and constructs a
+<<query-dsl-bool-query,`bool` query>> from the terms. Each term except the last
+is used in a `term` query. The last term is used in a `prefix` query. A
+`match_bool_prefix` query such as
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "match_bool_prefix" : {
+            "message" : "quick brown f"
+        }
+    }
+}
+--------------------------------------------------
+
+where analysis produces the terms `quick`, `brown`, and `f` is similar to the
+following `bool` query
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "bool" : {
+            "should": [
+                { "term": { "message": "quick" }},
+                { "term": { "message": "brown" }},
+                { "prefix": { "message": "f"}}
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+An important difference between the `match_bool_prefix` query and
+<<query-dsl-match-query-phrase-prefix,`match_phrase_prefix`>> is that the
+`match_phrase_prefix` query matches its terms as a phrase, but the
+`match_bool_prefix` query can match its terms in any position. The example
+`match_bool_prefix` query above could match a field containing containing
+`quick brown fox`, but it could also match `brown fox quick`. It could also
+match a field containing the term `quick`, the term `brown` and a term
+starting with `f`, appearing in any position.
+
+==== Parameters
+
+By default, `match_bool_prefix` queries' input text will be analyzed using the
+analyzer from the queried field's mapping. A different search analyzer can be
+configured with the `analyzer` parameter
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "match_bool_prefix" : {
+            "message": {
+                "query": "quick brown f",
+                "analyzer": "keyword"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+`match_bool_prefix` queries support the
+<<query-dsl-minimum-should-match,`minimum_should_match`>> and `operator`
+parameters as described for the
+<<query-dsl-match-query-boolean,`match` query>>, applying the setting to the
+constructed `bool` query. The number of clauses in the constructed `bool`
+query will in most cases be the number of terms produced by analysis of the
+query text.
+
+The <<query-dsl-match-query-fuzziness,`fuzziness`>>, `prefix_length`,
+`max_expansions`, `fuzzy_transpositions`, and `fuzzy_rewrite` parameters can
+be applied to the `term` subqueries constructed for all terms but the final
+term. They do not have any effect on the prefix query constructed for the
+final term.

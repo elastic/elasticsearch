@@ -20,37 +20,64 @@ package org.elasticsearch.indices.state;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.action.support.IndicesOptions.lenientExpandOpen;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class CloseIndexIT extends ESIntegTestCase {
+
+    private static final int MAX_DOCS = 25_000;
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB)).build();
+    }
 
     public void testCloseMissingIndex() {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("test").get());
@@ -64,9 +91,9 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
-    public void testCloseOneMissingIndexIgnoreMissing() {
+    public void testCloseOneMissingIndexIgnoreMissing() throws Exception {
         createIndex("test1");
-        assertAcked(client().admin().indices().prepareClose("test1", "test2").setIndicesOptions(IndicesOptions.lenientExpandOpen()));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("test1", "test2").setIndicesOptions(lenientExpandOpen())));
         assertIndexIsClosed("test1");
     }
 
@@ -88,9 +115,9 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         final int nbDocs = randomIntBetween(0, 50);
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
-            .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
+            .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
 
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertBusy(() -> closeIndices(indexName));
         assertIndexIsClosed(indexName);
 
         assertAcked(client().admin().indices().prepareOpen(indexName));
@@ -103,18 +130,23 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         if (randomBoolean()) {
             indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(1, 10))
-                .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
+                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
         }
-        // First close should be acked
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        // First close should be fully acked
+        assertBusy(() -> closeIndices(indexName));
         assertIndexIsClosed(indexName);
 
         // Second close should be acked too
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        final ActiveShardCount activeShardCount = randomFrom(ActiveShardCount.NONE, ActiveShardCount.DEFAULT, ActiveShardCount.ALL);
+        assertBusy(() -> {
+            CloseIndexResponse response = client().admin().indices().prepareClose(indexName).setWaitForActiveShards(activeShardCount).get();
+            assertAcked(response);
+            assertTrue(response.getIndices().isEmpty());
+        });
         assertIndexIsClosed(indexName);
     }
 
-    public void testCloseUnassignedIndex() {
+    public void testCloseUnassignedIndex() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(prepareCreate(indexName)
             .setWaitForActiveShards(ActiveShardCount.NONE)
@@ -124,7 +156,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(clusterState.metaData().indices().get(indexName).getState(), is(IndexMetaData.State.OPEN));
         assertThat(clusterState.routingTable().allShards().stream().allMatch(ShardRouting::unassigned), is(true));
 
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertBusy(() -> closeIndices(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)));
         assertIndexIsClosed(indexName);
     }
 
@@ -134,7 +166,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         final int nbDocs = randomIntBetween(10, 50);
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
-            .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
+            .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
         ensureYellowAndNoInitializingShards(indexName);
 
         final CountDownLatch startClosing = new CountDownLatch(1);
@@ -168,11 +200,11 @@ public class CloseIndexIT extends ESIntegTestCase {
         createIndex(indexName);
 
         int nbDocs = 0;
-        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client())) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), MAX_DOCS)) {
             indexer.setAssertNoFailuresOnStop(false);
 
             waitForDocs(randomIntBetween(10, 50), indexer);
-            assertAcked(client().admin().indices().prepareClose(indexName));
+            assertBusy(() -> closeIndices(indexName));
             indexer.stop();
             nbDocs += indexer.totalIndexedDocs();
 
@@ -186,7 +218,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         assertIndexIsClosed(indexName);
         assertAcked(client().admin().indices().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(), nbDocs);
     }
 
     public void testCloseWhileDeletingIndices() throws Exception {
@@ -196,7 +228,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             createIndex(indexName);
             if (randomBoolean()) {
                 indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, 10)
-                    .mapToObj(n -> client().prepareIndex(indexName, "_doc", String.valueOf(n)).setSource("num", n)).collect(toList()));
+                    .mapToObj(n -> client().prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n)).collect(toList()));
             }
             indices[i] = indexName;
         }
@@ -247,7 +279,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
-        final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client());
+        final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), MAX_DOCS);
         waitForDocs(1, indexer);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -299,14 +331,193 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         refresh(indexName);
         assertIndexIsOpened(indexName);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexer.totalIndexedDocs());
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(),
+            indexer.totalIndexedDocs());
+    }
+
+    public void testCloseIndexWaitForActiveShards() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0) // no replicas to avoid recoveries that could fail the index closing
+            .build());
+
+        final int nbDocs = randomIntBetween(0, 50);
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
+            .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
+        ensureGreen(indexName);
+
+        final CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(indexName).get();
+        assertThat(client().admin().cluster().prepareHealth(indexName).get().getStatus(), is(ClusterHealthStatus.GREEN));
+        assertTrue(closeIndexResponse.isAcknowledged());
+        assertTrue(closeIndexResponse.isShardsAcknowledged());
+        assertThat(closeIndexResponse.getIndices().get(0), notNullValue());
+        assertThat(closeIndexResponse.getIndices().get(0).hasFailures(), is(false));
+        assertThat(closeIndexResponse.getIndices().get(0).getIndex().getName(), equalTo(indexName));
+        assertIndexIsClosed(indexName);
+    }
+
+    public void testNoopPeerRecoveriesWhenIndexClosed() throws Exception {
+        final String indexName = "noop-peer-recovery-test";
+        int numberOfReplicas = between(1, 2);
+        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+            .put("index.routing.rebalance.enable", "none")
+            .build());
+        int iterations = between(1, 3);
+        for (int iter = 0; iter < iterations; iter++) {
+            indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+            ensureGreen(indexName);
+
+            // Closing an index should execute noop peer recovery
+            assertAcked(client().admin().indices().prepareClose(indexName).get());
+            assertIndexIsClosed(indexName);
+            ensureGreen(indexName);
+            assertNoFileBasedRecovery(indexName);
+            internalCluster().assertSameDocIdsOnShards();
+
+            // Open a closed index should execute noop recovery
+            assertAcked(client().admin().indices().prepareOpen(indexName).get());
+            assertIndexIsOpened(indexName);
+            ensureGreen(indexName);
+            assertNoFileBasedRecovery(indexName);
+            internalCluster().assertSameDocIdsOnShards();
+        }
+    }
+
+    /**
+     * Ensures that if a replica of a closed index does not have the same content as the primary, then a file-based recovery will occur.
+     */
+    public void testRecoverExistingReplica() throws Exception {
+        final String indexName = "test-recover-existing-replica";
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        List<String> dataNodes = randomSubsetOf(2, Sets.newHashSet(
+            clusterService().state().nodes().getDataNodes().valuesIt()).stream().map(DiscoveryNode::getName).collect(Collectors.toSet()));
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+        client().admin().indices().prepareFlush(indexName).get();
+
+        // index more documents while one shard copy is offline
+        internalCluster().restartNode(dataNodes.get(1), new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                Client client = client(dataNodes.get(0));
+                int moreDocs = randomIntBetween(1, 50);
+                for (int i = 0; i < moreDocs; i++) {
+                    client.prepareIndex(indexName).setSource("num", i).get();
+                }
+                assertAcked(client.admin().indices().prepareClose(indexName));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+        assertIndexIsClosed(indexName);
+        ensureGreen(indexName);
+        internalCluster().assertSameDocIdsOnShards();
+        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+            if (recovery.getPrimary() == false) {
+                assertThat(recovery.getIndex().fileDetails(), not(empty()));
+            }
+        }
+    }
+
+    /**
+     * Test for https://github.com/elastic/elasticsearch/issues/47276 which checks that the persisted metadata on a data node does not
+     * become inconsistent when using replicated closed indices.
+     */
+    public void testRelocatedClosedIndexIssue() throws Exception {
+        final String indexName = "closed-index";
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        // allocate shard to first data node
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", dataNodes.get(0))
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        assertAcked(client().admin().indices().prepareClose(indexName));
+        // move single shard to second node
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
+            .put("index.routing.allocation.include._name", dataNodes.get(1))).get();
+        ensureGreen(indexName);
+        internalCluster().fullRestart();
+        ensureGreen(indexName);
+        assertIndexIsClosed(indexName);
+    }
+
+    public void testResyncPropagatePrimaryTerm() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        final String indexName = "closed_indices_promotion";
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertIndexIsClosed(indexName);
+        ensureGreen(indexName);
+        String nodeWithPrimary = clusterService().state().nodes().get(clusterService().state()
+            .routingTable().index(indexName).shard(0).primaryShard().currentNodeId()).getName();
+        internalCluster().restartNode(nodeWithPrimary, new InternalTestCluster.RestartCallback());
+        ensureGreen(indexName);
+        long primaryTerm = clusterService().state().metaData().index(indexName).primaryTerm(0);
+        for (String nodeName : internalCluster().nodesInclude(indexName)) {
+            IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
+                .indexService(resolveIndex(indexName)).getShard(0);
+            assertThat(shard.routingEntry().toString(), shard.getOperationPrimaryTerm(), equalTo(primaryTerm));
+        }
+    }
+
+    private static void closeIndices(final String... indices) {
+        closeIndices(client().admin().indices().prepareClose(indices));
+    }
+
+    private static void closeIndices(final CloseIndexRequestBuilder requestBuilder) {
+        final CloseIndexResponse response = requestBuilder.get();
+        assertThat(response.isAcknowledged(), is(true));
+        assertThat(response.isShardsAcknowledged(), is(true));
+
+        final String[] indices = requestBuilder.request().indices();
+        if (indices != null) {
+            assertThat(response.getIndices().size(), equalTo(indices.length));
+            for (String index : indices) {
+                CloseIndexResponse.IndexResult indexResult = response.getIndices().stream()
+                    .filter(result -> index.equals(result.getIndex().getName())).findFirst().get();
+                assertThat(indexResult, notNullValue());
+                assertThat(indexResult.hasFailures(), is(false));
+                assertThat(indexResult.getException(), nullValue());
+                assertThat(indexResult.getShards(), notNullValue());
+                Arrays.stream(indexResult.getShards()).forEach(shardResult -> {
+                    assertThat(shardResult.hasFailures(), is(false));
+                    assertThat(shardResult.getFailures(), notNullValue());
+                    assertThat(shardResult.getFailures().length, equalTo(0));
+                });
+            }
+        } else {
+            assertThat(response.getIndices().size(), equalTo(0));
+        }
     }
 
     static void assertIndexIsClosed(final String... indices) {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         for (String index : indices) {
-            assertThat(clusterState.metaData().indices().get(index).getState(), is(IndexMetaData.State.CLOSE));
-            assertThat(clusterState.routingTable().index(index), nullValue());
+            final IndexMetaData indexMetaData = clusterState.metaData().indices().get(index);
+            assertThat(indexMetaData.getState(), is(IndexMetaData.State.CLOSE));
+            final Settings indexSettings = indexMetaData.getSettings();
+            assertThat(indexSettings.hasValue(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(true));
+            assertThat(indexSettings.getAsBoolean(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false), is(true));
+            assertThat(clusterState.routingTable().index(index), notNullValue());
             assertThat(clusterState.blocks().hasIndexBlock(index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
             assertThat("Index " + index + " must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
                 clusterState.blocks().indices().getOrDefault(index, emptySet()).stream()
@@ -317,7 +528,9 @@ public class CloseIndexIT extends ESIntegTestCase {
     static void assertIndexIsOpened(final String... indices) {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         for (String index : indices) {
-            assertThat(clusterState.metaData().indices().get(index).getState(), is(IndexMetaData.State.OPEN));
+            final IndexMetaData indexMetaData = clusterState.metaData().indices().get(index);
+            assertThat(indexMetaData.getState(), is(IndexMetaData.State.OPEN));
+            assertThat(indexMetaData.getSettings().hasValue(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(false));
             assertThat(clusterState.routingTable().index(index), notNullValue());
             assertThat(clusterState.blocks().hasIndexBlock(index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(false));
         }
@@ -339,6 +552,14 @@ public class CloseIndexIT extends ESIntegTestCase {
             assertThat(indexNotFoundException.getIndex().getName(), equalTo(indexName));
         } else {
             fail("Unexpected exception: " + t);
+        }
+    }
+
+    void assertNoFileBasedRecovery(String indexName) {
+        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+            if (recovery.getPrimary() == false) {
+                assertThat(recovery.getIndex().fileDetails(), empty());
+            }
         }
     }
 }

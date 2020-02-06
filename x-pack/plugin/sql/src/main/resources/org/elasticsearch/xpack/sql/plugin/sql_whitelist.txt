@@ -4,12 +4,23 @@
 # you may not use this file except in compliance with the Elastic License.
 #
 
-# This file contains a whitelist for SQL specific utilities available inside SQL scripting
+# This file contains a whitelist for SQL specific utilities and classes available inside SQL scripting
 
-class org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime {
+#### Classes
+
+class org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape {
 }
 
-class org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth {
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime {
+}
+
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth {
+}
+
+class java.time.OffsetTime {
+}
+
+class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils {
 }
 
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
@@ -44,8 +55,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Boolean isNotNull(Object)
 
 #
-# Null
+# Conditional
 #
+  def caseFunction(java.util.List)
   def coalesce(java.util.List)
   def greatest(java.util.List)
   def least(java.util.List)
@@ -64,34 +76,36 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   def div(Object, Object)
   def mod(Object, Object)
   def mul(Object, Object)
+  Number atan2(Number, Number)
   Number neg(Number)
+  Number power(Number, Number)
   Number round(Number, Number)
   Number truncate(Number, Number)
   
-  Double abs(Number)
-  Double acos(Number)
-  Double asin(Number)
-  Double atan(Number)
-  Double cbrt(Number)
-  Double ceil(Number)
-  Double cos(Number)
-  Double cosh(Number)
-  Double cot(Number)
-  Double degrees(Number)
-  Double e(Number)
-  Double exp(Number)
-  Double expm1(Number)
-  Double floor(Number)
-  Double log(Number)
-  Double log10(Number)
-  Double pi(Number)
-  Double radians(Number)
-  Double random(Number)
-  Double sign(Number)
-  Double sin(Number)
-  Double sinh(Number)
-  Double sqrt(Number)
-  Double tan(Number)
+  Number abs(Number)
+  Number acos(Number)
+  Number asin(Number)
+  Number atan(Number)
+  Number cbrt(Number)
+  Number ceil(Number)
+  Number cos(Number)
+  Number cosh(Number)
+  Number cot(Number)
+  Number degrees(Number)
+  Number e(Number)
+  Number exp(Number)
+  Number expm1(Number)
+  Number floor(Number)
+  Number log(Number)
+  Number log10(Number)
+  Number pi(Number)
+  Number radians(Number)
+  Number random(Number)
+  Number sign(Number)
+  Number sin(Number)
+  Number sinh(Number)
+  Number sqrt(Number)
+  Number tan(Number)
   
 #
 # Date/Time functions 
@@ -102,9 +116,14 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  monthName(Object, String)
   Integer quarter(Object, String)
   Integer weekOfYear(Object, String)
+  ZonedDateTime dateAdd(String, Integer, Object, String)
+  Integer dateDiff(String, Object, Object, String)
+  ZonedDateTime dateTrunc(String, Object, String)
+  Integer datePart(String, Object, String)
   IntervalDayTime intervalDayTime(String, String)
   IntervalYearMonth intervalYearMonth(String, String)
   ZonedDateTime asDateTime(Object)
+  OffsetTime asTime(String)
 
 #
 # ASCII Functions
@@ -130,7 +149,19 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  space(Number)
   String  substring(String, Number, Number)
   String  ucase(String)
-  
+
+#
+# Geo Functions
+#
+  GeoShape geoDocValue(java.util.Map, String)
+  String   stAswkt(Object)
+  Double   stDistance(Object, Object)
+  String   stGeometryType(Object)
+  GeoShape stWktToSql(String)
+  Double   stX(Object)
+  Double   stY(Object)
+  Double   stZ(Object)
+
 #
 # Casting
 #

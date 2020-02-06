@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.sql.expression.Expressions.typeMustBeString;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Base class for binary functions that have the first parameter a string, the second parameter a number
@@ -42,7 +42,7 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = typeMustBeString(left(), sourceText(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(left(), sourceText(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -67,7 +67,7 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
-                paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+                paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
 

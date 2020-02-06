@@ -1,13 +1,14 @@
 [role="xpack"]
 [[notification-settings]]
-=== {watcher} Settings in Elasticsearch
+=== {watcher} settings in Elasticsearch
+
+[subs="attributes"]
 ++++
-<titleabbrev>{watcher} Settings</titleabbrev>
+<titleabbrev>{watcher} settings</titleabbrev>
 ++++
 
 You configure {watcher} settings to set up {watcher} and send notifications via
 <<email-notification-settings,email>>,
-<<hipchat-notification-settings,HipChat>>,
 <<slack-notification-settings,Slack>>, and
 <<pagerduty-notification-settings, PagerDuty>>.
 
@@ -26,17 +27,16 @@ Set to `false` to disable {watcher} on the node.
 `xpack.watcher.encrypt_sensitive_data`::
 Set to `true` to encrypt sensitive data. If this setting is enabled, you
 must also specify the `xpack.watcher.encryption_key` setting. For more
-information, see
-{xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
+information, see <<encrypting-data>>.
 
 `xpack.watcher.encryption_key` (<<secure-settings,Secure>>)::
 Specifies the path to a file that contains a key for encrypting sensitive data.
 If `xpack.watcher.encrypt_sensitive_data` is set to `true`, this setting is
-required. For more information, see
-{xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
+required. For more information, see <<encrypting-data>>.
 
 `xpack.watcher.history.cleaner_service.enabled`::
-added[6.3.0,Default changed to `true`.]
+added:[6.3.0,Default changed to `true`.]
+deprecated:[7.0.0,Watcher history indices are now managed by the `watch-history-ilm-policy` ILM policy]
 +
 Set to `true` (default) to enable the cleaner service. If this setting is
 `true`, the `xpack.monitoring.enabled` setting must also be set to `true` with
@@ -66,17 +66,18 @@ Specifies the maximum size an HTTP response is allowed to have, defaults to
 
 `xpack.http.whitelist`::
 A list of URLs, that the internal HTTP client is allowed to connect to. This
-client is used in the HTTP input, the webhook, the slack, pagerduty, hipchat
+client is used in the HTTP input, the webhook, the slack, pagerduty,
 and jira actions. This setting can be updated dynamically.  It defaults to `*`
 allowing everything. Note: If you configure this setting and you are using one
-of the slack/pagerduty/hipchat actions, you have to ensure that the
+of the slack/pagerduty actions, you have to ensure that the
 corresponding endpoints are whitelisted as well.
 
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http
-:component:              {watcher}
+:component:              {watcher} HTTP
 :verifies:
 :server!:
+:ssl-context:            watcher
 
 include::ssl-settings.asciidoc[]
 
@@ -85,22 +86,25 @@ include::ssl-settings.asciidoc[]
 ==== Email Notification Settings
 You can configure the following email notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via email, see {xpack-ref}/actions-email.html#configuring-email-actions[Configuring Email].
+via email, see <<configuring-email-actions>>.
 
 `xpack.notification.email.account`::
 Specifies account information for sending notifications via email. You
 can specify the following email account attributes:
-
++
+--
 [[email-account-attributes]]
+
   `profile` (<<cluster-update-settings,Dynamic>>);;
-  The {xpack-ref}/actions-email.html#configuring-email[email profile] to use to build the MIME
+  The <<configuring-email,email profile>> to use to build the MIME
   messages that are sent from the account. Valid values: `standard`, `gmail` and
   `outlook`. Defaults to `standard`.
 
   `email_defaults.*` (<<cluster-update-settings,Dynamic>>);;
   An optional set of email attributes to use as defaults
-  for the emails sent from the account. See {xpack-ref}/actions-email.html#email-action-attributes[
-  Email Action Attributes] for the supported attributes.
+  for the emails sent from the account. See
+  <<email-action-attributes>> for the supported
+  attributes.
 
   `smtp.auth` (<<cluster-update-settings,Dynamic>>);;
   Set to `true` to attempt to authenticate the user using the
@@ -115,7 +119,7 @@ can specify the following email account attributes:
   `smtp.user` (<<cluster-update-settings,Dynamic>>);;
   The user name for SMTP. Required.
 
-  `smtp.password` (<<cluster-update-settings,Dynamic>>);;
+  `smtp.secure_password` (<<secure-settings,Secure>>);;
   The password for the specified SMTP user.
 
   `smtp.starttls.enable` (<<cluster-update-settings,Dynamic>>);;
@@ -157,14 +161,17 @@ can specify the following email account attributes:
   `smtp.wait_on_quit` (<<cluster-update-settings,Dynamic>>);;
   If set to false the QUIT command is sent and the connection closed. If set to
   true, the QUIT command is sent and a reply is waited for. True by default.
+--
 
 `xpack.notification.email.html.sanitization.allow`::
 Specifies the HTML elements that are allowed in email notifications. For
-more information, see {xpack-ref}/actions-email.html#email-html-sanitization[Configuring HTML
-Sanitization Options]. You can specify individual HTML elements
-and the following HTML feature groups:
-
+more information, see
+<<email-html-sanitization>>. You can
+specify individual HTML elements and the following HTML feature groups:
++
+--
 [[html-feature-groups]]
+
   `_tables`;;
   All table related elements: `<table>`, `<th>`, `<tr>`
                       and `<td>`.
@@ -196,6 +203,7 @@ and the following HTML feature groups:
   `img:embedded`;;
   Only embedded images. Embedded images can only use the
                     `cid:` URL protocol in their `src` attribute.
+--
 
 `xpack.notification.email.html.sanitization.disallow`::
 Specifies the HTML elements that are NOT allowed in email notifications.
@@ -206,71 +214,31 @@ HTML feature groups>>.
 Set to `false` to completely disable HTML sanitation. Not recommended.
 Defaults to `true`.
 
-[float]
-[[hipchat-notification-settings]]
-==== HipChat Notification Settings
-You can configure the following HipChat notification settings in
-`elasticsearch.yml`. For more information about sending notifications
-via HipChat, see {xpack-ref}/actions-hipchat.html#configuring-hipchat-actions[Configuring HipChat].
+[[ssl-notification-smtp-settings]]
+:ssl-prefix:             xpack.notification.email
+:component:              {watcher} Email
+:verifies:
+:server!:
+:ssl-context:            watcher-email
 
-`xpack.notification.hipchat` ::
-Specifies account information for sending notifications
-via HipChat. You can specify the following HipChat account attributes:
-
-[[hipchat-account-attributes]]
-  `profile`;;
-  The HipChat account profile to use: `integration`,
-                      `user`, or `v1`. Required.
-
-  `auth_token`;;
-  The authentication token to use to access
-                      the HipChat API. Required.
-
-  `host`;;
-  The HipChat server hostname. Defaults to `api.hipchat.com`.
-
-  `port`;;
-  The HipChat server port number. Defaults to 443.
-
-  `room`;;
-  The room you want to send messages to. Must be specified
-                      if the `profile` is set to `integration`. Not valid for
-                      the `user` or `vi` profiles.
-
-  `user`;;
-  The HipChat user account to use to send messages.
-                      Specified as an email address. Must be specified if the
-                      `profile` is set to `user`. Not valid for the `integration`
-                      or `v1` profiles.
-
-  `message.format`;;
-  The format of the message: `text` or `html`.
-                      Defaults to `html`.
-
-  `message.color`;;
-  The background color of the notification in the room.
-                      Defaults to  `yellow`.
-  `message.notify`;;
-  Indicates whether people in the room should be
-                      actively notified. Defaults to `false`.
-
+include::ssl-settings.asciidoc[]
 
 [float]
 [[slack-notification-settings]]
 ==== Slack Notification Settings
 You can configure the following Slack notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via Slack, see  {xpack-ref}/actions-slack.html#configuring-slack-actions[Configuring Slack].
+via Slack, see <<configuring-slack-actions>>.
 
 `xpack.notification.slack` ::
 Specifies account information for sending notifications
 via Slack. You can specify the following Slack account attributes:
-
++
+--
 [[slack-account-attributes]]
 
-  `url`;;
-  The Incoming Webhook URL to use to post
-                                    messages to Slack. Required.
+  `secure_url` (<<secure-settings,Secure>>);;
+  The Incoming Webhook URL to use to post messages to Slack. Required.
 
   `message_defaults.from`;;
   The sender name to display in the
@@ -294,80 +262,85 @@ via Slack. You can specify the following Slack account attributes:
                                     Specified as an array as defined in the
                                     https://api.slack.com/docs/attachments[
                                    Slack attachments documentation].
-
+--
 
 [float]
 [[jira-notification-settings]]
 ==== Jira Notification Settings
 You can configure the following Jira notification settings in
 `elasticsearch.yml`. For more information about using notifications
-to create issues in Jira, see  {xpack-ref}/actions-jira.html#configuring-jira-actions[Configuring Jira].
+to create issues in Jira, see <<configuring-jira-actions>>.
 
 `xpack.notification.jira` ::
 Specifies account information for using notifications to create
 issues in Jira. You can specify the following Jira account attributes:
-
++
+--
 [[jira-account-attributes]]
 
-  `url`;;
+  `secure_url` (<<secure-settings,Secure>>);;
   The URL of the Jira Software server. Required.
 
-  `user`;;
+  `secure_user` (<<secure-settings,Secure>>);;
   The name of the user to connect to the Jira Software server. Required.
 
-  `password`;;
+  `secure_password` (<<secure-settings,Secure>>);;
   The password of the user to connect to the Jira Software server. Required.
 
   `issue_defaults`;;
   Default fields values for the issue created in Jira. See
-  {xpack-ref}/actions-jira.html#jira-action-attributes[Jira Action Attributes] for more information.
+  <<jira-action-attributes>> for more information.
   Optional.
-
+--
 
 [float]
 [[pagerduty-notification-settings]]
 ==== PagerDuty Notification Settings
 You can configure the following PagerDuty notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via PagerDuty, see  {xpack-ref}/actions-pagerduty.html#configuring-pagerduty-actions[Configuring PagerDuty].
+via PagerDuty, see <<configuring-pagerduty-actions>>.
 
 
 [[pagerduty-account-attributes]]
 `xpack.notification.pagerduty`::
 Specifies account information for sending notifications
 via PagerDuty. You can specify the following PagerDuty account attributes:
++
+--
+`name`;;
+A name for the PagerDuty account associated with the API key you
+are using to access PagerDuty. Required.
 
-  `name`;;
-  A name for the PagerDuty account associated with the API key you
-  are using to access PagerDuty. Required.
+`secure_service_api_key` (<<secure-settings,Secure>>);;
+The https://developer.pagerduty.com/documentation/rest/authentication[
+PagerDuty API key] to use to access PagerDuty. Required.
+--
++
+`event_defaults`;;
+Default values for
+<<pagerduty-event-trigger-incident-attributes,PagerDuty event attributes>>.
+Optional.
++
+--
+`description`::
+A string that contains the default description for PagerDuty events.
+If no default is configured, each PagerDuty action must specify a
+`description`.
 
-  `service_api_key`;;
-   The https://developer.pagerduty.com/documentation/rest/authentication[
-   PagerDuty API key] to use to access PagerDuty. Required.
+`incident_key`::
+A string that contains the default incident key to use when sending
+PagerDuty events.
 
+`client`::
+A string that specifies the default monitoring client.
 
-  `event_defaults`;;
-  Default values for  {xpack-ref}/actions-pagerduty.html#pagerduty-event-trigger-incident-attributes[
-  PagerDuty event attributes]. Optional.
+`client_url`::
+The URL of the default monitoring client.
 
-        `description`::
-        A string that contains the default description for PagerDuty events.
-        If no default is configured, each PagerDuty action must specify a
-        `description`.
+`event_type`::
+The default event type. Valid values: `trigger`,`resolve`, `acknowledge`.
 
-        `incident_key`::
-        A string that contains the default incident key to use when sending
-        PagerDuty events.
-
-        `client`::
-        A string that specifies the default monitoring client.
-
-        `client_url`::
-        The URL of the default monitoring client.
-
-        `event_type`::
-        The default event type. Valid values: `trigger`,`resolve`, `acknowledge`.
-
-        `attach_payload`::
-        Whether or not to provide the watch payload as context for
-        the event by default. Valid values: `true`, `false`.
+`attach_payload`::
+Whether or not to provide the watch payload as context for
+the event by default. Valid values: `true`, `false`.
+--

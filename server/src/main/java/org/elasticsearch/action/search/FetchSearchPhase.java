@@ -22,8 +22,8 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -48,17 +48,17 @@ final class FetchSearchPhase extends SearchPhase {
     private final BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
-    private final InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> resultConsumer;
+    private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
+    private final SearchProgressListener progressListener;
 
-    FetchSearchPhase(InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> resultConsumer,
+    FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context) {
         this(resultConsumer, searchPhaseController, context,
-            (response, scrollId) -> new ExpandSearchPhase(context, response, // collapse only happens if the request has inner hits
-                (finalResponse) -> sendResponsePhase(finalResponse, scrollId, context)));
+            (response, scrollId) -> new ExpandSearchPhase(context, response, scrollId));
     }
 
-    FetchSearchPhase(InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> resultConsumer,
+    FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context, BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory) {
         super("fetch");
@@ -73,13 +73,14 @@ final class FetchSearchPhase extends SearchPhase {
         this.context = context;
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
+        this.progressListener = context.getTask().getProgressListener();
     }
 
     @Override
-    public void run() throws IOException {
-        context.execute(new ActionRunnable<SearchResponse>(context) {
+    public void run() {
+        context.execute(new AbstractRunnable() {
             @Override
-            public void doRun() throws IOException {
+            protected void doRun() throws Exception {
                 // we do the heavy lifting in this inner run method where we reduce aggs etc. that's why we fork this phase
                 // off immediately instead of forking when we send back the response to the user since there we only need
                 // to merge together the fetched results which is a linear operation.
@@ -111,10 +112,12 @@ final class FetchSearchPhase extends SearchPhase {
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
             final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
-            if (scoreDocs.length == 0) { // no docs to fetch -- sidestep everything and return
+            // no docs to fetch -- sidestep everything and return
+            if (scoreDocs.length == 0) {
+                // we have to release contexts here to free up resources
                 phaseResults.stream()
                     .map(SearchPhaseResult::queryResult)
-                    .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
+                    .forEach(this::releaseIrrelevantSearchContext);
                 finishPhase.run();
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollSearch ?
@@ -132,6 +135,7 @@ final class FetchSearchPhase extends SearchPhase {
                             // we do this as we go since it will free up resources and passing on the request on the
                             // transport layer is cheap.
                             releaseIrrelevantSearchContext(queryResult.queryResult());
+                            progressListener.notifyFetchResult(i);
                         }
                         // in any case we count down this result since we don't talk to this shard anymore
                         counter.countDown();
@@ -163,13 +167,19 @@ final class FetchSearchPhase extends SearchPhase {
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
-                    counter.onResult(result);
+                    try {
+                        progressListener.notifyFetchResult(shardIndex);
+                        counter.onResult(result);
+                    } catch (Exception e) {
+                        context.onPhaseFailure(FetchSearchPhase.this, "", e);
+                    }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     try {
                         logger.debug(() -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
+                        progressListener.notifyFetchFailure(shardIndex, e);
                         counter.onFailure(shardIndex, shardTarget, e);
                     } finally {
                         // the search context might not be cleared on the node where the fetch was executed for example
@@ -204,14 +214,5 @@ final class FetchSearchPhase extends SearchPhase {
         final InternalSearchResponse internalResponse = searchPhaseController.merge(context.getRequest().scroll() != null,
             reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
         context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, scrollId));
-    }
-
-    private static SearchPhase sendResponsePhase(InternalSearchResponse response, String scrollId, SearchPhaseContext context) {
-        return new SearchPhase("response") {
-            @Override
-            public void run() throws IOException {
-                context.onResponse(context.buildSearchResponse(response, scrollId));
-            }
-        };
     }
 }

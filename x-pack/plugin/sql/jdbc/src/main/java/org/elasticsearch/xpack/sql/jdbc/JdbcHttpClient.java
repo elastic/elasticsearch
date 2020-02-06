@@ -12,10 +12,9 @@ import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.sql.SQLException;
@@ -38,8 +37,16 @@ class JdbcHttpClient {
      * If we remove it, we need to make sure no other types of Exceptions (runtime or otherwise) are thrown
      */
     JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
+        this(conCfg, true);
+    }
+
+    JdbcHttpClient(JdbcConfiguration conCfg, boolean checkServer) throws SQLException {
         httpClient = new HttpClient(conCfg);
         this.conCfg = conCfg;
+        if (checkServer) {
+            this.serverInfo = fetchServerInfo();
+            checkServerVersion();
+        }
     }
 
     boolean ping(long timeoutInMs) throws SQLException {
@@ -48,10 +55,17 @@ class JdbcHttpClient {
 
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-                SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, null, Protocol.TIME_ZONE,
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, conCfg.zoneId(),
                 fetch,
-                TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
-                new RequestInfo(Mode.JDBC));
+                TimeValue.timeValueMillis(meta.timeoutInMs()),
+                TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+                null,
+                Boolean.FALSE,
+                null,
+                new RequestInfo(Mode.JDBC),
+                conCfg.fieldMultiValueLeniency(),
+                conCfg.indexIncludeFrozen(),
+                conCfg.binaryCommunication());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }
@@ -62,13 +76,13 @@ class JdbcHttpClient {
      */
     Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
         SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(meta.timeoutInMs()),
-                TimeValue.timeValueMillis(meta.queryTimeoutInMs()), new RequestInfo(Mode.JDBC));
+                TimeValue.timeValueMillis(meta.queryTimeoutInMs()), new RequestInfo(Mode.JDBC), conCfg.binaryCommunication());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new Tuple<>(response.cursor(), response.rows());
     }
 
     boolean queryClose(String cursor) throws SQLException {
-        return httpClient.queryClose(cursor);
+        return httpClient.queryClose(cursor, Mode.JDBC);
     }
 
     InfoResponse serverInfo() throws SQLException {
@@ -81,7 +95,16 @@ class JdbcHttpClient {
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
         Version version = Version.fromString(mainResponse.getVersion());
-        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor);
+        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor, version.revision);
+    }
+    
+    private void checkServerVersion() throws SQLException {
+        if (serverInfo.majorVersion != Version.CURRENT.major
+                || serverInfo.minorVersion != Version.CURRENT.minor
+                || serverInfo.revisionVersion != Version.CURRENT.revision) {
+            throw new SQLException("This version of the JDBC driver is only compatible with Elasticsearch version " +
+                    Version.CURRENT.toString() + ", attempting to connect to a server version " + serverInfo.versionString());
+        }
     }
 
     /**

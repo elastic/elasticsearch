@@ -5,7 +5,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "jira_watch"
         body:  >
           {
@@ -43,7 +43,7 @@
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "jira_watch"
         body: >
           {
@@ -126,7 +126,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "wrong_jira_watch"
         body:  >
           {
@@ -161,7 +161,7 @@
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "wrong_jira_watch"
         body: >
           {
@@ -226,7 +226,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "jira_watch_with_custom_field_one"
         body:  >
           {
@@ -262,7 +262,7 @@
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "jira_watch_with_custom_field_one"
         body: >
           {
@@ -277,7 +277,7 @@
   - match: { watch_record.state: "executed" }
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "jira_watch_with_custom_field_two"
         body:  >
           {
@@ -318,7 +318,7 @@
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "jira_watch_with_custom_field_two"
         body: >
           {

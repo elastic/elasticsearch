@@ -20,116 +20,96 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyList;
 
 /**
  * This class encapsulates all remote cluster information to be rendered on
  * {@code _remote/info} requests.
  */
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
-    final List<String> seedNodes;
-    final int connectionsPerCluster;
+
+    final ModeInfo modeInfo;
     final TimeValue initialConnectionTimeout;
-    final int numNodesConnected;
     final String clusterAlias;
     final boolean skipUnavailable;
 
-    RemoteConnectionInfo(String clusterAlias, List<String> seedNodes,
-                         int connectionsPerCluster, int numNodesConnected,
-                         TimeValue initialConnectionTimeout, boolean skipUnavailable) {
+    public RemoteConnectionInfo(String clusterAlias, ModeInfo modeInfo, TimeValue initialConnectionTimeout, boolean skipUnavailable) {
         this.clusterAlias = clusterAlias;
-        this.seedNodes = seedNodes;
-        this.connectionsPerCluster = connectionsPerCluster;
-        this.numNodesConnected = numNodesConnected;
+        this.modeInfo = modeInfo;
         this.initialConnectionTimeout = initialConnectionTimeout;
         this.skipUnavailable = skipUnavailable;
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
-        if (input.getVersion().onOrAfter(Version.V_7_0_0)) {
-            seedNodes = Arrays.asList(input.readStringArray());
+        // TODO: Change to 7.6 after backport
+        if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
+            RemoteConnectionStrategy.ConnectionStrategy mode = input.readEnum(RemoteConnectionStrategy.ConnectionStrategy.class);
+            modeInfo = mode.getReader().read(input);
+            initialConnectionTimeout = input.readTimeValue();
+            clusterAlias = input.readString();
+            skipUnavailable = input.readBoolean();
         } else {
-            // versions prior to 7.0.0 sent the resolved transport address of the seed nodes
-            final List<TransportAddress> transportAddresses = input.readList(TransportAddress::new);
-            seedNodes =
-                    transportAddresses
-                            .stream()
-                            .map(a -> a.address().getHostString() + ":" + a.address().getPort())
-                            .collect(Collectors.toList());
+            List<String> seedNodes = Arrays.asList(input.readStringArray());
+            int connectionsPerCluster = input.readVInt();
+            initialConnectionTimeout = input.readTimeValue();
+            int numNodesConnected = input.readVInt();
+            clusterAlias = input.readString();
+            skipUnavailable = input.readBoolean();
+            modeInfo = new SniffConnectionStrategy.SniffModeInfo(seedNodes, connectionsPerCluster, numNodesConnected);
         }
-        if (input.getVersion().before(Version.V_7_0_0)) {
-            /*
-             * Versions before 7.0 sent the HTTP addresses of all nodes in the
-             * remote cluster here but it was expensive to fetch and we
-             * ultimately figured out how to do without it. So we removed it.
-             *
-             * We just throw any HTTP addresses received here on the floor
-             * because we don't need to do anything with them.
-             */
-            input.readList(TransportAddress::new);
-        }
-        connectionsPerCluster = input.readVInt();
-        initialConnectionTimeout = input.readTimeValue();
-        numNodesConnected = input.readVInt();
-        clusterAlias = input.readString();
-        skipUnavailable = input.readBoolean();
+    }
+
+    public boolean isConnected() {
+        return modeInfo.isConnected();
+    }
+
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
+
+    public ModeInfo getModeInfo() {
+        return modeInfo;
+    }
+
+    public TimeValue getInitialConnectionTimeout() {
+        return initialConnectionTimeout;
+    }
+
+    public boolean isSkipUnavailable() {
+        return skipUnavailable;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeStringArray(seedNodes.toArray(new String[0]));
+        // TODO: Change to 7.6 after backport
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeEnum(modeInfo.modeType());
+            modeInfo.writeTo(out);
+            out.writeTimeValue(initialConnectionTimeout);
         } else {
-            // versions prior to 7.0.0 received the resolved transport address of the seed nodes
-            out.writeList(seedNodes
-                    .stream()
-                    .map(
-                            s -> {
-                                final Tuple<String, Integer> hostPort = RemoteClusterAware.parseHostPort(s);
-                                assert hostPort.v2() != null : s;
-                                try {
-                                    return new TransportAddress(
-                                            InetAddress.getByAddress(hostPort.v1(), TransportAddress.META_ADDRESS.getAddress()),
-                                            hostPort.v2());
-                                } catch (final UnknownHostException e) {
-                                    throw new AssertionError(e);
-                                }
-                            })
-                    .collect(Collectors.toList()));
+            if (modeInfo.modeType() == RemoteConnectionStrategy.ConnectionStrategy.SNIFF) {
+                SniffConnectionStrategy.SniffModeInfo sniffInfo = (SniffConnectionStrategy.SniffModeInfo) this.modeInfo;
+                out.writeStringArray(sniffInfo.seedNodes.toArray(new String[0]));
+                out.writeVInt(sniffInfo.maxConnectionsPerCluster);
+                out.writeTimeValue(initialConnectionTimeout);
+                out.writeVInt(sniffInfo.numNodesConnected);
+            } else {
+                out.writeStringArray(new String[0]);
+                out.writeVInt(0);
+                out.writeTimeValue(initialConnectionTimeout);
+                out.writeVInt(0);
+            }
         }
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            /*
-             * Versions before 7.0 sent the HTTP addresses of all nodes in the
-             * remote cluster here but it was expensive to fetch and we
-             * ultimately figured out how to do without it. So we removed it.
-             *
-             * When sending this request to a node that expects HTTP addresses
-             * here we pretend that we didn't find any. This *should* be fine
-             * because, after all, we haven't been using this information for
-             * a while.
-             */
-            out.writeList(emptyList());
-        }
-        out.writeVInt(connectionsPerCluster);
-        out.writeTimeValue(initialConnectionTimeout);
-        out.writeVInt(numNodesConnected);
         out.writeString(clusterAlias);
         out.writeBoolean(skipUnavailable);
     }
@@ -138,14 +118,9 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(clusterAlias);
         {
-            builder.startArray("seeds");
-            for (String addr : seedNodes) {
-                builder.value(addr);
-            }
-            builder.endArray();
-            builder.field("connected", numNodesConnected > 0);
-            builder.field("num_nodes_connected", numNodesConnected);
-            builder.field("max_connections_per_cluster", connectionsPerCluster);
+            builder.field("connected", modeInfo.isConnected());
+            builder.field("mode", modeInfo.modeName());
+            modeInfo.toXContent(builder, params);
             builder.field("initial_connect_timeout", initialConnectionTimeout);
             builder.field("skip_unavailable", skipUnavailable);
         }
@@ -158,18 +133,23 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RemoteConnectionInfo that = (RemoteConnectionInfo) o;
-        return connectionsPerCluster == that.connectionsPerCluster &&
-            numNodesConnected == that.numNodesConnected &&
-            Objects.equals(seedNodes, that.seedNodes) &&
+        return skipUnavailable == that.skipUnavailable &&
+            Objects.equals(modeInfo, that.modeInfo) &&
             Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout) &&
-            Objects.equals(clusterAlias, that.clusterAlias) &&
-            skipUnavailable == that.skipUnavailable;
+            Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(seedNodes, connectionsPerCluster, initialConnectionTimeout,
-                numNodesConnected, clusterAlias, skipUnavailable);
+        return Objects.hash(modeInfo, initialConnectionTimeout, clusterAlias, skipUnavailable);
     }
 
+    public interface ModeInfo extends ToXContentFragment, Writeable {
+
+        boolean isConnected();
+
+        String modeName();
+
+        RemoteConnectionStrategy.ConnectionStrategy modeType();
+    }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -32,7 +31,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -45,11 +43,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
-    private static final Set<String> RESPONSE_PARAMETERS = Collections.unmodifiableSet(Sets.union(
-        Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS));
-
-    public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestGetIndexTemplateAction(final RestController controller) {
         controller.registerHandler(GET, "/_template", this);
         controller.registerHandler(GET, "/_template/{name}", this);
         controller.registerHandler(HEAD, "/_template/{name}", this);
@@ -65,6 +59,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
+
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
@@ -73,7 +68,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         return channel ->
                 client.admin()
                         .indices()
-                        .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<GetIndexTemplatesResponse>(channel) {
+                        .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<>(channel) {
                             @Override
                             protected RestStatus getStatus(final GetIndexTemplatesResponse response) {
                                 final boolean templateExists = response.getIndexTemplates().isEmpty() == false;
@@ -84,7 +79,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return RESPONSE_PARAMETERS;
+        return Settings.FORMAT_PARAMS;
     }
 
 }

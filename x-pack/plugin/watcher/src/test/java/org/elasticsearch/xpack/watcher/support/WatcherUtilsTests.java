@@ -24,9 +24,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherUtilsTests extends ESTestCase {
     public void testFlattenModel() throws Exception {
-        DateTime now = new DateTime(Clock.systemUTC().millis());
+        ZonedDateTime now = ZonedDateTime.now(Clock.systemUTC());
         Map<String, Object> map = new HashMap<>();
         map.put("a", singletonMap("a1", new int[] { 0, 1, 2 }));
         map.put("b", new String[] { "b0", "b1", "b2" });
@@ -90,7 +90,6 @@ public class WatcherUtilsTests extends ESTestCase {
 
     public void testSerializeSearchRequest() throws Exception {
         String[] expectedIndices = generateRandomStringArray(5, 5, true);
-        String[] expectedTypes = generateRandomStringArray(2, 5, true);
         IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
         SearchType expectedSearchType = getRandomSupportedSearchType();
@@ -111,14 +110,14 @@ public class WatcherUtilsTests extends ESTestCase {
             ScriptType scriptType = randomFrom(ScriptType.values());
             stored = scriptType == ScriptType.STORED;
             expectedTemplate = new Script(scriptType, stored ? null : "mustache", text, params);
-            request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
+            request = new WatcherSearchTemplateRequest(expectedIndices, expectedSearchType,
                     expectedIndicesOptions, expectedTemplate);
         } else {
             SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
             XContentBuilder builder = jsonBuilder();
             builder.value(sourceBuilder);
             expectedSource = BytesReference.bytes(builder);
-            request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
+            request = new WatcherSearchTemplateRequest(expectedIndices, expectedSearchType,
                     expectedIndicesOptions, expectedSource);
         }
 
@@ -129,7 +128,6 @@ public class WatcherUtilsTests extends ESTestCase {
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
         assertThat(result.getIndices(), arrayContainingInAnyOrder(expectedIndices != null ? expectedIndices : new String[0]));
-        assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes != null ? expectedTypes : new String[0]));
         assertThat(result.getIndicesOptions(), equalTo(expectedIndicesOptions));
         assertThat(result.getSearchType(), equalTo(expectedSearchType));
 
@@ -156,16 +154,6 @@ public class WatcherUtilsTests extends ESTestCase {
                 builder.array("indices", indices);
             } else {
                 builder.field("indices", Strings.arrayToCommaDelimitedString(indices));
-            }
-        }
-
-        String[] types = Strings.EMPTY_ARRAY;
-        if (randomBoolean()) {
-            types = generateRandomStringArray(2, 5, false);
-            if (randomBoolean()) {
-                builder.array("types", types);
-            } else {
-                builder.field("types", Strings.arrayToCommaDelimitedString(types));
             }
         }
 
@@ -220,7 +208,6 @@ public class WatcherUtilsTests extends ESTestCase {
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
         assertThat(result.getIndices(), arrayContainingInAnyOrder(indices));
-        assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
         assertThat(result.getIndicesOptions(), equalTo(indicesOptions));
         assertThat(result.getSearchType(), equalTo(searchType));
         if (source == null) {

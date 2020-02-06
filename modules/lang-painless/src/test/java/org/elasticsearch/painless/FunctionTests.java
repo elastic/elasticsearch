@@ -70,7 +70,7 @@ public class FunctionTests extends ScriptTestCase {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("void test(int x) {x = 2;} void test(def y) {y = 3;} test()");
         });
-        assertThat(expected.getMessage(), containsString("Duplicate functions"));
+        assertThat(expected.getMessage(), containsString("Illegal duplicate functions"));
     }
 
     public void testBadCastFromMethod() {
@@ -95,7 +95,7 @@ public class FunctionTests extends ScriptTestCase {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int test(StringBuilder b, int i) {b.setLength(i)} test(new StringBuilder(), 1)");
         });
-        assertEquals("Not all paths provide a return value for method [test].", expected.getMessage());
+        assertEquals("not all paths provide a return value for function [test] with [2] parameters", expected.getMessage());
         expected = expectScriptThrows(ClassCastException.class, () -> {
             exec("int test(StringBuilder b, int i) {return b.setLength(i)} test(new StringBuilder(), 1)");
         });

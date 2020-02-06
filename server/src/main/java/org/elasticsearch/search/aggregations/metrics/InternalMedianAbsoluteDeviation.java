@@ -80,7 +80,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         final TDigestState valueMerged = new TDigestState(valuesSketch.compression());
         for (InternalAggregation aggregation : aggregations) {
             final InternalMedianAbsoluteDeviation madAggregation = (InternalMedianAbsoluteDeviation) aggregation;
@@ -106,12 +106,15 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(valuesSketch);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), valuesSketch);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         InternalMedianAbsoluteDeviation other = (InternalMedianAbsoluteDeviation) obj;
         return Objects.equals(valuesSketch, other.valuesSketch);
     }
@@ -121,7 +124,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         return MedianAbsoluteDeviationAggregationBuilder.NAME;
     }
 
-    public TDigestState getValuesSketch() {
+    TDigestState getValuesSketch() {
         return valuesSketch;
     }
 

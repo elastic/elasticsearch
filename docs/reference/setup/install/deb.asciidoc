@@ -11,9 +11,9 @@ The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch requires Java 8 or later. Use the
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
-or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
+see the <<jvm-version, JVM version requirements>>
 
 [[deb-key]]
 ==== Import the Elasticsearch PGP Key
@@ -150,29 +150,30 @@ The Debian package for Elasticsearch v{version} can be downloaded from the websi
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb.sha512
-shasum -a 512 -c elasticsearch-{version}.deb.sha512 <1>
-sudo dpkg -i elasticsearch-{version}.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb.sha512
+shasum -a 512 -c elasticsearch-{version}-amd64.deb.sha512 <1>
+sudo dpkg -i elasticsearch-{version}-amd64.deb
 --------------------------------------------
 <1> Compares the SHA of the downloaded Debian package and the published checksum, which should output
-    `elasticsearch-{version}.deb: OK`.
+    `elasticsearch-{version}-amd64.deb: OK`.
     
 Alternatively, you can download the following package, which contains only 
 features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.deb    
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-amd64.deb    
 
 endif::[]
 
 ifdef::include-xpack[]
+[role="xpack"]
 [[deb-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+==== Enable automatic creation of system indices
 
-{xpack} will try to automatically create a number of indices within Elasticsearch.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
+[[deb-sysv-init-vs-systemd]]
 ==== SysV `init` vs `systemd`
 
 include::init-systemd.asciidoc[]
@@ -236,6 +237,13 @@ locations for a Debian-based system:
     on the node. Can hold multiple locations.
   | /var/lib/elasticsearch
   | path.data
+
+| jdk
+  | The bundled Java Development Kit used to run Elasticsearch. Can
+    be overridden by setting the `JAVA_HOME` environment variable
+    in `/etc/default/elasticsearch`.
+  | /usr/share/elasticsearch/jdk
+ d|
 
 | logs
   | Log files location.

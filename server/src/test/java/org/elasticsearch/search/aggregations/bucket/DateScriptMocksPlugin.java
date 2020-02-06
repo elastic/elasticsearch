@@ -38,6 +38,7 @@ public class DateScriptMocksPlugin extends MockScriptPlugin {
     static final String EXTRACT_FIELD = "extract_field";
     static final String DOUBLE_PLUS_ONE_MONTH = "double_date_plus_1_month";
     static final String LONG_PLUS_ONE_MONTH = "long_date_plus_1_month";
+    static final String CURRENT_DATE = "current_date";
 
     @Override
     public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -51,6 +52,13 @@ public class DateScriptMocksPlugin extends MockScriptPlugin {
             new DateTime(Double.valueOf((double) params.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis());
         scripts.put(LONG_PLUS_ONE_MONTH, params ->
             new DateTime((long) params.get("_value"), DateTimeZone.UTC).plusMonths(1).getMillis());
+        return scripts;
+    }
+
+    @Override
+    protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+        scripts.put(CURRENT_DATE, params -> new DateTime().getMillis());
         return scripts;
     }
 }

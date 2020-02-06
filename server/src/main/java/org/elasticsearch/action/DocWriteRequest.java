@@ -24,10 +24,15 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.Locale;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Generic interface to group ActionRequest, which perform writes to a single document
@@ -47,28 +52,6 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      */
     String index();
 
-
-    /**
-     * Set the type for this request
-     * @return the Request
-     */
-    T type(String type);
-
-    /**
-     * Get the type that this request operates on
-     * @return the type
-     */
-    String type();
-
-    /**
-     * Set the default type supplied to a bulk
-     * request if this individual request's type is null
-     * or empty
-     * @return the Request
-     */
-    T defaultTypeIfNull(String defaultType);
-    
-    
     /**
      * Get the id of the document for this request
      * @return the id
@@ -116,6 +99,39 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
      */
     T versionType(VersionType versionType);
+
+    /**
+     * only perform this request if the document was last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    T setIfSeqNo(long seqNo);
+
+    /**
+     * only performs this request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    T setIfPrimaryTerm(long term);
+
+    /**
+     * If set, only perform this request if the document was last modification was assigned this sequence number.
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+     long ifSeqNo();
+
+    /**
+     * If set, only perform this request if the document was last modification was assigned this primary term.
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    long ifPrimaryTerm();
 
     /**
      * Get the requested document operation type of the request
@@ -184,17 +200,11 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.readFrom(in);
-            docWriteRequest = indexRequest;
+            docWriteRequest = new IndexRequest(in);
         } else if (type == 1) {
-            DeleteRequest deleteRequest = new DeleteRequest();
-            deleteRequest.readFrom(in);
-            docWriteRequest = deleteRequest;
+            docWriteRequest = new DeleteRequest(in);
         } else if (type == 2) {
-            UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.readFrom(in);
-            docWriteRequest = updateRequest;
+            docWriteRequest = new UpdateRequest(in);
         } else {
             throw new IllegalStateException("invalid request type [" + type+ " ]");
         }
@@ -215,5 +225,35 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         } else {
             throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }
+    }
+
+    static ActionRequestValidationException validateSeqNoBasedCASParams(
+        DocWriteRequest request, ActionRequestValidationException validationException) {
+        final long version = request.version();
+        final VersionType versionType = request.versionType();
+        if (versionType.validateVersionForWrites(version) == false) {
+            validationException = addValidationError("illegal version value [" + version + "] for version type ["
+                + versionType.name() + "]", validationException);
+        }
+
+        if (versionType == VersionType.INTERNAL && version != Versions.MATCH_ANY && version != Versions.MATCH_DELETED) {
+            validationException = addValidationError("internal versioning can not be used for optimistic concurrency control. " +
+                "Please use `if_seq_no` and `if_primary_term` instead", validationException);
+        }
+
+        if (request.ifSeqNo() != UNASSIGNED_SEQ_NO && (
+            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
+        )) {
+            validationException = addValidationError("compare and write operations can not use versioning", validationException);
+        }
+        if (request.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() != UNASSIGNED_SEQ_NO) {
+            validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
+        }
+        if (request.ifPrimaryTerm() != UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() == UNASSIGNED_SEQ_NO) {
+            validationException =
+                addValidationError("ifSeqNo is unassigned, but primary term is [" + request.ifPrimaryTerm() + "]", validationException);
+        }
+
+        return validationException;
     }
 }

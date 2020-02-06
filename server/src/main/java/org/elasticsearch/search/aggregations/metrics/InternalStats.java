@@ -145,12 +145,12 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public InternalStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
-        double sum = 0;
-        double compensation = 0;
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
         for (InternalAggregation aggregation : aggregations) {
             InternalStats stats = (InternalStats) aggregation;
             count += stats.getCount();
@@ -158,17 +158,9 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             max = Math.max(max, stats.getMax());
             // Compute the sum of double values with Kahan summation algorithm which is more
             // accurate than naive summation.
-            double value = stats.getSum();
-            if (Double.isFinite(value) == false) {
-                sum += value;
-            } else if (Double.isFinite(sum)) {
-                double corrected = value - compensation;
-                double newSum = sum + corrected;
-                compensation = (newSum - sum) - corrected;
-                sum = newSum;
-            }
+            kahanSummation.add(stats.getSum());
         }
-        return new InternalStats(name, count, sum, min, max, format, pipelineAggregators(), getMetaData());
+        return new InternalStats(name, count, kahanSummation.value(), min, max, format, pipelineAggregators(), getMetaData());
     }
 
     static class Fields {
@@ -212,12 +204,16 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(count, min, max, sum);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), count, min, max, sum);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalStats other = (InternalStats) obj;
         return count == other.count &&
             Double.compare(min, other.min) == 0 &&

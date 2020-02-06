@@ -9,12 +9,13 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,7 +23,6 @@ import java.io.Reader;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -32,6 +32,9 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -58,6 +61,8 @@ import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
 
 public class ResultSetTestCase extends JdbcIntegrationTestCase {
@@ -79,7 +84,73 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         dateTimeTestingFields.put(new Tuple<String, Object>("test_float", 1f), EsType.FLOAT);
         dateTimeTestingFields.put(new Tuple<String, Object>("test_keyword", "true"), EsType.KEYWORD);
     }
+
+    private String timeZoneId;
+
+    @Before
+    public void chooseRandomTimeZone() {
+        this.timeZoneId = randomKnownTimeZone();
+    }
+
+    public void testMultiValueFieldWithMultiValueLeniencyEnabled() throws Exception {
+        createTestDataForMultiValueTests();
+
+        doWithQuery(() -> esWithLeniency(true), "SELECT int, keyword FROM test", (results) -> {
+            results.next();
+            Object number = results.getObject(1);
+            Object string = results.getObject(2);
+            assertEquals(-10, number);
+            assertEquals("-10", string);
+            assertFalse(results.next());
+        });
+    }
+
+    public void testMultiValueFieldWithMultiValueLeniencyDisabled() throws Exception {
+        createTestDataForMultiValueTests();
+
+        SQLException expected = expectThrows(SQLException.class,
+                () -> doWithQuery(() -> esWithLeniency(false), "SELECT int, keyword FROM test", (results) -> {
+        }));
+        assertTrue(expected.getMessage().contains("Arrays (returned by [int]) are not supported"));
+        
+        // default has multi value disabled
+        expected = expectThrows(SQLException.class,
+                () -> doWithQuery(() -> esJdbc(), "SELECT int, keyword FROM test", (results) -> {
+        }));
+    }
     
+    public void testMultiValueFields_InsideObjects_WithMultiValueLeniencyEnabled() throws Exception {
+        createTestDataForMultiValuesInObjectsTests();
+
+        doWithQuery(() -> esWithLeniency(true), "SELECT object.intsubfield, object.textsubfield, object.textsubfield.keyword FROM test",
+                (results) -> {
+                    results.next();
+                    Object number = results.getObject(1);
+                    Object text = results.getObject(2);
+                    Object keyword = results.getObject(3);
+                    assertEquals(-25, number);
+                    assertEquals("-25", text);
+                    assertEquals("-25", keyword);
+                    assertFalse(results.next());
+        });
+    }
+    
+    public void testMultiValueFields_InsideObjects_WithMultiValueLeniencyDisabled() throws Exception {
+        createTestDataForMultiValuesInObjectsTests();
+
+        SQLException expected = expectThrows(SQLException.class,
+                () -> doWithQuery(() -> esWithLeniency(false), "SELECT object.intsubfield, object.textsubfield, object.textsubfield.keyword"
+                        + " FROM test", (results) -> {
+        }));
+        assertTrue(expected.getMessage().contains("Arrays (returned by [object.intsubfield]) are not supported"));
+        
+        // default has multi value disabled
+        expected = expectThrows(SQLException.class,
+                () -> doWithQuery(() -> esJdbc(), "SELECT object.intsubfield, object.textsubfield, object.textsubfield.keyword",
+                        (results) -> {
+        }));
+    }
+
     // Byte values testing
     public void testGettingValidByteWithoutCasting() throws Exception {
         byte random1 = randomByte();
@@ -201,10 +272,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Byte]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Byte]", asDateString(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Byte.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Byte]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Byte]", asDateString(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -324,10 +395,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getShort("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Short]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Short]", asDateString(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Short.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Short]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Short]", asDateString(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -378,8 +449,8 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), results.getInt(e.getKey()));
                     assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), actual);
                 } else if (e.getValue() instanceof Float) {
-                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), results.getInt(e.getKey()));
-                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), actual);
+                    assertEquals("For field " + e.getKey(), e.getValue(), Integer.valueOf(results.getInt(e.getKey())).floatValue());
+                    assertEquals("For field " + e.getKey(), e.getValue(), Integer.valueOf(actual).floatValue());
                 } else {
                     assertEquals("For field " + e.getKey(), e.getValue().intValue(), results.getInt(e.getKey()));
                     assertEquals("For field " + e.getKey(), e.getValue().intValue(), actual);
@@ -439,11 +510,11 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getInt("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Integer]", of(randomDate)),
-                    sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Integer]",
+                asDateString(randomDate)), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Integer.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Integer]", of(randomDate)),
-                    sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Integer]",
+                asDateString(randomDate)), sqle.getMessage());
         });
     }
     
@@ -489,9 +560,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
             for(Entry<String, Number> e : map.entrySet()) {
                 long actual = results.getObject(e.getKey(), Long.class);
-                if (e.getValue() instanceof Double || e.getValue() instanceof Float) {
-                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), results.getLong(e.getKey()));
-                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), actual);
+                if (e.getValue() instanceof Float) {
+                    assertEquals("For field " + e.getKey(), e.getValue(), Long.valueOf(results.getLong(e.getKey())).floatValue());
+                    assertEquals("For field " + e.getKey(), e.getValue(), Long.valueOf(actual).floatValue());
                 } else {
                     assertEquals("For field " + e.getKey(), e.getValue().longValue(), results.getLong(e.getKey()));
                     assertEquals("For field " + e.getKey(), e.getValue().longValue(), actual);
@@ -541,10 +612,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getLong("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Long]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Long]", asDateString(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Long.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Long]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Long]", asDateString(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -590,9 +661,15 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQuery(SELECT_WILDCARD, (results) -> {
             results.next();
             for(Entry<String, Number> e : map.entrySet()) {
-                assertEquals("For field " + e.getKey(), e.getValue().doubleValue(), results.getDouble(e.getKey()), 0.0d);
-                assertEquals("For field " + e.getKey(),
-                        e.getValue().doubleValue(), results.getObject(e.getKey(), Double.class), 0.0d);
+                if (e.getValue() instanceof Float) {
+                    assertEquals("For field " + e.getKey(), e.getValue(), Double.valueOf(results.getDouble(e.getKey())).floatValue());
+                    assertEquals("For field " + e.getKey(),
+                            e.getValue(), Double.valueOf(results.getObject(e.getKey(), Double.class)).floatValue());
+                } else {
+                    assertEquals("For field " + e.getKey(), e.getValue().doubleValue(), results.getDouble(e.getKey()), 0.0d);
+                    assertEquals("For field " + e.getKey(),
+                            e.getValue().doubleValue(), results.getObject(e.getKey(), Double.class), 0.0d);
+                }
             }
         });
     }
@@ -624,10 +701,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getDouble("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Double]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Double]", asDateString(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Double.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Double]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Double]", asDateString(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -707,10 +784,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getFloat("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Float]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Float]", asDateString(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Float.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Float]", of(randomDate)),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Float]", asDateString(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -768,8 +845,8 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                 assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
             }
             SQLException sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Boolean]", of(randomDate1)),
-                    sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Boolean]",
+                asDateString(randomDate1)), sqle.getMessage());
             
             results.next();
             assertEquals(false, results.getBoolean("test_boolean"));
@@ -778,12 +855,12 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                 assertEquals("Expected: <false> but was: <true> for field " + fld, false, results.getObject(fld, Boolean.class));
             }
             sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Boolean]", of(randomDate2)),
-                    sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Boolean]",
+                asDateString(randomDate2)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Boolean.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Boolean]", of(randomDate2)),
-                    sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Boolean]",
+                asDateString(randomDate2)), sqle.getMessage());
             
             results.next();
             for(String fld : fieldsNames.stream()
@@ -808,26 +885,18 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
         
-        String timeZoneId = randomKnownTimeZone();
-        Calendar connCalendar = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
-        
-        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+        doWithQuery(SELECT_ALL_FIELDS, (results) -> {
             results.next();
-            connCalendar.setTimeInMillis(randomLongDate);
-            connCalendar.set(HOUR_OF_DAY, 0);
-            connCalendar.set(MINUTE, 0);
-            connCalendar.set(SECOND, 0);
-            connCalendar.set(MILLISECOND, 0);
-            
-            assertEquals(results.getDate("test_date"), new java.sql.Date(connCalendar.getTimeInMillis()));
-            assertEquals(results.getDate(9), new java.sql.Date(connCalendar.getTimeInMillis()));
-            assertEquals(results.getObject("test_date", java.sql.Date.class),
-                    new java.sql.Date(randomLongDate - (randomLongDate % 86400000L)));
-            assertEquals(results.getObject(9, java.sql.Date.class),
-                    new java.sql.Date(randomLongDate - (randomLongDate % 86400000L)));
+
+            java.sql.Date expectedDate = asDate(randomLongDate, getZoneFromOffset(randomLongDate));
+
+            assertEquals(expectedDate, results.getDate("test_date"));
+            assertEquals(expectedDate, results.getDate(9));
+            assertEquals(expectedDate, results.getObject("test_date", java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject(9, java.sql.Date.class));
 
             // bulk validation for all fields which are not of type date
-            validateErrorsForDateTimeTestsWithoutCalendar(results::getDate);
+            validateErrorsForDateTestsWithoutCalendar(results::getDate);
         });
     }
     
@@ -844,11 +913,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.timeField("test_date", null);
         });
         
-        String timeZoneId = randomKnownTimeZone();
         String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
         
-        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+        doWithQuery(SELECT_ALL_FIELDS, (results) -> {
             results.next();
             c.setTimeInMillis(randomLongDate);
             c.set(HOUR_OF_DAY, 0);
@@ -876,29 +944,21 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
         Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
-        
-        String timeZoneId = randomKnownTimeZone();
-        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
-        
-        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+
+        doWithQuery(SELECT_ALL_FIELDS, (results) -> {
             results.next();
-            c.setTimeInMillis(randomLongDate);
-            c.set(ERA, GregorianCalendar.AD);
-            c.set(YEAR, 1970);
-            c.set(MONTH, 0);
-            c.set(DAY_OF_MONTH, 1);
-            
-            assertEquals(results.getTime("test_date"), new java.sql.Time(c.getTimeInMillis()));
-            assertEquals(results.getTime(9), new java.sql.Time(c.getTimeInMillis()));
-            assertEquals(results.getObject("test_date", java.sql.Time.class),
-                    new java.sql.Time(randomLongDate % 86400000L));
-            assertEquals(results.getObject(9, java.sql.Time.class),
-                    new java.sql.Time(randomLongDate % 86400000L));
-            
-            validateErrorsForDateTimeTestsWithoutCalendar(results::getTime);
+
+            java.sql.Time expectedTime = asTime(randomLongDate, getZoneFromOffset(randomLongDate));
+
+            assertEquals(expectedTime, results.getTime("test_date"));
+            assertEquals(expectedTime, results.getTime(9));
+            assertEquals(expectedTime, results.getObject("test_date", java.sql.Time.class));
+            assertEquals(expectedTime, results.getObject(9, java.sql.Time.class));
+
+            validateErrorsForTimeTestsWithoutCalendar(results::getTime);
         });
     }
-    
+
     public void testGettingTimeWithCalendar() throws Exception {
         createIndex("test");
         updateMappingForNumericValuesTests("test");
@@ -912,11 +972,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.timeField("test_date", null);
         });
         
-        String timeZoneId = randomKnownTimeZone();
         String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
         
-        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+        doWithQuery(SELECT_ALL_FIELDS, (results) -> {
             results.next();
             c.setTimeInMillis(randomLongDate);
             c.set(ERA, GregorianCalendar.AD);
@@ -989,11 +1048,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.timeField("test_date", null);
         });
         
-        String timeZoneId = randomKnownTimeZone();
         String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
         
-        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+        doWithQuery(SELECT_ALL_FIELDS, (results) -> {
             results.next();
             c.setTimeInMillis(randomLongDate);
             
@@ -1006,7 +1064,156 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertNull(results.getTimestamp("test_date"));
         });
     }
+
+    public void testScalarOnDates() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 2018-03-12 17:00:00 UTC
+        Long dateInMillis = 1520874000000L;
+        index("test", "1", builder -> builder.field("test_date", dateInMillis));
+
+        // UTC +10 hours
+        String timeZoneId1 = "Etc/GMT-10";
+        Calendar connCalendar1 = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId1), Locale.ROOT);
+
+        doWithQueryAndTimezone("SELECT test_date, DAY_OF_MONTH(test_date) as day FROM test", timeZoneId1, results -> {
+            results.next();
+            connCalendar1.setTimeInMillis(dateInMillis);
+            connCalendar1.set(HOUR_OF_DAY, 0);
+            connCalendar1.set(MINUTE, 0);
+            connCalendar1.set(SECOND, 0);
+            connCalendar1.set(MILLISECOND, 0);
+
+            java.sql.Date expectedDate = new java.sql.Date(connCalendar1.getTimeInMillis());
+            assertEquals(expectedDate, results.getDate("test_date"));
+            assertEquals(expectedDate, results.getDate(1));
+            assertEquals(expectedDate, results.getObject("test_date", java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject(1, java.sql.Date.class));
+
+            // +1 day
+            assertEquals(13, results.getInt("day"));
+        });
+
+        delete("test", "1");
+
+        // 2018-03-12 05:00:00 UTC
+        Long dateInMillis2 = 1520830800000L;
+        index("test", "1", builder -> builder.field("test_date", dateInMillis2));
+
+        // UTC -10 hours
+        String timeZoneId2 = "Etc/GMT+10";
+        Calendar connCalendar2 = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId2), Locale.ROOT);
+
+
+        doWithQueryAndTimezone("SELECT test_date, DAY_OF_MONTH(test_date) as day FROM test", timeZoneId2, results -> {
+            results.next();
+            connCalendar2.setTimeInMillis(dateInMillis2);
+            connCalendar2.set(HOUR_OF_DAY, 0);
+            connCalendar2.set(MINUTE, 0);
+            connCalendar2.set(SECOND, 0);
+            connCalendar2.set(MILLISECOND, 0);
+
+            java.sql.Date expectedDate = new java.sql.Date(connCalendar2.getTimeInMillis());
+            assertEquals(expectedDate, results.getDate("test_date"));
+            assertEquals(expectedDate, results.getDate(1));
+            assertEquals(expectedDate, results.getObject("test_date", java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject(1, java.sql.Date.class));
+
+            // -1 day
+            assertEquals(11, results.getInt("day"));
+        });
+    }
+
+    public void testGetDateType() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 2018-03-12 17:00:00 UTC
+        Long timeInMillis = 1520874000123L;
+        index("test", "1", builder -> builder.field("test_date", timeInMillis));
+
+        // UTC +10 hours
+        String timeZoneId1 = "Etc/GMT-10";
+        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId1), Locale.ROOT);
+
+        doWithQueryAndTimezone("SELECT CAST(test_date AS DATE) as date FROM test", timeZoneId1, results -> {
+            results.next();
+            c.setTimeInMillis(timeInMillis);
+            c.set(HOUR_OF_DAY, 0);
+            c.set(MINUTE, 0);
+            c.set(SECOND, 0);
+            c.set(MILLISECOND, 0);
+
+            java.sql.Date expectedDate = new java.sql.Date(c.getTimeInMillis());
+            assertEquals(expectedDate, results.getDate("date"));
+            assertEquals(expectedDate, results.getObject("date", java.sql.Date.class));
+
+            java.sql.Time expectedTime = new java.sql.Time(0L);
+            assertEquals(expectedTime, results.getTime("date"));
+            assertEquals(expectedTime, results.getObject("date", java.sql.Time.class));
+
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(c.getTimeInMillis());
+            assertEquals(expectedTimestamp, results.getTimestamp("date"));
+            assertEquals(expectedTimestamp, results.getObject("date", java.sql.Timestamp.class));
+        });
+    }
     
+    public void testGetDateTypeFromAggregation() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 1984-05-02 14:59:12 UTC
+        Long timeInMillis = 452357952000L;
+        index("test", "1", builder -> builder.field("test_date", timeInMillis));
+
+        doWithQueryAndTimezone("SELECT CONVERT(test_date, DATE) AS converted FROM test GROUP BY converted", "UTC", results -> {
+            results.next();
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timeInMillis), ZoneId.of("Z"))
+                    .toLocalDate().atStartOfDay(ZoneId.of("Z"));
+
+            java.sql.Date expectedDate = new java.sql.Date(zdt.toInstant().toEpochMilli());
+            assertEquals(expectedDate, results.getDate("converted"));
+            assertEquals(expectedDate, results.getObject("converted", java.sql.Date.class));
+
+            java.sql.Time expectedTime = new java.sql.Time(0L);
+            assertEquals(expectedTime, results.getTime("converted"));
+            assertEquals(expectedTime, results.getObject("converted", java.sql.Time.class));
+
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(zdt.toInstant().toEpochMilli());
+            assertEquals(expectedTimestamp, results.getTimestamp("converted"));
+            assertEquals(expectedTimestamp, results.getObject("converted", java.sql.Timestamp.class));
+        });
+    }
+
+    public void testGetTimeType() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 2018-03-12 17:20:30.123 UTC
+        Long timeInMillis = 1520875230123L;
+        index("test", "1", builder -> builder.field("test_date", timeInMillis));
+
+        // UTC +10 hours
+        String timeZoneId1 = "Etc/GMT-10";
+
+        doWithQueryAndTimezone("SELECT CAST(test_date AS TIME) as time FROM test", timeZoneId1, results -> {
+            results.next();
+
+            java.sql.Date expectedDate = new java.sql.Date(0L);
+            assertEquals(expectedDate, results.getDate("time"));
+            assertEquals(expectedDate, results.getObject("time", java.sql.Date.class));
+
+            java.sql.Time expectedTime = asTime(timeInMillis, ZoneId.of("Etc/GMT-10"));
+            assertEquals(expectedTime, results.getTime("time"));
+            assertEquals(expectedTime, results.getObject("time", java.sql.Time.class));
+
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(expectedTime.getTime());
+            assertEquals(expectedTimestamp, results.getTimestamp("time"));
+            assertEquals(expectedTimestamp, results.getObject("time", java.sql.Timestamp.class));
+        });
+    }
+
     public void testValidGetObjectCalls() throws Exception {
         createIndex("test");
         updateMappingForNumericValuesTests("test");
@@ -1068,11 +1275,59 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertTrue(results.getObject("test_boolean") instanceof Boolean);
         });
     }
+    
+    public void testGettingNullValues() throws Exception {
+        String query = "SELECT CAST(NULL AS BOOLEAN) b, CAST(NULL AS TINYINT) t, CAST(NULL AS SMALLINT) s, CAST(NULL AS INTEGER) i,"
+                + "CAST(NULL AS BIGINT) bi, CAST(NULL AS DOUBLE) d, CAST(NULL AS REAL) r, CAST(NULL AS FLOAT) f, CAST(NULL AS VARCHAR) v,"
+                + "CAST(NULL AS DATE) dt, CAST(NULL AS TIME) tm, CAST(NULL AS TIMESTAMP) ts";
+        doWithQuery(query, (results) -> {
+            results.next();
+            
+            assertNull(results.getObject("b"));
+            assertFalse(results.getBoolean("b"));
+            
+            assertNull(results.getObject("t"));
+            assertEquals(0, results.getByte("t"));
+            
+            assertNull(results.getObject("s"));
+            assertEquals(0, results.getShort("s"));
+            
+            assertNull(results.getObject("i"));
+            assertEquals(0, results.getInt("i"));
+            
+            assertNull(results.getObject("bi"));
+            assertEquals(0, results.getLong("bi"));
+            
+            assertNull(results.getObject("d"));
+            assertEquals(0.0d, results.getDouble("d"), 0d);
+            
+            assertNull(results.getObject("r"));
+            assertEquals(0.0f, results.getFloat("r"), 0f);
+            
+            assertNull(results.getObject("f"));
+            assertEquals(0.0f, results.getFloat("f"), 0f);
+            
+            assertNull(results.getObject("v"));
+            assertNull(results.getString("v"));
+            
+            assertNull(results.getObject("dt"));
+            assertNull(results.getDate("dt"));
+            assertNull(results.getDate("dt", randomCalendar()));
+            
+            assertNull(results.getObject("tm"));
+            assertNull(results.getTime("tm"));
+            assertNull(results.getTime("tm", randomCalendar()));
+            
+            assertNull(results.getObject("ts"));
+            assertNull(results.getTimestamp("ts"));
+            assertNull(results.getTimestamp("ts", randomCalendar()));
+        });
+    }
 
     /*
      * Checks StackOverflowError fix for https://github.com/elastic/elasticsearch/pull/31735
      */
-    public void testNoInfiniteRecursiveGetObjectCalls() throws SQLException, IOException {
+    public void testNoInfiniteRecursiveGetObjectCalls() throws Exception {
         index("library", "1", builder -> {
             builder.field("name", "Don Quixote");
             builder.field("page_count", 1072);
@@ -1242,18 +1497,45 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertThrowsWritesUnsupportedForUpdate(() -> r.rowDeleted());
     }
     
+    public void testResultSetNotInitialized() throws Exception {
+        createTestDataForNumericValueTypes(() -> randomInt());
+
+        SQLException sqle = expectThrows(SQLException.class, () -> {
+            doWithQuery(SELECT_WILDCARD, rs -> {
+                assertFalse(rs.isAfterLast());
+                rs.getObject(1);
+            });
+        });
+        assertEquals("No row available", sqle.getMessage());
+    }
+
+    public void testResultSetConsumed() throws Exception {
+        createTestDataForNumericValueTypes(() -> randomInt());
+
+        SQLException sqle = expectThrows(SQLException.class, () -> {
+            doWithQuery("SELECT * FROM test LIMIT 1", rs -> {
+                assertFalse(rs.isAfterLast());
+                assertTrue(rs.next());
+                assertFalse(rs.isAfterLast());
+                assertFalse(rs.next());
+                assertTrue(rs.isAfterLast());
+                rs.getObject(1);
+            });
+        });
+        assertEquals("No row available", sqle.getMessage());
+    }
+
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement(query)) {
-                try (ResultSet results = statement.executeQuery()) {
-                    consumer.accept(results);
-                }
-            }
-        }
+        doWithQuery(() -> esJdbc(timeZoneId), query, consumer);
     }
     
     private void doWithQueryAndTimezone(String query, String tz, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
-        try (Connection connection = esJdbc(tz)) {
+        doWithQuery(() -> esJdbc(tz), query, consumer);
+    }
+    
+    private void doWithQuery(CheckedSupplier<Connection, SQLException> con, String query, CheckedConsumer<ResultSet, SQLException> consumer)
+            throws SQLException {
+        try (Connection connection = con.get()) {
             try (PreparedStatement statement = connection.prepareStatement(query)) {
                 try (ResultSet results = statement.executeQuery()) {
                     consumer.accept(results);
@@ -1262,7 +1544,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         }
     }
     
-    private void createIndex(String index) throws Exception {
+    protected static void createIndex(String index) throws Exception {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -1282,7 +1564,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         client().performRequest(request);
     }
 
-    private void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws Exception {
+    protected static void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws Exception {
         Request request = new Request("PUT", "/" + index + "/_mapping");
         XContentBuilder updateMapping = JsonXContent.contentBuilder().startObject();
         updateMapping.startObject("properties");
@@ -1290,12 +1572,71 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             body.accept(updateMapping);
         }
         updateMapping.endObject().endObject();
-        
+
         request.setJsonEntity(Strings.toString(updateMapping));
         client().performRequest(request);
     }
 
-    private void createTestDataForByteValueTests(byte random1, byte random2, byte random3) throws Exception, IOException {
+    private void createTestDataForMultiValueTests() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("int").field("type", "integer").endObject();
+            builder.startObject("keyword").field("type", "keyword").endObject();
+        });
+
+        Integer[] values = randomArray(3, 15, s -> new Integer[s], () -> Integer.valueOf(randomInt(50)));
+        // add the known value as the first one in list. Parsing from _source the value will pick up the first value in the array.
+        values[0] = Integer.valueOf(-10);
+
+        String[] stringValues = new String[values.length];
+        for (int i = 0; i < values.length; i++) {
+            stringValues[i] = String.valueOf(values[i]);
+        }
+
+        index("test", "1", builder -> {
+            builder.array("int", (Object[]) values);
+            builder.array("keyword", stringValues);
+        });
+    }
+    
+    private void createTestDataForMultiValuesInObjectsTests() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("object")
+                .startObject("properties")
+                    .startObject("intsubfield").field("type", "integer").endObject()
+                    .startObject("textsubfield")
+                        .field("type", "text")
+                        .startObject("fields").startObject("keyword").field("type", "keyword").endObject().endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+            builder.startObject("keyword").field("type", "keyword").endObject();
+        });
+
+        Integer[] values = randomArray(3, 15, s -> new Integer[s], () -> Integer.valueOf(randomInt(50)));
+        // add the known value as the first one in list. Parsing from _source the value will pick up the first value in the array.
+        values[0] = Integer.valueOf(-25);
+
+        String[] stringValues = new String[values.length];
+        for (int i = 0; i < values.length; i++) {
+            stringValues[i] = String.valueOf(values[i]);
+        }
+        stringValues[1] = "xyz";
+
+        index("test", "1", builder -> {
+            builder.startArray("object");
+                for (int i = 0; i < values.length; i++) {
+                    builder.startObject()
+                        .field("intsubfield", values[i])
+                        .field("textsubfield", stringValues[i])
+                    .endObject();
+                }
+            builder.endArray();
+        });
+    }
+
+    private void createTestDataForByteValueTests(byte random1, byte random2, byte random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_byte").field("type", "byte").endObject();
@@ -1313,7 +1654,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForShortValueTests(short random1, short random2, short random3) throws Exception, IOException {
+    private void createTestDataForShortValueTests(short random1, short random2, short random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_short").field("type", "short").endObject();
@@ -1331,7 +1672,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForIntegerValueTests(int random1, int random2, int random3) throws Exception, IOException {
+    private void createTestDataForIntegerValueTests(int random1, int random2, int random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_integer").field("type", "integer").endObject();
@@ -1349,7 +1690,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForLongValueTests(long random1, long random2, long random3) throws Exception, IOException {
+    private void createTestDataForLongValueTests(long random1, long random2, long random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_long").field("type", "long").endObject();
@@ -1367,7 +1708,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForDoubleValueTests(double random1, double random2, double random3) throws Exception, IOException {
+    private void createTestDataForDoubleValueTests(double random1, double random2, double random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_double").field("type", "double").endObject();
@@ -1385,7 +1726,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForFloatValueTests(float random1, float random2, float random3) throws Exception, IOException {
+    private void createTestDataForFloatValueTests(float random1, float random2, float random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_float").field("type", "float").endObject();
@@ -1421,7 +1762,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
      * Creates test data for all numeric get* methods. All values random and different from the other numeric fields already generated.
      * It returns a map containing the field name and its randomly generated value to be later used in checking the returned values.
      */
-    private Map<String,Number> createTestDataForNumericValueTypes(Supplier<Number> randomGenerator) throws Exception, IOException {
+    private Map<String, Number> createTestDataForNumericValueTypes(Supplier<Number> randomGenerator) throws Exception {
         Map<String,Number> map = new HashMap<>();
         createIndex("test");
         updateMappingForNumericValuesTests("test");
@@ -1460,7 +1801,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         return map;
     }
 
-    private void updateMappingForNumericValuesTests(String indexName) throws Exception {
+    private static void updateMappingForNumericValuesTests(String indexName) throws Exception {
         updateMapping(indexName, builder -> {
             for(String field : fieldsNames) {
                 builder.startObject(field).field("type", field.substring(5)).endObject();
@@ -1477,13 +1818,23 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertThrowsUnsupportedAndExpectErrorMessage(r, "Writes not supported");
     }
     
-    private void validateErrorsForDateTimeTestsWithoutCalendar(CheckedFunction<String,Object,SQLException> method) {
+    private void validateErrorsForDateTestsWithoutCalendar(CheckedFunction<String,Object,SQLException> method) {
         SQLException sqle;
         for (Entry<Tuple<String, Object>, SQLType> field : dateTimeTestingFields.entrySet()) {
             sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1()));
             assertEquals(
-                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long",
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date",
                             field.getKey().v2(), field.getValue()), sqle.getMessage());
+        }
+    }
+
+    private void validateErrorsForTimeTestsWithoutCalendar(CheckedFunction<String,Object,SQLException> method) {
+        SQLException sqle;
+        for (Entry<Tuple<String, Object>, SQLType> field : dateTimeTestingFields.entrySet()) {
+            sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1()));
+            assertEquals(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time",
+                    field.getKey().v2(), field.getValue()), sqle.getMessage());
         }
     }
     
@@ -1515,31 +1866,31 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private Connection esJdbc(String timeZoneId) throws SQLException {
-        return randomBoolean() ? useDriverManager(timeZoneId) : useDataSource(timeZoneId);
-    }
-
-    private Connection useDriverManager(String timeZoneId) throws SQLException {
-        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
-        String address = "jdbc:es://" + elasticsearchAddress;
         Properties connectionProperties = connectionProperties();
         connectionProperties.put(JDBC_TIMEZONE, timeZoneId);
-        Connection connection = DriverManager.getConnection(address, connectionProperties);
-        
+        Connection connection = esJdbc(connectionProperties);
         assertNotNull("The timezone should be specified", connectionProperties.getProperty(JDBC_TIMEZONE));
         return connection;
     }
 
-    private Connection useDataSource(String timeZoneId) throws SQLException {
-        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
-        EsDataSource dataSource = new EsDataSource();
-        String address = "jdbc:es://" + elasticsearchAddress;
-        dataSource.setUrl(address);
+    private Connection esWithLeniency(boolean multiValueLeniency) throws SQLException {
+        String property = "field.multi.value.leniency";
         Properties connectionProperties = connectionProperties();
-        connectionProperties.put(JDBC_TIMEZONE, timeZoneId);
-        dataSource.setProperties(connectionProperties);
-        Connection connection = dataSource.getConnection();
-        
-        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JDBC_TIMEZONE));
+        connectionProperties.setProperty(property, Boolean.toString(multiValueLeniency));
+        Connection connection = esJdbc(connectionProperties);
+        assertNotNull("The leniency should be specified", connectionProperties.getProperty(property));
         return connection;
+    }
+
+    private String asDateString(long millis) {
+        return of(millis, timeZoneId);
+    }
+
+    private ZoneId getZoneFromOffset(Long randomLongDate) {
+        return ZoneId.of(ZoneId.of(timeZoneId).getRules().getOffset(Instant.ofEpochMilli(randomLongDate)).toString());
+    }
+    
+    private Calendar randomCalendar() {
+        return Calendar.getInstance(randomTimeZone(), Locale.ROOT);
     }
 }

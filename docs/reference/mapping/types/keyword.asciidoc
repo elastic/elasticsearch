@@ -1,8 +1,11 @@
 [[keyword]]
 === Keyword datatype
+++++
+<titleabbrev>Keyword</titleabbrev>
+++++
 
-A field to index structured content such as email addresses, hostnames, status
-codes, zip codes or tags.
+A field to index structured content such as IDs, email addresses, hostnames,
+status codes, zip codes or tags.
 
 They are typically used for filtering (_Find me all blog posts where
 ++status++ is ++published++_), for sorting, and for aggregations. Keyword
@@ -13,22 +16,25 @@ descriptions, it is likely that you should rather use a <<text,`text`>> field.
 
 Below is an example of a mapping for a keyword field:
 
-[source,js]
+[source,console]
 --------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "tags": {
-          "type":  "keyword"
-        }
+    "properties": {
+      "tags": {
+        "type":  "keyword"
       }
     }
   }
 }
 --------------------------------
-// CONSOLE
+
+[TIP]
+.Mapping numeric identifiers
+====
+include::numeric.asciidoc[tag=map-ids-as-keyword]
+====
 
 [[keyword-params]]
 ==== Parameters for keyword fields
@@ -36,11 +42,6 @@ PUT my_index?include_type_name=true
 The following parameters are accepted by `keyword` fields:
 
 [horizontal]
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<doc-values,`doc_values`>>::
 
@@ -108,6 +109,10 @@ The following parameters are accepted by `keyword` fields:
     Whether <<full-text-queries,full text queries>> should split the input on whitespace
     when building a query for this field.
     Accepts `true` or `false` (default).
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.
 
 NOTE: Indexes imported from 2.x do not support `keyword`. Instead they will
 attempt to downgrade `keyword` into `string`. This allows you to merge modern

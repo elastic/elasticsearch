@@ -81,7 +81,9 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () ->
                 c.prepareStatement("SELECT foo, COUNT(*) FROM test GROUP BY foo ORDER BY SCORE()").executeQuery());
-            assertEquals("Found 1 problem(s)\nline 1:54: Cannot order by non-grouped column [SCORE()], expected [foo]", e.getMessage());
+            assertEquals(
+                    "Found 1 problem(s)\nline 1:54: Cannot order by non-grouped column [SCORE()], expected [foo] or an aggregate function",
+                    e.getMessage());
         }
     }
 
@@ -112,6 +114,16 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
             SQLException e = expectThrows(SQLException.class, () ->
                 c.prepareStatement("SELECT SIN(SCORE()) FROM test").executeQuery());
             assertThat(e.getMessage(), startsWith("Found 1 problem(s)\nline 1:12: [SCORE()] cannot be an argument to a function"));
+        }
+    }
+
+    @Override
+    public void testHardLimitForSortOnAggregate() throws Exception {
+        index("test", body -> body.field("a", 1).field("b", 2));
+        try (Connection c = esJdbc()) {
+            SQLException e = expectThrows(SQLException.class, () ->
+                c.prepareStatement("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 12000").executeQuery());
+            assertEquals("The maximum LIMIT for aggregate sorting is [10000], received [12000]", e.getMessage());
         }
     }
 }

@@ -6,17 +6,15 @@ For arrays of strings, `ignore_above` will be applied for each array element sep
 
 NOTE: All strings/array elements will still be present in the `_source` field, if the latter is enabled which is the default in Elasticsearch.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "message": {
-          "type": "keyword",
-          "ignore_above": 20 <1>
-        }
+    "properties": {
+      "message": {
+        "type": "keyword",
+        "ignore_above": 20 <1>
       }
     }
   }
@@ -32,7 +30,7 @@ PUT my_index/_doc/2 <3>
   "message": "Syntax error with some long stacktrace"
 }
 
-GET _search <4>
+GET my_index/_search <4>
 {
   "aggs": {
     "messages": {
@@ -43,7 +41,7 @@ GET _search <4>
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> This field will ignore any string longer than 20 characters.
 <2> This document is indexed successfully.
 <3> This document will be indexed, but without indexing the `message` field.

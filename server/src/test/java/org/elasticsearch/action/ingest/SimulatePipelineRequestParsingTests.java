@@ -19,15 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -38,12 +29,20 @@ import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.Fields;
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.SIMULATED_PIPELINE_ID;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.ROUTING;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.VERSION;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.VERSION_TYPE;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,10 +76,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             String index = randomAlphaOfLengthBetween(1, 10);
-            String type = randomAlphaOfLengthBetween(1, 10);
             String id = randomAlphaOfLengthBetween(1, 10);
             doc.put(INDEX.getFieldName(), index);
-            doc.put(TYPE.getFieldName(), type);
             doc.put(ID.getFieldName(), id);
             String fieldName = randomAlphaOfLengthBetween(1, 10);
             String fieldValue = randomAlphaOfLengthBetween(1, 10);
@@ -88,7 +85,6 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             docs.add(doc);
             Map<String, Object> expectedDoc = new HashMap<>();
             expectedDoc.put(INDEX.getFieldName(), index);
-            expectedDoc.put(TYPE.getFieldName(), type);
             expectedDoc.put(ID.getFieldName(), id);
             expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
             expectedDocs.add(expectedDoc);
@@ -103,7 +99,6 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
             assertThat(metadataMap.get(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(metadataMap.get(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
             assertThat(metadataMap.get(ID), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
@@ -113,7 +108,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
     }
 
-    public void testParseWithProvidedPipeline() throws Exception {
+    public void innerTestParseWithProvidedPipeline() throws Exception {
         int numDocs = randomIntBetween(1, 10);
 
         Map<String, Object> requestContent = new HashMap<>();
@@ -123,7 +118,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             Map<String, Object> expectedDoc = new HashMap<>();
-            List<IngestDocument.MetaData> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, VERSION, VERSION_TYPE);
+            List<IngestDocument.MetaData> fields = Arrays.asList(INDEX, ID, ROUTING, VERSION, VERSION_TYPE);
             for(IngestDocument.MetaData field : fields) {
                 if (field == VERSION) {
                     Long value = randomLong();
@@ -191,7 +186,6 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
             assertThat(metadataMap.get(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(metadataMap.get(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
             assertThat(metadataMap.get(ID), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(metadataMap.get(ROUTING), equalTo(expectedDocument.get(ROUTING.getFieldName())));
             assertThat(metadataMap.get(VERSION), equalTo(expectedDocument.get(VERSION.getFieldName())));

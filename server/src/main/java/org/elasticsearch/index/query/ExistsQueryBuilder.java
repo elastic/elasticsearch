@@ -19,14 +19,11 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -148,10 +145,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             fields = context.simpleMatchToIndexNames(fieldPattern);
         }
 
-        if (context.indexVersionCreated().before(Version.V_6_1_0)) {
-            return newLegacyExistsQuery(context, fields);
-        }
-
         if (fields.size() == 1) {
             String field = fields.iterator().next();
             return newFieldExistsQuery(context, field);
@@ -162,28 +155,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             boolFilterBuilder.add(newFieldExistsQuery(context, field), BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());
-    }
-
-    private static Query newLegacyExistsQuery(QueryShardContext context, Collection<String> fields) {
-        // We create TermsQuery directly here rather than using FieldNamesFieldType.termsQuery()
-        // so we don't end up with deprecation warnings
-        if (fields.size() == 1) {
-            Query filter = newLegacyExistsQuery(context, fields.iterator().next());
-            return new ConstantScoreQuery(filter);
-        }
-
-        BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
-        for (String field : fields) {
-            Query filter = newLegacyExistsQuery(context, field);
-            boolFilterBuilder.add(filter, BooleanClause.Occur.SHOULD);
-        }
-        return new ConstantScoreQuery(boolFilterBuilder.build());
-    }
-
-    private static Query newLegacyExistsQuery(QueryShardContext context, String field) {
-        MappedFieldType fieldType = context.fieldMapper(field);
-        String fieldName = fieldType != null ? fieldType.name() : field;
-        return new TermQuery(new Term(FieldNamesFieldMapper.NAME, fieldName));
     }
 
     private static Query newFieldExistsQuery(QueryShardContext context, String field) {

@@ -1,0 +1,36 @@
+--
+:api: slm-status
+:request: SnapshotLifecycleManagementStatusRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Snapshot Lifecycle Management Status API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Snapshot Lifecycle Management Status API allows you to retrieve the status
+of Snapshot Lifecycle Management
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates the status of Snapshot Lifecycle Management.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The returned status can be `RUNNING`, `STOPPING`, or `STOPPED`.
+
+include::../execution.asciidoc[]
+
+

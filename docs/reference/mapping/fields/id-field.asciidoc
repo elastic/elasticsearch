@@ -8,7 +8,7 @@ so that documents can be looked up either with the <<docs-get,GET API>> or the
 The value of the `_id` field is accessible in certain queries (`term`,
 `terms`, `match`, `query_string`, `simple_query_string`).
 
-[source,js]
+[source,console]
 --------------------------
 # Example documents
 PUT my_index/_doc/1
@@ -16,7 +16,7 @@ PUT my_index/_doc/1
   "text": "Document with ID 1"
 }
 
-PUT my_index/_doc/2&refresh=true
+PUT my_index/_doc/2?refresh=true
 {
   "text": "Document with ID 2"
 }
@@ -30,7 +30,6 @@ GET my_index/_search
   }
 }
 --------------------------
-// CONSOLE
 
 <1> Querying on the `_id` field (also see the <<query-dsl-ids-query,`ids` query>>)
 
@@ -39,3 +38,9 @@ but doing so is discouraged as it requires to load a lot of data in memory. In
 case sorting or aggregating on the `_id` field is required, it is advised to
 duplicate the content of the `_id` field in another field that has `doc_values`
 enabled.
+
+
+[NOTE]
+==================================================
+`_id` is limited to 512 bytes in size and larger values will be rejected.
+==================================================

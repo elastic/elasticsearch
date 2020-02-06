@@ -19,14 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+
+import java.util.Collections;
+import java.util.Map;
 
 public class ExternalMapperPlugin extends Plugin implements MapperPlugin {
 
@@ -36,12 +33,11 @@ public class ExternalMapperPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        Map<String, Mapper.TypeParser> mappers = new HashMap<>();
-        mappers.put(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
-        mappers.put(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
-        mappers.put(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));
-        mappers.put(FakeStringFieldMapper.CONTENT_TYPE, new FakeStringFieldMapper.TypeParser());
-        return Collections.unmodifiableMap(mappers);
+        return Map.of(
+                EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"),
+                EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"),
+                EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"),
+                FakeStringFieldMapper.CONTENT_TYPE, new FakeStringFieldMapper.TypeParser());
     }
 
     @Override

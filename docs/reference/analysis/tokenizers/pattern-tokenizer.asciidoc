@@ -25,7 +25,7 @@ Read more about http://www.regular-expressions.info/catastrophic.html[pathologic
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -33,11 +33,10 @@ POST _analyze
   "text": "The foo_bar_size's default is 5."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -86,7 +85,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -123,9 +121,9 @@ The `pattern` tokenizer accepts the following parameters:
 In this example, we configure the `pattern` tokenizer to break text into
 tokens when it encounters commas:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -150,11 +148,10 @@ POST my_index/_analyze
   "text": "comma,separated,values"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -182,7 +179,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -213,9 +209,9 @@ escaped, so the pattern ends up looking like:
 
     \"((?:\\\\\"|[^\"]|\\\\\")+)\"
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -241,11 +237,10 @@ POST my_index/_analyze
   "text": "\"value\", \"value with embedded \\\" quote\""
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -266,7 +261,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 

@@ -32,12 +32,8 @@
 
 [realms]
     ${REALM_NAME} = {
-        kdc = ${KDC_NAME}:88
-        kdc = ${KDC_NAME}:60088
-        kdc = localhost:60088
-        kdc = localhost:88
-        kdc = 127.0.0.1:60088
         kdc = 127.0.0.1:88
+        kdc = 127.0.0.1:${MAPPED_PORT}
         admin_server = ${KDC_NAME}:749
         default_domain = ${BUILD_ZONE}
     }

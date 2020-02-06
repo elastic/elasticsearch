@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -67,6 +66,7 @@ import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.geometry.utils.Geohash.addNeighbors;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -203,18 +203,16 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("polygon")
                 .startObject("properties")
                 .startObject("area")
                 .field("type", "geo_shape")
                 .field("tree", "geohash")
                 .endObject()
                 .endObject()
-                .endObject()
                 .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
-            .addMapping("polygon", mapping, XContentType.JSON);
+            .setMapping(mapping);
         mappingRequest.get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
@@ -231,7 +229,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                                 new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
         BytesReference data = BytesReference.bytes(jsonBuilder().startObject().field("area", polygon).endObject());
 
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Point in polygon
@@ -293,7 +291,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                             new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", inverse).endObject());
-        client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("2").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // re-check point on polygon hole
@@ -317,7 +315,7 @@ public class GeoFilterIT extends ESIntegTestCase {
 
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setPostFilter(QueryBuilders.geoWithinQuery("area", builder))
+                    .setPostFilter(QueryBuilders.geoWithinQuery("area", builder.buildGeometry()))
                     .get();
             assertHitCount(result, 2);
         }
@@ -327,7 +325,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Create a polygon crossing longitude 180 with hole.
@@ -337,42 +335,41 @@ public class GeoFilterIT extends ESIntegTestCase {
                             .coordinate(175, 5).close()));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(174, -4)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(174, -4).buildGeometry()))
                 .get();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(-174, -4)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(-174, -4).buildGeometry()))
                 .get();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -4)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -4).buildGeometry()))
                 .get();
         assertHitCount(result, 0);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -6)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -6).buildGeometry()))
                 .get();
         assertHitCount(result, 1);
     }
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("country")
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("pin")
                 .field("type", "geo_point");
@@ -387,8 +384,8 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject();
 
         client().admin().indices().prepareCreate("countries").setSettings(settings)
-                .addMapping("country", xContentBuilder).get();
-        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null, xContentBuilder.contentType()).get();
+                .setMapping(xContentBuilder).get();
+        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());
@@ -434,26 +431,26 @@ public class GeoFilterIT extends ESIntegTestCase {
 
     public void testNeighbors() {
         // Simple root case
-        assertThat(GeoHashUtils.addNeighbors("7", new ArrayList<String>()), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
+        assertThat(addNeighbors("7", new ArrayList<>()), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
 
         // Root cases (Outer cells)
-        assertThat(GeoHashUtils.addNeighbors("0", new ArrayList<String>()), containsInAnyOrder("1", "2", "3", "p", "r"));
-        assertThat(GeoHashUtils.addNeighbors("b", new ArrayList<String>()), containsInAnyOrder("8", "9", "c", "x", "z"));
-        assertThat(GeoHashUtils.addNeighbors("p", new ArrayList<String>()), containsInAnyOrder("n", "q", "r", "0", "2"));
-        assertThat(GeoHashUtils.addNeighbors("z", new ArrayList<String>()), containsInAnyOrder("8", "b", "w", "x", "y"));
+        assertThat(addNeighbors("0", new ArrayList<>()), containsInAnyOrder("1", "2", "3", "p", "r"));
+        assertThat(addNeighbors("b", new ArrayList<>()), containsInAnyOrder("8", "9", "c", "x", "z"));
+        assertThat(addNeighbors("p", new ArrayList<>()), containsInAnyOrder("n", "q", "r", "0", "2"));
+        assertThat(addNeighbors("z", new ArrayList<>()), containsInAnyOrder("8", "b", "w", "x", "y"));
 
         // Root crossing dateline
-        assertThat(GeoHashUtils.addNeighbors("2", new ArrayList<String>()), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
-        assertThat(GeoHashUtils.addNeighbors("r", new ArrayList<String>()), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
+        assertThat(addNeighbors("2", new ArrayList<>()), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
+        assertThat(addNeighbors("r", new ArrayList<>()), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
 
         // level1: simple case
-        assertThat(GeoHashUtils.addNeighbors("dk", new ArrayList<String>()),
+        assertThat(addNeighbors("dk", new ArrayList<>()),
                 containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
 
         // Level1: crossing cells
-        assertThat(GeoHashUtils.addNeighbors("d5", new ArrayList<String>()),
+        assertThat(addNeighbors("d5", new ArrayList<>()),
                 containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
-        assertThat(GeoHashUtils.addNeighbors("d0", new ArrayList<String>()),
+        assertThat(addNeighbors("d0", new ArrayList<>()),
                 containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
     }
 

@@ -29,8 +29,8 @@ import java.util.Objects;
 public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutPrivilegesRequest, PutPrivilegesResponse>
     implements WriteRequestBuilder<PutPrivilegesRequestBuilder> {
 
-    public PutPrivilegesRequestBuilder(ElasticsearchClient client, PutPrivilegesAction action) {
-        super(client, action, new PutPrivilegesRequest());
+    public PutPrivilegesRequestBuilder(ElasticsearchClient client) {
+        super(client, PutPrivilegesAction.INSTANCE, new PutPrivilegesRequest());
     }
 
     ApplicationPrivilegeDescriptor parsePrivilege(XContentParser parser, String applicationName, String privilegeName) throws IOException {

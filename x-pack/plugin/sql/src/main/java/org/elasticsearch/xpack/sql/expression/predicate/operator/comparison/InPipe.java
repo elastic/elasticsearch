@@ -5,26 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.sql.capabilities.Resolvables;
-import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.MultiPipe;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
-public class InPipe extends Pipe {
-
-    private List<Pipe> pipes;
+public class InPipe extends MultiPipe {
 
     public InPipe(Source source, Expression expression, List<Pipe> pipes) {
         super(source, expression, pipes);
-        this.pipes = pipes;
     }
 
     @Override
@@ -37,36 +31,12 @@ public class InPipe extends Pipe {
 
     @Override
     protected NodeInfo<InPipe> info() {
-        return NodeInfo.create(this, InPipe::new, expression(), pipes);
-    }
-
-    @Override
-    public boolean supportedByAggsOnlyQuery() {
-        return pipes.stream().allMatch(FieldExtraction::supportedByAggsOnlyQuery);
-    }
-
-    @Override
-    public final Pipe resolveAttributes(AttributeResolver resolver) {
-        List<Pipe> newPipes = new ArrayList<>(pipes.size());
-        for (Pipe p : pipes) {
-            newPipes.add(p.resolveAttributes(resolver));
-        }
-        return replaceChildren(newPipes);
-    }
-
-    @Override
-    public boolean resolved() {
-        return Resolvables.resolved(pipes);
-    }
-
-    @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
-        pipes.forEach(p -> p.collectFields(sourceBuilder));
+        return NodeInfo.create(this, InPipe::new, expression(), children());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pipes);
+        return Objects.hash(children());
     }
 
     @Override
@@ -80,11 +50,11 @@ public class InPipe extends Pipe {
         }
 
         InPipe other = (InPipe) obj;
-        return Objects.equals(pipes, other.pipes);
+        return Objects.equals(children(), other.children());
     }
 
     @Override
-    public InProcessor asProcessor() {
-        return new InProcessor(pipes.stream().map(Pipe::asProcessor).collect(Collectors.toList()));
+    public InProcessor asProcessor(List<Processor> processors) {
+        return new InProcessor(processors);
     }
 }

@@ -5,23 +5,20 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     1
-          body:   { foo: bar, age: 18 }
+          body:   { id: 1, foo: bar, age: 18 }
 
   - do:
       index:
           index:  test
-          type:   test
           id:     42
-          body:   { foo: bar, age: 18 }
+          body:   { id: 42, foo: bar, age: 18 }
 
   - do:
         index:
             index:  test
-            type:   test
             id:     172
-            body:   { foo: bar, age: 24 }
+            body:   { id: 172, foo: bar, age: 24 }
 
   - do:
       indices.refresh:
@@ -39,14 +36,13 @@ setup:
           query:
             match:
               foo: bar
-          sort: [{ age: desc }, { _id: desc }]
+          sort: [{ age: desc }, { id: desc }]
 
   - match: {hits.total: 3 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type: test }
   - match: {hits.hits.0._id: "172" }
-  - match: {hits.hits.0.sort: [24, "172"] }
+  - match: {hits.hits.0.sort: [24, 172] }
 
   - do:
       search:
@@ -57,15 +53,14 @@ setup:
           query:
             match:
               foo: bar
-          sort: [{ age: desc }, { _id: desc }]
-          search_after: [24, "172"]
+          sort: [{ age: desc }, { id: desc }]
+          search_after: [24, 172]
 
   - match: {hits.total: 3 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type:  test }
   - match: {hits.hits.0._id: "42" }
-  - match: {hits.hits.0.sort: [18, "42"] }
+  - match: {hits.hits.0.sort: [18, 42] }
 
   - do:
       search:
@@ -76,15 +71,14 @@ setup:
           query:
             match:
               foo: bar
-          sort: [ { age: desc }, { _id: desc } ]
-          search_after: [18, "42"]
+          sort: [ { age: desc }, { id: desc } ]
+          search_after: [18, 42]
 
   - match: {hits.total: 3}
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type: test }
   - match: {hits.hits.0._id: "1" }
-  - match: {hits.hits.0.sort: [18, "1"] }
+  - match: {hits.hits.0.sort: [18, 1] }
 
   - do:
       search:
@@ -95,8 +89,8 @@ setup:
           query:
             match:
               foo: bar
-          sort: [{ age: desc }, { _id: desc } ]
-          search_after: [18, "1"]
+          sort: [{ age: desc }, { id: desc } ]
+          search_after: [18, 1]
 
   - match: {hits.total: 3}
   - length: {hits.hits: 0 }

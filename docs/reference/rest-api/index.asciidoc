@@ -1,36 +1,59 @@
-[role="xpack"]
-[[xpack-api]]
-= {xpack} APIs
+[[rest-apis]]
+= REST APIs
 
 [partintro]
 --
-{xpack} exposes REST APIs that are used by the UI components and can be called
-directly to configure and access {xpack} features.
+{es} exposes REST APIs that are used by the UI components and can be called
+directly to configure and access {es} features.
 
-* <<info-api,Info API>>
-* <<ccr-apis,Cross-cluster replication APIs>>
+[NOTE]
+We are working on including more {es} APIs in this section. Some content might
+not be included yet.
+
+* <<api-conventions, API conventions>>
+* <<cat, cat APIs>>
+* <<cluster, Cluster APIs>>
+* <<ccr-apis,{ccr-cap} APIs>>
+* <<docs, Document APIs>>
+* <<enrich-apis,Enrich APIs>>
 * <<graph-explore-api,Graph Explore API>>
-* <<freeze-index-api>>, <<unfreeze-index-api>>
+* <<indices, Index APIs>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
+* <<ingest-apis,Ingest APIs>>
+* <<info-api,Info API>>
 * <<licensing-apis,Licensing APIs>>
-* <<ml-apis,Machine Learning APIs>>
-* <<security-api,Security APIs>>
-* <<watcher-api,Watcher APIs>>
-* <<rollup-apis,Rollup APIs>>
+* <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
+* <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
 * <<migration-api,Migration APIs>>
+* <<indices-reload-analyzers,Reload Search Analyzers API>>
+* <<rollup-apis,Rollup APIs>>
+* <<search, Search APIs>>
+* <<security-api,Security APIs>>
+* <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
+* <<transform-apis,{transform-cap} APIs>>
+* <<watcher-api,Watcher APIs>>
 --
 
-
-include::info.asciidoc[]
+include::{es-repo-dir}/api-conventions.asciidoc[]
+include::{es-repo-dir}/cat.asciidoc[]
+include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
+include::{es-repo-dir}/docs.asciidoc[]
+include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
-include::{es-repo-dir}/indices/apis/freeze.asciidoc[]
+include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
+include::{es-repo-dir}/ingest/apis/index.asciidoc[]
+include::info.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
+include::{es-repo-dir}/ml/anomaly-detection/apis/ml-api.asciidoc[]
+include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
-include::{es-repo-dir}/ml/apis/ml-api.asciidoc[]
+include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
+include::{es-repo-dir}/search.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
-include::{es-repo-dir}/indices/apis/unfreeze.asciidoc[]
+include::{es-repo-dir}/slm/apis/slm-api.asciidoc[]
+include::{es-repo-dir}/transform/apis/index.asciidoc[]
 include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
 include::defs.asciidoc[]

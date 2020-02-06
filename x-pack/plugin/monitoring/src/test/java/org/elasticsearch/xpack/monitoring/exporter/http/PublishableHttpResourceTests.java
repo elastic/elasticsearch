@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import java.util.Collections;
 import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
@@ -66,7 +67,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final RestStatus failedStatus = failedCheckStatus();
         final Response response = response("GET", endpoint, failedStatus);
         final Request request = new Request("GET", endpoint);
-        addParameters(request, getParameters(resource.getParameters()));
+        addParameters(request, getParameters(resource.getDefaultParameters()));
 
         whenPerformRequestAsyncWith(client, request, response);
 
@@ -102,7 +103,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final XContent xContent = mock(XContent.class);
         final int minimumVersion = randomInt();
         final Request request = new Request("GET", endpoint);
-        addParameters(request, getParameters(resource.getParameters()));
+        addParameters(request, getParameters(resource.getDefaultParameters()));
 
         whenPerformRequestAsyncWith(client, request, response);
 
@@ -126,7 +127,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final Response response = response("GET", endpoint, okStatus, entity);
         final XContent xContent = mock(XContent.class);
         final Request request = new Request("GET", endpoint);
-        addParameters(request, getParameters(resource.getParameters()));
+        addParameters(request, getParameters(resource.getDefaultParameters()));
 
         whenPerformRequestAsyncWith(client, request, response);
 
@@ -151,7 +152,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final Response response = e == responseException ? responseException.getResponse() : null;
 
         final Request request = new Request("GET", endpoint);
-        addParameters(request, getParameters(resource.getParameters()));
+        addParameters(request, getParameters(resource.getDefaultParameters()));
 
         whenPerformRequestAsyncWith(client, request, e);
 
@@ -176,12 +177,13 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"));
         final Request request = new Request("PUT", endpoint);
-        addParameters(request, resource.getParameters());
+        addParameters(request, resource.getDefaultParameters());
         request.setEntity(entity);
 
         whenPerformRequestAsyncWith(client, request, e);
 
-        resource.putResource(client, listener, logger, resourceBasePath, resourceName, body, resourceType, owner, ownerType);
+        final Map<String, String> parameters = Collections.emptyMap();
+        resource.putResource(client, listener, logger, resourceBasePath, resourceName, parameters, body, resourceType, owner, ownerType);
 
         verifyListener(null);
 
@@ -207,7 +209,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final RestStatus failedStatus = failedCheckStatus();
         final ResponseException responseException = responseException("DELETE", endpoint, failedStatus);
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
-        final Map<String, String> deleteParameters = deleteParameters(resource.getParameters());
+        final Map<String, String> deleteParameters = deleteParameters(resource.getDefaultParameters());
         final Request request = new Request("DELETE", endpoint);
         addParameters(request, deleteParameters);
 
@@ -304,7 +306,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status);
         final Request request = new Request("GET", endpoint);
-        addParameters(request, getParameters(resource.getParameters()));
+        addParameters(request, getParameters(resource.getDefaultParameters()));
 
         whenPerformRequestAsyncWith(client, request, response);
 
@@ -337,7 +339,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final Response response = response("GET", endpoint, status, entity);
         final XContent xContent = XContentType.JSON.xContent();
         final Request request = new Request("GET", endpoint);
-        addParameters(request, getParameters(resource.getParameters()));
+        addParameters(request, getParameters(resource.getDefaultParameters()));
 
         whenPerformRequestAsyncWith(client, request, response);
 
@@ -348,7 +350,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
 
-        if (shouldReplace || expected == true) {
+        if (shouldReplace || expected) {
             verify(response).getStatusLine();
             verify(response).getEntity();
         } else if (expected == false) {
@@ -370,12 +372,13 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("PUT", endpoint, status);
         final Request request = new Request("PUT", endpoint);
-        addParameters(request, resource.getParameters());
+        addParameters(request, resource.getDefaultParameters());
         request.setEntity(entity);
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        resource.putResource(client, listener, logger, resourceBasePath, resourceName, body, resourceType, owner, ownerType);
+        final Map<String, String> parameters = Collections.emptyMap();
+        resource.putResource(client, listener, logger, resourceBasePath, resourceName, parameters, body, resourceType, owner, ownerType);
 
         verifyListener(errorFree ? true : null);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
@@ -431,7 +434,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     private void assertDeleteResource(final RestStatus status, final boolean expected) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("DELETE", endpoint, status);
-        final Map<String, String> deleteParameters = deleteParameters(resource.getParameters());
+        final Map<String, String> deleteParameters = deleteParameters(resource.getDefaultParameters());
         final Request request = new Request("DELETE", endpoint);
         addParameters(request, deleteParameters);
 

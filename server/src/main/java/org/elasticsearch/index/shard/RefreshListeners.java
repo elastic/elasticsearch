@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.translog.Translog;
@@ -50,6 +51,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private final Executor listenerExecutor;
     private final Logger logger;
     private final ThreadContext threadContext;
+    private final MeanMetric refreshMetric;
+
+    /**
+     * Time in nanosecond when beforeRefresh() is called. Used for calculating refresh metrics.
+     */
+    private long currentRefreshStartTime;
 
     /**
      * Is this closed? If true then we won't add more listeners and have flushed all pending listeners.
@@ -76,12 +83,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private volatile Translog.Location lastRefreshedLocation;
 
     public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Executor listenerExecutor, Logger logger,
-                            ThreadContext threadContext) {
+                            ThreadContext threadContext, MeanMetric refreshMetric) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
         this.listenerExecutor = listenerExecutor;
         this.logger = logger;
         this.threadContext = threadContext;
+        this.refreshMetric = refreshMetric;
     }
 
     /**
@@ -129,15 +137,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             return true;
         }
         synchronized (this) {
-            List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
-            if (listeners == null) {
-                if (closed) {
-                    throw new IllegalStateException("can't wait for refresh on a closed index");
-                }
-                listeners = new ArrayList<>();
-                refreshListeners = listeners;
+            if (closed) {
+                throw new IllegalStateException("can't wait for refresh on a closed index");
             }
-            if (refreshForcers == 0 && listeners.size() < getMaxRefreshListeners.getAsInt()) {
+            List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
+            final int maxRefreshes = getMaxRefreshListeners.getAsInt();
+            if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
                 Consumer<Boolean> contextPreservingListener = forced -> {
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -145,8 +150,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                         listener.accept(forced);
                     }
                 };
+                if (listeners == null) {
+                    listeners = new ArrayList<>();
+                }
                 // We have a free slot so register the listener
                 listeners.add(new Tuple<>(location, contextPreservingListener));
+                refreshListeners = listeners;
                 return false;
             }
         }
@@ -203,10 +212,14 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     @Override
     public void beforeRefresh() throws IOException {
         currentRefreshLocation = currentRefreshLocationSupplier.get();
+        currentRefreshStartTime = System.nanoTime();
     }
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
+        // Increment refresh metric before communicating to listeners.
+        refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
+
         /* We intentionally ignore didRefresh here because our timing is a little off. It'd be a useful flag if we knew everything that made
          * it into the refresh, but the way we snapshot the translog position before the refresh, things can sneak into the refresh that we
          * don't know about. */

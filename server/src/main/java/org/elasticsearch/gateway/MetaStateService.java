@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -68,7 +68,7 @@ public class MetaStateService {
      * meta state with globalGeneration -1 and empty meta data is returned.
      * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
      */
-    Tuple<Manifest, MetaData> loadFullState() throws IOException {
+    public Tuple<Manifest, MetaData> loadFullState() throws IOException {
         final Manifest manifest = MANIFEST_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         if (manifest == null) {
             return loadFullStateBWC();
@@ -116,23 +116,33 @@ public class MetaStateService {
         MetaData globalMetaData = metaDataAndGeneration.v1();
         long globalStateGeneration = metaDataAndGeneration.v2();
 
+        final IndexGraveyard indexGraveyard;
         if (globalMetaData != null) {
             metaDataBuilder = MetaData.builder(globalMetaData);
-            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+            indexGraveyard = globalMetaData.custom(IndexGraveyard.TYPE);
+            // TODO https://github.com/elastic/elasticsearch/issues/38556
+            // assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
         } else {
             metaDataBuilder = MetaData.builder();
+            indexGraveyard = IndexGraveyard.builder().build();
         }
 
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
             Tuple<IndexMetaData, Long> indexMetaDataAndGeneration =
                     INDEX_META_DATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
                             nodeEnv.resolveIndexFolder(indexFolderName));
-            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+            // TODO https://github.com/elastic/elasticsearch/issues/38556
+            // assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
             IndexMetaData indexMetaData = indexMetaDataAndGeneration.v1();
             long generation = indexMetaDataAndGeneration.v2();
             if (indexMetaData != null) {
-                indices.put(indexMetaData.getIndex(), generation);
-                metaDataBuilder.put(indexMetaData, false);
+                if (indexGraveyard.containsIndex(indexMetaData.getIndex())) {
+                    logger.debug("[{}] found metadata for deleted index [{}]", indexFolderName, indexMetaData.getIndex());
+                    // this index folder is cleared up when state is recovered
+                } else {
+                    indices.put(indexMetaData.getIndex(), generation);
+                    metaDataBuilder.put(indexMetaData, false);
+                }
             } else {
                 logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
             }
@@ -175,17 +185,6 @@ public class MetaStateService {
     }
 
     /**
-     * Loads Manifest file from disk, returns <code>Manifest.empty()</code> if there is no manifest file.
-     */
-    public Manifest loadManifestOrEmpty() throws IOException {
-        Manifest manifest = MANIFEST_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-        if (manifest == null) {
-            manifest = Manifest.empty();
-        }
-        return manifest;
-    }
-
-    /**
      * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
      */
     MetaData loadGlobalState() throws IOException {
@@ -198,12 +197,11 @@ public class MetaStateService {
      *
      * @throws WriteStateException if exception when writing state occurs. See also {@link WriteStateException#isDirty()}
      */
-    public long writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
+    public void writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
         logger.trace("[_meta] writing state, reason [{}]", reason);
         try {
             long generation = MANIFEST_FORMAT.writeAndCleanup(manifest, nodeEnv.nodeDataPaths());
             logger.trace("[_meta] state written (generation: {})", generation);
-            return generation;
         } catch (WriteStateException ex) {
             throw new WriteStateException(ex.isDirty(), "[_meta]: failed to write meta state", ex);
         }
@@ -267,28 +265,26 @@ public class MetaStateService {
     }
 
     /**
-     * Writes index metadata and updates manifest file accordingly.
-     * Used by tests.
+     * Creates empty cluster state file on disk, deleting global metadata and unreferencing all index metadata
+     * (only used for dangling indices at that point).
      */
-    public void writeIndexAndUpdateManifest(String reason, IndexMetaData metaData) throws IOException {
-        long generation = writeIndex(reason, metaData);
-        Manifest manifest = loadManifestOrEmpty();
-        Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
-        indices.put(metaData.getIndex(), generation);
-        manifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(), manifest.getGlobalGeneration(), indices);
-        writeManifestAndCleanup(reason, manifest);
-        cleanupIndex(metaData.getIndex(), generation);
+    public void unreferenceAll() throws IOException {
+        MANIFEST_FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
+        META_DATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
     }
 
     /**
-     * Writes global metadata and updates manifest file accordingly.
-     * Used by tests.
+     * Removes manifest file, global metadata and all index metadata
      */
-    public void writeGlobalStateAndUpdateManifest(String reason, MetaData metaData) throws IOException {
-        long generation = writeGlobalState(reason, metaData);
-        Manifest manifest = loadManifestOrEmpty();
-        manifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(), generation, manifest.getIndexGenerations());
-        writeManifestAndCleanup(reason, manifest);
-        cleanupGlobalState(generation);
+    public void deleteAll() throws IOException {
+        // To ensure that the metadata is never reimported by loadFullStateBWC in case where the deletions here fail mid-way through,
+        // we first write an empty manifest file so that the indices become unreferenced, then clean up the indices, and only then delete
+        // the manifest file.
+        unreferenceAll();
+        for (String indexFolderName : nodeEnv.availableIndexFolders()) {
+            // delete meta state directories of indices
+            MetaDataStateFormat.deleteMetaState(nodeEnv.resolveIndexFolder(indexFolderName));
+        }
+        MANIFEST_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths()); // finally delete manifest
     }
 }

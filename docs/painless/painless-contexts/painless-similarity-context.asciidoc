@@ -7,14 +7,6 @@ documents in a query.
 
 *Variables*
 
-`params` (`Map`, read-only)::
-        User-defined parameters passed in as part of the query.
-
-*Variables*
-
-`params` (`Map`, read-only)::
-        User-defined parameters passed in at query-time.
-
 `weight` (`float`, read-only)::
         The weight as calculated by a <<painless-weight-context,weight script>>
 
@@ -64,4 +56,4 @@ uses synonyms.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.

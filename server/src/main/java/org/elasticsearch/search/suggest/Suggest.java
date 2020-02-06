@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -40,8 +39,6 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
-import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,37 +82,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
+    @SuppressWarnings("unchecked")
     public Suggest(StreamInput in) throws IOException {
-        // in older versions, Suggestion types were serialized as Streamable
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            final int size = in.readVInt();
-            suggestions = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                Suggestion<? extends Entry<? extends Option>> suggestion;
-                final int type = in.readVInt();
-                switch (type) {
-                    case TermSuggestion.TYPE:
-                        suggestion = new TermSuggestion(in);
-                        break;
-                    case CompletionSuggestion.TYPE:
-                        suggestion = new CompletionSuggestion(in);
-                        break;
-                    case PhraseSuggestion.TYPE:
-                        suggestion = new PhraseSuggestion(in);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unknown suggestion type with ordinal " + type);
-                }
-                suggestions.add(suggestion);
-            }
-        } else {
-            int suggestionCount = in.readVInt();
-            suggestions = new ArrayList<>(suggestionCount);
-            for (int i = 0; i < suggestionCount; i++) {
-                suggestions.add(in.readNamedWriteable(Suggestion.class));
-            }
+        int suggestionCount = in.readVInt();
+        suggestions = new ArrayList<>(suggestionCount);
+        for (int i = 0; i < suggestionCount; i++) {
+            suggestions.add(in.readNamedWriteable(Suggestion.class));
         }
-
         hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
@@ -131,6 +104,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return suggestions.size();
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Suggestion<? extends Entry<? extends Option>>> T getSuggestion(String name) {
         if (suggestions.isEmpty() || name == null) {
             return null;
@@ -154,18 +128,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // in older versions, Suggestion types were serialized as Streamable
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeVInt(suggestions.size());
-            for (Suggestion<?> command : suggestions) {
-                out.writeVInt(command.getWriteableType());
-                command.writeTo(out);
-            }
-        } else {
-            out.writeVInt(suggestions.size());
-            for (Suggestion<? extends Entry<? extends Option>> suggestion : suggestions) {
-                out.writeNamedWriteable(suggestion);
-            }
+        out.writeVInt(suggestions.size());
+        for (Suggestion<? extends Entry<? extends Option>> suggestion : suggestions) {
+            out.writeNamedWriteable(suggestion);
         }
     }
 
@@ -200,9 +165,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return new Suggest(suggestions);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
-        for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
+        for (Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
             List<Suggestion> value = unmergedResults.getValue();
             Class<? extends Suggestion> suggestionClass = null;
             for (Suggestion suggestion : value) {
@@ -224,6 +190,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     /**
      * @return only suggestions of type <code>suggestionType</code> contained in this {@link Suggest} instance
      */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public <T extends Suggestion> List<T> filter(Class<T> suggestionType) {
          return suggestions.stream()
             .filter(suggestion -> suggestion.getClass() == suggestionType)
@@ -251,6 +218,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     /**
      * The suggestion responses corresponding with the suggestions in the request.
      */
+    @SuppressWarnings("rawtypes")
     public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
         public static final int TYPE = 0;
@@ -266,12 +234,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public Suggestion(StreamInput in) throws IOException {
             name = in.readString();
             size = in.readVInt();
-
-            // this is a hack to work around slightly different serialization order of earlier versions of TermSuggestion
-            if (in.getVersion().before(Version.V_7_0_0) && this instanceof TermSuggestion) {
-                TermSuggestion t = (TermSuggestion) this;
-                t.setSort(SortBy.readFromStream(in));
-            }
 
             int entriesCount = in.readVInt();
             entries.clear();
@@ -326,6 +288,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          * Merges the result of another suggestion into this suggestion.
          * For internal usage.
          */
+        @SuppressWarnings("unchecked")
         public Suggestion<T> reduce(List<Suggestion<T>> toReduce) {
             if (toReduce.size() == 1) {
                 return toReduce.get(0);
@@ -375,13 +338,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeVInt(size);
-
-            // this is a hack to work around slightly different serialization order in older versions of TermSuggestion
-            if (out.getVersion().before(Version.V_7_0_0) && this instanceof TermSuggestion) {
-                TermSuggestion termSuggestion = (TermSuggestion) this;
-                termSuggestion.getSort().writeTo(out);
-            }
-
             out.writeVInt(entries.size());
             for (Entry<?> entry : entries) {
                 entry.writeTo(out);
@@ -409,6 +365,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         }
 
         @Override
+        @SuppressWarnings("rawtypes")
         public boolean equals(Object other) {
             if (this == other) {
                 return true;

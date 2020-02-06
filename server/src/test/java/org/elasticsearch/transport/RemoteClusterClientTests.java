@@ -52,20 +52,24 @@ public class RemoteClusterClientTests extends ESTestCase {
 
             Settings localSettings = Settings.builder()
                 .put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), true)
-                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
+                .put("cluster.remote.test.seeds",
+                    remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 service.start();
+                // following two log lines added to investigate #41745, can be removed once issue is closed
+                logger.info("Start accepting incoming requests on local transport service");
                 service.acceptIncomingRequests();
+                logger.info("now accepting incoming requests on local transport");
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
                 assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
                 Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");
                 ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
-                // also test a failure, there is no handler for search registered
+                // also test a failure, there is no handler for scroll registered
                 ActionNotFoundTransportException ex = expectThrows(ActionNotFoundTransportException.class,
-                    () -> client.prepareSearch().get());
-                assertEquals("No handler for action [indices:data/read/search]", ex.getMessage());
+                    () -> client.prepareSearchScroll("").get());
+                assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
             }
         }
     }
@@ -77,14 +81,15 @@ public class RemoteClusterClientTests extends ESTestCase {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             Settings localSettings = Settings.builder()
                 .put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), true)
-                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
+                .put("cluster.remote.test.seeds",
+                    remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 Semaphore semaphore = new Semaphore(1);
                 service.start();
                 service.getRemoteClusterService().getConnections().forEach(con -> {
                     con.getConnectionManager().addListener(new TransportConnectionListener() {
                         @Override
-                        public void onNodeDisconnected(DiscoveryNode node) {
+                        public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                             if (remoteNode.equals(node)) {
                                 semaphore.release();
                             }

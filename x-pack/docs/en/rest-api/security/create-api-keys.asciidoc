@@ -1,0 +1,129 @@
+[role="xpack"]
+[[security-api-create-api-key]]
+=== Create API key API
+++++
+<titleabbrev>Create API keys</titleabbrev>
+++++
+
+Creates an API key for access without requiring basic authentication.
+
+[[security-api-create-api-key-request]]
+==== {api-request-title}
+
+`POST /_security/api_key`
+`PUT /_security/api_key`
+
+[[security-api-create-api-key-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_api_key` cluster privilege.
+
+[[security-api-create-api-key-desc]]
+==== {api-description-title}
+
+The API keys are created by the {es} API key service, which is automatically enabled
+when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
+you can explicitly enable the `xpack.security.authc.api_key.enabled` setting. When 
+you are running in production mode, a bootstrap check prevents you from enabling 
+the API key service unless you also enable TLS on the HTTP interface. 
+
+A successful create API key API call returns a JSON structure that contains the
+API key, its unique id, and its name. If applicable, it also returns expiration
+information for the API key in milliseconds. 
+
+NOTE: By default, API keys never expire. You can specify expiration information
+when you create the API keys. 
+
+See <<api-key-service-settings>> for configuration settings related to API key
+service.
+
+
+[[security-api-create-api-key-request-body]]
+==== {api-request-body-title}
+
+The following parameters can be specified in the body of a POST or PUT request:
+
+`name`::
+(Optional, string) Specifies the name for this API key.
+
+`role_descriptors`::
+(Optional, array-of-role-descriptor) An array of role descriptors for this API
+key. This parameter is optional. When it is not specified or is an empty array,
+then the API key will have a _point in time snapshot of permissions of the 
+authenticated user_. If you supply role descriptors then the resultant permissions
+would be an intersection of API keys permissions and authenticated user's permissions
+thereby limiting the access scope for API keys.
+The structure of role descriptor is the same as the request for create role API.
+For more details, see <<security-api-put-role, create or update roles API>>.
+
+`expiration`::
+(Optional, string) Expiration time for the API key. By default, API keys never
+expire.
+
+
+[[security-api-create-api-key-example]]
+==== {api-examples-title}
+
+The following example creates an API key:
+
+[source,console]
+------------------------------------------------------------
+POST /_security/api_key
+{
+  "name": "my-api-key",
+  "expiration": "1d", <1>
+  "role_descriptors": { <2>
+    "role-a": {
+      "cluster": ["all"],
+      "index": [
+        {
+          "names": ["index-a*"],
+          "privileges": ["read"]
+        }
+      ]
+    },
+    "role-b": {
+      "cluster": ["all"],
+      "index": [
+        {
+          "names": ["index-b*"],
+          "privileges": ["all"]
+        }
+      ]
+    }
+  }
+}
+------------------------------------------------------------
+<1> optional expiration for the API key being generated. If expiration is not
+ provided then the API keys do not expire.
+<2> optional role descriptors for this API key, if not provided then permissions
+ of authenticated user are applied.
+
+A successful call returns a JSON structure that provides
+API key information.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id":"VuaCfGcBCdbkQm-e5aOx", <1>
+  "name":"my-api-key",
+  "expiration":1544068612110, <2>
+  "api_key":"ui2lp2axTNmsyakw9tvNnw" <3>
+}
+--------------------------------------------------
+// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TESTRESPONSE[s/1544068612110/$body.expiration/]
+// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+<1> unique id for this API key
+<2> optional expiration in milliseconds for this API key
+<3> generated API key
+
+The API key returned by this API can then be used by sending a request with an
+`Authorization` header with a value having the prefix `ApiKey` followed
+by the _credentials_, where _credentials_ are the base64 encoding of `id` and `api_key` joined by a colon.
+
+[source,shell]
+--------------------------------------------------
+curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==" http://localhost:9200/_cluster/health
+--------------------------------------------------
+// NOTCONSOLE

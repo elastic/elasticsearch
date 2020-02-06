@@ -16,10 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,7 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -46,17 +47,24 @@ final class TransportHandshaker {
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
 
+    private final ClusterName clusterName;
     private final Version version;
     private final ThreadPool threadPool;
     private final HandshakeRequestSender handshakeRequestSender;
     private final HandshakeResponseSender handshakeResponseSender;
+    private volatile DiscoveryNode localNode;
 
-    TransportHandshaker(Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender,
+    TransportHandshaker(ClusterName clusterName, Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender,
                         HandshakeResponseSender handshakeResponseSender) {
+        this.clusterName = clusterName;
         this.version = version;
         this.threadPool = threadPool;
         this.handshakeRequestSender = handshakeRequestSender;
         this.handshakeResponseSender = handshakeResponseSender;
+    }
+
+    void setLocalNode(DiscoveryNode localNode) {
+        this.localNode = localNode;
     }
 
     void sendHandshake(long requestId, DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
@@ -73,8 +81,10 @@ final class TransportHandshaker {
             final Version minCompatVersion = version.minimumCompatibilityVersion();
             handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
 
-            threadPool.schedule(timeout, ThreadPool.Names.GENERIC,
-                () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")));
+            threadPool.schedule(
+                () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
+                timeout,
+                ThreadPool.Names.GENERIC);
             success = true;
         } catch (Exception e) {
             handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));
@@ -86,7 +96,10 @@ final class TransportHandshaker {
         }
     }
 
-    void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId, StreamInput stream) throws IOException {
+    void handleHandshake(Version version, TcpChannel channel, long requestId, StreamInput stream) throws IOException {
+        // The TransportService blocks incoming requests until this has been set.
+        assert localNode != null : "Local node must be set before handshake is handled";
+
         // Must read the handshake request to exhaust the stream
         HandshakeRequest handshakeRequest = new HandshakeRequest(stream);
         final int nextByte = stream.read();
@@ -94,8 +107,8 @@ final class TransportHandshaker {
             throw new IllegalStateException("Handshake request not fully read for requestId [" + requestId + "], action ["
                 + TransportHandshaker.HANDSHAKE_ACTION_NAME + "], available [" + stream.available() + "]; resetting");
         }
-        HandshakeResponse response = new HandshakeResponse(this.version);
-        handshakeResponseSender.sendResponse(version, features, channel, response, requestId);
+        HandshakeResponse response = new HandshakeResponse(handshakeRequest.version, this.version, this.clusterName, this.localNode);
+        handshakeResponseSender.sendResponse(version, channel, response, requestId);
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {
@@ -125,13 +138,13 @@ final class TransportHandshaker {
 
         @Override
         public HandshakeResponse read(StreamInput in) throws IOException {
-            return new HandshakeResponse(in);
+            return new HandshakeResponse(this.currentVersion, in);
         }
 
         @Override
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
-                Version version = response.responseVersion;
+                Version version = response.version;
                 if (currentVersion.isCompatible(version) == false) {
                     listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
                         + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
@@ -186,11 +199,6 @@ final class TransportHandshaker {
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput streamOutput) throws IOException {
             super.writeTo(streamOutput);
             assert version != null;
@@ -204,31 +212,60 @@ final class TransportHandshaker {
 
     static final class HandshakeResponse extends TransportResponse {
 
-        private final Version responseVersion;
+        private final Version requestVersion;
+        private final Version version;
+        private final ClusterName clusterName;
+        private final DiscoveryNode discoveryNode;
 
-        HandshakeResponse(Version responseVersion) {
-            this.responseVersion = responseVersion;
+        HandshakeResponse(Version requestVersion, Version responseVersion, ClusterName clusterName, DiscoveryNode discoveryNode) {
+            this.requestVersion = requestVersion;
+            this.version = responseVersion;
+            this.clusterName = clusterName;
+            this.discoveryNode = discoveryNode;
         }
 
-        private HandshakeResponse(StreamInput in) throws IOException {
-            super.readFrom(in);
-            responseVersion = Version.readVersion(in);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        private HandshakeResponse(Version requestVersion, StreamInput in) throws IOException {
+            super(in);
+            this.requestVersion = requestVersion;
+            version = Version.readVersion(in);
+            // During the handshake process, nodes set their stream version to the minimum compatibility
+            // version they support. When deserializing the response, we use the version the other node
+            // told us that it actually is in the handshake response (`version`).
+            // TODO: On backport update to 6.7
+            if (requestVersion.onOrAfter(Version.V_8_0_0) && version.onOrAfter(Version.V_8_0_0)) {
+                clusterName = new ClusterName(in);
+                discoveryNode = new DiscoveryNode(in);
+            } else {
+                clusterName = null;
+                discoveryNode = null;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            assert responseVersion != null;
-            Version.writeVersion(responseVersion, out);
+            assert version != null;
+            Version.writeVersion(version, out);
+            // During the handshake process, nodes set their stream version to the minimum compatibility
+            // version they support. When deciding what response to send, we use the version the other node
+            // told us that it actually is in the handshake request (`requestVersion`). If it did not tell
+            // us a `requestVersion`, it is at least a pre-7.6 node.
+            // TODO: On backport update to 6.7
+            if (requestVersion != null && requestVersion.onOrAfter(Version.V_8_0_0) && version.onOrAfter(Version.V_8_0_0)) {
+                clusterName.writeTo(out);
+                discoveryNode.writeTo(out);
+            }
         }
 
-        Version getResponseVersion() {
-            return responseVersion;
+        Version getVersion() {
+            return version;
+        }
+
+        ClusterName getClusterName() {
+            return clusterName;
+        }
+
+        DiscoveryNode getDiscoveryNode() {
+            return discoveryNode;
         }
     }
 
@@ -241,7 +278,8 @@ final class TransportHandshaker {
     @FunctionalInterface
     interface HandshakeResponseSender {
 
-        void sendResponse(Version version, Set<String> features, TcpChannel channel, TransportResponse response, long requestId)
-            throws IOException;
+        void sendResponse(Version version, TcpChannel channel, TransportResponse response, long requestId) throws IOException;
+
     }
+
 }

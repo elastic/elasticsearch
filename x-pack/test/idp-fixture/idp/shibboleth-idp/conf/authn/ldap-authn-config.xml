@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util" xmlns:p="http://www.springframework.org/schema/p" xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                           http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+
+       default-init-method="initialize"
+       default-destroy-method="destroy"
+       default-lazy-init="true">
+
+    <alias name="%{idp.authn.LDAP.authenticator:anonSearchAuthenticator}" alias="shibboleth.authn.LDAP.authenticator" />
+    <bean id="shibboleth.authn.LDAP.returnAttributes" parent="shibboleth.CommaDelimStringArray">
+        <constructor-arg type="java.lang.String" value="%{idp.authn.LDAP.returnAttributes:1.1}" />
+    </bean>
+
+    <alias name="ValidateUsernamePasswordAgainstLDAP" alias="ValidateUsernamePassword" />
+
+    <!-- Connection Configuration -->
+    <bean id="connectionConfig" class="org.ldaptive.ConnectionConfig" abstract="true" p:ldapUrl="%{idp.authn.LDAP.ldapURL}"
+        p:useStartTLS="%{idp.authn.LDAP.useStartTLS:true}"
+        p:useSSL="%{idp.authn.LDAP.useSSL:false}"
+        p:connectTimeoutDuration="%{idp.authn.LDAP.connectTimeout:PT3S}"
+        p:responseTimeoutDuration="%{idp.authn.LDAP.responseTimeout:PT3S}"
+        p:sslConfig-ref="sslConfig" />
+
+    <alias name="%{idp.authn.LDAP.sslConfig:certificateTrust}" alias="sslConfig" />
+
+    <bean id="jvmTrust" class="org.ldaptive.ssl.SslConfig" />
+    <bean id="certificateTrust" class="org.ldaptive.ssl.SslConfig">
+        <property name="credentialConfig">
+            <bean parent="shibboleth.X509ResourceCredentialConfig" p:trustCertificates="%{idp.authn.LDAP.trustCertificates:undefined}" /> 
+        </property>
+    </bean>
+    <bean id="keyStoreTrust" class="org.ldaptive.ssl.SslConfig">
+        <property name="credentialConfig">
+            <bean parent="shibboleth.KeystoreResourceCredentialConfig" p:truststore="%{idp.authn.LDAP.trustStore:undefined}" /> 
+        </property>
+    </bean>
+
+    <!-- Authentication handler -->
+    <bean id="authHandler" class="org.ldaptive.auth.PooledBindAuthenticationHandler" p:connectionFactory-ref="bindPooledConnectionFactory" />
+    <bean id="bindPooledConnectionFactory" class="org.ldaptive.pool.PooledConnectionFactory" p:connectionPool-ref="bindConnectionPool" />
+    <bean id="bindConnectionPool" class="org.ldaptive.pool.BlockingConnectionPool" parent="connectionPool"
+        p:connectionFactory-ref="bindConnectionFactory" p:name="bind-pool" />
+    <bean id="bindConnectionFactory" class="org.ldaptive.DefaultConnectionFactory" p:connectionConfig-ref="bindConnectionConfig" />
+    <bean id="bindConnectionConfig" parent="connectionConfig" />
+
+    <!-- Format DN resolution -->
+    <bean id="formatDnResolver" class="org.ldaptive.auth.FormatDnResolver" p:format="%{idp.authn.LDAP.dnFormat:undefined}" />
+
+    <!-- Pool Configuration -->
+    <bean id="connectionPool" class="org.ldaptive.pool.BlockingConnectionPool" abstract="true"
+        p:blockWaitTimeDuration="%{idp.pool.LDAP.blockWaitTime:PT3S}"
+        p:poolConfig-ref="poolConfig"
+        p:pruneStrategy-ref="pruneStrategy"
+        p:validator-ref="searchValidator"
+        p:failFastInitialize="%{idp.pool.LDAP.failFastInitialize:false}" />
+    <bean id="poolConfig" class="org.ldaptive.pool.PoolConfig"
+        p:minPoolSize="%{idp.pool.LDAP.minSize:3}"
+        p:maxPoolSize="%{idp.pool.LDAP.maxSize:10}"
+        p:validateOnCheckOut="%{idp.pool.LDAP.validateOnCheckout:false}"
+        p:validatePeriodically="%{idp.pool.LDAP.validatePeriodically:true}"
+        p:validatePeriodDuration="%{idp.pool.LDAP.validatePeriod:PT5M}" />
+    <bean id="pruneStrategy" class="org.ldaptive.pool.IdlePruneStrategy"
+        p:prunePeriodDuration="%{idp.pool.LDAP.prunePeriod:PT5M}"
+        p:idleTimeDuration="%{idp.pool.LDAP.idleTime:PT10M}" />
+    <bean id="searchValidator" class="org.ldaptive.pool.SearchValidator" />
+
+    <!-- Anonymous Search Configuration -->
+    <bean name="anonSearchAuthenticator" class="org.ldaptive.auth.Authenticator" p:resolveEntryOnFailure="%{idp.authn.LDAP.resolveEntryOnFailure:false}">
+        <constructor-arg index="0" ref="anonSearchDnResolver" />
+        <constructor-arg index="1" ref="authHandler" />
+    </bean>
+    <bean id="anonSearchDnResolver" class="net.shibboleth.idp.authn.PooledTemplateSearchDnResolver"
+        p:baseDn="#{'%{idp.authn.LDAP.baseDN:undefined}'.trim()}"
+        p:subtreeSearch="%{idp.authn.LDAP.subtreeSearch:false}"
+        p:connectionFactory-ref="anonSearchPooledConnectionFactory" >
+        <constructor-arg index="0" ref="shibboleth.VelocityEngine" />
+        <constructor-arg index="1" value="#{'%{idp.authn.LDAP.userFilter:undefined}'.trim()}" />
+    </bean>
+    <bean id="anonSearchPooledConnectionFactory" class="org.ldaptive.pool.PooledConnectionFactory"
+        p:connectionPool-ref="anonSearchConnectionPool" />
+    <bean id="anonSearchConnectionPool" class="org.ldaptive.pool.BlockingConnectionPool" parent="connectionPool"
+        p:connectionFactory-ref="anonSearchConnectionFactory" p:name="search-pool" />
+    <bean id="anonSearchConnectionFactory" class="org.ldaptive.DefaultConnectionFactory" p:connectionConfig-ref="anonSearchConnectionConfig" />
+    <bean id="anonSearchConnectionConfig" parent="connectionConfig" />
+
+    <!-- Bind Search Configuration -->
+    <bean name="bindSearchAuthenticator" class="org.ldaptive.auth.Authenticator" p:resolveEntryOnFailure="%{idp.authn.LDAP.resolveEntryOnFailure:false}">
+        <constructor-arg index="0" ref="bindSearchDnResolver" />
+        <constructor-arg index="1" ref="authHandler" />
+    </bean>
+    <bean id="bindSearchDnResolver" class="net.shibboleth.idp.authn.PooledTemplateSearchDnResolver"
+        p:baseDn="#{'%{idp.authn.LDAP.baseDN:undefined}'.trim()}"
+        p:subtreeSearch="%{idp.authn.LDAP.subtreeSearch:false}"
+        p:connectionFactory-ref="bindSearchPooledConnectionFactory" >
+        <constructor-arg index="0" ref="shibboleth.VelocityEngine" />
+        <constructor-arg index="1" value="#{'%{idp.authn.LDAP.userFilter:undefined}'.trim()}" />
+    </bean>
+    <bean id="bindSearchPooledConnectionFactory" class="org.ldaptive.pool.PooledConnectionFactory"
+        p:connectionPool-ref="bindSearchConnectionPool" />
+    <bean id="bindSearchConnectionPool" class="org.ldaptive.pool.BlockingConnectionPool" parent="connectionPool"
+        p:connectionFactory-ref="bindSearchConnectionFactory" p:name="search-pool" />
+    <bean id="bindSearchConnectionFactory" class="org.ldaptive.DefaultConnectionFactory" p:connectionConfig-ref="bindSearchConnectionConfig" />
+    <bean id="bindSearchConnectionConfig" parent="connectionConfig" p:connectionInitializer-ref="bindConnectionInitializer" />
+    <bean id="bindConnectionInitializer" class="org.ldaptive.BindConnectionInitializer"
+            p:bindDn="#{'%{idp.authn.LDAP.bindDN:undefined}'.trim()}">
+        <property name="bindCredential">
+            <bean class="org.ldaptive.Credential">
+                <constructor-arg value="%{idp.authn.LDAP.bindDNCredential:undefined}" />
+            </bean>
+        </property>
+    </bean>
+
+    <!-- Direct Search Configuration -->
+    <bean name="directAuthenticator" class="org.ldaptive.auth.Authenticator" p:resolveEntryOnFailure="%{idp.authn.LDAP.resolveEntryOnFailure:false}">
+        <constructor-arg index="0" ref="formatDnResolver" />
+        <constructor-arg index="1" ref="authHandler" />
+    </bean>
+
+    <!-- Want to use ppolicy? Configure support by adding <bean id="authenticationResponseHandler" class="org.ldaptive.auth.ext.PasswordPolicyAuthenticationResponseHandler" 
+        /> add p:authenticationResponseHandlers-ref="authenticationResponseHandler" to the authenticator <bean id="authenticationControl" 
+        class="org.ldaptive.control.PasswordPolicyControl" /> add p:authenticationControls-ref="authenticationControl" to the authHandler -->
+
+    <!-- Active Directory Configuration -->
+    <bean id="adAuthenticator" class="org.ldaptive.auth.Authenticator" p:authenticationResponseHandlers-ref="authenticationResponseHandler"
+        p:resolveEntryOnFailure="%{idp.authn.LDAP.resolveEntryOnFailure:false}">
+        <constructor-arg index="0" ref="formatDnResolver" />
+        <constructor-arg index="1" ref="authHandler" />
+    </bean>
+    <bean id="authenticationResponseHandler" class="org.ldaptive.auth.ext.ActiveDirectoryAuthenticationResponseHandler" />
+
+</beans>

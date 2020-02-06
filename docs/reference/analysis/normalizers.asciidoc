@@ -21,9 +21,9 @@ to get one is by building a custom one. Custom normalizers take a list of char
 <<analysis-charfilters, character filters>> and a list of
 <<analysis-tokenfilters,token filters>>.
 
-[source,js]
+[source,console]
 --------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "settings": {
     "analysis": {
@@ -46,15 +46,12 @@ PUT index?include_type_name=true
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "keyword",
-          "normalizer": "my_normalizer"
-        }
+    "properties": {
+      "foo": {
+        "type": "keyword",
+        "normalizer": "my_normalizer"
       }
     }
   }
 }
 --------------------------------
-// CONSOLE

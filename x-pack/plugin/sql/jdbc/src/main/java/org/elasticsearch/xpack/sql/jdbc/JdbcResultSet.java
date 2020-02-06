@@ -33,6 +33,15 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asTimestamp;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSinceEpoch;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsMillisSinceEpoch;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTimestamp;
 
 class JdbcResultSet implements ResultSet, JdbcWrapper {
 
@@ -48,6 +57,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private boolean closed = false;
     private boolean wasNull = false;
+    private boolean wasLast = false;
 
     private int rowNumber;
 
@@ -69,10 +79,13 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         if (columnIndex < 1 || columnIndex > cursor.columnSize()) {
             throw new SQLException("Invalid column index [" + columnIndex + "]");
         }
+        if (wasLast || rowNumber < 1) {
+            throw new SQLException("No row available");
+        }
         Object object = null;
         try {
             object = cursor.column(columnIndex - 1);
-        } catch (IllegalArgumentException iae) {
+        } catch (Exception iae) {
             throw new SQLException(iae.getMessage());
         }
         wasNull = (object == null);
@@ -88,6 +101,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         return index.intValue();
     }
 
+    private EsType columnType(int columnIndex) {
+        return cursor.columns().get(columnIndex - 1).type;
+    }
+
     void checkOpen() throws SQLException {
         if (isClosed()) {
             throw new SQLException("Closed result set");
@@ -101,6 +118,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             rowNumber++;
             return true;
         }
+        wasLast = true;
         return false;
     }
 
@@ -172,17 +190,17 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        return getDate(columnIndex, null);
+        return asDate(columnIndex);
     }
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        return getTime(columnIndex, null);
+        return asTime(columnIndex);
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        return getTimestamp(columnIndex, null);
+        return asTimeStamp(columnIndex);
     }
 
     @Override
@@ -238,26 +256,100 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         return getDate(column(columnLabel));
     }
 
-    private Long dateTime(int columnIndex) throws SQLException {
+    private Long dateTimeAsMillis(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        EsType type = cursor.columns().get(columnIndex - 1).type;
+        EsType type = columnType(columnIndex);
+        
+        if (val == null) {
+            return null;
+        }
+        
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
             // TIMESTAMP. Should we consider the VARCHAR conversion as a later enhancement?
-            if (EsType.DATE == type) {
+            if (DATETIME == type) {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side
-                if (val == null) {
-                    return null;
-                }
-                return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asMillisSinceEpoch, Function.identity());
-            };
-            return val == null ? null : (Long) val;
+                return asDateTimeField(val, JdbcDateUtils::dateTimeAsMillisSinceEpoch, Function.identity());
+            }
+            if (DATE == type) {
+                return dateTimeAsMillisSinceEpoch(val.toString());
+            }
+            if (TIME == type) {
+                return timeAsMillisSinceEpoch(val.toString());
+            }
+            return (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(
                     format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()), cce);
+        }
+    }
+
+    private Date asDate(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        EsType type = columnType(columnIndex);
+        if (type == TIME) {
+            return new Date(0L);
+        }
+
+        try {
+
+            return JdbcDateUtils.asDate(val.toString());
+        } catch (Exception e) {
+            throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
+        }
+    }
+
+    private Time asTime(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        EsType type = columnType(columnIndex);
+        if (type == DATE) {
+            return new Time(0L);
+        }
+
+        try {
+            if (type == TIME) {
+                return timeAsTime(val.toString());
+            }
+            return JdbcDateUtils.asTime(val.toString());
+        } catch (Exception e) {
+            throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), e);
+        }
+    }
+
+    private Timestamp asTimeStamp(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        EsType type = columnType(columnIndex);
+        try {
+            if (val instanceof Number) {
+                return asTimestamp(((Number) val).longValue());
+            }
+            if (type == TIME) {
+                return timeAsTimestamp(val.toString());
+            }
+            return asTimestamp(val.toString());
+        } catch (Exception e) {
+            throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()), e);
         }
     }
 
@@ -267,7 +359,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertDate(dateTime(columnIndex), safeCalendar(cal));
+        return TypeConverter.convertDate(dateTimeAsMillis(columnIndex), safeCalendar(cal));
     }
 
     @Override
@@ -277,7 +369,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertTime(dateTime(columnIndex), safeCalendar(cal));
+        EsType type = columnType(columnIndex);
+        if (type == DATE) {
+            return new Time(0L);
+        }
+        return TypeConverter.convertTime(dateTimeAsMillis(columnIndex), safeCalendar(cal));
     }
 
     @Override
@@ -287,7 +383,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertTimestamp(dateTime(columnIndex), safeCalendar(cal));
+        return TypeConverter.convertTimestamp(dateTimeAsMillis(columnIndex), safeCalendar(cal));
     }
 
     @Override
@@ -331,7 +427,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
-        EsType columnType = cursor.columns().get(columnIndex - 1).type;
+        EsType columnType = columnType(columnIndex);
         String typeString = type != null ? type.getSimpleName() : columnType.getName();
 
         return TypeConverter.convert(val, columnType, type, typeString);
@@ -372,7 +468,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public boolean isAfterLast() throws SQLException {
-        throw new SQLFeatureNotSupportedException("isAfterLast not supported");
+        return rowNumber > 0 && wasLast;
     }
 
     @Override
@@ -1135,6 +1231,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public String toString() {
-        return format(Locale.ROOT, "%s:row %d", getClass().getSimpleName(), rowNumber);
+        return format(Locale.ROOT, "%s:row %d:cursor size %d:%s", getClass().getSimpleName(), rowNumber, cursor.batchSize(),
+                cursor.columns());
     }
 }

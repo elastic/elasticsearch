@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -22,11 +24,11 @@ apply plugin: 'elasticsearch.build'
 archivesBaseName = 'elasticsearch-plugin-cli'
 
 dependencies {
-  compileOnly "org.elasticsearch:elasticsearch:${version}"
-  compileOnly "org.elasticsearch:elasticsearch-cli:${version}"
-  compile "org.bouncycastle:bcpg-jdk15on:1.59"
-  compile "org.bouncycastle:bcprov-jdk15on:1.59"
-  testCompile "org.elasticsearch.test:framework:${version}"
+  compileOnly project(":server")
+  compileOnly project(":libs:elasticsearch-cli")
+  compile "org.bouncycastle:bcpg-fips:1.0.3"
+  compile "org.bouncycastle:bc-fips:1.0.1"
+  testCompile project(":test:framework")
   testCompile 'com.google.jimfs:jimfs:1.1'
   testCompile 'com.google.guava:guava:18.0'
 }
@@ -35,13 +37,32 @@ dependencyLicenses {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 
-unitTest {
+test {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
 }
 
-if (project.inFipsJvm) {
-  // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
-  // rather than provide a long list of exclusions, disable the check on FIPS.
-  thirdPartyAudit.enabled = false
-}
+/*
+ * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
+ * functionality
+ *
+ * sun.security.internal.spec.TlsKeyMaterialParameterSpec
+ * sun.security.internal.spec.TlsKeyMaterialSpec
+ * sun.security.internal.spec.TlsMasterSecretParameterSpec
+ * sun.security.internal.spec.TlsPrfParameterSpec
+ * sun.security.internal.spec.TlsRsaPremasterSecretParameterSpec
+ * sun.security.provider.SecureRandom
+ *
+ */
+thirdPartyAudit.ignoreViolations(
+  'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2'
+)

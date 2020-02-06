@@ -5,22 +5,17 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
- * Action for deleting a native user.
+ * ActionType for deleting a native user.
  */
-public class DeleteUserAction extends Action<DeleteUserResponse> {
+public class DeleteUserAction extends ActionType<DeleteUserResponse> {
 
     public static final DeleteUserAction INSTANCE = new DeleteUserAction();
     public static final String NAME = "cluster:admin/xpack/security/user/delete";
 
     protected DeleteUserAction() {
-        super(NAME);
-    }
-
-    @Override
-    public DeleteUserResponse newResponse() {
-        return new DeleteUserResponse();
+        super(NAME, DeleteUserResponse::new);
     }
 }

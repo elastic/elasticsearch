@@ -143,9 +143,9 @@ maximum size virtual memory check enforces that the Elasticsearch
 process has unlimited address space and is enforced only on Linux. To
 pass the maximum size virtual memory check, you must configure your
 system to allow the Elasticsearch process the ability to have unlimited
-address space. This can be done via `/etc/security/limits.conf` using
-the `as` setting to `unlimited` (note that you might have to increase
-the limits for the `root` user too).
+address space. This can be done via adding `<user> - as unlimited`
+to `/etc/security/limits.conf`. This may require you to increase the limits
+for the `root` user too.
 
 === Maximum map count check
 
@@ -187,7 +187,8 @@ you must not start Elasticsearch with the serial collector (whether it's
 from the defaults for the JVM that you're using, or you've explicitly
 specified it with `-XX:+UseSerialGC`). Note that the default JVM
 configuration that ships with Elasticsearch configures Elasticsearch to
-use the CMS collector.
+use the G1GC garbage collector with JDK14 and later versions. For earlier
+JDK versions, the configuration defaults to the CMS collector.
 
 === System call filter check
 Elasticsearch installs system call filters of various flavors depending
@@ -252,6 +253,6 @@ This bootstrap check ensures that discovery is not running with the default
 configuration. It can be satisfied by setting at least one of the following
 properties:
 
-- `discovery.zen.ping.unicast.hosts`
-- `discovery.zen.hosts_provider`
+- `discovery.seed_hosts`
+- `discovery.seed_providers`
 - `cluster.initial_master_nodes`

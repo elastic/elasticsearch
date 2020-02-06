@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ public class URLRepositoryTests extends ESTestCase {
 
     private URLRepository createRepository(Settings baseSettings, RepositoryMetaData repositoryMetaData) {
         return new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList())) {
+            new NamedXContentRegistry(Collections.emptyList()), BlobStoreTestUtil.mockClusterService()) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually on test/main threads

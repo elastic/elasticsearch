@@ -48,7 +48,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
 
     @Override
     protected void doExecute(Task task, SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
-        final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds());
+        final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds(), request.getRealm());
         logger.trace("Attempting to authenticate SamlToken [{}]", saml);
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
@@ -59,14 +59,14 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                     listener.onFailure(new IllegalStateException("Cannot find AuthenticationResult on thread context"));
                     return;
                 }
+                assert authentication != null : "authentication should never be null at this point";
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
-                tokenService.createUserToken(authentication, originatingAuthentication,
-                        ActionListener.wrap(tuple -> {
-                            final String tokenString = tokenService.getUserTokenString(tuple.v1());
+                tokenService.createOAuth2Tokens(authentication, originatingAuthentication,
+                        tokenMeta, true, ActionListener.wrap(tuple -> {
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
                             listener.onResponse(
-                                    new SamlAuthenticateResponse(authentication.getUser().principal(), tokenString, tuple.v2(), expiresIn));
-                        }, listener::onFailure), tokenMeta, true);
+                                    new SamlAuthenticateResponse(authentication.getUser().principal(), tuple.v1(), tuple.v2(), expiresIn));
+                        }, listener::onFailure));
             }, e -> {
                 logger.debug(() -> new ParameterizedMessage("SamlToken [{}] could not be authenticated", saml), e);
                 listener.onFailure(e);

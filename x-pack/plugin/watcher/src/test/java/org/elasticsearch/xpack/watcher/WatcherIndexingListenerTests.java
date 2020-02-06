@@ -11,11 +11,13 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -26,7 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,10 +40,10 @@ import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.ShardAllocationConfiguration;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
@@ -61,8 +63,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -94,20 +96,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         listener.setConfiguration(new Configuration(Watch.INDEX, map));
     }
 
-    //
-    // tests for document level operations
-    //
-    public void testPreIndexCheckType() throws Exception {
-        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(operation.type()).thenReturn(randomAlphaOfLength(10));
-
-        Engine.Index index = listener.preIndex(shardId, operation);
-        assertThat(index, is(operation));
-        verifyZeroInteractions(parser);
-    }
-
     public void testPreIndexCheckIndex() throws Exception {
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(10));
 
         Engine.Index index = listener.preIndex(shardId, operation);
@@ -117,7 +106,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     public void testPreIndexCheckActive() throws Exception {
         listener.setConfiguration(INACTIVE);
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         Engine.Index index = listener.preIndex(shardId, operation);
@@ -126,7 +114,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testPreIndex() throws Exception {
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
@@ -134,13 +121,12 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean watchActive = randomBoolean();
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch("_id", watchActive, isNewWatch);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject())).thenReturn(watch);
+        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
 
         Engine.Index returnedOperation = listener.preIndex(shardId, operation);
         assertThat(returnedOperation, is(operation));
-
-        DateTime now = new DateTime(clock.millis(), UTC);
-        verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject());
+        ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
+        verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject(), anyLong(), anyLong());
 
         if (isNewWatch) {
             if (watchActive) {
@@ -161,8 +147,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         Watch watch = mockWatch(id, watchActive, isNewWatch);
 
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject())).thenReturn(watch);
+        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
 
         for (int idx = 0; idx < totalShardCount; idx++) {
             final Map<ShardId, ShardAllocationConfiguration> localShards = new HashMap<>();
@@ -202,12 +187,11 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testPreIndexCheckParsingException() throws Exception {
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         String id = randomAlphaOfLength(10);
         when(operation.id()).thenReturn(id);
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject()))
+        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong()))
                 .thenThrow(new IOException("self thrown"));
 
         ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class,
@@ -216,18 +200,49 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString(id));
     }
 
-    public void testPostIndexRemoveTriggerOnException() throws Exception {
+    public void testPostIndexRemoveTriggerOnDocumentRelatedException() throws Exception {
         when(operation.id()).thenReturn("_id");
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
+        when(result.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(result.getFailure()).thenReturn(new RuntimeException());
+        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
+
+        listener.postIndex(shardId, operation, result);
+        verify(triggerService).remove(eq("_id"));
+    }
+
+    public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreOtherEngineResultTypes() throws Exception {
+        List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
+        types.remove(Engine.Result.Type.FAILURE);
+
+        when(operation.id()).thenReturn("_id");
+        when(result.getResultType()).thenReturn(randomFrom(types));
+        when(result.getFailure()).thenReturn(new RuntimeException());
+        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
+
+        listener.postIndex(shardId, operation, result);
+        verifyZeroInteractions(triggerService);
+    }
+
+    public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreNonWatcherDocument() throws Exception {
+        when(operation.id()).thenReturn("_id");
+        when(result.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(result.getFailure()).thenReturn(new RuntimeException());
+        when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(4));
+
+        listener.postIndex(shardId, operation, result);
+        verifyZeroInteractions(triggerService);
+    }
+
+    public void testPostIndexRemoveTriggerOnEngineLevelException() throws Exception {
+        when(operation.id()).thenReturn("_id");
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
         verify(triggerService).remove(eq("_id"));
     }
 
-    public void testPostIndexDontInvokeForOtherDocuments() throws Exception {
+    public void testPostIndexRemoveTriggerOnEngineLevelException_ignoreNonWatcherDocument() throws Exception {
         when(operation.id()).thenReturn("_id");
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(shardId.getIndexName()).thenReturn("anything");
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
@@ -250,18 +265,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         verifyZeroInteractions(triggerService);
     }
 
-    public void testPreDeleteCheckType() throws Exception {
-        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(delete.type()).thenReturn(randomAlphaOfLength(10));
-
-        listener.preDelete(shardId, delete);
-
-        verifyZeroInteractions(triggerService);
-    }
-
     public void testPreDelete() throws Exception {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(delete.type()).thenReturn(Watch.DOC_TYPE);
         when(delete.id()).thenReturn("_id");
 
         listener.preDelete(shardId, delete);
@@ -461,14 +466,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         DiscoveryNode node1 = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(),
                 Collections.emptyMap(), new HashSet<>(Collections.singletonList(
-                        randomFrom(DiscoveryNode.Role.INGEST, DiscoveryNode.Role.MASTER))),
+                        randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))),
                 Version.CURRENT);
 
         DiscoveryNode node2 = new DiscoveryNode("node_2", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(Collections.singletonList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+                new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
 
         DiscoveryNode node3 = new DiscoveryNode("node_3", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(Collections.singletonList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+                new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
 
         IndexMetaData.Builder indexMetaDataBuilder = createIndexBuilder(Watch.INDEX, 1 ,0);
 
@@ -669,7 +674,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     public void testThatIndexingListenerBecomesInactiveOnClusterBlock() {
         ClusterState clusterState = mockClusterState(Watch.INDEX);
         ClusterState clusterStateWriteBlock = mockClusterState(Watch.INDEX);
-        ClusterBlocks clusterBlocks = ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_WRITES).build();
+        ClusterBlocks clusterBlocks = ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build();
         when(clusterStateWriteBlock.getBlocks()).thenReturn(clusterBlocks);
 
         assertThat(listener.getConfiguration(), is(not(INACTIVE)));
@@ -727,6 +732,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     private static DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(asList(DiscoveryNode.Role.values())), Version.CURRENT);
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
     }
 }

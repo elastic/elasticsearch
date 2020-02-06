@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -110,8 +110,8 @@ public class PrecisionAtKTests extends ESTestCase {
         rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
-        searchHits[2] = new SearchHit(2, "2", new Text("testtype"), Collections.emptyMap());
-        searchHits[2].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
+        searchHits[2] = new SearchHit(2, "2", Collections.emptyMap());
+        searchHits[2].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
 
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 3, evaluated.metricScore(), 0.00001);
@@ -129,8 +129,8 @@ public class PrecisionAtKTests extends ESTestCase {
     public void testNoRatedDocs() throws Exception {
         SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
-            hits[i] = new SearchHit(i, i + "", new Text("type"), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
@@ -251,8 +251,8 @@ public class PrecisionAtKTests extends ESTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0, null));
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;
     }

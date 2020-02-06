@@ -1,5 +1,5 @@
-[[search-request-post-filter]]
-=== Post filter
+[[request-body-search-post-filter]]
+==== Post filter
 
 The `post_filter` is applied to the search `hits` at the very end of a search
 request,  after aggregations have already been calculated. Its purpose is
@@ -7,17 +7,15 @@ best explained by example:
 
 Imagine that you are selling shirts that have the following properties:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /shirts?include_type_name=true
+PUT /shirts
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "brand": { "type": "keyword"},
-                "color": { "type": "keyword"},
-                "model": { "type": "keyword"}
-            }
+        "properties": {
+            "brand": { "type": "keyword"},
+            "color": { "type": "keyword"},
+            "model": { "type": "keyword"}
         }
     }
 }
@@ -29,7 +27,6 @@ PUT /shirts/_doc/1?refresh
     "model": "slim"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 
@@ -39,7 +36,7 @@ Imagine a user has specified two filters:
 Gucci in the search results.  Normally you would do this with a 
 <<query-dsl-bool-query,`bool` query>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /shirts/_search 
 {
@@ -53,7 +50,6 @@ GET /shirts/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 However, you would also like to use _faceted navigation_ to display a list of
 other options that the user could click on.  Perhaps you have a `model` field
@@ -63,7 +59,7 @@ that would allow the user to limit their search results to red Gucci
 This can be done with a 
 <<search-aggregations-bucket-terms-aggregation,`terms` aggregation>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /shirts/_search 
 {
@@ -82,7 +78,7 @@ GET /shirts/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Returns the most popular models of red shirts by Gucci.
 
 But perhaps you would also like to tell the user how many Gucci shirts are
@@ -94,7 +90,7 @@ Instead, you want to include shirts of all colors during aggregation, then
 apply the `colors` filter only to the search results.  This is the purpose of
 the `post_filter`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /shirts/_search
 {
@@ -125,7 +121,7 @@ GET /shirts/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The main query now finds all shirts by Gucci, regardless of color.
 <2> The `colors` agg returns popular colors for shirts by Gucci.
 <3> The `color_red` agg limits the `models` sub-aggregation 

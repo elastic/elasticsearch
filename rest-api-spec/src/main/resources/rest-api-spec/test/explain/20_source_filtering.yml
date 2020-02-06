@@ -1,13 +1,10 @@
 ---
 "Source filtering":
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
   - do:
       index:
         index:  test_1
-        type:   _doc
         id:     1
         body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
   - do:
@@ -17,7 +14,6 @@
   - do:
       explain: { index:  test_1, id: 1, _source: false, body: { query: { match_all: {}} } }
   - match:   { _index:   test_1  }
-  - match:   { _type:    _doc    }
   - match:   { _id:      "1"       }
   - is_false:  get._source
 

@@ -22,8 +22,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -423,6 +422,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean seqNoAndPrimaryTerm() {
+        return in.seqNoAndPrimaryTerm();
+    }
+
+    @Override
+    public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        in.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
+    }
+
+    @Override
     public int[] docIdsToLoad() {
         return in.docIdsToLoad();
     }
@@ -498,8 +507,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Counter timeEstimateCounter() {
-        return in.timeEstimateCounter();
+    public long getRelativeTimeInMillis() {
+        return in.getRelativeTimeInMillis();
     }
 
     @Override
@@ -526,12 +535,12 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchTask task) {
+    public void setTask(SearchShardTask task) {
         in.setTask(task);
     }
 
     @Override
-    public SearchTask getTask() {
+    public SearchShardTask getTask() {
         return in.getTask();
     }
 

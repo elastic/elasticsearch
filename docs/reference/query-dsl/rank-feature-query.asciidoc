@@ -1,0 +1,313 @@
+[[query-dsl-rank-feature-query]]
+=== Rank feature query
+++++
+<titleabbrev>Rank feature</titleabbrev>
+++++
+
+Boosts the <<relevance-scores,relevance score>> of documents based on the
+numeric value of a <<rank-feature,`rank_feature`>> or
+<<rank-features,`rank_features`>> field.
+
+The `rank_feature` query is typically used in the `should` clause of a
+<<query-dsl-bool-query,`bool`>> query so its relevance scores are added to other
+scores from the `bool` query.
+
+Unlike the <<query-dsl-function-score-query,`function_score`>> query or other
+ways to change <<relevance-scores,relevance scores>>, the
+`rank_feature` query efficiently skips non-competitive hits when the
+<<search-uri-request,`track_total_hits`>> parameter is **not** `true`. This can
+dramatically improve query speed.
+
+[[rank-feature-query-functions]]
+==== Rank feature functions
+
+To calculate relevance scores based on rank feature fields, the `rank_feature`
+query supports the following mathematical functions:
+
+* <<rank-feature-query-saturation,Saturation>>
+* <<rank-feature-query-logarithm,Logarithm>>
+* <<rank-feature-query-sigmoid,Sigmoid>>
+
+If you don't know where to start, we recommend using the `saturation` function.
+If no function is provided, the `rank_feature` query uses the `saturation`
+function by default.
+
+[[rank-feature-query-ex-request]]
+==== Example request
+
+[[rank-feature-query-index-setup]]
+===== Index setup
+
+To use the `rank_feature` query, your index must include a
+<<rank-feature,`rank_feature`>> or <<rank-features,`rank_features`>> field
+mapping. To see how you can set up an index for the `rank_feature` query, try
+the following example.
+
+Create a `test` index with the following field mappings:
+
+- `pagerank`, a <<rank-feature,`rank_feature`>> field which measures the
+importance of a website
+- `url_length`, a <<rank-feature,`rank_feature`>> field which contains the
+length of the website's URL. For this example, a long URL correlates negatively
+to relevance, indicated by a `positive_score_impact` value of `false`.
+- `topics`, a <<rank-features,`rank_features`>> field which contains a list of
+topics and a measure of how well each document is connected to this topic
+
+[source,console]
+----
+PUT /test
+{
+  "mappings": {
+    "properties": {
+      "pagerank": {
+        "type": "rank_feature"
+      },
+      "url_length": {
+        "type": "rank_feature",
+        "positive_score_impact": false
+      },
+      "topics": {
+        "type": "rank_features"
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+
+
+Index several documents to the `test` index.
+
+[source,console]
+----
+PUT /test/_doc/1?refresh
+{
+  "url": "http://en.wikipedia.org/wiki/2016_Summer_Olympics",
+  "content": "Rio 2016",
+  "pagerank": 50.3,
+  "url_length": 42,
+  "topics": {
+    "sports": 50,
+    "brazil": 30
+  }
+}
+
+PUT /test/_doc/2?refresh
+{
+  "url": "http://en.wikipedia.org/wiki/2016_Brazilian_Grand_Prix",
+  "content": "Formula One motor race held on 13 November 2016",
+  "pagerank": 50.3,
+  "url_length": 47,
+  "topics": {
+    "sports": 35,
+    "formula one": 65,
+    "brazil": 20
+  }
+}
+
+PUT /test/_doc/3?refresh
+{
+  "url": "http://en.wikipedia.org/wiki/Deadpool_(film)",
+  "content": "Deadpool is a 2016 American superhero film",
+  "pagerank": 50.3,
+  "url_length": 37,
+  "topics": {
+    "movies": 60,
+    "super hero": 65
+  }
+}
+----
+
+[[rank-feature-query-ex-query]]
+===== Example query
+
+The following query searches for `2016` and boosts relevance scores based or
+`pagerank`, `url_length`, and the `sports` topic.
+
+[source,console]
+----
+GET /test/_search 
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "content": "2016"
+          }
+        }
+      ],
+      "should": [
+        {
+          "rank_feature": {
+            "field": "pagerank"
+          }
+        },
+        {
+          "rank_feature": {
+            "field": "url_length",
+            "boost": 0.1
+          }
+        },
+        {
+          "rank_feature": {
+            "field": "topics.sports",
+            "boost": 0.4
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
+
+[[rank-feature-top-level-params]]
+==== Top-level parameters for `rank_feature`
+
+`field`::
+(Required, string) <<rank-feature,`rank_feature`>> or
+<<rank-features,`rank_features`>> field used to boost
+<<relevance-scores,relevance scores>>.
+
+`boost`::
++
+--
+(Optional, float) Floating point number used to decrease or increase
+<<relevance-scores,relevance scores>>. Defaults to `1.0`.
+
+Boost values are relative to the default value of `1.0`. A boost value between
+`0` and `1.0` decreases the relevance score. A value greater than `1.0`
+increases the relevance score.
+--
+
+`saturation`::
++
+--
+(Optional, <<rank-feature-query-saturation,function object>>) Saturation
+function used to boost <<relevance-scores,relevance scores>> based on the
+value of the rank feature `field`. If no function is provided, the `rank_feature`
+query defaults to the `saturation` function. See
+<<rank-feature-query-saturation,Saturation>> for more information.
+
+Only one function `saturation`, `log`, or `sigmoid` can be provided.
+--
+
+`log`::
++
+--
+(Optional, <<rank-feature-query-logarithm,function object>>) Logarithmic
+function used to boost <<relevance-scores,relevance scores>> based on the
+value of the rank feature `field`. See
+<<rank-feature-query-logarithm,Logarithm>> for more information.
+
+Only one function `saturation`, `log`, or `sigmoid` can be provided.
+--
+
+`sigmoid`::
++
+--
+(Optional, <<rank-feature-query-sigmoid,function object>>) Sigmoid function used
+to boost <<relevance-scores,relevance scores>> based on the value of the
+rank feature `field`. See <<rank-feature-query-sigmoid,Sigmoid>> for more
+information.
+
+Only one function `saturation`, `log`, or `sigmoid` can be provided.
+--
+
+
+[[rank-feature-query-notes]]
+==== Notes
+
+[[rank-feature-query-saturation]]
+===== Saturation
+The `saturation` function gives a score equal to `S / (S + pivot)`, where `S` is
+the value of the rank feature field and `pivot` is a configurable pivot value so
+that the result will be less than `0.5` if `S` is less than pivot and greater
+than `0.5` otherwise. Scores are always `(0,1)`.
+
+If the rank feature has a negative score impact then the function will be
+computed as `pivot / (S + pivot)`, which decreases when `S` increases.
+
+[source,console]
+--------------------------------------------------
+GET /test/_search
+{
+  "query": {
+    "rank_feature": {
+      "field": "pagerank",
+      "saturation": {
+        "pivot": 8
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+If a `pivot` value is not provided, {es} computes a default value equal to the
+approximate geometric mean of all rank feature values in the index. We recommend
+using this default value if you haven't had the opportunity to train a good
+pivot value.
+
+[source,console]
+--------------------------------------------------
+GET /test/_search
+{
+  "query": {
+    "rank_feature": {
+      "field": "pagerank",
+      "saturation": {}
+    }
+  }
+}
+--------------------------------------------------
+
+[[rank-feature-query-logarithm]]
+===== Logarithm
+The `log` function gives a score equal to `log(scaling_factor + S)`, where `S`
+is the value of the rank feature field and `scaling_factor` is a configurable
+scaling factor. Scores are unbounded.
+
+This function only supports rank features that have a positive score impact.
+
+[source,console]
+--------------------------------------------------
+GET /test/_search
+{
+  "query": {
+    "rank_feature": {
+      "field": "pagerank",
+      "log": {
+        "scaling_factor": 4
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[[rank-feature-query-sigmoid]]
+===== Sigmoid
+The `sigmoid` function is an extension of `saturation` which adds a configurable
+exponent. Scores are computed as `S^exp^ / (S^exp^ + pivot^exp^)`. Like for the
+`saturation` function, `pivot` is the value of `S` that gives a score of `0.5`
+and scores are `(0,1)`.
+
+The `exponent` must be positive and is typically in `[0.5, 1]`. A
+good value should be computed via training. If you don't have the opportunity to
+do so, we recommend you use the `saturation` function instead.
+
+[source,console]
+--------------------------------------------------
+GET /test/_search
+{
+  "query": {
+    "rank_feature": {
+      "field": "pagerank",
+      "sigmoid": {
+        "pivot": 7,
+        "exponent": 0.6
+      }
+    }
+  }
+}
+--------------------------------------------------

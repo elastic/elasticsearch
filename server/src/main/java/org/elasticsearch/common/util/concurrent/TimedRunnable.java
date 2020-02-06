@@ -19,15 +19,18 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ExceptionsHelper;
+
 /**
  * A class used to wrap a {@code Runnable} that allows capturing the time of the task since creation
  * through execution as well as only execution time.
  */
-class TimedRunnable extends AbstractRunnable {
+class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     private final Runnable original;
     private final long creationTimeNanos;
     private long startTimeNanos;
     private long finishTimeNanos = -1;
+    private boolean failedOrRejected = false;
 
     TimedRunnable(final Runnable original) {
         this.original = original;
@@ -46,23 +49,18 @@ class TimedRunnable extends AbstractRunnable {
 
     @Override
     public void onRejection(final Exception e) {
+        this.failedOrRejected = true;
         if (original instanceof AbstractRunnable) {
             ((AbstractRunnable) original).onRejection(e);
-        }
-    }
-
-    @Override
-    public void onAfter() {
-        if (original instanceof AbstractRunnable) {
-            ((AbstractRunnable) original).onAfter();
+        } else {
+            ExceptionsHelper.reThrowIfNotNull(e);
         }
     }
 
     @Override
     public void onFailure(final Exception e) {
-        if (original instanceof AbstractRunnable) {
-            ((AbstractRunnable) original).onFailure(e);
-        }
+        this.failedOrRejected = true;
+        ExceptionsHelper.reThrowIfNotNull(e);
     }
 
     @Override
@@ -92,6 +90,19 @@ class TimedRunnable extends AbstractRunnable {
             return -1;
         }
         return Math.max(finishTimeNanos - startTimeNanos, 1);
+    }
+
+    /**
+     * If the task was failed or rejected, return true.
+     * Otherwise, false.
+     */
+    boolean getFailedOrRejected() {
+        return this.failedOrRejected;
+    }
+
+    @Override
+    public Runnable unwrap() {
+        return original;
     }
 
 }

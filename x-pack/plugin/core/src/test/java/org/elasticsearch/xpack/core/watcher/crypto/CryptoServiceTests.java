@@ -54,6 +54,11 @@ public class CryptoServiceTests extends ESTestCase {
         assertThat(service.isEncrypted(service.encrypt(randomAlphaOfLength(10).toCharArray())), is(true));
     }
 
+    public void testErrorMessageWhenSecureEncryptionKeySettingDoesNotExist() throws Exception {
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new CryptoService(Settings.EMPTY));
+        assertThat(e.getMessage(), is("setting [" + WatcherField.ENCRYPTION_KEY_SETTING.getKey() + "] must be set in keystore"));
+    }
+
     public static byte[] generateKey() {
         try {
             KeyGenerator generator = KeyGenerator.getInstance(CryptoService.KEY_ALGO);

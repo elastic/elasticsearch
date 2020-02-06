@@ -18,19 +18,19 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
@@ -61,7 +61,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
 
         /**
          * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-         * {@link #serializeTargetValueType()} to return true.
+         * {@link #serializeTargetValueType(Version)} to return true.
          */
         protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
             super(in, valuesSourceType);
@@ -81,7 +81,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
-    private DateTimeZone timeZone = null;
+    private ZoneId timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
     protected ValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
@@ -108,24 +108,31 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     /**
-     * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
+     * Read an aggregation from a stream that has a sensible default for TargetValueType. This should be used by most subclasses.
+     * Subclasses needing to maintain backward compatibility to a version that did not serialize TargetValueType should use this
+     * constructor, providing the old, constant value for TargetValueType and override {@link #serializeTargetValueType(Version)} to return
+     * true only for versions that support the serialization.
      */
     protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
             throws IOException {
         super(in);
-        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
         this.valuesSourceType = valuesSourceType;
-        this.targetValueType = targetValueType;
+        if (serializeTargetValueType(in.getVersion())) {
+            this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
+        } else {
+            this.targetValueType = targetValueType;
+        }
         read(in);
     }
 
     /**
      * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-     * {@link #serializeTargetValueType()} to return true.
+     * {@link #serializeTargetValueType(Version)} to return true.
      */
     protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
         super(in);
-        assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
+        // TODO: Can we get rid of this constructor and always use the three value version? Does this assert provide any value?
+        assert serializeTargetValueType(in.getVersion()) : "Wrong read constructor called for subclass that serializes its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
         read(in);
@@ -144,14 +151,12 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            timeZone = DateTimeZone.forID(in.readString());
-        }
+        timeZone = in.readOptionalZoneId();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType()) {
+        if (serializeTargetValueType(out.getVersion())) {
             out.writeOptionalWriteable(targetValueType);
         }
         out.writeOptionalString(field);
@@ -167,11 +172,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
-        }
+        out.writeOptionalZoneId(timeZone);
         innerWriteTo(out);
     }
 
@@ -183,8 +184,9 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true should use the three
      * argument read constructor rather than the four argument version.
+     * @param version For backwards compatibility, subclasses can change behavior based on the version
      */
-    protected boolean serializeTargetValueType() {
+    protected boolean serializeTargetValueType(Version version) {
         return false;
     }
 
@@ -289,7 +291,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * Sets the time zone to use for this aggregation
      */
     @SuppressWarnings("unchecked")
-    public AB timeZone(DateTimeZone timeZone) {
+    public AB timeZone(ZoneId timeZone) {
         if (timeZone == null) {
             throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
         }
@@ -300,26 +302,49 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Gets the time zone to use for this aggregation
      */
-    public DateTimeZone timeZone() {
+    public ZoneId timeZone() {
         return timeZone;
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config, parent, subFactoriesBuilder);
+    protected final ValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                              Builder subFactoriesBuilder) throws IOException {
+        ValuesSourceConfig<VS> config = resolveConfig(queryShardContext);
+        ValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected ValuesSourceConfig<VS> resolveConfig(SearchContext context) {
-        ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
-        return ValuesSourceConfig.resolve(context.getQueryShardContext(),
-                valueType, field, script, missing, timeZone, format);
+    /**
+     * Provide a hook for aggregations to have finer grained control of the CoreValuesSourceType for script values.  This will only be
+     * called if the user did not supply a type hint for the script.  The script object is provided for reference.
+     *
+     * @param script - The user supplied script
+     * @return The CoreValuesSourceType we expect this script to yield.
+     */
+    protected ValuesSourceType resolveScriptAny(Script script) {
+        return CoreValuesSourceType.BYTES;
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    /**
+     * Provide a hook for aggregations to have finer grained control of the ValueType for script values.  This will only be called if the
+     * user did not supply a type hint for the script.  The script object is provided for reference
+     * @param script - the user supplied script
+     * @return The ValueType we expect this script to yield
+     */
+    protected ValueType defaultValueType(Script script) {
+        return valueType;
+    }
+
+    protected ValuesSourceConfig<VS> resolveConfig(QueryShardContext queryShardContext) {
+        ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
+        return ValuesSourceConfig.resolve(queryShardContext,
+                valueType, field, script, missing, timeZone, format, this::resolveScriptAny);
+    }
+
+    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<VS> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -350,34 +375,24 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(field, format, missing, script, targetValueType, timeZone, valueType, valuesSourceType,
-                innerHashCode());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), field, format, missing, script,
+            targetValueType, timeZone, valueType, valuesSourceType);
     }
-
-    protected abstract int innerHashCode();
 
     @Override
-    protected final boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
-        if (!Objects.equals(field, other.field))
-            return false;
-        if (!Objects.equals(format, other.format))
-            return false;
-        if (!Objects.equals(missing, other.missing))
-            return false;
-        if (!Objects.equals(script, other.script))
-            return false;
-        if (!Objects.equals(targetValueType, other.targetValueType))
-            return false;
-        if (!Objects.equals(timeZone, other.timeZone))
-            return false;
-        if (!Objects.equals(valueType, other.valueType))
-            return false;
-        if (!Objects.equals(valuesSourceType, other.valuesSourceType))
-            return false;
-        return innerEquals(obj);
+        return Objects.equals(valuesSourceType, other.valuesSourceType)
+            && Objects.equals(field, other.field)
+            && Objects.equals(format, other.format)
+            && Objects.equals(missing, other.missing)
+            && Objects.equals(script, other.script)
+            && Objects.equals(targetValueType, other.targetValueType)
+            && Objects.equals(timeZone, other.timeZone)
+            && Objects.equals(valueType, other.valueType);
     }
-
-    protected abstract boolean innerEquals(Object obj);
 }

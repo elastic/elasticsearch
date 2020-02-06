@@ -36,7 +36,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
@@ -106,15 +105,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            // manual collection or upon cluster forming.
-            .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
-            .build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(TestPlugin.class, MockTransportService.TestPlugin.class);
     }
@@ -124,11 +114,14 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), timeValue).build()));
     }
 
-    public void testClusterInfoServiceCollectsInformation() throws Exception {
+    public void testClusterInfoServiceCollectsInformation() {
         internalCluster().startNodes(2);
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
             .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
             .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test"));
+        }
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node

@@ -28,9 +28,9 @@ other than the default of the ampersand.
 
 Example:
 
-[source,js]
+[source,console,id=adjacency-matrix-aggregation-example]
 --------------------------------------------------
-PUT /emails/_doc/_bulk?refresh
+PUT /emails/_bulk?refresh
 { "index" : { "_id" : 1 } }
 { "accounts" : ["hillary", "sidney"]}
 { "index" : { "_id" : 2 } }
@@ -54,7 +54,6 @@ GET emails/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 In the above example, we analyse email messages to see which groups of individuals 
 have exchanged messages.
@@ -63,7 +62,7 @@ of groups that have recorded interactions.
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 9,
@@ -109,5 +108,7 @@ additional levels of data required to perform https://en.wikipedia.org/wiki/Dyna
 where examining interactions _over time_ becomes important.
 
 ==== Limitations
-For N filters the matrix of buckets produced can be N²/2 and so there is a default maximum 
+For N filters the matrix of buckets produced can be N²/2 which can be costly.
+The circuit breaker settings prevent results producing too many buckets and to avoid excessive disk seeks
+the `indices.query.bool.max_clause_count` setting is used to limit the number of filters. 
 imposed of 100 filters . This setting can be changed using the `index.max_adjacency_matrix_filters` index-level setting.

@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -283,6 +284,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
+            if (id == 127 && input.getVersion().before(Version.V_7_5_0)) {
+                // was SearchContextException
+                return new SearchException(input);
+            }
             throw new IllegalStateException("unknown exception for id: " + id);
         }
         return elasticsearchException.apply(input);
@@ -636,7 +641,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 }
             }
         }
-        return new ElasticsearchException[]{new ElasticsearchException(t.getMessage(), t) {
+        return new ElasticsearchException[]{new ElasticsearchException(ex.getMessage(), ex) {
             @Override
             protected String getExceptionName() {
                 return getExceptionName(getCause());
@@ -681,7 +686,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
             builder.append(' ');
         }
-        return builder.append(ExceptionsHelper.detailedMessage(this).trim()).toString();
+        return builder.append(super.toString().trim()).toString();
     }
 
     /**
@@ -961,12 +966,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         RESOURCE_ALREADY_EXISTS_EXCEPTION(ResourceAlreadyExistsException.class,
             ResourceAlreadyExistsException::new, 123, UNKNOWN_VERSION_ADDED),
         // 124 used to be Script.ScriptParseException
-        HTTP_ON_TRANSPORT_EXCEPTION(TcpTransport.HttpOnTransportException.class,
-                TcpTransport.HttpOnTransportException::new, 125, UNKNOWN_VERSION_ADDED),
+        HTTP_REQUEST_ON_TRANSPORT_EXCEPTION(TcpTransport.HttpRequestOnTransportException.class,
+                TcpTransport.HttpRequestOnTransportException::new, 125, UNKNOWN_VERSION_ADDED),
         MAPPER_PARSING_EXCEPTION(org.elasticsearch.index.mapper.MapperParsingException.class,
                 org.elasticsearch.index.mapper.MapperParsingException::new, 126, UNKNOWN_VERSION_ADDED),
-        SEARCH_CONTEXT_EXCEPTION(org.elasticsearch.search.SearchContextException.class,
-                org.elasticsearch.search.SearchContextException::new, 127, UNKNOWN_VERSION_ADDED),
+        // 127 used to be org.elasticsearch.search.SearchContextException
         SEARCH_SOURCE_BUILDER_EXCEPTION(org.elasticsearch.search.builder.SearchSourceBuilderException.class,
                 org.elasticsearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
         // 129 was EngineClosedException
@@ -1006,11 +1010,38 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         UNKNOWN_NAMED_OBJECT_EXCEPTION(org.elasticsearch.common.xcontent.UnknownNamedObjectException.class,
                 org.elasticsearch.common.xcontent.UnknownNamedObjectException::new, 148, UNKNOWN_VERSION_ADDED),
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
-            MultiBucketConsumerService.TooManyBucketsException::new, 149, Version.V_7_0_0),
+            MultiBucketConsumerService.TooManyBucketsException::new, 149, UNKNOWN_VERSION_ADDED),
         COORDINATION_STATE_REJECTED_EXCEPTION(org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new, 150, Version.V_7_0_0),
-        CLUSTER_ALREADY_BOOTSTRAPPED_EXCEPTION(org.elasticsearch.cluster.coordination.ClusterAlreadyBootstrappedException.class,
-            org.elasticsearch.cluster.coordination.ClusterAlreadyBootstrappedException::new, 151, Version.V_7_0_0);
+        SNAPSHOT_IN_PROGRESS_EXCEPTION(org.elasticsearch.snapshots.SnapshotInProgressException.class,
+            org.elasticsearch.snapshots.SnapshotInProgressException::new, 151, UNKNOWN_VERSION_ADDED),
+        NO_SUCH_REMOTE_CLUSTER_EXCEPTION(org.elasticsearch.transport.NoSuchRemoteClusterException.class,
+            org.elasticsearch.transport.NoSuchRemoteClusterException::new, 152, UNKNOWN_VERSION_ADDED),
+        RETENTION_LEASE_ALREADY_EXISTS_EXCEPTION(
+                org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException.class,
+                org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException::new,
+                153,
+                UNKNOWN_VERSION_ADDED),
+        RETENTION_LEASE_NOT_FOUND_EXCEPTION(
+                org.elasticsearch.index.seqno.RetentionLeaseNotFoundException.class,
+                org.elasticsearch.index.seqno.RetentionLeaseNotFoundException::new,
+                154,
+                UNKNOWN_VERSION_ADDED),
+        SHARD_NOT_IN_PRIMARY_MODE_EXCEPTION(
+                org.elasticsearch.index.shard.ShardNotInPrimaryModeException.class,
+                org.elasticsearch.index.shard.ShardNotInPrimaryModeException::new,
+                155,
+                UNKNOWN_VERSION_ADDED),
+        RETENTION_LEASE_INVALID_RETAINING_SEQUENCE_NUMBER_EXCEPTION(
+                org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
+                org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
+                156,
+                Version.V_7_5_0),
+        INGEST_PROCESSOR_EXCEPTION(
+                org.elasticsearch.ingest.IngestProcessorException.class,
+                org.elasticsearch.ingest.IngestProcessorException::new,
+                157,
+                Version.V_7_5_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

@@ -19,19 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ListInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -51,28 +49,21 @@ public final class EListInit extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression value : values) {
-            value.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from list initializer."));
         }
 
         actual = ArrayList.class;
 
-        constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
+        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(actual, 0);
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
                     "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/0] not found"));
         }
 
-        method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "add", 1);
+        method = scriptRoot.getPainlessLookup().lookupPainlessMethod(actual, false, "add", 1);
 
         if (method == null) {
             throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", add/1] not found"));
@@ -83,26 +74,25 @@ public final class EListInit extends AExpression {
 
             expression.expected = def.class;
             expression.internal = true;
-            expression.analyze(locals);
-            values.set(index, expression.cast(locals));
+            expression.analyze(scriptRoot, scope);
+            values.set(index, expression.cast(scriptRoot, scope));
         }
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-
-        writer.newInstance(MethodWriter.getType(actual));
-        writer.dup();
-        writer.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+    ListInitializationNode write(ClassNode classNode) {
+        ListInitializationNode listInitializationNode = new ListInitializationNode();
 
         for (AExpression value : values) {
-            writer.dup();
-            value.write(writer, globals);
-            writer.invokeMethodCall(method);
-            writer.pop();
+            listInitializationNode.addArgumentNode(value.write(classNode));
         }
+
+        listInitializationNode.setLocation(location);
+        listInitializationNode.setExpressionType(actual);
+        listInitializationNode.setConstructor(constructor);
+        listInitializationNode.setMethod(method);
+
+        return listInitializationNode;
     }
 
     @Override

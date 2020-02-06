@@ -5,10 +5,10 @@
       "link": "license",
       "expires_days": [ 60, 30, 14, 7 ],
       "severity": 0,
-      "alert_index": ".monitoring-alerts-6",
+      "alert_index": ".monitoring-alerts-7",
       "cluster_uuid": "${monitoring.watch.cluster_uuid}",
       "type": "monitoring",
-      "version_created": 7000099,
+      "version_created": "${monitoring.version_created}",
       "watch": "${monitoring.watch.id}"
     }
   },
@@ -72,7 +72,7 @@
             "search": {
               "request": {
                 "indices": [
-                  ".monitoring-alerts-6"
+                  ".monitoring-alerts-7"
                 ],
                 "body": {
                   "size": 1,
@@ -99,7 +99,7 @@
             "search": {
               "request": {
                 "indices": [
-                  ".monitoring-kibana-6-*"
+                  ".monitoring-kibana-7-*"
                 ],
                 "body": {
                   "size": 1,
@@ -140,8 +140,7 @@
   "actions": {
     "add_to_alerts_index": {
       "index": {
-        "index": ".monitoring-alerts-6",
-        "doc_type": "doc",
+        "index": ".monitoring-alerts-7",
         "doc_id": "${monitoring.watch.unique_id}"
       }
     },

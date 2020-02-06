@@ -3,12 +3,10 @@
 [[sql-translate]]
 == SQL Translate API
 
-beta[]
-
 The SQL Translate API accepts SQL in a JSON document and translates it
-into native Elasticsearch queries. For example:
+into native {es} queries. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql/translate
 {
@@ -16,20 +14,15 @@ POST /_sql/translate
     "fetch_size": 10
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "size" : 10,
     "docvalue_fields" : [
-        {
-            "field": "page_count",
-            "format": "use_field_mapping"
-        },
         {
             "field": "release_date",
             "format": "epoch_millis"
@@ -38,7 +31,8 @@ Which returns:
     "_source": {
         "includes": [
             "author",
-            "name"
+            "name",
+            "page_count"
         ],
         "excludes": []
     },
@@ -53,10 +47,9 @@ Which returns:
     ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Which is the request that SQL will run to provide the results.
-In this case, SQL will use the <<search-request-scroll,scroll>>
+In this case, SQL will use the <<request-body-search-scroll,scroll>>
 API. If the result contained an aggregation then SQL would use
 the normal <<search-request-body,search>> API.
 

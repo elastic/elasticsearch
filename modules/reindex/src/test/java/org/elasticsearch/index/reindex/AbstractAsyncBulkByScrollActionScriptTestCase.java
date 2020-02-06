@@ -53,16 +53,16 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
 
     @SuppressWarnings("unchecked")
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
-        IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
-        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
+        IndexRequest index = new IndexRequest("index").id("1").source(singletonMap("foo", "bar"));
+        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
         UpdateScript.Factory factory = (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
             @Override
             public void execute() {
-                scriptBody.accept(ctx);
+                scriptBody.accept(getCtx());
             }
-        };;
+        };
         when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(factory);
-        AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(mockScript("")));
+        AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;
     }
@@ -85,16 +85,9 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         assertEquals("cat", index.sourceAsMap().get("bar"));
     }
 
-    public void testSetOpTypeNoop() throws Exception {
-        assertThat(task.getStatus().getNoops(), equalTo(0L));
-        assertNull(applyScript((Map<String, Object> ctx) -> ctx.put("op", OpType.NOOP.toString())));
-        assertThat(task.getStatus().getNoops(), equalTo(1L));
-    }
-
     public void testSetOpTypeDelete() throws Exception {
         DeleteRequest delete = applyScript((Map<String, Object> ctx) -> ctx.put("op", OpType.DELETE.toString()));
         assertThat(delete.index(), equalTo("index"));
-        assertThat(delete.type(), equalTo("type"));
         assertThat(delete.id(), equalTo("1"));
     }
 
@@ -104,5 +97,5 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         assertThat(e.getMessage(), equalTo("Operation type [unknown] not allowed, only [noop, index, delete] are allowed"));
     }
 
-    protected abstract AbstractAsyncBulkByScrollAction<Request> action(ScriptService scriptService, Request request);
+    protected abstract AbstractAsyncBulkByScrollAction<Request, ?> action(ScriptService scriptService, Request request);
 }

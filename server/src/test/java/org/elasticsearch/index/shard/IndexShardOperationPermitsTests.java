@@ -495,13 +495,14 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
          * permits to the semaphore. We wait here until all generic threads are idle as an indication that all permits have been returned to
          * the semaphore.
          */
-        awaitBusy(() -> {
+        assertBusy(() -> {
             for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
                 if (ThreadPool.Names.GENERIC.equals(stats.getName())) {
-                    return stats.getActive() == 0;
+                    assertThat("Expected no active threads in GENERIC pool", stats.getActive(), equalTo(0));
+                    return;
                 }
             }
-            return false;
+            fail("Failed to find stats for the GENERIC thread pool");
         });
     }
 
@@ -523,8 +524,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future2.get().close();
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
 
-        try (Releasable releasable = blockAndWait()) {
-            assertThat(permits.getActiveOperationsCount(), equalTo(0));
+        try (Releasable ignored = blockAndWait()) {
+            assertThat(permits.getActiveOperationsCount(), equalTo(IndexShard.OPERATIONS_BLOCKED));
         }
 
         PlainActionFuture<Releasable> future3 = new PlainActionFuture<>();

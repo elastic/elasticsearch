@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -322,14 +321,14 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final ThreadPool threadPool = taskQueue.getThreadPool();
         final long delayMillis = randomLongBetween(1, 100);
 
-        threadPool.schedule(TimeValue.timeValueMillis(delayMillis), GENERIC, () -> strings.add("deferred"));
+        threadPool.schedule(() -> strings.add("deferred"), TimeValue.timeValueMillis(delayMillis), GENERIC);
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
-        threadPool.schedule(TimeValue.ZERO, GENERIC, () -> strings.add("runnable"));
+        threadPool.schedule(() -> strings.add("runnable"), TimeValue.ZERO, GENERIC);
         assertTrue(taskQueue.hasRunnableTasks());
 
-        threadPool.schedule(TimeValue.MINUS_ONE, GENERIC, () -> strings.add("also runnable"));
+        threadPool.schedule(() -> strings.add("also runnable"), TimeValue.MINUS_ONE, GENERIC);
 
         taskQueue.runAllTasks();
 
@@ -339,8 +338,8 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final long delayMillis1 = randomLongBetween(2, 100);
         final long delayMillis2 = randomLongBetween(1, delayMillis1 - 1);
 
-        threadPool.schedule(TimeValue.timeValueMillis(delayMillis1), GENERIC, () -> strings.add("further deferred"));
-        threadPool.schedule(TimeValue.timeValueMillis(delayMillis2), GENERIC, () -> strings.add("not quite so deferred"));
+        threadPool.schedule(() -> strings.add("further deferred"), TimeValue.timeValueMillis(delayMillis1), GENERIC);
+        threadPool.schedule(() -> strings.add("not quite so deferred"), TimeValue.timeValueMillis(delayMillis2), GENERIC);
 
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
@@ -349,9 +348,10 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis + delayMillis1));
 
         final TimeValue cancelledDelay = TimeValue.timeValueMillis(randomLongBetween(1, 100));
-        final ScheduledFuture<?> future = threadPool.schedule(cancelledDelay, "", () -> strings.add("cancelled before execution"));
+        final Scheduler.Cancellable cancelledBeforeExecution =
+            threadPool.schedule(() -> strings.add("cancelled before execution"), cancelledDelay, "");
 
-        future.cancel(false);
+        cancelledBeforeExecution.cancel();
         taskQueue.runAllTasks();
 
         assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
@@ -376,20 +376,19 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     public void testDelayVariabilityAppliesToFutureTasks() {
         final DeterministicTaskQueue deterministicTaskQueue = newTaskQueue();
         advanceToRandomTime(deterministicTaskQueue);
-        final long delayMillis = randomLongBetween(30000, 60000);
-        final long variabilityMillis = randomLongBetween(100, 500);
+        final long nominalExecutionTime = randomLongBetween(0, 60000);
+        final long variabilityMillis = randomLongBetween(1, 500);
+        final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
         deterministicTaskQueue.setExecutionDelayVariabilityMillis(variabilityMillis);
         for (int i = 0; i < 100; i++) {
-            deterministicTaskQueue.scheduleAt(delayMillis, () -> {});
+            deterministicTaskQueue.scheduleAt(nominalExecutionTime, () -> {});
         }
         final long expectedEndTime = deterministicTaskQueue.getLatestDeferredExecutionTime();
+        assertThat(expectedEndTime, greaterThan(nominalExecutionTime)); // fails if every task has zero variability -- vanishingly unlikely
+        assertThat(expectedEndTime, lessThanOrEqualTo(Math.max(startTime, nominalExecutionTime + variabilityMillis)));
 
-        final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
         deterministicTaskQueue.runAllTasks();
-        final long elapsedTime = deterministicTaskQueue.getCurrentTimeMillis() - startTime;
         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), is(expectedEndTime));
-        assertThat(elapsedTime, greaterThan(delayMillis)); // fails with negligible probability
-        assertThat(elapsedTime, lessThanOrEqualTo(delayMillis + variabilityMillis));
     }
 
     public void testThreadPoolSchedulesPeriodicFutureTasks() {

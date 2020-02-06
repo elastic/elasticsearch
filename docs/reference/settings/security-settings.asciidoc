@@ -54,12 +54,6 @@ the sensitive nature of the information.
 Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
 [float]
-[[password-security-settings]]
-==== Default password security settings
-`xpack.security.authc.accept_default_password`::
-In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
-
-[float]
 [[password-hashing-settings]]
 ==== Password hashing settings
 `xpack.security.authc.password_hashing.algorithm`::
@@ -70,8 +64,7 @@ See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
 [[anonymous-access-settings]]
 ==== Anonymous access settings
 You can configure the following anonymous access settings in
-`elasticsearch.yml`.  For more information, see {stack-ov}/anonymous-access.html[
-Enabling anonymous access].
+`elasticsearch.yml`.  For more information, see <<anonymous-access>>.
 
 `xpack.security.authc.anonymous.username`::
 The username (principal) of the anonymous user. Defaults to `_es_anonymous_user`.
@@ -121,12 +114,23 @@ Defaults to `48h` (48 hours).
 
 You can set the following document and field level security
 settings in `elasticsearch.yml`. For more information, see
-{stack-ov}/field-and-document-access-control.html[Setting up document and field
-level security].
+<<field-and-document-access-control>>.
 
 `xpack.security.dls_fls.enabled`::
 Set to `false` to prevent document and field level security
 from being configured. Defaults to `true`.
+
+`xpack.security.dls.bitset.cache.ttl`::
+The time-to-live for cached `BitSet` entries for document level security.
+Document level security queries may depend on Lucene BitSet objects, and these are
+automatically cached to improve performance. Defaults to expire entries that are
+unused for `168h` (7 days).
+
+`xpack.security.dls.bitset.cache.size`::
+The maximum memory usage of cached `BitSet` entries for document level security.
+Document level security queries may depend on Lucene BitSet objects, and these are
+automatically cached to improve performance. Defaults to `50mb`, after which 
+least-recently-used entries will be evicted.
 
 [float]
 [[token-service-settings]]
@@ -145,6 +149,36 @@ The length of time that a token is valid for. By default this value is `20m` or
 20 minutes. The maximum value is 1 hour.
 
 [float]
+[[api-key-service-settings]]
+==== API key service settings
+
+You can set the following API key service settings in
+`elasticsearch.yml`.
+
+`xpack.security.authc.api_key.enabled`::
+Set to `false` to disable the built-in API key service. Defaults to `true` unless
+ `xpack.security.http.ssl.enabled` is `false`. This prevents sniffing the API key
+  from a connection over plain http.
+
+`xpack.security.authc.api_key.hashing.algorithm`::
+Specifies the hashing algorithm that is used for securing API key credentials.
+See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
+
+`xpack.security.authc.api_key.cache.ttl`::
+The time-to-live for cached API key entries. A API key id and a hash of its
+API key are cached for this period of time. Specify the time period using
+the standard {es} <<time-units,time units>>. Defaults to `1d`.
+
+`xpack.security.authc.api_key.cache.max_keys`::
+The maximum number of API key entries that can live in the
+cache at any given time. Defaults to 10,000.
+
+`xpack.security.authc.api_key.cache.hash_algo`:: (Expert Setting)
+The hashing algorithm that is used for the
+in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
+Defaults to `ssha256`.
+
+[float]
 [[realm-settings]]
 ==== Realm settings
 You configure realm settings in the `xpack.security.authc.realms`
@@ -154,8 +188,8 @@ namespace in `elasticsearch.yml`. For example:
 ----------------------------------------
 xpack.security.authc.realms:
 
-    native.realm1:
-        order: 0
+    native.realm1: <1>
+        order: 0 <2>
         ...
 
     ldap.realm2:
@@ -167,21 +201,22 @@ xpack.security.authc.realms:
         ...
     ...
 ----------------------------------------
+<1> Specifies the type of realm (for example, `native`, `ldap`,
+`active_directory`, `pki`, `file`, `kerberos`, `saml`) and the realm name. This
+information is required.
+<2> Specifies priority of a realm in the realm chain. This information
+is required.
 
 The valid settings vary depending on the realm type. For more
-information, see {stack-ov}/setting-up-authentication.html[Setting up authentication].
+information, see <<setting-up-authentication>>.
 
 [float]
 [[ref-realm-settings]]
 ===== Settings valid for all realms
 
-`type`::
-The type of the realm: `native, `ldap`, `active_directory`, `pki`, or `file`. Required.
-
 `order`::
 The priority of the realm within the realm chain. Realms with a lower order are
-consulted first. Although not required, use of this setting is strongly
-recommended when you configure multiple realms. Defaults to `Integer.MAX_VALUE`.
+consulted first. The value must be unique for each realm. This setting is required.
 
 `enabled`::
 Indicates whether a realm is enabled. You can use this setting to disable a
@@ -208,8 +243,8 @@ Defaults to `ssha256`.
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 [[ref-users-settings]]
@@ -224,7 +259,7 @@ the following settings:
 `cache.ttl`::
 The time-to-live for cached user entries. A user and a hash of its credentials 
 are cached for this configured period of time. Defaults to `20m`. Specify values 
-using the standard {es} {ref}/common-options.html#time-units[time units].
+using the standard {es} <<time-units,time units>>.
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -237,8 +272,8 @@ user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 [[ref-ldap-settings]]
@@ -248,10 +283,13 @@ Defaults to `true`.
 The `type` setting must be set to `ldap`. In addition to the 
 <<ref-realm-settings>>, you can specify the following settings: 
 
-`url`:: Specifies one or more LDAP URLs in the format  
-`ldap[s]://<server>:<port>`. Multiple URLs can be defined using a comma 
-separated value or array syntax: `[ "ldaps://server1:636", "ldaps://server2:636" ]`. 
-`ldaps` and `ldap` URL protocols cannot be mixed in the same realm. Required.
+`url`::
+One or more LDAP URLs in the `ldap[s]://<server>:<port>` format. Required.
++
+To provide multiple URLs, use a YAML array (`["ldap://server1:636", "ldap://server2:636"]`)
+or comma-separated string (`"ldap://server1:636, ldap://server2:636"`).
++
+While both are supported, you can't mix the `ldap` and `ldaps` protocols.
 
 `load_balance.type`::
 The behavior to use when there are multiple LDAP URLs defined. For supported
@@ -286,14 +324,14 @@ The DN template that replaces the user name with the string `{0}`.
 This setting is multivalued; you can specify multiple user contexts.
 Required to operate in user template mode. If `user_search.base_dn` is specified, 
 this setting is not valid. For more information on
-the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
+the different modes, see <<ldap-realm>>.
 
 `authorization_realms`::
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the LDAP realm does not perform role mapping and
 instead loads the user from the listed realms. The referenced realms are
 consulted in the order that they are defined in this list.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+See <<authorization_realms>>.
 +
 --
 NOTE: If any settings starting with `user_search` are specified, the 
@@ -310,7 +348,7 @@ to `memberOf`.
 Specifies a container DN to search for users. Required
 to operated in user search mode. If `user_dn_templates` is specified, this 
 setting is not valid. For more information on
-the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
+the different modes, see <<ldap-realm>>.
 
 `user_search.scope`::
 The scope of the user search. Valid values are `sub_tree`, `one_level` or
@@ -382,13 +420,12 @@ the filter.  If not set, the user DN is passed into the filter. Defaults to Empt
 `unmapped_groups_as_roles`::
 If set to `true`, the names of any unmapped LDAP groups are used as role names 
 and assigned to the user. A group is considered to be _unmapped_ if it is not 
-referenced in a
-{stack-ov}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
+referenced in a <<mapping-roles-file,role-mapping file>>. API-based 
 role mappings are not considered. Defaults to `false`.
 
 `files.role_mapping`::
-The <<security-files,location>> for the {stack-ov}/mapping-roles.html#mapping-roles[
-YAML role mapping configuration file]. Defaults to
+The <<security-files,location>> for the
+<<mapping-roles,YAML role mapping configuration file>>. Defaults to
 `ES_PATH_CONF/role_mapping.yml`.
 
 `follow_referrals`::
@@ -406,12 +443,19 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-The TCP read timeout period after establishing an LDAP connection.
-An `s` at the end indicates seconds, or `ms` indicates milliseconds.
-Defaults to `5s` (5 seconds ).
+deprecated[7.7] The TCP read timeout period after establishing an LDAP
+connection. This is equivalent to and is deprecated in favor of
+`timeout.response` and they cannot be used simultaneously. An `s` at the end
+indicates seconds, or `ms` indicates milliseconds.
+
+`timeout.response`::
+The time interval to wait for the response from the LDAP server. An `s` at the
+end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
 
 `timeout.ldap_search`::
-The LDAP Server enforced timeout period for an LDAP search.
+The timeout period for an LDAP search. The value is specified in the request
+and is enforced by the receiving LDAP Server.
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
@@ -480,7 +524,7 @@ and `full`. Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.2,TLSv1.1,TLSv1`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the LDAP server. 
@@ -503,8 +547,8 @@ in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 [[ref-ad-settings]]
@@ -516,11 +560,18 @@ The `type` setting must be set to `active_directory`. In addition to the
 the following settings: 
 
 `url`::
-An LDAP URL of the form `ldap[s]://<server>:<port>`. {es} attempts to 
-authenticate against this URL. If the URL is not specified, it is derived from 
-the `domain_name` setting and assumes an unencrypted connection to port 389. 
-Defaults to `ldap://<domain_name>:389`. This setting is required when connecting 
-using SSL/TLS or when using a custom port.
+One or more LDAP URLs in the `ldap[s]://<server>:<port>` format. Defaults to
+`ldap://<domain_name>:389`. This setting is required when connecting using
+SSL/TLS or when using a custom port.
++
+To provide multiple URLs, use a YAML array (`["ldap://server1:636", "ldap://server2:636"]`)
+or comma-separated string (`"ldap://server1:636, ldap://server2:636"`).
++
+While both are supported, you can't mix the `ldap` and `ldaps` protocols.
++
+If no URL is provided, {es} uses a default of `ldap://<domain_name>:389`. This
+default uses the `domain_name` setting value and assumes an unencrypted
+connection to port 389. 
 
 `load_balance.type`::
 The behavior to use when there are multiple LDAP URLs defined. For supported
@@ -647,12 +698,20 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-The TCP read timeout period after establishing an LDAP connection.
-An `s` at the end indicates seconds, or `ms` indicates milliseconds.
-Defaults to `5s` (5 seconds ).
+deprecated[7.7] The TCP read timeout period after establishing an LDAP
+connection.  This is equivalent to and is deprecated in favor of
+`timeout.response` and they cannot be used simultaneously. An `s` at the end
+indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
+
+`timeout.response`::
+The time interval to wait for the response from the AD server. An `s` at the
+end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
 
 `timeout.ldap_search`::
-The LDAP Server enforced timeout period for an LDAP search.
+The timeout period for an LDAP search. The value is specified in the request
+and is enforced by the receiving LDAP Server.
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
@@ -724,7 +783,7 @@ and `full`. Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.2, TLSv1.1, TLSv1`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the Active Directory server. 
@@ -735,7 +794,7 @@ the default values.
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
 credentials are cached for this configured period of time. Use the
-standard Elasticsearch {ref}/common-options.html#time-units[time units]).
+standard Elasticsearch <<time-units,time units>>).
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -748,8 +807,8 @@ the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssh
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 `follow_referrals`::
@@ -790,24 +849,35 @@ for SSL. This setting cannot be used with `certificate_authorities`.
 
 `files.role_mapping`::
 Specifies the <<security-files,location>> of the
-{stack-ov}/mapping-roles.html[YAML role  mapping configuration file].
+<<mapping-roles,YAML role  mapping configuration file>>.
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `authorization_realms`::
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the PKI realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+See <<authorization_realms>>. 
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
 credentials are cached for this period of time. Use the
-standard {es} {ref}/common-options.html#time-units[time units]).
+standard {es} <<time-units,time units>>).
 Defaults to `20m`.
 
 `cache.max_users`::
 Specifies the maximum number of user entries that the cache can contain.
 Defaults to `100000`.
+
+`delegation.enabled`::
+Generally, in order for the clients to be authenticated by the PKI realm they
+must connect directly to {es}. That is, they must not pass through proxies
+which terminate the TLS connection. In order to allow for a *trusted* and
+*smart* proxy, such as Kibana, to sit before {es} and terminate TLS
+connections, but still allow clients to be authenticated on {es} by this realm,
+you need to toggle this to `true`. Defaults to `false`. If delegation is
+enabled, then either `truststore.path` or `certificate_authorities` setting
+must be defined. For more details, see <<pki-realm-for-proxied-clients,
+Configuring authentication delegation for PKI realms>>.
 
 [[ref-saml-settings]]
 [float]
@@ -852,8 +922,8 @@ URI. We recommend that you use the base URL of your Kibana instance. For example
 
 `sp.acs`::
 The URL of the Assertion Consumer Service within {kib}. Typically this is the 
-"api/security/v1/saml" endpoint of your Kibana server. For example, 
-`https://kibana.example.com/api/security/v1/saml`. 
+"api/security/saml/callback" endpoint of your Kibana server. For example,
+`https://kibana.example.com/api/security/saml/callback`.
 
 `sp.logout`::
 The URL of the Single Logout service within {kib}. Typically this is the 
@@ -898,11 +968,10 @@ As per `attribute_patterns.principal`, but for the _dn_ property.
 
 `nameid_format`::
 The NameID format that should be requested when asking the IdP to authenticate
-the current user. Defaults to requesting _transient_ names 
-(`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`). 
+the current user. The default is to not  include the `nameid_format` attribute.
 
 `nameid.allow_create`:: The value of the `AllowCreate` attribute of the 
-`NameIdPolicy` element in an authentication request. Defaults to `false`. 
+`NameIdPolicy` element in an authentication request. The default value is false.
 
 `nameid.sp_qualifier`:: The value of the `SPNameQualifier` attribute of the 
 `NameIdPolicy` element in an authentication request. The default is to not 
@@ -922,7 +991,7 @@ provided by the SAML attributes. Defaults to `true`.
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the SAML realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+See <<authorization_realms>>.
 
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the
@@ -936,7 +1005,7 @@ authenticate the current user. The Authentication Context of the corresponding
 authentication response should contain at least one of the requested values.
 +
 For more information, see
-{stack-ov}/saml-guide-authentication.html#req-authn-context[Requesting specific authentication methods].
+<<req-authn-context>>.
 
 [float]
 [[ref-saml-signing-settings]]
@@ -1042,8 +1111,7 @@ they cannot have individual passwords.
 
 If you are loading the IdP metadata over SSL/TLS (that is, `idp.metadata.path` 
 is a URL using the `https` protocol), the following settings can be used to 
-configure SSL. If these are not specified, then the 
-<<ssl-tls-settings,default SSL settings>> are used.
+configure SSL.
 
 NOTE: These settings are not used for any purpose other than loading metadata 
 over https.
@@ -1132,7 +1200,7 @@ Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for a more detailed explanation of these values.
 
 `ssl.supported_protocols`::
-Specifies the supported protocols for TLS/SSL.
+Specifies the supported protocols for TLS/SSL. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`::
 Specifies the
@@ -1169,7 +1237,248 @@ cache at any given time. Defaults to 100,000.
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the Kerberos realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm]
+See <<authorization_realms>>.
+
+[[ref-oidc-settings]]
+[float]
+===== OpenID Connect realm settings
+
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you
+can specify the following settings:
+
+`op.issuer`::
+A verifiable Identifier for your OpenID Connect Provider. An Issuer
+Identifier is usually a case sensitive URL using the https scheme that contains
+scheme, host, and optionally, port number and path components and no query or
+fragment components. The value for this setting should be provided by your OpenID
+Connect Provider.
+
+`op.authorization_endpoint`::
+The URL for the Authorization Endpoint at the
+OpenID Connect Provider. The value for this setting should be provided by your OpenID
+Connect Provider.
+
+`op.token_endpoint`::
+The URL for the Token Endpoint at the OpenID Connect Provider.
+The value for this setting should be provided by your OpenID Connect Provider.
+
+`op.userinfo_endpoint`::
+The URL for the User Info Endpoint at the OpenID Connect Provider.
+The value for this setting should be provided by your OpenID Connect Provider.
+
+`op.endsession_endpoint`::
+The URL for the End Session Endpoint at the OpenID Connect
+Provider. The value for this setting should be provided by your OpenID Connect Provider.
+
+`op.jwkset_path`::
+The path or URL to a JSON Web Key Set with the key material that the OpenID Connect
+Provider uses for signing tokens and claims responses.
+If a path is provided, then it is resolved relative to the {es} config
+directory.
+If a URL is provided, then it must be either a `file` URL or a `https` URL.
+{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
+requests but will attempt to refresh the JWK upon signature verification
+failure, as this might indicate that the OpenID Connect Provider has
+rotated the signing keys.
+
+File based resources are polled at a frequency determined by the global {es}
+`resource.reload.interval.high` setting, which defaults to 5 seconds.
+
+`rp.client_id`::
+The OAuth 2.0 Client Identifier that was assigned to {es} during registration
+at the OpenID Connect Provider
+
+`rp.client_secret`(<<secure-settings,Secure>>)::
+The OAuth 2.0 Client Secret that was assigned to {es} during registration
+at the OpenID Connect Provider
+
+`rp.redirect_uri`::
+The Redirect URI within {kib}. If you want to use the authorization code flow, this is the
+"api/security/v1/oidc" endpoint of your {kib} server. If you want to use the implicit flow,  it is the "api/security/v1/oidc/implicit" endpoint.
+For example, `https://kibana.example.com/api/security/v1/oidc`.
+
+`rp.response_type`::
+OAuth 2.0 Response Type value that determines the authorization
+processing flow to be used. Can be `code` for authorization code grant flow,
+or one of `id_token`, `id_token token` for the implicit flow.
+
+`rp.signature_algorithm`::
+The signature algorithm that will be used by {es} in order to verify the
+signature of the id tokens it will receive from the OpenID Connect Provider.
+Defaults to `RSA256`
+
+`rp.requested_scopes`::
+The scope values that will be requested by the OpenID Connect Provider as
+part of the Authentication Request. Optional, defaults to `openid`
+
+`rp.post_logout_redirect_uri`::
+The Redirect URI (usually within {kib}) that the OpenID Connect Provider
+should redirect the browser to after a successful Single Logout.
+
+`claims.principal`::
+The name of the OpenID Connect claim that contains the user's principal (username).
+
+`claims.groups`::
+The name of the OpenID Connect claim that contains the user's groups.
+
+`claims.name`::
+The name of the OpenID Connect claim that contains the user's full name.
+
+`claims.mail`::
+The name of the OpenID Connect claim that contains the user's email address.
+
+`claims.dn`::
+The name of the OpenID Connect claim that contains the user's X.509
+_Distinguished Name_.
+
+`claim_patterns.principal`::
+A Java regular expression that is matched against the OpenID Connect claim specified
+by `claims.principal` before it is applied to the user's _principal_ property.
+The attribute value must match the pattern and the value of the first
+_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
+matches email addresses from the "example.com" domain and uses the local-part as
+the principal.
+
+`claim_patterns.groups`::
+As per `claim_patterns.principal`, but for the _group_ property.
+
+`claim_patterns.name`::
+As per `claim_patterns.principal`, but for the _name_ property.
+
+`claim_patterns.mail`::
+As per `claim_patterns.principal`, but for the _mail_ property.
+
+`claim_patterns.dn`::
+As per `claim_patterns.principal`, but for the _dn_ property.
+
+
+`allowed_clock_skew`::
+The maximum allowed clock skew to be taken into consideration when validating
+id tokens with regards to their creation and expiration times.
+
+`populate_user_metadata`::
+Specifies whether to populate the {es} user's metadata with the values that are
+provided by the OpenID Connect claims. Defaults to `true`.
+
+`http.connect_timeout`::
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the timeout until a connection
+ is established. A value of zero means the timeout is not used. Defaults to `5s`
+
+`http.connection_read_timeout`::
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the timeout used when
+requesting a connection from the connection manager. Defaults to `5s`
+
+`http.socket_timeout`::
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the socket timeout (SO_TIMEOUT)
+in milliseconds, which is the timeout for waiting for data or, put differently,
+a maximum period inactivity between two consecutive data packets). Defaults to
+`5s`
+
+`http.max_connections`::
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the maximum number of
+connections allowed across all endpoints.
+
+`http.max_endpoint_connections`::
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the maximum number of
+connections allowed per endpoint.
+
+[float]
+[[ref-oidc-ssl-settings]]
+===== OpenID Connect realm SSL settings
+
+The following settings can be used to configure SSL for all outgoing http connections
+to the OpenID Connect Provider endpoints.
+
+NOTE: These settings are _only_ used for the back-channel communication between
+{es} and the OpenID Connect Provider
+
+`ssl.key`::
+Specifies the path to the PEM encoded private key to use for http client
+authentication (if required). `ssl.key` and `ssl.keystore.path` cannot be used
+at the same time.
+
+`ssl.key_passphrase`::
+Specifies the passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
+encrypted. Cannot be used with `ssl.secure_key_passphrase`.
+
+`ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
+Specifies the passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
+encrypted. Cannot be used with `ssl.key_passphrase`.
+
+`ssl.certificate`::
+Specifies the path to the PEM encoded certificate (or certificate chain) that is associated
+with the key (`ssl.key`). This setting can be used only if `ssl.key` is set.
+
+`ssl.certificate_authorities`::
+Specifies the paths to the PEM encoded certificate authority certificates that should be
+trusted. `ssl.certificate_authorities` and `ssl.truststore.path` cannot be
+used at the same time.
+
+`ssl.keystore.path`::
+Specifies the path to the keystore that contains a private key and certificate.
+Must be either a Java Keystore (jks) or a PKCS#12 file.
+`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
+
+`ssl.keystore.type`::
+The type of the keystore (`ssl.keystore.path`). Must be either `jks` or `PKCS12`.
+If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults
+to `PKCS12`. Otherwise, it defaults to `jks`.
+
+`ssl.keystore.password`::
+The password to the keystore (`ssl.keystore.path`). This setting cannot be used
+with `ssl.keystore.secure_password`.
+
+`ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
+The password to the keystore (`ssl.keystore.path`).
+This setting cannot be used with `ssl.keystore.password`.
+
+`ssl.keystore.key_password`::
+The password for the key in the keystore (`ssl.keystore.path`).
+Defaults to the keystore password. This setting cannot be used with
+`ssl.keystore.secure_key_password`.
+
+`ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
+The password for the key in the keystore (`ssl.keystore.path`).
+Defaults to the keystore password. This setting cannot be used with
+`ssl.keystore.key_password`.
+
+`ssl.truststore.path`::
+The path to the keystore that contains the certificates to trust.
+Must be either a Java Keystore (jks) or a PKCS#12 file.
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the
+same time.
+
+`ssl.truststore.type`::
+The type of the truststore (`ssl.truststore.path`). Must be either `jks` or
+`PKCS12`. If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting
+defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+
+`ssl.truststore.password`::
+The password to the truststore (`ssl.truststore.path`). This setting cannot be
+used with `ssl.truststore.secure_password`.
+
+`ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
+The password to the truststore (`ssl.truststore.path`). This setting cannot be
+used with `ssl.truststore.password`.
+
+`ssl.verification_mode`::
+One of `full` (verify the hostname and the certificate path), `certificate` (verify the
+certificate path, but not the hostname) or `none` (perform no verification).
+Defaults to `full`.
++
+See <<ssl-tls-settings,`ssl.verification_mode`>> for a more detailed explanation of these values.
+
+`ssl.supported_protocols`::
+Specifies the supported protocols for TLS/SSL. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
+the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+
+`ssl.cipher_suites`::
+Specifies the cipher suites that should be supported.
 
 [float]
 [[load-balancing]]
@@ -1199,22 +1508,36 @@ through the list of URLs will continue until a successful connection is made.
 
 [float]
 [[ssl-tls-settings]]
+==== General TLS settings
+`xpack.security.ssl.diagnose.trust`::
+Controls whether to output diagnostic messages for SSL/TLS trust failures.
+If this is `true` (the default), a message will be printed to the Elasticsearch
+log whenever an SSL connection (incoming or outgoing) is rejected due to a failure
+to establish trust.
+This diagnostic message contains information that can be used to determine the
+cause of the failure and assist with resolving the problem.
+Set to `false` to disable these messages.
+
 ==== Default values for TLS/SSL settings
 In general, the values below represent the default values for the various TLS
-settings. For more information, see
-{stack-ov}/encrypting-communications.html[Encrypting communications].
+settings.
+The prefixes for these settings are based on the context in which they are
+used (e.g. `xpack.security.authc.realms.ldap.corp_ldap.ssl.verification_mode`
+or `xpack.security.transport.ssl.supported_protocols`).
 
-`ssl.supported_protocols`::
+For more information, see
+<<encrypting-communications>>.
+
+`*.ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
-`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
-`TLSv1`. 
+`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 +
 --
 NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 
 or `SSLv3`. See <<fips-140-compliance>>.
 --
 
-`ssl.client_authentication`::
+`*.ssl.client_authentication`::
 Controls the server's behavior in regard to requesting a certificate
 from client connections. Valid values are `required`, `optional`, and `none`.
 `required` forces a client to present a certificate, while `optional`
@@ -1222,7 +1545,7 @@ requests a client certificate but the client is not required to present one.
 Defaults to `required`, except for HTTP, which defaults to `none`. See
  <<http-tls-ssl-settings>>.
 
-`ssl.verification_mode`::
+`*.ssl.verification_mode`::
 Controls the verification of certificates. Valid values are:
 - `full`, which verifies that the provided certificate is signed by a trusted
        authority (CA) and also verifies that the server's hostname (or IP
@@ -1237,14 +1560,19 @@ Controls the verification of certificates. Valid values are:
 +
 The default value is `full`.
 
-`ssl.cipher_suites`::
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
-`TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
-`TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA`. If the _Java Cryptography Extension (JCE) Unlimited Strength
-Jurisdiction Policy Files_ has been installed, the default value also includes `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`,
-`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`,
-`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`.
+`*.ssl.cipher_suites`::
+Supported cipher suites can be found in Oracle's
+https://docs.oracle.com/en/java/javase/11/security/oracle-providers.html#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2[Java Cryptography Architecture documentation].
+Defaults to `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`,
+`TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`,
+`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`,
+`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
+`TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`,
+`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`,
+`TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
 [float]
 [[tls-ssl-key-settings]]
@@ -1261,7 +1589,7 @@ SSL enabled server.
 [[pkcs12-truststore-note]]
 [NOTE]
 Storing trusted certificates in a PKCS#12 file, although supported, is
-uncommon in practice. The {ref}/certutil.html[`elasticsearch-certutil`] tool,
+uncommon in practice. The <<certutil,`elasticsearch-certutil` tool>>,
 as well as Java's `keytool`, are designed to generate PKCS#12 files that
 can be used both as a keystore and as a truststore, but this may not be the
 case for container files that are created using other tools. Usually,
@@ -1277,6 +1605,7 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 :client-auth-default:    none
 :verifies!:
 :server:
+:ssl-context:            security-http
 
 include::ssl-settings.asciidoc[]
 
@@ -1286,6 +1615,7 @@ include::ssl-settings.asciidoc[]
 :client-auth-default!:
 :verifies:
 :server:
+:ssl-context:            security-transport
 
 include::ssl-settings.asciidoc[]
 
@@ -1303,20 +1633,10 @@ transport profile, use the prefix `transport.profiles.$PROFILE.xpack.security.` 
 append the portion of the setting after `xpack.security.transport.`. For the key
 setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 
-[[auditing-tls-ssl-settings]]
-:ssl-prefix:             xpack.security.audit.index.client.xpack.security.transport
-:component:              Auditing
-:client-auth-default!:
-:server!:
-
-include::ssl-settings.asciidoc[]
-
-See also <<remote-audit-settings>>. 
-
 [float]
 [[ip-filtering-settings]]
 ==== IP filtering settings
-You can configure the following settings for {stack-ov}/ip-filtering.html[IP filtering].
+You can configure the following settings for <<ip-filtering,IP filtering>>.
 
 `xpack.security.transport.filter.allow`::
 List of IP addresses to allow.

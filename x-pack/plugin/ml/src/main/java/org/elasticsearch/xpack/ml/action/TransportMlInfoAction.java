@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -12,26 +14,44 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.concurrent.TimeoutException;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportMlInfoAction.class);
+
     private final ClusterService clusterService;
+    private final NamedXContentRegistry xContentRegistry;
+    private final Map<String, Object> nativeCodeInfo;
 
     @Inject
-    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
-        super(MlInfoAction.NAME, transportService, actionFilters, (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
+    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
+                                 NamedXContentRegistry xContentRegistry, MlControllerHolder mlControllerHolder) {
+        super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new);
         this.clusterService = clusterService;
+        this.xContentRegistry = xContentRegistry;
+
+        try {
+            nativeCodeInfo = mlControllerHolder.getMlController().getNativeCodeInfo();
+        } catch (TimeoutException e) {
+            throw new RuntimeException("Could not get native code info from native controller", e);
+        }
     }
 
     @Override
@@ -39,6 +59,8 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         Map<String, Object> info = new HashMap<>();
         info.put("defaults", defaults());
         info.put("limits", limits());
+        info.put("native_code", nativeCodeInfo);
+        info.put(MlMetadata.UPGRADE_MODE.getPreferredName(), upgradeMode());
         listener.onResponse(new MlInfoAction.Response(info));
     }
 
@@ -49,11 +71,22 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         return defaults;
     }
 
+    private boolean upgradeMode() {
+        return MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode();
+    }
+
     private Map<String, Object> anomalyDetectorsDefaults() {
         Map<String, Object> defaults = new HashMap<>();
         defaults.put(AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(), defaultModelMemoryLimit());
         defaults.put(AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(), AnalysisLimits.DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT);
         defaults.put(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), Job.DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS);
+        try {
+            defaults.put(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName(),
+                CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.emptyList())
+                    .asMap(xContentRegistry).get(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName()));
+        } catch (IOException e) {
+            logger.error("failed to convert default categorization analyzer to map", e);
+        }
         return defaults;
     }
 

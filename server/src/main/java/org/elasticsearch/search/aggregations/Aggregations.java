@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 
@@ -44,14 +45,14 @@ public class Aggregations implements Iterable<Aggregation>, ToXContentFragment {
 
     public static final String AGGREGATIONS_FIELD = "aggregations";
 
-    protected List<? extends Aggregation> aggregations = Collections.emptyList();
-    protected Map<String, Aggregation> aggregationsAsMap;
-
-    protected Aggregations() {
-    }
+    protected final List<? extends Aggregation> aggregations;
+    private Map<String, Aggregation> aggregationsAsMap;
 
     public Aggregations(List<? extends Aggregation> aggregations) {
         this.aggregations = aggregations;
+        if (aggregations.isEmpty()) {
+            aggregationsAsMap = emptyMap();
+        }
     }
 
     /**

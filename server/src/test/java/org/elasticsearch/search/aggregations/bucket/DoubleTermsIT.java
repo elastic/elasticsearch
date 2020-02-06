@@ -35,9 +35,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Avg;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Stats;
-import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -112,6 +112,15 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
             return scripts;
         }
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("Math.random()", vars -> DoubleTermsIT.randomDouble());
+
+            return scripts;
+        }
     }
 
     private static final int NUM_DOCS = 5; // TODO: randomize the size?
@@ -124,7 +133,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         createIndex("idx");
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < NUM_DOCS; i++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, (double) i)
                     .field("num_tag", i < NUM_DOCS/2 + 1 ? 1 : 0) // used to test order by single-bucket sub agg
@@ -134,7 +143,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
         }
         for (int i = 0; i < 100; i++) {
-            builders.add(client().prepareIndex("high_card_idx", "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex("high_card_idx").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, (double) i)
                     .startArray(MULTI_VALUED_FIELD_NAME).value((double)i).value(i + 1d).endArray()
@@ -142,9 +151,9 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         }
 
         createIndex("idx_unmapped");
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, i*2)
                     .endObject()));
@@ -201,64 +210,64 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         bucketProps.put("sum_d", 1d);
         expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
 
-        assertAcked(prepareCreate("sort_idx").addMapping("multi_sort_type", SINGLE_VALUED_FIELD_NAME, "type=double"));
+        assertAcked(prepareCreate("sort_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=double"));
         for (int i = 1; i <= 3; i++) {
-            builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, 1)
                     .field("l", 1)
                     .field("d", i)
                     .endObject()));
-            builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, 2)
                     .field("l", 2)
                     .field("d", i)
                     .endObject()));
         }
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                 .startObject()
                 .field(SINGLE_VALUED_FIELD_NAME, 3)
                 .field("l", 3)
                 .field("d", 1)
                 .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                 .startObject()
                 .field(SINGLE_VALUED_FIELD_NAME, 3)
                 .field("l", 3)
                 .field("d", 2)
                 .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                 .startObject()
                 .field(SINGLE_VALUED_FIELD_NAME, 4)
                 .field("l", 3)
                 .field("d", 1)
                 .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                 .startObject()
                 .field(SINGLE_VALUED_FIELD_NAME, 4)
                 .field("l", 3)
                 .field("d", 3)
                 .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                 .startObject()
                 .field(SINGLE_VALUED_FIELD_NAME, 5)
                 .field("l", 5)
                 .field("d", 1)
                 .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                 .startObject()
                 .field(SINGLE_VALUED_FIELD_NAME, 5)
                 .field("l", 5)
                 .field("d", 2)
                 .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                 .startObject()
                 .field(SINGLE_VALUED_FIELD_NAME, 6)
                 .field("l", 5)
                 .field("d", 1)
                 .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                 .startObject()
                 .field(SINGLE_VALUED_FIELD_NAME, 7)
                 .field("l", 5)
@@ -885,7 +894,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     private void assertMultiSortResponse(double[] expectedKeys, BucketOrder... order) {
         SearchResponse response = client()
                 .prepareSearch("sort_idx")
-                .setTypes("multi_sort_type")
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(BucketOrder.compound(order)).subAggregation(avg("avg_l").field("l"))
@@ -918,15 +926,15 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=float")
+    public void testScriptCaching() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=float")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1.5),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2.5));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1.5),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2.5));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -934,10 +942,10 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script does not get cached
+        // Test that a request using a nondeterministic script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
                 terms("terms").field("d").script(
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))).get();
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()))).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -945,14 +953,24 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
+        // Test that a request using a deterministic script gets cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
+            terms("terms").field("d").script(
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            .getMissCount(), equalTo(1L));
+
+        // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(terms("terms").field("d")).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(1L));
+                .getMissCount(), equalTo(2L));
     }
 }

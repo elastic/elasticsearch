@@ -5,22 +5,22 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class UnaryStringFunction extends UnaryScalarFunction {
 
@@ -43,7 +43,7 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-        return Expressions.typeMustBeString(field(), operation().toString(), ParamOrdinal.DEFAULT);
+        return isStringAndExact(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override
@@ -57,7 +57,7 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         //TODO change this to use _source instead of the exact form (aka field.keyword for text fields)
         return new ScriptTemplate(processScript("doc[{}].value"),
-                paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+                paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
     

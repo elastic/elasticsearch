@@ -23,8 +23,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -93,7 +93,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(context);
+        deferringCollector = new MergingBucketsDeferringCollector(context, descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 

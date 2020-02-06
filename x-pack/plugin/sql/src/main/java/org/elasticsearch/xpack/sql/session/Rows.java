@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.Schema;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ public abstract class Rows {
         }
 
         Schema schema = schema(attrs);
-        return new ListRowSetCursor(schema, values);
+        return new ListRowSet(schema, values);
     }
 
     public static SchemaRowSet singleton(List<Attribute> attrs, Object... values) {
@@ -49,10 +49,10 @@ public abstract class Rows {
     }
 
     public static SchemaRowSet empty(Schema schema) {
-        return new EmptyRowSetCursor(schema);
+        return new EmptyRowSet(schema);
     }
 
     public static SchemaRowSet empty(List<Attribute> attrs) {
-        return new EmptyRowSetCursor(schema(attrs));
+        return new EmptyRowSet(schema(attrs));
     }
 }

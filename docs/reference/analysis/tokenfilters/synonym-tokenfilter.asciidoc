@@ -1,13 +1,16 @@
 [[analysis-synonym-tokenfilter]]
-=== Synonym Token Filter
+=== Synonym token filter
+++++
+<titleabbrev>Synonym</titleabbrev>
+++++
 
 The `synonym` token filter allows to easily handle synonyms during the
 analysis process. Synonyms are configured using a configuration file.
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /test_index?include_type_name=true
+PUT /test_index
 {
     "settings": {
         "index" : {
@@ -29,13 +32,12 @@ PUT /test_index?include_type_name=true
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above configures a `synonym` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
 `synonym` analyzer is then configured with the filter.
 
-This filter tokenize synonyms with whatever tokenizer and token filters
+This filter tokenizes synonyms with whatever tokenizer and token filters
 appear before it in the chain.
 
 Additional settings are:
@@ -43,10 +45,11 @@ Additional settings are:
 * `expand` (defaults to `true`).
 * `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
 to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
+ 
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /test_index?include_type_name=true
+PUT /test_index
 {
     "settings": {
         "index" : {
@@ -58,10 +61,10 @@ PUT /test_index?include_type_name=true
                     }
                 },
                 "filter" : {
-                	"my_stop": {
-                		"type" : "stop",
-                		"stopwords": ["bar"]
-                	},
+                    "my_stop": {
+                        "type" : "stop",
+                        "stopwords": ["bar"]
+                    },
                     "synonym" : {
                         "type" : "synonym",
                         "lenient": true,
@@ -73,7 +76,7 @@ PUT /test_index?include_type_name=true
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added. However, if the mapping
 being added was "foo, baz => bar" nothing would get added to the synonym list. This is because the target word for the
 mapping is itself eliminated because it was a stop word. Similarly, if the mapping was "bar, foo, baz" and `expand` was
@@ -83,6 +86,7 @@ stop word.
 
 
 [float]
+[[synonym-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to
@@ -104,9 +108,9 @@ include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
 You can also define synonyms for the filter directly in the
 configuration file (note use of `synonyms` instead of `synonyms_path`):
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /test_index?include_type_name=true
+PUT /test_index
 {
     "settings": {
         "index" : {
@@ -125,7 +129,6 @@ PUT /test_index?include_type_name=true
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 However, it is recommended to define large synonyms set in a file using
 `synonyms_path`, because specifying them inline increases cluster size unnecessarily.
@@ -136,9 +139,9 @@ However, it is recommended to define large synonyms set in a file using
 Synonyms based on http://wordnet.princeton.edu/[WordNet] format can be
 declared using `format`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /test_index?include_type_name=true
+PUT /test_index
 {
     "settings": {
         "index" : {
@@ -159,12 +162,11 @@ PUT /test_index?include_type_name=true
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.
 
-
+[discrete]
 === Parsing synonym files
 
 Elasticsearch will use the token filters preceding the synonym filter
@@ -176,3 +178,7 @@ multiple versions of a token may choose which version of the token to emit when
 parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
 token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
 error.
+
+If you need to build analyzers that include both multi-token filters and synonym
+filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter,
+with the multi-token filters in one branch and the synonym filter in the other.

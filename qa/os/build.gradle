@@ -1,0 +1,99 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+plugins {
+  id 'elasticsearch.distro-test'
+}
+
+dependencies {
+  compile "junit:junit:${versions.junit}"
+  compile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:fluent-hc:${versions.httpclient}"
+  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  compile "org.apache.logging.log4j:log4j-jcl:${versions.log4j}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+
+  compile project(':libs:elasticsearch-core')
+
+  testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+}
+
+forbiddenApisTest {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// we don't have additional tests for the tests themselves
+tasks.test.enabled = false
+// Tests are destructive and meant to run in a VM, they don't adhere to general conventions
+testingConventions.enabled = false
+
+// this project doesn't get published
+tasks.dependencyLicenses.enabled = false
+tasks.dependenciesInfo.enabled = false
+
+tasks.thirdPartyAudit.ignoreMissingClasses()
+
+tasks.register('destructivePackagingTest') {
+  dependsOn 'destructiveDistroTest' 
+}
+
+processTestResources {
+  from project(":test:framework").file("src/main/resources/log4j2-test.properties")
+}
+
+subprojects { Project platformProject ->
+  tasks.register('packagingTest') {
+    dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'
+  }
+
+  vagrant {
+    hostEnv 'VAGRANT_PROJECT_DIR', platformProject.projectDir.absolutePath
+  }
+}
+
+List<String> pluginNames = []
+for (Project subproj : project.rootProject.subprojects) {
+  if (subproj.parent.path == ':plugins' || subproj.path.equals(':example-plugins:custom-settings')) {
+    // add plugin as a dep
+    dependencies {
+      packagingPlugins project(path: "${subproj.path}", configuration: 'zip')
+    }
+    pluginNames.add(subproj.name)
+  }
+}
+pluginNames = pluginNames.toSorted()
+
+tasks.named('copyPlugins') {
+  doLast {
+    // TODO: this was copied from the old way bats tests get the plugins list. we should pass
+    // this in differently when converting to java tests
+    File expectedPlugins = file('build/plugins/expected')
+    expectedPlugins.parentFile.mkdirs()
+    expectedPlugins.setText(pluginNames.join('\n'), 'UTF-8')
+  }
+}
+

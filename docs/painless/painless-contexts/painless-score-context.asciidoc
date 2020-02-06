@@ -26,7 +26,8 @@ score to documents returned from a query.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+Both the standard <<painless-api-reference-shared, Painless API>> and
+<<painless-api-reference-score, Specialized Score API>> are available.
 
 *Example*
 
@@ -36,7 +37,7 @@ To run this example, first follow the steps in
 The following query finds all unsold seats, with lower 'row' values
 scored higher.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /seats/_search
 {
@@ -54,5 +55,4 @@ GET /seats/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]

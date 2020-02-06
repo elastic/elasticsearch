@@ -6,7 +6,10 @@
 
 package org.elasticsearch.xpack;
 
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -14,6 +17,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
@@ -29,6 +33,7 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.CcrIntegTestCase.removeCCRRelatedMetadataFromClusterState;
@@ -46,7 +51,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Let cluster state api return quickly in order to speed up auto follow tests:
-        builder.put(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
+        builder.put(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
         return builder.build();
     }
 
@@ -56,11 +61,15 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @Before
-    public void setupLocalRemote() {
+    public void setupLocalRemote() throws Exception {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         String address = getInstanceFromNode(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", address));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        assertThat(infos.size(), equalTo(1));
+        assertTrue(infos.get(0).isConnected());
     }
 
     @Before
@@ -75,10 +84,15 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @After
-    public void removeLocalRemote() {
+    public void removeLocalRemote() throws Exception {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        assertBusy(() -> {
+            List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+            assertThat(infos.size(), equalTo(0));
+        });
     }
 
     protected AutoFollowStats getAutoFollowStats() {
@@ -88,8 +102,8 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     protected ResumeFollowAction.Request getResumeFollowRequest(String followerIndex) {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setFollowerIndex(followerIndex);
-        request.setMaxRetryDelay(TimeValue.timeValueMillis(1));
-        request.setReadPollTimeout(TimeValue.timeValueMillis(1));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
         return request;
     }
 
@@ -97,7 +111,10 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.setRemoteCluster("local");
         request.setLeaderIndex(leaderIndex);
-        request.setFollowRequest(getResumeFollowRequest(followerIndex));
+        request.setFollowerIndex(followerIndex);
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
+        request.waitForActiveShards(ActiveShardCount.ONE);
         return request;
     }
 

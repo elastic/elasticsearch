@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -70,13 +69,17 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        /*
+         * Consume the body immediately. This ensures that if there is a body and we later reject the request (e.g., because security is not
+         * enabled) that the REST infrastructure will not reject the request for not having consumed the body.
+         */
+        final Tuple<XContentType, BytesReference> content = request.contentOrSourceParam();
         final String username = getUsername(request);
         if (username == null) {
             return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };
         }
-        final Tuple<XContentType, BytesReference> content = request.contentOrSourceParam();
-        HasPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareHasPrivileges(username, content.v2(), content.v1());
-        return channel -> requestBuilder.execute(new RestBuilderListener<HasPrivilegesResponse>(channel) {
+        HasPrivilegesRequestBuilder requestBuilder = new HasPrivilegesRequestBuilder(client).source(username, content.v2(), content.v1());
+        return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(HasPrivilegesResponse response, XContentBuilder builder) throws Exception {
                 response.toXContent(builder, ToXContent.EMPTY_PARAMS);

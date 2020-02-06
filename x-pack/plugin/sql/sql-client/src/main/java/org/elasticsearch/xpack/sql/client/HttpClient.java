@@ -32,11 +32,8 @@ import java.io.InputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
-import java.time.ZoneId;
 import java.util.Collections;
 import java.util.function.Function;
-
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 /**
  * A specialized high-level REST client with support for SQL-related functions.
@@ -45,12 +42,12 @@ import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
  */
 public class HttpClient {
 
-    private static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
-
     private final ConnectionConfiguration cfg;
+    private final XContentType requestBodyContentType;
 
     public HttpClient(ConnectionConfiguration cfg) {
         this.cfg = cfg;
+        this.requestBodyContentType = cfg.binaryCommunication() ? XContentType.CBOR : XContentType.JSON;
     }
 
     private NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
@@ -63,12 +60,20 @@ public class HttpClient {
         return get("/", MainResponse::fromXContent);
     }
 
-    public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
+    public SqlQueryResponse basicQuery(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        // method called only from CLI. "client_id" is set to "cli"
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, ZoneId.of("Z"),
-            fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()),
-            new RequestInfo(Mode.PLAIN, CLI));
+        // method called only from CLI
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), Protocol.TIME_ZONE,
+                fetchSize,
+                TimeValue.timeValueMillis(cfg.queryTimeout()),
+                TimeValue.timeValueMillis(cfg.pageTimeout()),
+                null,
+                Boolean.FALSE,
+                null,
+                new RequestInfo(Mode.CLI),
+                false,
+                false,
+                cfg.binaryCommunication());
         return query(sqlRequest);
     }
 
@@ -77,15 +82,15 @@ public class HttpClient {
     }
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
-        // method called only from CLI. "client_id" is set to "cli"
+        // method called only from CLI
         SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
-                TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.PLAIN, CLI));
+                TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.CLI), cfg.binaryCommunication());
         return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
-    public boolean queryClose(String cursor) throws SQLException {
+    public boolean queryClose(String cursor, Mode mode) throws SQLException {
         SqlClearCursorResponse response = post(Protocol.CLEAR_CURSOR_REST_ENDPOINT,
-            new SqlClearCursorRequest(cursor, new RequestInfo(Mode.PLAIN)),
+            new SqlClearCursorRequest(cursor, new RequestInfo(mode)),
             SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }
@@ -101,15 +106,16 @@ public class HttpClient {
                     con.request(
                         (out) -> out.write(requestBytes),
                         this::readFrom,
-                        "POST"
+                        "POST",
+                        requestBodyContentType.mediaTypeWithoutParameters() // "application/cbor" or "application/json"
                     )
                 )).getResponseOrThrowException();
         return fromXContent(response.v1(), response.v2(), responseParser);
     }
 
     private boolean head(String path, long timeoutInMs) throws SQLException {
-        ConnectionConfiguration pingCfg = new ConnectionConfiguration(cfg.baseUri(), cfg.connectionString(),
-            cfg.connectTimeout(), timeoutInMs, cfg.queryTimeout(), cfg.pageTimeout(), cfg.pageSize(),
+        ConnectionConfiguration pingCfg = new ConnectionConfiguration(cfg.baseUri(), cfg.connectionString(), cfg.validateProperties(),
+            cfg.binaryCommunication(), cfg.connectTimeout(), timeoutInMs, cfg.queryTimeout(), cfg.pageTimeout(), cfg.pageSize(),
             cfg.authUser(), cfg.authPass(), cfg.sslConfig(), cfg.proxyConfig());
         try {
             return AccessController.doPrivileged((PrivilegedAction<Boolean>) () ->
@@ -133,9 +139,9 @@ public class HttpClient {
         return fromXContent(response.v1(), response.v2(), responseParser);
     }
 
-    private static <Request extends ToXContent> byte[] toXContent(Request xContent) {
+    private <Request extends ToXContent> byte[] toXContent(Request xContent) {
         try(ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
-            try (XContentBuilder xContentBuilder = new XContentBuilder(REQUEST_BODY_CONTENT_TYPE.xContent(), buffer)) {
+            try (XContentBuilder xContentBuilder = new XContentBuilder(requestBodyContentType.xContent(), buffer)) {
                 if (xContent.isFragment()) {
                     xContentBuilder.startObject();
                 }

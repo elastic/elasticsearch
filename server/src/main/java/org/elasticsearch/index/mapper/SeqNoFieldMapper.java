@@ -28,7 +28,6 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -125,7 +124,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new SeqNoFieldMapper(indexSettings);
         }
@@ -255,15 +254,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         // we share the parent docs fields to ensure good compression
         SequenceIDFields seqID = context.seqID();
         assert seqID != null;
-        final Version versionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
-        final boolean includePrimaryTerm = versionCreated.before(Version.V_6_1_0);
         for (Document doc : context.nonRootDocuments()) {
             doc.add(seqID.seqNo);
             doc.add(seqID.seqNoDocValue);
-            if (includePrimaryTerm) {
-                // primary terms are used to distinguish between parent and nested docs since 6.1.0
-                doc.add(seqID.primaryTerm);
-            }
         }
     }
 

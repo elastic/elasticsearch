@@ -28,10 +28,10 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -41,14 +41,11 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
@@ -61,11 +58,11 @@ public abstract class TransportWriteAction<
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
-            ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                   Supplier<ReplicaRequest> replicaRequest, String executor) {
+                                   ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
+                                   ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
+                                   Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, request, replicaRequest, executor, true);
+              request, replicaRequest, executor, true, forceExecutionOnPrimary);
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */
@@ -96,19 +93,19 @@ public abstract class TransportWriteAction<
     }
 
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
-        return new WriteActionReplicasProxy(primaryTerm);
+    protected ReplicationOperation.Replicas<ReplicaRequest> newReplicasProxy() {
+        return new WriteActionReplicasProxy();
     }
 
     /**
      * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
      *
-     * @return the result of the operation on primary, including current translog location and operation response and failure
-     * async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
+     * @param listener listener for the result of the operation on primary, including current translog location and operation response
+     * and failure async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
      */
     @Override
-    protected abstract WritePrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
-            Request request, IndexShard primary) throws Exception;
+    protected abstract void shardOperationOnPrimary(
+            Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
@@ -126,12 +123,10 @@ public abstract class TransportWriteAction<
      * NOTE: public for testing
      */
     public static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
-            Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response>
-            implements RespondingWriteResult {
-        boolean finishedAsyncActions;
+            Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response> {
         public final Location location;
         public final IndexShard primary;
-        ActionListener<Response> listener = null;
+        private final Logger logger;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
                                   @Nullable Location location, @Nullable Exception operationFailure,
@@ -139,103 +134,72 @@ public abstract class TransportWriteAction<
             super(request, finalResponse, operationFailure);
             this.location = location;
             this.primary = primary;
+            this.logger = logger;
             assert location == null || operationFailure == null
                     : "expected either failure to be null or translog location to be null, " +
                     "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
-            if (operationFailure != null) {
-                this.finishedAsyncActions = true;
+        }
+
+        @Override
+        public void runPostReplicationActions(ActionListener<Void> listener) {
+            if (finalFailure != null) {
+                listener.onFailure(finalFailure);
             } else {
                 /*
-                 * We call this before replication because this might wait for a refresh and that can take a while.
+                 * We call this after replication because this might wait for a refresh and that can take a while.
                  * This way we wait for the refresh in parallel on the primary and on the replica.
                  */
-                new AsyncAfterWriteAction(primary, request, location, this, logger).run();
+                new AsyncAfterWriteAction(primary, replicaRequest, location, new RespondingWriteResult() {
+                    @Override
+                    public void onSuccess(boolean forcedRefresh) {
+                        finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
+                        listener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception ex) {
+                        listener.onFailure(ex);
+                    }
+                }, logger).run();
             }
-        }
-
-        @Override
-        public synchronized void respond(ActionListener<Response> listener) {
-            this.listener = listener;
-            respondIfPossible(null);
-        }
-
-        /**
-         * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
-         */
-        protected void respondIfPossible(Exception ex) {
-            assert Thread.holdsLock(this);
-            if (finishedAsyncActions && listener != null) {
-                if (ex == null) {
-                    super.respond(listener);
-                } else {
-                    listener.onFailure(ex);
-                }
-            }
-        }
-
-        public synchronized void onFailure(Exception exception) {
-            finishedAsyncActions = true;
-            respondIfPossible(exception);
-        }
-
-        @Override
-        public synchronized void onSuccess(boolean forcedRefresh) {
-            finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
-            finishedAsyncActions = true;
-            respondIfPossible(null);
         }
     }
 
     /**
      * Result of taking the action on the replica.
      */
-    protected static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
-            extends ReplicaResult implements RespondingWriteResult {
+    public static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>> extends ReplicaResult {
         public final Location location;
-        boolean finishedAsyncActions;
-        private ActionListener<TransportResponse.Empty> listener;
+        private final ReplicaRequest request;
+        private final IndexShard replica;
+        private final Logger logger;
 
         public WriteReplicaResult(ReplicaRequest request, @Nullable Location location,
                                   @Nullable Exception operationFailure, IndexShard replica, Logger logger) {
             super(operationFailure);
             this.location = location;
-            if (operationFailure != null) {
-                this.finishedAsyncActions = true;
+            this.request = request;
+            this.replica = replica;
+            this.logger = logger;
+        }
+
+        @Override
+        public void runPostReplicaActions(ActionListener<Void> listener) {
+            if (finalFailure != null) {
+                listener.onFailure(finalFailure);
             } else {
-                new AsyncAfterWriteAction(replica, request, location, this, logger).run();
+                new AsyncAfterWriteAction(replica, request, location, new RespondingWriteResult() {
+                    @Override
+                    public void onSuccess(boolean forcedRefresh) {
+                        listener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception ex) {
+                        listener.onFailure(ex);
+                    }
+                }, logger).run();
             }
-        }
-
-        @Override
-        public synchronized void respond(ActionListener<TransportResponse.Empty> listener) {
-            this.listener = listener;
-            respondIfPossible(null);
-        }
-
-        /**
-         * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
-         */
-        protected void respondIfPossible(Exception ex) {
-            assert Thread.holdsLock(this);
-            if (finishedAsyncActions && listener != null) {
-                if (ex == null) {
-                    super.respond(listener);
-                } else {
-                    listener.onFailure(ex);
-                }
-            }
-        }
-
-        @Override
-        public synchronized void onFailure(Exception ex) {
-            finishedAsyncActions = true;
-            respondIfPossible(ex);
-        }
-
-        @Override
-        public synchronized void onSuccess(boolean forcedRefresh) {
-            finishedAsyncActions = true;
-            respondIfPossible(null);
         }
     }
 
@@ -245,7 +209,7 @@ public abstract class TransportWriteAction<
     }
 
     @Override
-    protected ClusterBlockLevel indexBlockLevel() {
+    public ClusterBlockLevel indexBlockLevel() {
         return ClusterBlockLevel.WRITE;
     }
 
@@ -371,25 +335,19 @@ public abstract class TransportWriteAction<
      */
     class WriteActionReplicasProxy extends ReplicasProxy {
 
-        WriteActionReplicasProxy(long primaryTerm) {
-            super(primaryTerm);
-        }
-
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
-                                      Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+        public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
+                                      ActionListener<Void> listener) {
             if (TransportActions.isShardNotAvailableException(exception) == false) {
                 logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             }
-            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception,
-                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+            shardStateAction.remoteShardFailed(
+                replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception, listener);
         }
 
         @Override
-        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
-                                                 Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
-            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null,
-                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, ActionListener<Void> listener) {
+            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null, listener);
         }
     }
 }

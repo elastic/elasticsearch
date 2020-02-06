@@ -1,12 +1,8 @@
 ---
 "Create index with mappings":
 
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           mappings:
@@ -21,12 +17,9 @@
 ---
 "Create index with settings":
 
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
+
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           settings:
@@ -41,12 +34,8 @@
 ---
 "Create index":
 
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
 
   - match: { acknowledged: true }
@@ -55,12 +44,8 @@
 ---
 "Create index with wait_for_active_shards set to all":
 
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         wait_for_active_shards: all
         body:
@@ -73,12 +58,8 @@
 ---
 "Create index with aliases":
 
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           mappings:
@@ -107,12 +88,9 @@
 
 ---
 "Create index with write aliases":
-  - skip:
-      version: " - 6.99.99"
-      reason: is_write_index is not implemented in ES <= 6.x
+
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           aliases:
@@ -135,10 +113,22 @@
   - do:
       catch: /illegal_argument_exception/
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           mappings:
             properties:
               "":
                 type:     keyword
+
+---
+"Create index without soft deletes":
+  - skip:
+      version:  " - 7.9.99"
+      reason:   "indices without soft-deletes is no longer supported "
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            soft_deletes.enabled: false

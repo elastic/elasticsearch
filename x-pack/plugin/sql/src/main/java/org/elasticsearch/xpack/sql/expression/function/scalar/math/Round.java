@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
+
+import java.util.List;
 
 /**
  * Function that takes two parameters: one is the field/value itself, the other is a non-floating point numeric
@@ -18,24 +19,24 @@ import org.elasticsearch.xpack.sql.type.DataType;
  * count digits after the decimal point. If negative, it will round the number till that paramter count
  * digits before the decimal point, starting at the decimal point.
  */
-public class Round extends BinaryNumericFunction {
+public class Round extends BinaryOptionalNumericFunction implements OptionalArgument {
     
     public Round(Source source, Expression left, Expression right) {
-        super(source, left, right == null ? Literal.of(left.source(), 0) : right, BinaryMathOperation.ROUND);
+        super(source, left, right);
     }
 
     @Override
-    protected NodeInfo<Round> info() {
+    protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Round::new, left(), right());
     }
 
     @Override
-    protected Round replaceChildren(Expression newLeft, Expression newRight) {
-        return new Round(source(), newLeft, newRight);
+    protected BinaryOptionalMathOperation operation() {
+        return BinaryOptionalMathOperation.ROUND;
     }
     
     @Override
-    public DataType dataType() {
-        return left().dataType();
+    protected final Expression replacedChildrenInstance(List<Expression> newChildren) {
+        return new Round(source(), newChildren.get(0), right() == null ? null : newChildren.get(1));
     }
 }

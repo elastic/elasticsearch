@@ -1,0 +1,229 @@
+[role="xpack"]
+[testenv="basic"]
+[[get-enrich-policy-api]]
+=== Get enrich policy API
+++++
+<titleabbrev>Get enrich policy</titleabbrev>
+++++
+
+Returns information about an <<enrich-policy,enrich policy>>.
+
+////
+[source,console]
+----
+PUT /users
+{
+    "mappings" : {
+        "properties" : {
+            "email" : { "type" : "keyword" }
+        }
+    }
+}
+
+PUT /_enrich/policy/my-policy
+{
+    "match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+    }
+}
+
+PUT /_enrich/policy/other-policy
+{
+    "match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+    }
+}
+----
+////
+
+[source,console]
+--------------------------------------------------
+GET /_enrich/policy/my-policy
+--------------------------------------------------
+// TEST[continued]
+
+
+[[get-enrich-policy-api-request]]
+==== {api-request-title}
+
+`GET /_enrich/policy/<enrich-policy>`
+
+`GET /_enrich/policy`
+
+
+[[get-enrich-policy-api-prereqs]]
+==== {api-prereq-title}
+
+include::put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
+
+
+[[get-enrich-policy-api-path-params]]
+==== {api-path-parms-title}
+
+`<enrich-policy>`::
++
+--
+(Optional, string)
+Comma-separated list of enrich policy names
+used to limit the request.
+
+To return information for all enrich policies,
+omit this parameter.
+--
+
+
+[[get-enrich-policy-api-example]]
+==== {api-examples-title}
+
+
+[[get-enrich-policy-api-single-ex]]
+===== Get a single policy
+
+[source,console]
+--------------------------------------------------
+GET /_enrich/policy/my-policy
+--------------------------------------------------
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "policies": [
+        {
+            "config": {
+                "match": {
+                    "name" : "my-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
+            }
+        }
+    ]
+}
+--------------------------------------------------
+
+
+[[get-enrich-policy-api-commas-ex]]
+===== Get multiple policies
+
+[source,console]
+--------------------------------------------------
+GET /_enrich/policy/my-policy,other-policy
+--------------------------------------------------
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "policies": [
+        {
+            "config": {
+                "match": {
+                    "name" : "my-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
+            }
+        },
+        {
+            "config": {
+                "match": {
+                    "name" : "other-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
+            }
+        }
+    ]
+}
+--------------------------------------------------
+
+
+[[get-enrich-policy-api-all-ex]]
+===== Get all policies
+
+[source,console]
+--------------------------------------------------
+GET /_enrich/policy
+--------------------------------------------------
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "policies": [
+        {
+            "config": {
+                "match": {
+                    "name" : "my-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
+            }
+        },
+        {
+            "config": {
+                "match": {
+                    "name" : "other-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
+            }
+        }
+    ]
+}
+--------------------------------------------------
+
+////
+[source,console]
+--------------------------------------------------
+DELETE /_enrich/policy/my-policy
+DELETE /_enrich/policy/other-policy
+--------------------------------------------------
+// TEST[continued]
+////

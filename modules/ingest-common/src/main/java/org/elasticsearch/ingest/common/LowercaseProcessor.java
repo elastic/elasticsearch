@@ -27,7 +27,7 @@ import java.util.Map;
  * Throws exception is the field is not of type string.
  */
 
-public final class LowercaseProcessor extends AbstractStringProcessor {
+public final class LowercaseProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "lowercase";
 

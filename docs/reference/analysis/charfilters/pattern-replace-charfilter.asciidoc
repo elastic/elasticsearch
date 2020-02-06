@@ -47,9 +47,9 @@ In this example, we configure the `pattern_replace` character filter to
 replace any embedded dashes in numbers with underscores, i.e `123-456-789` ->
 `123_456_789`:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -78,12 +78,11 @@ POST my_index/_analyze
   "text": "My credit card is 123-456-789"
 }
 ----------------------------
-// CONSOLE
 // TEST[s/\$1//]
 // the test framework doesn't like the $1 so we just throw it away rather than
 // try to get it to work properly. At least we are still testing the charfilter.
 
-The above example produces the following term:
+The above example produces the following terms:
 
 [source,text]
 ---------------------------
@@ -98,9 +97,9 @@ This example inserts a space whenever it encounters a lower-case letter
 followed by an upper-case letter (i.e. `fooBarBaz` -> `foo Bar Baz`), allowing
 camelCase words to be queried individually:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -125,12 +124,10 @@ PUT my_index?include_type_name=true
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "analyzer": "my_analyzer"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "my_analyzer"
       }
     }
   }
@@ -142,11 +139,10 @@ POST my_index/_analyze
   "text": "The fooBarBaz method"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -188,7 +184,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -203,7 +198,7 @@ Querying for `bar` will find the document correctly, but highlighting on the
 result will produce incorrect highlights, because our character filter changed
 the length of the original text:
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index/_doc/1?refresh
 {
@@ -224,12 +219,11 @@ GET my_index/_search
   }
 }
 ----------------------------
-// CONSOLE
 // TEST[continued]
 
 The output from the above is:
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "timed_out": false,
@@ -249,7 +243,6 @@ The output from the above is:
     "hits": [
       {
         "_index": "my_index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {
@@ -266,4 +259,5 @@ The output from the above is:
 }
 ----------------------------
 // TESTRESPONSE[s/"took".*/"took": "$body.took",/]
+
 <1> Note the incorrect highlight.

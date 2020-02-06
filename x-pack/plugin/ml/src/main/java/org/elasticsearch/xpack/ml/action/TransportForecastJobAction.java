@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
+import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -38,16 +39,19 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
     private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
+    private final NativeStorageProvider nativeStorageProvider;
+
     @Inject
     public TransportForecastJobAction(TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters,
                                       JobResultsProvider jobResultsProvider, AutodetectProcessManager processManager,
-                                      JobManager jobManager) {
+                                      JobManager jobManager, NativeStorageProvider nativeStorageProvider) {
         super(ForecastJobAction.NAME, clusterService, transportService, actionFilters,
             ForecastJobAction.Request::new, ForecastJobAction.Response::new,
                 ThreadPool.Names.SAME, processManager);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
+        this.nativeStorageProvider = nativeStorageProvider;
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 
@@ -70,7 +74,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
                     // tmp storage might be null, we do not log here, because it might not be
                     // required
-                    Path tmpStorage = processManager.tryGetTmpStorage(task, FORECAST_LOCAL_STORAGE_LIMIT);
+                    Path tmpStorage = nativeStorageProvider.tryGetLocalTmpStorage(task.getDescription(), FORECAST_LOCAL_STORAGE_LIMIT);
                     if (tmpStorage != null) {
                         paramsBuilder.tmpStorage(tmpStorage.toString());
                     }
@@ -78,7 +82,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                     ForecastParams params = paramsBuilder.build();
                     processManager.forecastJob(task, params, e -> {
                         if (e == null) {
-;                           getForecastRequestStats(request.getJobId(), params.getForecastId(), listener);
+                            getForecastRequestStats(request.getJobId(), params.getForecastId(), listener);
                         } else {
                             listener.onFailure(e);
                         }
@@ -121,7 +125,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     }
 
     static void validate(Job job, ForecastJobAction.Request request) {
-        if (job.getJobVersion() == null || job.getJobVersion().before(Version.V_6_1_0)) {
+        if (job.getJobVersion() == null || job.getJobVersion().before(Version.fromString("6.1.0"))) {
             throw ExceptionsHelper.badRequestException(
                     "Cannot run forecast because jobs created prior to version 6.1 are not supported");
         }

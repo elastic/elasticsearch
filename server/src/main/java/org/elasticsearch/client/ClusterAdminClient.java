@@ -49,6 +49,9 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -454,6 +457,21 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     GetRepositoriesRequestBuilder prepareGetRepositories(String... name);
 
     /**
+     * Cleans up repository.
+     */
+    CleanupRepositoryRequestBuilder prepareCleanupRepository(String repository);
+
+    /**
+     * Cleans up repository.
+     */
+    ActionFuture<CleanupRepositoryResponse> cleanupRepository(CleanupRepositoryRequest repository);
+
+    /**
+     * Cleans up repository.
+     */
+    void cleanupRepository(CleanupRepositoryRequest repository, ActionListener<CleanupRepositoryResponse> listener);
+
+    /**
      * Verifies a repository.
      */
     ActionFuture<VerifyRepositoryResponse> verifyRepository(VerifyRepositoryRequest request);
@@ -484,19 +502,19 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     CreateSnapshotRequestBuilder prepareCreateSnapshot(String repository, String name);
 
     /**
-     * Get snapshot.
+     * Get snapshots.
      */
     ActionFuture<GetSnapshotsResponse> getSnapshots(GetSnapshotsRequest request);
 
     /**
-     * Get snapshot.
+     * Get snapshots.
      */
     void getSnapshots(GetSnapshotsRequest request, ActionListener<GetSnapshotsResponse> listener);
 
     /**
-     * Get snapshot.
+     * Get snapshots.
      */
-    GetSnapshotsRequestBuilder prepareGetSnapshots(String repository);
+    GetSnapshotsRequestBuilder prepareGetSnapshots(String... repository);
 
     /**
      * Delete snapshot.

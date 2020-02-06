@@ -60,18 +60,6 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
             = plugin.getTokenFilters().get("phonetic").get(idxSettings, null, "phonetic", settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, tff::getSynonymFilter);
         assertEquals("Token filter [phonetic] cannot be used to parse synonyms", e.getMessage());
-
-        settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(),
-                Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
-            .put("path.home", createTempDir().toString())
-            .build();
-        idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-
-        tff = plugin.getTokenFilters().get("phonetic").get(idxSettings, null, "phonetic", settings);
-        tff.getSynonymFilter();
-
-        assertWarnings("Token filter [phonetic] will not be usable to parse synonyms after v7.0");
     }
 
 }

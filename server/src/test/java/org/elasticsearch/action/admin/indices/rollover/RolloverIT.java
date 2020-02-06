@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -87,7 +87,7 @@ public class RolloverIT extends ESIntegTestCase {
     public void testRollover() throws Exception {
         long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
-        index("test_index-2", "type1", "1", "field", "value");
+        indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
@@ -110,7 +110,7 @@ public class RolloverIT extends ESIntegTestCase {
     public void testRolloverWithExplicitWriteIndex() throws Exception {
         long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias").writeIndex(true)).get());
-        index("test_index-2", "type1", "1", "field", "value");
+        indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
@@ -150,7 +150,7 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
-        index("test_index-2", "type1", "1", "field", "value");
+        indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -180,7 +180,7 @@ public class RolloverIT extends ESIntegTestCase {
 
     public void testRolloverDryRun() throws Exception {
         assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
-        index("test_index-1", "type1", "1", "field", "value");
+        indexDoc("test_index-1", "1", "field", "value");
         flush("test_index-1");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
@@ -202,7 +202,7 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index-0").addAlias(testAlias).get());
-        index("test_index-0", "type1", "1", "field", "value");
+        indexDoc("test_index-0", "1", "field", "value");
         flush("test_index-0");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .addMaxIndexSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB))
@@ -237,7 +237,7 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index").addAlias(testAlias).get());
-        index("test_index", "type1", "1", "field", "value");
+        indexDoc("test_index", "1", "field", "value");
         flush("test_index");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .setNewIndexName("test_new_index").get();
@@ -260,9 +260,9 @@ public class RolloverIT extends ESIntegTestCase {
 
     public void testRolloverOnExistingIndex() throws Exception {
         assertAcked(prepareCreate("test_index-0").addAlias(new Alias("test_alias")).get());
-        index("test_index-0", "type1", "1", "field", "value");
+        indexDoc("test_index-0", "1", "field", "value");
         assertAcked(prepareCreate("test_index-000001").get());
-        index("test_index-000001", "type1", "1", "field", "value");
+        indexDoc("test_index-000001", "1", "field", "value");
         flush("test_index-0", "test_index-000001");
         try {
             client().admin().indices().prepareRolloverIndex("test_alias").get();
@@ -272,11 +272,10 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37037")
     public void testRolloverWithDateMath() {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         assumeTrue("only works on the same day", now.plusMinutes(5).getDayOfYear() == now.getDayOfYear());
-        String index = "test-" + DateFormatters.forPattern("YYYY.MM.dd").format(now) + "-1";
+        String index = "test-" + DateFormatter.forPattern("yyyy.MM.dd").format(now) + "-1";
         String dateMathExp = "<test-{now/d}-1>";
         assertAcked(prepareCreate(dateMathExp).addAlias(new Alias("test_alias")).get());
         ensureGreen(index);
@@ -284,34 +283,34 @@ public class RolloverIT extends ESIntegTestCase {
         client().admin().indices().prepareClose(index).get();
         client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
-            "<test-{now/M{YYYY.MM}}-1>")).get();
+            "<test-{now/M{yyyy.MM}}-1>")).get();
 
         client().admin().indices().prepareOpen(index).get();
         ensureGreen(index);
         RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo(index));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000002"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM").format(now) + "-000002"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000002"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000003"));
+        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM").format(now) + "-000002"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM").format(now) + "-000003"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(response.getOldIndex(),
             response.getNewIndex()).get();
-        assertEquals("<test-{now/M{YYYY.MM}}-000002>", getSettingsResponse.getSetting(response.getOldIndex(),
+        assertEquals("<test-{now/M{yyyy.MM}}-000002>", getSettingsResponse.getSetting(response.getOldIndex(),
             IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals("<test-{now/M{YYYY.MM}}-000003>", getSettingsResponse.getSetting(response.getNewIndex(),
+        assertEquals("<test-{now/M{yyyy.MM}}-000003>", getSettingsResponse.getSetting(response.getNewIndex(),
             IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").setNewIndexName("<test-{now/d}-000004>").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000003"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM.dd").format(now) + "-000004"));
+        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM").format(now) + "-000003"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM.dd").format(now) + "-000004"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
@@ -321,7 +320,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test-1").addAlias(new Alias("test_alias")).get());
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
-            index("test-1", "doc", Integer.toString(i), "field", "foo-" + i);
+            indexDoc("test-1", Integer.toString(i), "field", "foo-" + i);
         }
         flush("test-1");
         refresh("test_alias");
@@ -381,5 +380,55 @@ public class RolloverIT extends ESIntegTestCase {
             () -> client().admin().indices().prepareRolloverIndex("logs-write").addMaxIndexSizeCondition(new ByteSizeValue(1)).get());
         assertThat(error.getMessage(), equalTo(
             "Rollover alias [logs-write] can point to multiple indices, found duplicated alias [[logs-write]] in index template [logs]"));
+    }
+
+    public void testRolloverWithClosedIndexInAlias() throws Exception {
+        final String aliasName = "alias";
+        final String openNonwriteIndex = "open-index-nonwrite";
+        final String closedIndex = "closed-index-nonwrite";
+        final String writeIndexPrefix = "write-index-";
+        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+
+        index(closedIndex, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        refresh(aliasName);
+
+        assertAcked(client().admin().indices().prepareClose(closedIndex).get());
+
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
+            .addMaxIndexDocsCondition(1)
+            .get();
+        assertTrue(rolloverResponse.isRolledOver());
+        assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
+        assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
+    }
+
+    public void testRolloverWithClosedWriteIndex() throws Exception {
+        final String aliasName = "alias";
+        final String openNonwriteIndex = "open-index-nonwrite";
+        final String closedIndex = "closed-index-nonwrite";
+        final String writeIndexPrefix = "write-index-";
+        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+
+        index(closedIndex, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        refresh(aliasName);
+
+        assertAcked(client().admin().indices().prepareClose(closedIndex).get());
+        assertAcked(client().admin().indices().prepareClose(writeIndexPrefix + "000001").get());
+        ensureGreen(aliasName);
+
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
+            .addMaxIndexDocsCondition(1)
+            .get();
+        assertTrue(rolloverResponse.isRolledOver());
+        assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
+        assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
     }
 }

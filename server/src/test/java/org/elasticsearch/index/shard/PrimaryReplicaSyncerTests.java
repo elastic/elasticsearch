@@ -80,9 +80,9 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(shard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
-                randomBoolean() ? IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP : randomNonNegativeLong(), true);
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, true);
         }
 
         long globalCheckPoint = numDocs > 0 ? randomIntBetween(0, numDocs - 1) : 0;
@@ -90,9 +90,9 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
         String allocationId = shard.routingEntry().allocationId().getId();
         shard.updateShardState(shard.routingEntry(), shard.getPendingPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
-            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build());
         shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
-        assertEquals(globalCheckPoint, shard.getGlobalCheckpoint());
+        assertEquals(globalCheckPoint, shard.getLastKnownGlobalCheckpoint());
 
         logger.info("Total ops: {}, global checkpoint: {}", numDocs, globalCheckPoint);
 
@@ -150,13 +150,13 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(shard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
 
         String allocationId = shard.routingEntry().allocationId().getId();
         shard.updateShardState(shard.routingEntry(), shard.getPendingPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
-            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build());
 
         CountDownLatch syncCalledLatch = new CountDownLatch(1);
         PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<PrimaryReplicaSyncer.ResyncTask>() {

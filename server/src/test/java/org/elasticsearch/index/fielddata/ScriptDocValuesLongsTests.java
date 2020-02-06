@@ -42,8 +42,12 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             longs.setNextDocId(d);
             if (values[d].length > 0) {
                 assertEquals(values[d][0], longs.getValue());
+                assertEquals(values[d][0], (long) longs.get(0));
             } else {
                 Exception e = expectThrows(IllegalStateException.class, () -> longs.getValue());
+                assertEquals("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+                e = expectThrows(IllegalStateException.class, () -> longs.get(0));
                 assertEquals("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
             }

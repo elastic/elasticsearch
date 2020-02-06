@@ -24,31 +24,31 @@
 
 #### Primitive types
 
-class void no_import {
+class void @no_import {
 }
 
-class boolean no_import {
+class boolean @no_import {
 }
 
-class byte no_import {
+class byte @no_import {
 }
 
-class short no_import {
+class short @no_import {
 }
 
-class char no_import {
+class char @no_import {
 }
 
-class int no_import {
+class int @no_import {
 }
 
-class long no_import {
+class long @no_import {
 }
 
-class float no_import {
+class float @no_import {
 }
 
-class double no_import {
+class double @no_import {
 }
 
 #### Painless debugging API
@@ -87,7 +87,6 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   int getNano()
   int getSecond()
   int getYear()
-  ZoneId getZone()
   ZonedDateTime minus(TemporalAmount)
   ZonedDateTime minus(long,TemporalUnit)
   ZonedDateTime minusYears(long)
@@ -108,7 +107,6 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   ZonedDateTime plusSeconds(long)
   ZonedDateTime plusWeeks(long)
   ZonedDateTime plusYears(long)
-  Instant toInstant()
   OffsetDateTime toOffsetDateTime()
   ZonedDateTime truncatedTo(TemporalUnit)
   ZonedDateTime with(TemporalAdjuster)
@@ -126,14 +124,6 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   ZonedDateTime withYear(int)
   ZonedDateTime withZoneSameLocal(ZoneId)
   ZonedDateTime withZoneSameInstant(ZoneId)
-
-  #### Joda methods that exist in java time
-  boolean equals(Object)
-  int hashCode()
-  boolean isAfter(JodaCompatibleZonedDateTime)
-  boolean isBefore(JodaCompatibleZonedDateTime)
-  boolean isEqual(JodaCompatibleZonedDateTime)
-  String toString()
 
   #### Joda time methods
   long getMillis()
@@ -241,30 +231,6 @@ class org.elasticsearch.index.query.IntervalFilterScript$Interval {
   int getGaps()
 }
 
-# for testing
-class org.elasticsearch.painless.FeatureTest no_import {
-  int z
-  ()
-  (int,int)
-  int getX()
-  int getY()
-  Integer getI()
-  void setX(int)
-  void setY(int)
-  void setI(Integer)
-  boolean overloadedStatic()
-  boolean overloadedStatic(boolean)
-  int staticNumberTest(Number)
-  Double mixedAdd(int, Byte, char, Float)
-  Object twoFunctionsOfX(Function,Function)
-  void listInput(List)
-  int org.elasticsearch.painless.FeatureTestAugmentation getTotal()
-  int org.elasticsearch.painless.FeatureTestAugmentation addToTotal(int)
-}
-
-# for testing
-static_import {
-  int staticAddIntsTest(int, int) from_class org.elasticsearch.painless.StaticTest
-  float staticAddFloatsTest(float, float) from_class org.elasticsearch.painless.FeatureTest
-  int testAddWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingTest
+class org.elasticsearch.script.ScoreScript$ExplanationHolder {
+  void set(String)
 }

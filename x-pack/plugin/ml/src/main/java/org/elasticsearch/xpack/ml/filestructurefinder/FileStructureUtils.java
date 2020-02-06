@@ -6,16 +6,15 @@
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
-import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +30,10 @@ public final class FileStructureUtils {
     public static final String MAPPING_TYPE_SETTING = "type";
     public static final String MAPPING_FORMAT_SETTING = "format";
     public static final String MAPPING_PROPERTIES_SETTING = "properties";
+    public static final Map<String, String> DATE_MAPPING_WITHOUT_FORMAT =
+        Collections.singletonMap(MAPPING_TYPE_SETTING, "date");
+    public static final Set<String> CONVERTIBLE_TYPES =
+        Collections.unmodifiableSet(Sets.newHashSet("integer", "long", "float", "double", "boolean"));
 
     private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
@@ -60,27 +63,32 @@ public final class FileStructureUtils {
      *                  values determined by structure analysis.  An exception will be thrown if the file structure
      *                  is incompatible with an overridden value.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @return A tuple of (field name, timestamp format) if one can be found, or <code>null</code> if
+     * @return A tuple of (field name, timestamp format finder) if one can be found, or <code>null</code> if
      *         there is no consistent timestamp.
      */
-    static Tuple<String, TimestampMatch> guessTimestampField(List<String> explanation, List<Map<String, ?>> sampleRecords,
-                                                             FileStructureOverrides overrides, TimeoutChecker timeoutChecker) {
+    static Tuple<String, TimestampFormatFinder> guessTimestampField(List<String> explanation, List<Map<String, ?>> sampleRecords,
+                                                                    FileStructureOverrides overrides, TimeoutChecker timeoutChecker) {
         if (sampleRecords.isEmpty()) {
             return null;
         }
 
+        StringBuilder exceptionMsg = null;
+
         // Accept the first match from the first sample that is compatible with all the other samples
-        for (Tuple<String, TimestampMatch> candidate : findCandidates(explanation, sampleRecords, overrides, timeoutChecker)) {
+        for (Tuple<String, TimestampFormatFinder> candidate : findCandidates(explanation, sampleRecords, overrides, timeoutChecker)) {
+
+            String fieldName = candidate.v1();
+            TimestampFormatFinder timestampFormatFinder = candidate.v2();
 
             boolean allGood = true;
             for (Map<String, ?> sampleRecord : sampleRecords.subList(1, sampleRecords.size())) {
-                Object fieldValue = sampleRecord.get(candidate.v1());
+                Object fieldValue = sampleRecord.get(fieldName);
                 if (fieldValue == null) {
                     if (overrides.getTimestampField() != null) {
                         throw new IllegalArgumentException("Specified timestamp field [" + overrides.getTimestampField() +
                             "] is not present in record [" + sampleRecord + "]");
                     }
-                    explanation.add("First sample match [" + candidate.v1() + "] ruled out because record [" + sampleRecord +
+                    explanation.add("First sample match [" + fieldName + "] ruled out because record [" + sampleRecord +
                         "] doesn't have field");
                     allGood = false;
                     break;
@@ -88,15 +96,20 @@ public final class FileStructureUtils {
 
                 timeoutChecker.check("timestamp field determination");
 
-                TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(fieldValue.toString(), overrides.getTimestampFormat(),
-                    timeoutChecker);
-                if (match == null || match.candidateIndex != candidate.v2().candidateIndex) {
+                try {
+                    timestampFormatFinder.addSample(fieldValue.toString());
+                } catch (IllegalArgumentException e) {
                     if (overrides.getTimestampFormat() != null) {
-                        throw new IllegalArgumentException("Specified timestamp format [" + overrides.getTimestampFormat() +
-                            "] does not match for record [" + sampleRecord + "]");
+                        if (exceptionMsg == null) {
+                            exceptionMsg = new StringBuilder("Specified timestamp format [" + overrides.getTimestampFormat() +
+                                "] does not match");
+                        } else {
+                            exceptionMsg.append(", nor");
+                        }
+                        exceptionMsg.append(" for record [").append(sampleRecord).append("] in field [").append(fieldName).append("]");
                     }
-                    explanation.add("First sample match [" + candidate.v1() + "] ruled out because record [" + sampleRecord +
-                        "] matches differently: [" + match + "]");
+                    explanation.add("First sample match " + timestampFormatFinder.getRawJavaTimestampFormats()
+                        + " ruled out because record [" + sampleRecord + "] does not match");
                     allGood = false;
                     break;
                 }
@@ -104,16 +117,21 @@ public final class FileStructureUtils {
 
             if (allGood) {
                 explanation.add(((overrides.getTimestampField() == null) ? "Guessing timestamp" : "Timestamp") +
-                    " field is [" + candidate.v1() + "] with format [" + candidate.v2() + "]");
+                    " field is [" + fieldName + "] with format " + timestampFormatFinder.getJavaTimestampFormats());
                 return candidate;
             }
+        }
+
+        if (exceptionMsg != null) {
+            throw new IllegalArgumentException(exceptionMsg.toString());
         }
 
         return null;
     }
 
-    private static List<Tuple<String, TimestampMatch>> findCandidates(List<String> explanation, List<Map<String, ?>> sampleRecords,
-                                                                      FileStructureOverrides overrides, TimeoutChecker timeoutChecker) {
+    private static List<Tuple<String, TimestampFormatFinder>> findCandidates(List<String> explanation, List<Map<String, ?>> sampleRecords,
+                                                                             FileStructureOverrides overrides,
+                                                                             TimeoutChecker timeoutChecker) {
 
         assert sampleRecords.isEmpty() == false;
         Map<String, ?> firstRecord = sampleRecords.get(0);
@@ -124,7 +142,7 @@ public final class FileStructureUtils {
                 "] is not present in record [" + firstRecord + "]");
         }
 
-        List<Tuple<String, TimestampMatch>> candidates = new ArrayList<>();
+        List<Tuple<String, TimestampFormatFinder>> candidates = new ArrayList<>();
 
         // Get candidate timestamps from the possible field(s) of the first sample record
         for (Map.Entry<String, ?> field : firstRecord.entrySet()) {
@@ -132,12 +150,17 @@ public final class FileStructureUtils {
             if (onlyConsiderField == null || onlyConsiderField.equals(fieldName)) {
                 Object value = field.getValue();
                 if (value != null) {
-                    TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(value.toString(), overrides.getTimestampFormat(),
-                        timeoutChecker);
-                    if (match != null) {
-                        Tuple<String, TimestampMatch> candidate = new Tuple<>(fieldName, match);
-                        candidates.add(candidate);
-                        explanation.add("First sample timestamp match [" + candidate + "]");
+                    // Construct the TimestampFormatFinder outside the no-op catch because an exception
+                    // from the constructor indicates a problem with the overridden format
+                    TimestampFormatFinder timestampFormatFinder =
+                        new TimestampFormatFinder(explanation, overrides.getTimestampFormat(), true, true, true, timeoutChecker);
+                    try {
+                        timestampFormatFinder.addSample(value.toString());
+                        candidates.add(new Tuple<>(fieldName, timestampFormatFinder));
+                        explanation.add("First sample timestamp match " + timestampFormatFinder.getRawJavaTimestampFormats()
+                            + " for field [" + fieldName + "]");
+                    } catch (IllegalArgumentException e) {
+                        // No possible timestamp format found in this particular field - not a problem
                     }
                 }
             }
@@ -169,11 +192,8 @@ public final class FileStructureUtils {
 
         for (String fieldName : uniqueFieldNames) {
 
-            List<Object> fieldValues = sampleRecords.stream().flatMap(record -> {
-                    Object fieldValue = record.get(fieldName);
-                    return (fieldValue == null) ? Stream.empty() : Stream.of(fieldValue);
-                }
-            ).collect(Collectors.toList());
+            List<Object> fieldValues = sampleRecords.stream().map(record -> record.get(fieldName)).filter(fieldValue -> fieldValue != null)
+                .collect(Collectors.toList());
 
             Tuple<Map<String, String>, FieldStats> mappingAndFieldStats =
                 guessMappingAndCalculateFieldStats(explanation, fieldName, fieldValues, timeoutChecker);
@@ -216,7 +236,7 @@ public final class FileStructureUtils {
         Collection<String> fieldValuesAsStrings = fieldValues.stream().map(Object::toString).collect(Collectors.toList());
         Map<String, String> mapping = guessScalarMapping(explanation, fieldName, fieldValuesAsStrings, timeoutChecker);
         timeoutChecker.check("mapping determination");
-        return new Tuple<>(mapping, calculateFieldStats(fieldValuesAsStrings, timeoutChecker));
+        return new Tuple<>(mapping, calculateFieldStats(mapping, fieldValuesAsStrings, timeoutChecker));
     }
 
     private static Stream<Object> flatten(Object value) {
@@ -229,6 +249,27 @@ public final class FileStructureUtils {
         } else {
             return Stream.of(value);
         }
+    }
+
+    /**
+     * Finds the appropriate date mapping for a collection of field values.  Throws
+     * {@link IllegalArgumentException} if no consistent date mapping can be found.
+     * @param explanation List of reasons for choosing the overall file structure.  This list
+     *                    may be non-empty when the method is called, and this method may
+     *                    append to it.
+     * @param fieldValues Values of the field for which mappings are to be guessed.  The guessed
+     *                    mapping will be compatible with all the provided values.  Must not be
+     *                    empty.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @return The sub-section of the index mappings most appropriate for the field.
+     */
+    static Map<String, String> findTimestampMapping(List<String> explanation, Collection<String> fieldValues,
+                                                    TimeoutChecker timeoutChecker) {
+        assert fieldValues.isEmpty() == false;
+
+        TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, timeoutChecker);
+        fieldValues.forEach(timestampFormatFinder::addSample);
+        return timestampFormatFinder.getEsDateMappingTypeWithFormat();
     }
 
     /**
@@ -247,26 +288,17 @@ public final class FileStructureUtils {
      */
     static Map<String, String> guessScalarMapping(List<String> explanation, String fieldName, Collection<String> fieldValues,
                                                   TimeoutChecker timeoutChecker) {
-
         assert fieldValues.isEmpty() == false;
 
         if (fieldValues.stream().allMatch(value -> "true".equals(value) || "false".equals(value))) {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "boolean");
         }
 
-        // This checks if a date mapping would be appropriate, and, if so, finds the correct format
-        Iterator<String> iter = fieldValues.iterator();
-        TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(iter.next(), timeoutChecker);
-        while (timestampMatch != null && iter.hasNext()) {
-            // To be mapped as type date all the values must match the same timestamp format - it is
-            // not acceptable for all values to be dates, but with different formats
-            if (timestampMatch.equals(TimestampFormatFinder.findFirstFullMatch(iter.next(), timestampMatch.candidateIndex,
-                timeoutChecker)) == false) {
-                timestampMatch = null;
-            }
-        }
-        if (timestampMatch != null) {
-            return timestampMatch.getEsDateMappingTypeWithFormat();
+        try {
+            return findTimestampMapping(explanation, fieldValues, timeoutChecker);
+        } catch (IllegalArgumentException e) {
+            // To be mapped as type "date" all the values must match the same timestamp format - if
+            // they don't we'll end up here, and move on to try other possible mappings
         }
 
         if (fieldValues.stream().allMatch(NUMBER_GROK::match)) {
@@ -296,13 +328,14 @@ public final class FileStructureUtils {
 
     /**
      * Calculate stats for a set of field values.
+     * @param mapping The  mapping for the field.
      * @param fieldValues Values of the field for which field stats are to be calculated.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The stats calculated from the field values.
      */
-    static FieldStats calculateFieldStats(Collection<String> fieldValues, TimeoutChecker timeoutChecker) {
+    static FieldStats calculateFieldStats(Map<String, String> mapping, Collection<String> fieldValues, TimeoutChecker timeoutChecker) {
 
-        FieldStatsCalculator calculator = new FieldStatsCalculator();
+        FieldStatsCalculator calculator = new FieldStatsCalculator(mapping);
         calculator.accept(fieldValues);
         timeoutChecker.check("field stats calculation");
         return calculator.calculate(NUM_TOP_HITS);
@@ -321,6 +354,10 @@ public final class FileStructureUtils {
      * Create an ingest pipeline definition appropriate for the file structure.
      * @param grokPattern The Grok pattern used for parsing semi-structured text formats.  <code>null</code> for
      *                    fully structured formats.
+     * @param customGrokPatternDefinitions The definitions for any custom patterns that {@code grokPattern} uses.
+     * @param csvProcessorSettings The CSV processor settings for delimited formats.  <code>null</code> for
+     *                             non-delimited formats.
+     * @param mappingsForConversions Mappings (or partial mappings) that will be considered for field type conversions.
      * @param timestampField The input field containing the timestamp to be parsed into <code>@timestamp</code>.
      *                       <code>null</code> if there is no timestamp.
      * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.
@@ -328,10 +365,13 @@ public final class FileStructureUtils {
      * @param needClientTimezone Is the timezone of the client supplying data to ingest required to uniquely parse the timestamp?
      * @return The ingest pipeline definition, or <code>null</code> if none is required.
      */
-    public static Map<String, Object> makeIngestPipelineDefinition(String grokPattern, String timestampField, List<String> timestampFormats,
+    public static Map<String, Object> makeIngestPipelineDefinition(String grokPattern, Map<String, String> customGrokPatternDefinitions,
+                                                                   Map<String, Object> csvProcessorSettings,
+                                                                   Map<String, Object> mappingsForConversions,
+                                                                   String timestampField, List<String> timestampFormats,
                                                                    boolean needClientTimezone) {
 
-        if (grokPattern == null && timestampField == null) {
+        if (grokPattern == null && csvProcessorSettings == null && timestampField == null) {
             return null;
         }
 
@@ -344,7 +384,16 @@ public final class FileStructureUtils {
             Map<String, Object> grokProcessorSettings = new LinkedHashMap<>();
             grokProcessorSettings.put("field", "message");
             grokProcessorSettings.put("patterns", Collections.singletonList(grokPattern));
+            if (customGrokPatternDefinitions.isEmpty() == false) {
+                grokProcessorSettings.put("pattern_definitions", customGrokPatternDefinitions);
+            }
             processors.add(Collections.singletonMap("grok", grokProcessorSettings));
+        } else {
+            assert customGrokPatternDefinitions.isEmpty();
+        }
+
+        if (csvProcessorSettings != null) {
+            processors.add(Collections.singletonMap("csv", csvProcessorSettings));
         }
 
         if (timestampField != null) {
@@ -355,6 +404,32 @@ public final class FileStructureUtils {
             }
             dateProcessorSettings.put("formats", timestampFormats);
             processors.add(Collections.singletonMap("date", dateProcessorSettings));
+        }
+
+        for (Map.Entry<String, Object> mapping : mappingsForConversions.entrySet()) {
+            String fieldName = mapping.getKey();
+            Object values = mapping.getValue();
+            if (values instanceof Map) {
+                Object type = ((Map<?, ?>) values).get(MAPPING_TYPE_SETTING);
+                if (CONVERTIBLE_TYPES.contains(type)) {
+                    Map<String, Object> convertProcessorSettings = new LinkedHashMap<>();
+                    convertProcessorSettings.put("field", fieldName);
+                    convertProcessorSettings.put("type", type);
+                    convertProcessorSettings.put("ignore_missing", true);
+                    processors.add(Collections.singletonMap("convert", convertProcessorSettings));
+                }
+            }
+        }
+
+        // This removes the unparsed message field for delimited formats (unless the same field name is used for one of the columns)
+        if (csvProcessorSettings != null) {
+            Object field = csvProcessorSettings.get("field");
+            assert field != null;
+            Object targetFields = csvProcessorSettings.get("target_fields");
+            assert targetFields instanceof List;
+            if (((List<?>) targetFields).contains(field) == false) {
+                processors.add(Collections.singletonMap("remove", Collections.singletonMap("field", field)));
+            }
         }
 
         // This removes the interim timestamp field used for semi-structured text formats

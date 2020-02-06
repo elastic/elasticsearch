@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo.NodeCtor2;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
 
 /**
  * Extract the second of the minute from a datetime.
  */
-public class SecondOfMinute extends DateTimeFunction {
+public class SecondOfMinute extends TimeFunction {
     public SecondOfMinute(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, DateTimeExtractor.SECOND_OF_MINUTE);
     }

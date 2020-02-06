@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.AggRef;
-
-import java.time.ZoneId;
+import org.elasticsearch.xpack.ql.execution.search.AggRef;
 
 /**
  * Reference to a GROUP BY agg (typically this gets translated to a composite key).
@@ -20,12 +18,12 @@ public class GroupByRef extends AggRef {
     
     private final String key;
     private final Property property;
-    private final ZoneId zoneId;
+    private final boolean isDateTimeBased;
 
-    public GroupByRef(String key, Property property, ZoneId zoneId) {
+    public GroupByRef(String key, Property property, boolean isDateTimeBased) {
         this.key = key;
         this.property = property == null ? Property.VALUE : property;
-        this.zoneId = zoneId;
+        this.isDateTimeBased = isDateTimeBased;
     }
 
     public String key() {
@@ -36,8 +34,8 @@ public class GroupByRef extends AggRef {
         return property;
     }
 
-    public ZoneId zoneId() {
-        return zoneId;
+    public boolean isDateTimeBased() {
+        return isDateTimeBased;
     }
 
     @Override

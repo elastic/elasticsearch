@@ -19,19 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class GetFieldMappingsAction extends Action<GetFieldMappingsResponse> {
+public class GetFieldMappingsAction extends ActionType<GetFieldMappingsResponse> {
 
     public static final GetFieldMappingsAction INSTANCE = new GetFieldMappingsAction();
     public static final String NAME = "indices:admin/mappings/fields/get";
 
     private GetFieldMappingsAction() {
-        super(NAME);
+        super(NAME, GetFieldMappingsResponse::new);
     }
 
-    @Override
-    public GetFieldMappingsResponse newResponse() {
-        return new GetFieldMappingsResponse();
-    }
 }

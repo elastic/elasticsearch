@@ -34,9 +34,9 @@ The `simple_pattern` tokenizer accepts the following parameters:
 This example configures the `simple_pattern` tokenizer to produce terms that are
 three-digit numbers
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -61,11 +61,10 @@ POST my_index/_analyze
   "text": "fd-786-335-514-x"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens" : [
@@ -93,7 +92,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 

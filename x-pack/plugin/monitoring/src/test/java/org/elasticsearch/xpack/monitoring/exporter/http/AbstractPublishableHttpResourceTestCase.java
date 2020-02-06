@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.HashMap;
 import org.apache.http.HttpEntity;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
@@ -25,25 +24,25 @@ import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_DOES_NOT_EXIST;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_EXISTS;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Base test helper for any {@link PublishableHttpResource}.
@@ -81,7 +80,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
      */
     protected void assertCheckWithException(final PublishableHttpResource resource,
                                             final String resourceBasePath, final String resourceName) {
-        assertCheckWithException(resource, getParameters(resource.getParameters()), resourceBasePath, resourceName);
+        assertCheckWithException(resource, getParameters(resource.getDefaultParameters()), resourceBasePath, resourceName);
     }
 
     /**
@@ -140,7 +139,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
 
         final Request request = new Request("DELETE", endpoint);
-        addParameters(request, deleteParameters(resource.getParameters()));
+        addParameters(request, deleteParameters(resource.getDefaultParameters()));
         whenPerformRequestAsyncWith(client, request, e);
 
         resource.doCheck(client, listener);
@@ -155,11 +154,13 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
      * @param resourceName The resource name (e.g., the template or pipeline name).
+     * @param parameters Map of query string parameters, if any.
      * @param bodyType The request body provider's type.
      */
     protected void assertPublishSucceeds(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
+                                         Map<String, String> parameters,
                                          final Class<? extends HttpEntity> bodyType) {
-        doPublishWithStatusCode(resource, resourceBasePath, resourceName, bodyType, successfulPublishStatus(), true);
+        doPublishWithStatusCode(resource, resourceBasePath, resourceName, parameters, bodyType, successfulPublishStatus(), true);
     }
 
     /**
@@ -168,10 +169,12 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
+     * @param parameters Map of query string parameters, if any.
      * @param resourceName The resource name (e.g., the template or pipeline name).
      */
     protected void assertPublishWithException(final PublishableHttpResource resource,
                                               final String resourceBasePath, final String resourceName,
+                                              Map<String, String> parameters,
                                               final Class<? extends HttpEntity> bodyType) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"));
@@ -182,16 +185,20 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
         verifyListener(null);
 
+        Map <String, String> allParameters = new HashMap<>();
+        allParameters.putAll(resource.getDefaultParameters());
+        allParameters.putAll(parameters);
+
         final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
         verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
-        assertThat(request.getValue().getParameters(), is(resource.getParameters()));
+        assertThat(request.getValue().getParameters(), is(allParameters));
         assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 
     protected void assertParameters(final PublishableHttpResource resource) {
-        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
+        final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
             assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
@@ -204,7 +211,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     }
 
     protected void assertVersionParameters(final PublishableHttpResource resource) {
-        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
+        final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
             assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
@@ -213,10 +220,6 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         }
 
         assertThat(parameters.remove("filter_path"), is("*.version"));
-
-        if (parameters.containsKey(INCLUDE_TYPE_NAME_PARAMETER)) {
-            assertThat(parameters.remove(INCLUDE_TYPE_NAME_PARAMETER), is("true"));
-        }
 
         assertThat(parameters.isEmpty(), is(true));
     }
@@ -244,7 +247,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status, entity);
 
-        doCheckWithStatusCode(resource, getParameters(resource.getParameters(), exists, doesNotExist), endpoint, expected, response);
+        doCheckWithStatusCode(resource, getParameters(resource.getDefaultParameters(), exists, doesNotExist), endpoint, expected, response);
     }
 
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final Map<String, String> expectedParameters,
@@ -262,6 +265,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     }
 
     private void doPublishWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
+                                         Map<String, String> parameters,
                                          final Class<? extends HttpEntity> bodyType,
                                          final RestStatus status,
                                          final boolean errorFree) {
@@ -277,9 +281,13 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
         verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
 
+        Map <String, String> allParameters = new HashMap<>();
+        allParameters.putAll(resource.getDefaultParameters());
+        allParameters.putAll(parameters);
+
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
-        assertThat(request.getValue().getParameters(), is(resource.getParameters()));
+        assertThat(request.getValue().getParameters(), is(allParameters));
         assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 
@@ -297,7 +305,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
                                                  final String endpoint, final Boolean expected,
                                                  final Response response) {
         final Request request = new Request("DELETE", endpoint);
-        addParameters(request, deleteParameters(resource.getParameters()));
+        addParameters(request, deleteParameters(resource.getDefaultParameters()));
         whenPerformRequestAsyncWith(client, request, response);
 
         resource.doCheck(client, listener);

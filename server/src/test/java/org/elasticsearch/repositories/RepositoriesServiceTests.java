@@ -20,17 +20,20 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -46,6 +49,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
@@ -63,6 +67,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             Collections.emptySet());
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
             transportService, Collections.emptyMap(), Collections.singletonMap(TestRepository.TYPE, TestRepository::new), threadPool);
+        repositoriesService.start();
     }
 
     public void testRegisterInternalRepository() {
@@ -99,6 +104,19 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertSame(repository, repository2);
     }
 
+    public void testRegisterRejectsInvalidRepositoryNames() {
+        assertThrowsOnRegister("");
+        assertThrowsOnRegister("contains#InvalidCharacter");
+        for (char c : Strings.INVALID_FILENAME_CHARS) {
+            assertThrowsOnRegister("contains" + c + "InvalidCharacters");
+        }
+    }
+
+    private void assertThrowsOnRegister(String repoName) {
+        PutRepositoryRequest request = new PutRepositoryRequest(repoName);
+        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
+    }
+
     private static class TestRepository implements Repository {
 
         private static final String TYPE = "internal";
@@ -132,25 +150,21 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public RepositoryData getRepositoryData() {
-            return null;
+        public void getRepositoryData(ActionListener<RepositoryData> listener) {
+            listener.onResponse(null);
         }
 
         @Override
-        public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
-
+        public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
+                                     int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                     boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
+                                     boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+            listener.onResponse(null);
         }
 
         @Override
-        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
-                                             int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                             boolean includeGlobalState) {
-            return null;
-        }
-
-        @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId) {
-
+        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
 
         @Override
@@ -184,20 +198,25 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                                  IndexShardSnapshotStatus snapshotStatus) {
+        public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit
+                                  snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
+                                  Map<String, Object> userMetadata, ActionListener<String> listener) {
 
         }
 
         @Override
-        public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                                 RecoveryState recoveryState) {
+        public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
+                                 RecoveryState recoveryState, ActionListener<Void> listener) {
 
         }
 
         @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
+        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
             return null;
+        }
+
+        @Override
+        public void updateState(final ClusterState state) {
         }
 
         @Override

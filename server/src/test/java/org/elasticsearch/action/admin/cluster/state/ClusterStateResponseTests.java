@@ -24,14 +24,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class ClusterStateResponseTests extends AbstractStreamableTestCase<ClusterStateResponse> {
-
-    @Override
-    protected ClusterStateResponse createBlankInstance() {
-        return new ClusterStateResponse();
-    }
+public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<ClusterStateResponse> {
 
     @Override
     protected ClusterStateResponse createTestInstance() {
@@ -45,7 +41,12 @@ public class ClusterStateResponseTests extends AbstractStreamableTestCase<Cluste
             }
             clusterState = clusterStateBuilder.build();
         }
-        return new ClusterStateResponse(clusterName, clusterState, randomNonNegativeLong(), randomBoolean());
+        return new ClusterStateResponse(clusterName, clusterState, randomBoolean());
+    }
+
+    @Override
+    protected Writeable.Reader<ClusterStateResponse> instanceReader() {
+        return ClusterStateResponse::new;
     }
 
     @Override

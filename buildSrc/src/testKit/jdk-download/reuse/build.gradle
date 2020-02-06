@@ -1,0 +1,11 @@
+evaluationDependsOn ':subproj'
+
+String fakeJdkVendor = Objects.requireNonNull(System.getProperty('tests.jdk_vendor'))
+String fakeJdkVersion = Objects.requireNonNull(System.getProperty('tests.jdk_version'))
+jdks {
+  linux_jdk {
+    vendor = fakeJdkVendor
+    version = fakeJdkVersion
+    platform = "linux"
+  }
+}

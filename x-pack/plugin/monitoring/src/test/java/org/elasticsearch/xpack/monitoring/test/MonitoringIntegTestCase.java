@@ -19,10 +19,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
@@ -58,17 +54,10 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 //                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
 //                .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
                 // we do this by default in core, but for monitoring this isn't needed and only adds noise.
+                .put("indices.lifecycle.history_index_enabled", false)
                 .put("index.store.mock.check_index_on_close", false);
 
         return builder.build();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings())
-//                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                .build();
     }
 
     @Override
@@ -83,16 +72,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateMonitoring.class, MockPainlessScriptEngine.TestPlugin.class,
                 MockIngestPlugin.class, CommonAnalysisPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, MockPainlessScriptEngine.TestPlugin.class,
-                MockIngestPlugin.class, CommonAnalysisPlugin.class);
-    }
-
-    protected MonitoringClient monitoringClient() {
-        return randomBoolean() ? new XPackClient(client()).monitoring() : new MonitoringClient(client());
     }
 
     @Override
@@ -124,9 +103,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         CountDown retries = new CountDown(3);
         assertBusy(() -> {
             try {
-                boolean exist = client().admin().indices().prepareExists(ALL_MONITORING_INDICES)
-                        .get().isExists();
-                if (exist) {
+                if (indexExists(ALL_MONITORING_INDICES)) {
                     deleteMonitoringIndices();
                 } else {
                     retries.countDown();
@@ -208,7 +185,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     private void assertIndicesExists(String... indices) {
         logger.trace("checking if index exists [{}]", Strings.arrayToCommaDelimitedString(indices));
-        assertThat(client().admin().indices().prepareExists(indices).get().isExists(), is(true));
+        for (String index : indices) {
+            assertThat(indexExists(index), is(true));
+        }
     }
 
     protected void enableMonitoringCollection() {
@@ -220,5 +199,4 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                     Settings.builder().putNull(MonitoringService.ENABLED.getKey())));
     }
-
 }

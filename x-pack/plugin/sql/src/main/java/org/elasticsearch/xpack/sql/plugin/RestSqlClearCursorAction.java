@@ -6,10 +6,7 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -25,14 +22,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlClearCursorAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlClearCursorAction.class));
-
-    public RestSqlClearCursorAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT, this,
-                POST, Protocol.CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT, deprecationLogger);
+    public RestSqlClearCursorAction(RestController controller) {
+        controller.registerHandler(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT, this);
     }
 
     @Override
@@ -42,7 +33,7 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             sqlRequest = SqlClearCursorRequest.fromXContent(parser);
         }
-        
+
         return channel -> client.executeLocally(SqlClearCursorAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
     }
 

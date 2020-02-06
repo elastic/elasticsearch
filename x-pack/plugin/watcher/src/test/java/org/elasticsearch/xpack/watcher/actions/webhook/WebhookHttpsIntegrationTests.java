@@ -5,20 +5,24 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
+import com.sun.net.httpserver.HttpsServer;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -26,6 +30,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -51,13 +58,14 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
             .put("xpack.http.ssl.keystore.password", "testnode")
+            .putList("xpack.http.ssl.supported_protocols", getProtocols())
             .build();
     }
 
     @Before
     public void startWebservice() throws Exception {
-        Settings settings = getInstanceFromMaster(Settings.class);
-        TestsSSLService sslService = new TestsSSLService(settings, getInstanceFromMaster(Environment.class));
+        final Environment environment = getInstanceFromMaster(Environment.class);
+        final TestsSSLService sslService = new TestsSSLService(environment);
         webServer = new MockWebServer(sslService.sslContext("xpack.http.ssl"), false);
         webServer.start();
     }
@@ -75,7 +83,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                 .body(new TextTemplate("{key=value}"))
                 .method(HttpMethod.POST);
 
-        watcherClient().preparePutWatch("_id")
+        new PutWatchRequestBuilder(client(), "_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
@@ -114,7 +122,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                 .body(new TextTemplate("{key=value}"))
                 .method(HttpMethod.POST);
 
-        watcherClient().preparePutWatch("_id")
+        new PutWatchRequestBuilder(client(), "_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
@@ -130,5 +138,23 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
         assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));
         assertThat(webServer.requests().get(0).getHeader("Authorization"), equalTo("Basic X3VzZXJuYW1lOl9wYXNzd29yZA=="));
+    }
+
+    /**
+     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
+     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
+     */
+    private static List<String> getProtocols() {
+        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
+            return List.of("TLSv1.2");
+        } else {
+            JavaVersion full =
+                AccessController.doPrivileged(
+                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
+                return List.of("TLSv1.2");
+            }
+        }
+        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
     }
 }

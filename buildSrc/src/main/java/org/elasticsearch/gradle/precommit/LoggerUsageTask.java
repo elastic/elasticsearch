@@ -22,10 +22,13 @@ package org.elasticsearch.gradle.precommit;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -33,13 +36,13 @@ import java.io.File;
 /**
  * Runs LoggerUsageCheck on a set of directories.
  */
+@CacheableTask
 public class LoggerUsageTask extends PrecommitTask {
+
+    private FileCollection classpath;
 
     public LoggerUsageTask() {
         setDescription("Runs LoggerUsageCheck on output directories of all source sets");
-        getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets().all(sourceSet -> {
-            dependsOn(sourceSet.getClassesTaskName());
-        });
     }
 
     @TaskAction
@@ -47,7 +50,6 @@ public class LoggerUsageTask extends PrecommitTask {
         LoggedExec.javaexec(getProject(), spec -> {
             spec.setMain("org.elasticsearch.test.loggerusage.ESLoggerUsageChecker");
             spec.classpath(getClasspath());
-            spec.executable(getJavaHome() + "/bin/java");
             getClassDirectories().forEach(spec::args);
         });
     }
@@ -62,26 +64,22 @@ public class LoggerUsageTask extends PrecommitTask {
     }
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getClassDirectories() {
-        return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets().stream()
+        return getProject().getConvention()
+            .getPlugin(JavaPluginConvention.class)
+            .getSourceSets()
+            .stream()
             // Don't pick up all source sets like the java9 ones as logger-check doesn't support the class format
-            .filter(sourceSet -> sourceSet.getName().equals("main") || sourceSet.getName().equals("test"))
+            .filter(
+                sourceSet -> sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
+                    || sourceSet.getName().equals(SourceSet.TEST_SOURCE_SET_NAME)
+            )
             .map(sourceSet -> sourceSet.getOutput().getClassesDirs())
             .reduce(FileCollection::plus)
             .orElse(getProject().files())
             .filter(File::exists);
     }
 
-    @Input
-    public Object getJavaHome() {
-        return javaHome;
-    }
-
-    public void setJavaHome(Object javaHome) {
-        this.javaHome = javaHome;
-    }
-
-    private FileCollection classpath;
-    private Object javaHome;
 }

@@ -9,15 +9,17 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.logging.JsonLogLine;
+import org.elasticsearch.common.logging.JsonLogsStream;
+import org.hamcrest.FeatureMatcher;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.Iterator;
-import java.util.List;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsString;
@@ -80,25 +82,10 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             // (does not work on windows...)
             if (Constants.WINDOWS == false) {
                 assertBusy(() -> {
-                    final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
-                    final Iterator<String> it = lines.iterator();
-                    boolean warn = false;
-                    while (it.hasNext()) {
-                        final String line = it.next();
-                        if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
-                            "failure occurred while fetching cluster state for auto follow pattern \\[test_pattern\\]")) {
-                            warn = true;
-                            break;
-                        }
+                    Path path = PathUtils.get(System.getProperty("log"));
+                    try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
+                        assertTrue(stream.anyMatch(autoFollowCoordinatorWarn()::matches));
                     }
-                    assertTrue(warn);
-                    assertTrue(it.hasNext());
-                    final String lineAfterWarn = it.next();
-                    assertThat(
-                        lineAfterWarn,
-                        equalTo("org.elasticsearch.ElasticsearchStatusException: " +
-                            "can not fetch remote cluster state as the remote cluster [leader_cluster] is not licensed for [ccr]; " +
-                            "the license mode [BASIC] on cluster [leader_cluster] does not enable [ccr]"));
                 });
             }
         });
@@ -108,13 +95,25 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         assertThat(e.getMessage(), containsString("the license mode [BASIC] on cluster [leader_cluster] does not enable [ccr]"));
     }
 
+    private Matcher<JsonLogLine> autoFollowCoordinatorWarn() {
+        return new FeatureMatcher<JsonLogLine, Boolean>(Matchers.is(true), "autoFollowCoordinatorWarn", "autoFollowCoordinatorWarn") {
+
+            @Override
+            protected Boolean featureValueOf(JsonLogLine actual) {
+                return actual.level().equals("WARN") &&
+                    actual.component().equals("o.e.x.c.a.AutoFollowCoordinator") &&
+                    actual.nodeName().startsWith("follow-cluster-0") &&
+                    actual.message().contains("failure occurred while fetching cluster state for auto follow pattern [test_pattern]") &&
+                    actual.stacktrace().contains("org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state " +
+                        "as the remote cluster [leader_cluster] is not licensed for [ccr]; the license mode [BASIC]" +
+                        " on cluster [leader_cluster] does not enable [ccr]");
+            }
+        };
+    }
+
     private void createNewIndexAndIndexDocs(RestClient client, String index) throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.soft_deletes.enabled", true)
-            .build();
         Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
-            ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+        request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
         assertOK(client.performRequest(request));
 
         for (int i = 0; i < 5; i++) {

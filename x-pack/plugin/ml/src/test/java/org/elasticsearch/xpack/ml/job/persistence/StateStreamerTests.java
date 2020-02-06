@@ -106,7 +106,6 @@ public class StateStreamerTests extends ESTestCase {
 
     private static SearchRequestBuilder prepareSearchBuilder(SearchResponse response, QueryBuilder queryBuilder) {
         SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
-        when(builder.setTypes(any())).thenReturn(builder);
         when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
         when(builder.setQuery(queryBuilder)).thenReturn(builder);
         when(builder.setPostFilter(any())).thenReturn(builder);

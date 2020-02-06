@@ -21,27 +21,21 @@ package org.apache.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -141,19 +135,14 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         BytesRef[] terms = filterExtractedTerms(fieldMatcher, allTerms);
         Set<HighlightFlag> highlightFlags = getFlags(field);
         PhraseHelper phraseHelper = getPhraseHelper(field, query, highlightFlags);
-        CharacterRunAutomaton[] automata = getAutomata(field, query, highlightFlags);
-        OffsetSource offsetSource = getOptimizedOffsetSource(field, terms, phraseHelper, automata);
+        LabelledCharArrayMatcher[] automata = getAutomata(field, query, highlightFlags);
+        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, false , highlightFlags);
+        OffsetSource offsetSource = getOptimizedOffsetSource(components);
         BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field),
             UnifiedHighlighter.MULTIVAL_SEP_CHAR);
-        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, highlightFlags);
         FieldOffsetStrategy strategy = getOffsetStrategy(offsetSource, components);
         return new CustomFieldHighlighter(field, strategy, breakIteratorLocale, breakIterator,
             getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize, fieldValue);
-    }
-
-    @Override
-    protected Collection<Query> preMultiTermQueryRewrite(Query query) {
-        return rewriteCustomQuery(query);
     }
 
     @Override
@@ -175,7 +164,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 SpanQuery[] innerQueries = new SpanQuery[terms[i].length];
                 for (int j = 0; j < terms[i].length; j++) {
                     if (i == sizeMinus1) {
-                        innerQueries[j] = new SpanMultiTermQueryWrapper<PrefixQuery>(new PrefixQuery(terms[i][j]));
+                        innerQueries[j] = new SpanMultiTermQueryWrapper<>(new PrefixQuery(terms[i][j]));
                     } else {
                         innerQueries[j] = new SpanTermQuery(terms[i][j]);
                     }
@@ -200,17 +189,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             boolean inorder = (mpq.getSlop() == 0);
             return Collections.singletonList(new SpanNearQuery(positionSpanQueries,
                 mpq.getSlop() + positionGaps, inorder));
-        } else if (query instanceof CommonTermsQuery) {
-            CommonTermsQuery ctq = (CommonTermsQuery) query;
-            List<Query> tqs = new ArrayList<> ();
-            for (Term term : ctq.getTerms()) {
-                tqs.add(new TermQuery(term));
-            }
-            return tqs;
-        } else if (query instanceof FunctionScoreQuery) {
-            return Collections.singletonList(((FunctionScoreQuery) query).getSubQuery());
-        } else if (query instanceof ESToParentBlockJoinQuery) {
-            return Collections.singletonList(((ESToParentBlockJoinQuery) query).getChildQuery());
         } else {
             return null;
         }

@@ -8,16 +8,20 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -26,20 +30,31 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
+import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -58,11 +73,13 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_SECURITY_INDEX;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -101,11 +118,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         if (anonymousEnabled) {
             if (roleExists) {
                 logger.info("anonymous is enabled. creating [native_anonymous] role");
-                PutRoleResponse response = securityClient()
-                        .preparePutRole("native_anonymous")
-                        .cluster("ALL")
-                        .addIndices(new String[]{"*"}, new String[]{"ALL"}, null, null, null)
-                        .get();
+                PutRoleResponse response = new PutRoleRequestBuilder(client())
+                    .name("native_anonymous")
+                    .cluster("ALL")
+                    .addIndices(new String[]{"*"}, new String[]{"ALL"}, null, null, null, randomBoolean())
+                    .get();
                 assertTrue(response.isCreated());
             } else {
                 logger.info("anonymous is enabled, but configured with a missing role");
@@ -114,42 +131,39 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testDeletingNonexistingUserAndRole() throws Exception {
-        SecurityClient c = securityClient();
         // first create the index so it exists
-        c.preparePutUser("joe", "s3kirt".toCharArray(), hasher, "role1", "user").get();
-        DeleteUserResponse resp = c.prepareDeleteUser("missing").get();
+        preparePutUser("joe", "s3krit", hasher, "role1", "user").get();
+        DeleteUserResponse resp = new DeleteUserRequestBuilder(client()).username("missing").get();
         assertFalse("user shouldn't be found", resp.found());
-        DeleteRoleResponse resp2 = c.prepareDeleteRole("role").get();
+        DeleteRoleResponse resp2 = new DeleteRoleRequestBuilder(client()).name("role").get();
         assertFalse("role shouldn't be found", resp2.found());
     }
 
     public void testGettingUserThatDoesntExist() throws Exception {
-        SecurityClient c = securityClient();
-        GetUsersResponse resp = c.prepareGetUsers("joe").get();
+        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames("joe").get();
         assertFalse("user should not exist", resp.hasUsers());
-        GetRolesResponse resp2 = c.prepareGetRoles().names("role").get();
+        GetRolesResponse resp2 = new GetRolesRequestBuilder(client()).names("role").get();
         assertFalse("role should not exist", resp2.hasRoles());
     }
 
     public void testAddAndGetUser() throws Exception {
-        SecurityClient c = securityClient();
-        final List<User> existingUsers = Arrays.asList(c.prepareGetUsers().get().users());
+        final List<User> existingUsers = Arrays.asList(new GetUsersRequestBuilder(client()).get().users());
         final int existing = existingUsers.size();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3kirt".toCharArray(), hasher, "role1", "user").get();
+        preparePutUser("joe", "s3kirt", hasher, "role1", "user").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers("joe").get();
+        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames("joe").get();
         assertTrue("user should exist", resp.hasUsers());
         User joe = resp.users()[0];
         assertEquals("joe", joe.principal());
         assertArrayEquals(joe.roles(), new String[]{"role1", "user"});
 
         logger.info("--> adding two more users");
-        c.preparePutUser("joe2", "s3kirt2".toCharArray(), hasher, "role2", "user").get();
-        c.preparePutUser("joe3", "s3kirt3".toCharArray(), hasher, "role3", "user").get();
-        GetUsersResponse allUsersResp = c.prepareGetUsers().get();
+        preparePutUser("joe2", "s3kirt2", hasher, "role2", "user").get();
+        preparePutUser("joe3", "s3kirt3", hasher, "role3", "user").get();
+        GetUsersResponse allUsersResp = new GetUsersRequestBuilder(client()).get();
         assertTrue("users should exist", allUsersResp.hasUsers());
         assertEquals("should be " + (3 + existing) + " users total", 3 + existing, allUsersResp.users().length);
         List<String> names = new ArrayList<>(3);
@@ -161,7 +175,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         CollectionUtil.timSort(names);
         assertArrayEquals(new String[] { "joe", "joe2", "joe3" }, names.toArray(Strings.EMPTY_ARRAY));
 
-        GetUsersResponse someUsersResp = c.prepareGetUsers("joe", "joe3").get();
+        GetUsersResponse someUsersResp = new GetUsersRequestBuilder(client()).usernames("joe", "joe3").get();
         assertTrue("users should exist", someUsersResp.hasUsers());
         assertEquals("should be 2 users returned", 2, someUsersResp.users().length);
         names = new ArrayList<>(2);
@@ -172,115 +186,112 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertArrayEquals(new String[]{"joe", "joe3"}, names.toArray(Strings.EMPTY_ARRAY));
 
         logger.info("--> deleting user");
-        DeleteUserResponse delResp = c.prepareDeleteUser("joe").get();
+        DeleteUserResponse delResp = new DeleteUserRequestBuilder(client()).username("joe").get();
         assertTrue(delResp.found());
         logger.info("--> retrieving user");
-        resp = c.prepareGetUsers("joe").get();
+        resp = new GetUsersRequestBuilder(client()).usernames("joe").get();
         assertFalse("user should not exist after being deleted", resp.hasUsers());
     }
 
     public void testAddAndGetRole() throws Exception {
-        SecurityClient c = securityClient();
-        final List<RoleDescriptor> existingRoles = Arrays.asList(c.prepareGetRoles().get().roles());
+        final List<RoleDescriptor> existingRoles = Arrays.asList(new GetRolesRequestBuilder(client()).get().roles());
         final int existing = existingRoles.size();
         final Map<String, Object> metadata = Collections.singletonMap("key", randomAlphaOfLengthBetween(1, 10));
         logger.error("--> creating role");
-        c.preparePutRole("test_role")
+        preparePutRole("test_role")
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .metadata(metadata)
                 .get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving role");
-        GetRolesResponse resp = c.prepareGetRoles().names("test_role").get();
+        GetRolesResponse resp = new GetRolesRequestBuilder(client()).names("test_role").get();
         assertTrue("role should exist", resp.hasRoles());
         RoleDescriptor testRole = resp.roles()[0];
         assertNotNull(testRole);
         assertThat(testRole.getMetadata().size(), is(1));
         assertThat(testRole.getMetadata().get("key"), is(metadata.get("key")));
 
-        c.preparePutRole("test_role2")
+        preparePutRole("test_role2")
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
-        c.preparePutRole("test_role3")
+        preparePutRole("test_role3")
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
 
         logger.info("--> retrieving all roles");
-        GetRolesResponse allRolesResp = c.prepareGetRoles().get();
+        GetRolesResponse allRolesResp = new GetRolesRequestBuilder(client()).get();
         assertTrue("roles should exist", allRolesResp.hasRoles());
         assertEquals("should be " + (3 + existing) + " roles total", 3 + existing, allRolesResp.roles().length);
 
         logger.info("--> retrieving test_role and test_role3");
-        GetRolesResponse someRolesResp = c.prepareGetRoles().names("test_role", "test_role3").get();
+        GetRolesResponse someRolesResp = new GetRolesRequestBuilder(client()).names("test_role", "test_role3").get();
         assertTrue("roles should exist", someRolesResp.hasRoles());
         assertEquals("should be 2 roles total", 2, someRolesResp.roles().length);
 
         logger.info("--> deleting role");
-        DeleteRoleResponse delResp = c.prepareDeleteRole("test_role").get();
+        DeleteRoleResponse delResp = new DeleteRoleRequestBuilder(client()).name("test_role").get();
         assertTrue(delResp.found());
         logger.info("--> retrieving role");
-        GetRolesResponse resp2 = c.prepareGetRoles().names("test_role").get();
+        GetRolesResponse resp2 = new GetRolesRequestBuilder(client()).names("test_role").get();
         assertFalse("role should not exist after being deleted", resp2.hasRoles());
     }
 
     public void testAddUserAndRoleThenAuth() throws Exception {
-        SecurityClient c = securityClient();
         logger.error("--> creating role");
-        c.preparePutRole("test_role")
+        preparePutRole("test_role")
                 .cluster("all")
                 .addIndices(new String[] { "*" }, new String[] { "read" }, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"match_all\": {}}"))
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role").get();
+        preparePutUser("joe", "s3krit", hasher, "test_role").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers("joe").get();
+        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames("joe").get();
         assertTrue("user should exist", resp.hasUsers());
 
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
 
-        String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
+        String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(1L, searchResp.getHits().getTotalHits().value);
     }
 
     public void testUpdatingUserAndAuthentication() throws Exception {
-        SecurityClient c = securityClient();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3krit".toCharArray(), hasher, SecuritySettingsSource.TEST_ROLE).get();
+        preparePutUser("joe", "s3krit", hasher, SecuritySettingsSource.TEST_ROLE).get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers("joe").get();
+        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames("joe").get();
         assertTrue("user should exist", resp.hasUsers());
         assertThat(resp.users()[0].roles(), arrayContaining(SecuritySettingsSource.TEST_ROLE));
 
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
-        String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
+        client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(1L, searchResp.getHits().getTotalHits().value);
 
-        c.preparePutUser("joe", "s3krit2".toCharArray(), hasher, SecuritySettingsSource.TEST_ROLE).get();
+        preparePutUser("joe", "s3krit2", hasher, SecuritySettingsSource.TEST_ROLE).get();
 
         try {
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
@@ -290,33 +301,32 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
         }
 
-        token = basicAuthHeaderValue("joe", new SecureString("s3krit2".toCharArray()));
+        token = basicAuthHeaderValue("joe", new SecureString("s3krit2"));
         searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
         assertEquals(1L, searchResp.getHits().getTotalHits().value);
     }
 
     public void testCreateDeleteAuthenticate() {
-        SecurityClient c = securityClient();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3krit".toCharArray(), hasher,
+        preparePutUser("joe", "s3krit", hasher,
             SecuritySettingsSource.TEST_ROLE).get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = c.prepareGetUsers("joe").get();
+        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames("joe").get();
         assertTrue("user should exist", resp.hasUsers());
         assertThat(resp.users()[0].roles(), arrayContaining(SecuritySettingsSource.TEST_ROLE));
 
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
-        String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
+        client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(1L, searchResp.getHits().getTotalHits().value);
 
-        DeleteUserResponse response = c.prepareDeleteUser("joe").get();
+        DeleteUserResponse response = new DeleteUserRequestBuilder(client()).username("joe").get();
         assertThat(response.found(), is(true));
         try {
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
@@ -329,27 +339,26 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     public void testCreateAndUpdateRole() {
         final boolean authenticate = randomBoolean();
-        SecurityClient c = securityClient();
         logger.error("--> creating role");
-        c.preparePutRole("test_role")
+        preparePutRole("test_role")
                 .cluster("all")
                 .addIndices(new String[]{"*"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"match_all\": {}}"))
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role").get();
+        preparePutUser("joe", "s3krit", hasher, "test_role").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
 
         if (authenticate) {
-            final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
+            final String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
             ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
                     .prepareHealth().get();
             assertFalse(response.isTimedOut());
-            c.preparePutRole("test_role")
+            preparePutRole("test_role")
                     .cluster("none")
                     .addIndices(new String[]{"*"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                            new BytesArray("{\"match_all\": {}}"))
+                            new BytesArray("{\"match_all\": {}}"), randomBoolean())
                     .get();
             if (anonymousEnabled && roleExists) {
                 assertNoTimeout(client()
@@ -361,41 +370,104 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             }
         } else {
             final TransportRequest request = mock(TransportRequest.class);
-            GetRolesResponse getRolesResponse = c.prepareGetRoles().names("test_role").get();
+            final Authentication authentication = mock(Authentication.class);
+            GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue("any cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/foo", request));
+                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/foo", request, authentication));
 
-            c.preparePutRole("test_role")
+            preparePutRole("test_role")
                     .cluster("none")
                     .addIndices(new String[]{"*"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                            new BytesArray("{\"match_all\": {}}"))
+                            new BytesArray("{\"match_all\": {}}"), randomBoolean())
                     .get();
-            getRolesResponse = c.prepareGetRoles().names("test_role").get();
+            getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
 
             assertFalse("no cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/bar", request));
+                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/bar", request, authentication));
         }
     }
 
-    public void testAuthenticateWithDeletedRole() {
-        SecurityClient c = securityClient();
+    public void testSnapshotDeleteRestore() {
         logger.error("--> creating role");
-        c.preparePutRole("test_role")
+        preparePutRole("test_role")
+            .cluster("all")
+            .addIndices(new String[]{"*"}, new String[]{"create_index"}, null, null, null, true)
+            .get();
+        logger.error("--> creating user");
+        preparePutUser("joe", "s3krit", hasher, "test_role", "snapshot_user").get();
+        logger.error("--> waiting for .security index");
+        ensureGreen(SECURITY_MAIN_ALIAS);
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster()
+                .preparePutRepository("test-repo")
+                    .setType("fs").setSettings(Settings.builder()
+                            .put("location", randomRepoPath())
+                            .put("compress", randomBoolean())
+                            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
+        // joe can snapshot all indices, including '.security'
+        SnapshotInfo snapshotInfo = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
+                .prepareCreateSnapshot("test-repo", "test-snap-1")
+                .setWaitForCompletion(true)
+                .setIncludeGlobalState(false)
+                .setIndices(SECURITY_MAIN_ALIAS)
+                .get().getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.indices(), contains(INTERNAL_SECURITY_MAIN_INDEX_7));
+        deleteSecurityIndex();
+        // the realm cache should clear itself but we don't wish to race it
+        new ClearRolesCacheRequestBuilder(client()).get();
+        // authn fails
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                .filterWithHeader(Collections.singletonMap("Authorization", token)).admin().indices().prepareCreate("idx").get());
+        assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
+        // users and roles are missing
+        GetUsersResponse getUsersResponse = new GetUsersRequestBuilder(client()).usernames("joe").get();
+        assertThat(getUsersResponse.users().length, is(0));
+        GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
+        assertThat(getRolesResponse.roles().length, is(0));
+        // restore
+        RestoreSnapshotResponse response = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1")
+                .setWaitForCompletion(true).setIncludeAliases(true).get();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getRestoreInfo().indices(), contains(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
+        // the realm cache should clear itself but we don't wish to race it
+        new ClearRealmCacheRequestBuilder(client()).get();
+        // users and roles are retrievable
+        getUsersResponse = new GetUsersRequestBuilder(client()).usernames("joe").get();
+        assertThat(getUsersResponse.users().length, is(1));
+        assertThat(Arrays.asList(getUsersResponse.users()[0].roles()), contains("test_role", "snapshot_user"));
+        getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
+        assertThat(getRolesResponse.roles().length, is(1));
+        assertThat(Arrays.asList(getRolesResponse.roles()[0].getClusterPrivileges()), contains("all"));
+        assertThat(getRolesResponse.roles()[0].getIndicesPrivileges().length, is(1));
+        assertThat(Arrays.asList(getRolesResponse.roles()[0].getIndicesPrivileges()[0].getPrivileges()), contains("create_index"));
+        assertThat(Arrays.asList(getRolesResponse.roles()[0].getIndicesPrivileges()[0].getIndices()), contains("*"));
+        // joe can create indices
+        CreateIndexResponse createIndexResponse = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin()
+                .indices().prepareCreate("idx").get();
+        assertThat(createIndexResponse.isAcknowledged(), is (true));
+        assertAcked(client().admin().cluster().prepareDeleteRepository("test-repo"));
+    }
+
+    public void testAuthenticateWithDeletedRole() {
+        logger.error("--> creating role");
+        preparePutRole("test_role")
                 .cluster("all")
                 .addIndices(new String[]{"*"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"match_all\": {}}"))
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
-        c.preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role").get();
+        preparePutUser("joe", "s3krit", hasher, "test_role").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
 
-        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
+        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
                 .prepareHealth().get();
         assertFalse(response.isTimedOut());
-        c.prepareDeleteRole("test_role").get();
+        new DeleteRoleRequestBuilder(client()).name("test_role").get();
         if (anonymousEnabled && roleExists) {
             assertNoTimeout(
                     client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get());
@@ -407,40 +479,38 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testPutUserWithoutPassword() {
-        SecurityClient client = securityClient();
         // create some roles
-        client.preparePutRole("admin_role")
+        preparePutRole("admin_role")
                 .cluster("all")
-                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, null)
+                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, null, randomBoolean())
                 .get();
-        client.preparePutRole("read_role")
+        preparePutRole("read_role")
                 .cluster("none")
-                .addIndices(new String[]{"*"}, new String[]{"read"}, null, null, null)
+                .addIndices(new String[]{"*"}, new String[]{"read"}, null, null, null, randomBoolean())
                 .get();
 
-        assertThat(client.prepareGetUsers("joes").get().hasUsers(), is(false));
+        assertThat(new GetUsersRequestBuilder(client()).usernames("joes").get().hasUsers(), is(false));
         // check that putting a user without a password fails if the user doesn't exist
         try {
-            client.preparePutUser("joe", null, hasher, "admin_role").get();
+            preparePutUser("joe", null, hasher, "admin_role").get();
             fail("cannot create a user without a password");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("password must be specified"));
         }
 
-        assertThat(client.prepareGetUsers("joes").get().hasUsers(), is(false));
+        assertThat(new GetUsersRequestBuilder(client()).usernames("joes").get().hasUsers(), is(false));
 
         // create joe with a password and verify the user works
-        client.preparePutUser("joe", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(),
-            hasher, "admin_role").get();
-        assertThat(client.prepareGetUsers("joe").get().hasUsers(), is(true));
+        preparePutUser("joe", SecuritySettingsSourceField.TEST_PASSWORD, hasher, "admin_role").get();
+        assertThat(new GetUsersRequestBuilder(client()).usernames("joe").get().hasUsers(), is(true));
         final String token = basicAuthHeaderValue("joe", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
                 .prepareHealth().get();
         assertFalse(response.isTimedOut());
 
         // modify joe without sending the password
-        client.preparePutUser("joe", null, hasher, "read_role").fullName("Joe Smith").get();
-        GetUsersResponse getUsersResponse = client.prepareGetUsers("joe").get();
+        preparePutUser("joe", null, hasher, "read_role").fullName("Joe Smith").get();
+        GetUsersResponse getUsersResponse = new GetUsersRequestBuilder(client()).usernames("joe").get();
         assertThat(getUsersResponse.hasUsers(), is(true));
         assertThat(getUsersResponse.users().length, is(1));
         User joe = getUsersResponse.users()[0];
@@ -460,9 +530,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         // update the user with password and admin role again
         String secondPassword = SecuritySettingsSourceField.TEST_PASSWORD + "2";
-        client.preparePutUser("joe", secondPassword.toCharArray(), hasher, "admin_role").
+        preparePutUser("joe", secondPassword, hasher, "admin_role").
             fullName("Joe Smith").get();
-        getUsersResponse = client.prepareGetUsers("joe").get();
+        getUsersResponse = new GetUsersRequestBuilder(client()).usernames("joe").get();
         assertThat(getUsersResponse.hasUsers(), is(true));
         assertThat(getUsersResponse.users().length, is(1));
         joe = getUsersResponse.users()[0];
@@ -487,10 +557,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testCannotCreateUserWithShortPassword() throws Exception {
-        SecurityClient client = securityClient();
         try {
-            client.preparePutUser("joe", randomAlphaOfLengthBetween(0, 5).toCharArray(), hasher,
-                "admin_role").get();
+            preparePutUser("joe", randomAlphaOfLengthBetween(0, 5), hasher, "admin_role").get();
             fail("cannot create a user without a password < 6 characters");
         } catch (IllegalArgumentException v) {
             assertThat(v.getMessage().contains("password"), is(true));
@@ -498,76 +566,71 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testCannotCreateUserWithInvalidCharactersInName() throws Exception {
-        SecurityClient client = securityClient();
         IllegalArgumentException v = expectThrows(IllegalArgumentException.class,
-            () -> client.preparePutUser("fóóbár", "my-am@zing-password".toCharArray(), hasher,
-                "admin_role").get()
+            () -> preparePutUser("fóóbár", "my-am@zing-password", hasher, "admin_role").get()
         );
         assertThat(v.getMessage(), containsString("names must be"));
     }
 
     public void testUsersAndRolesDoNotInterfereWithIndicesStats() throws Exception {
-        client().prepareIndex("foo", "bar").setSource("ignore", "me").get();
+        client().prepareIndex("foo").setSource("ignore", "me").get();
 
-        SecurityClient client = securityClient();
         if (randomBoolean()) {
-            client.preparePutUser("joe", "s3krit".toCharArray(), hasher,
+            preparePutUser("joe", "s3krit", hasher,
                 SecuritySettingsSource.TEST_ROLE).get();
         } else {
-            client.preparePutRole("read_role")
-                    .cluster("none")
-                    .addIndices(new String[]{"*"}, new String[]{"read"}, null, null, null)
-                    .get();
+            preparePutRole("read_role")
+                .cluster("none")
+                .addIndices(new String[]{"*"}, new String[]{"read"}, null, null, null, randomBoolean())
+                .get();
         }
 
-        IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SECURITY_INDEX_NAME).get();
+        IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SECURITY_MAIN_ALIAS).get();
         assertThat(response.getFailedShards(), is(0));
         assertThat(response.getIndices().size(), is(2));
-        assertThat(response.getIndices().get(INTERNAL_SECURITY_INDEX), notNullValue());
-        assertThat(response.getIndices().get(INTERNAL_SECURITY_INDEX).getIndex(),
-                is(INTERNAL_SECURITY_INDEX));
+        assertThat(response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7), notNullValue());
+        assertThat(response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex(),
+                is(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
     }
 
     public void testOperationsOnReservedUsers() throws Exception {
         final String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().preparePutUser(username, randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()
-                    : null, hasher, "admin").get());
+                () -> preparePutUser(username, randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD : null, hasher, "admin").get());
         assertThat(exception.getMessage(), containsString("user [" + username + "] is reserved"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().prepareDeleteUser(username).get());
+                () -> new DeleteUserRequestBuilder(client()).username(username).get());
         assertThat(exception.getMessage(), containsString("user [" + username + "] is reserved"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().prepareDeleteUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME).get());
+                () -> new DeleteUserRequestBuilder(client()).username(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME).get());
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> securityClient().prepareChangePassword(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray(),
-                hasher).get());
+            () -> new ChangePasswordRequestBuilder(client()).username(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME)
+                .password("foobar".toCharArray(), hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> securityClient().preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray(),
-                hasher).get());
+            () -> preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar", hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> securityClient().preparePutUser(SystemUser.NAME, "foobar".toCharArray(), hasher).get());
+            () -> preparePutUser(SystemUser.NAME, "foobar", hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> securityClient().prepareChangePassword(SystemUser.NAME, "foobar".toCharArray(),
-                hasher).get());
+            () -> new ChangePasswordRequestBuilder(client()).username(SystemUser.NAME)
+                .password("foobar".toCharArray(), hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().prepareDeleteUser(SystemUser.NAME).get());
+                () -> new DeleteUserRequestBuilder(client()).username(SystemUser.NAME).get());
         assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
 
         // get should work
-        GetUsersResponse response = securityClient().prepareGetUsers(username).get();
+        GetUsersResponse response = new GetUsersRequestBuilder(client()).usernames(username).get();
         assertThat(response.hasUsers(), is(true));
         assertThat(response.users()[0].principal(), is(username));
 
@@ -586,30 +649,30 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     public void testOperationsOnReservedRoles() throws Exception {
         final String name = randomFrom(ReservedRolesStore.names());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().preparePutRole(name).cluster("monitor").get());
+                () -> preparePutRole(name).cluster("monitor").get());
         assertThat(exception.getMessage(), containsString("role [" + name + "] is reserved"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().prepareDeleteRole(name).get());
+                () -> new DeleteRoleRequestBuilder(client()).name(name).get());
         assertThat(exception.getMessage(), containsString("role [" + name + "] is reserved"));
 
         // get role is allowed
-        GetRolesResponse response = securityClient().prepareGetRoles(name).get();
+        GetRolesResponse response = new GetRolesRequestBuilder(client()).names(name).get();
         assertThat(response.hasRoles(), is(true));
         assertThat(response.roles()[0].getName(), is(name));
     }
 
     public void testCreateAndChangePassword() throws Exception {
-        securityClient().preparePutUser("joe", "s3krit".toCharArray(), hasher,
+        preparePutUser("joe", "s3krit", hasher,
             SecuritySettingsSource.TEST_ROLE).get();
-        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
+        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .admin().cluster().prepareHealth().get();
         assertThat(response.isTimedOut(), is(false));
 
-        ChangePasswordResponse passwordResponse = securityClient(
-                client().filterWithHeader(Collections.singletonMap("Authorization", token)))
-            .prepareChangePassword("joe", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), hasher).get();
+        ChangePasswordResponse passwordResponse =
+            new ChangePasswordRequestBuilder(client().filterWithHeader(Collections.singletonMap("Authorization", token)))
+                .username("joe").password(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), hasher).get();
         assertThat(passwordResponse, notNullValue());
 
 
@@ -639,10 +702,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         final boolean fls = randomBoolean();
         final boolean dls = randomBoolean();
-        SecurityClient client = new SecurityClient(client());
-        PutRoleResponse putRoleResponse = client.preparePutRole("admin_role")
+        PutRoleResponse putRoleResponse = new PutRoleRequestBuilder(client()).name("admin_role")
                 .cluster("all")
-                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, null)
+                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, null, randomBoolean())
                 .get();
         assertThat(putRoleResponse.isCreated(), is(true));
         roles++;
@@ -658,24 +720,24 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 grantedFields = null;
                 deniedFields = fields;
             }
-            roleResponse = client.preparePutRole("admin_role_fls")
+            roleResponse = new PutRoleRequestBuilder(client()).name("admin_role_fls")
                     .cluster("all")
-                    .addIndices(new String[]{"*"}, new String[]{"all"}, grantedFields, deniedFields, null)
+                    .addIndices(new String[]{"*"}, new String[]{"all"}, grantedFields, deniedFields, null, randomBoolean())
                     .get();
             assertThat(roleResponse.isCreated(), is(true));
             roles++;
         }
 
         if (dls) {
-            PutRoleResponse roleResponse = client.preparePutRole("admin_role_dls")
+            PutRoleResponse roleResponse = new PutRoleRequestBuilder(client()).name("admin_role_dls")
                     .cluster("all")
-                    .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, new BytesArray("{ \"match_all\": {} }"))
+                    .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, new BytesArray("{\"match_all\": {}}"), randomBoolean())
                     .get();
             assertThat(roleResponse.isCreated(), is(true));
             roles++;
         }
 
-        client.prepareClearRolesCache().get();
+        new ClearRolesCacheRequestBuilder(client()).get();
 
         future = new PlainActionFuture<>();
         rolesStore.usageStats(future);
@@ -687,10 +749,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     public void testRealmUsageStats() {
         final int numNativeUsers = scaledRandomIntBetween(1, 32);
-        SecurityClient securityClient = new SecurityClient(client());
         for (int i = 0; i < numNativeUsers; i++) {
-            securityClient.preparePutUser("joe" + i, "s3krit".toCharArray(), hasher,
-                "superuser").get();
+            preparePutUser("joe" + i, "s3krit", hasher, "superuser").get();
         }
 
         XPackUsageResponse response = new XPackUsageRequestBuilder(client()).get();
@@ -709,55 +769,53 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testSetEnabled() throws Exception {
-
-        securityClient().preparePutUser("joe", "s3krit".toCharArray(), hasher,
+        preparePutUser("joe", "s3krit", hasher,
             SecuritySettingsSource.TEST_ROLE).get();
-        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
+        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .admin().cluster().prepareHealth().get();
         assertThat(response.isTimedOut(), is(false));
 
-        securityClient(client()).prepareSetEnabled("joe", false).get();
+        new SetEnabledRequestBuilder(client()).username("joe").enabled(false).get();
 
         ElasticsearchSecurityException expected = expectThrows(ElasticsearchSecurityException.class,
                 () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get());
         assertThat(expected.status(), is(RestStatus.UNAUTHORIZED));
 
-        securityClient(client()).prepareSetEnabled("joe", true).get();
+        new SetEnabledRequestBuilder(client()).username("joe").enabled(true).get();
 
         response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
         assertThat(response.isTimedOut(), is(false));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> securityClient(client()).prepareSetEnabled("not_a_real_user", false).get());
+                () -> new SetEnabledRequestBuilder(client()).username("not_a_real_user").enabled(false).get());
         assertThat(e.getMessage(), containsString("only existing users can be disabled"));
     }
 
     public void testNegativeLookupsThenCreateRole() throws Exception {
-        SecurityClient securityClient = new SecurityClient(client());
-        securityClient.preparePutUser("joe", "s3krit".toCharArray(), hasher, "unknown_role").get();
+        preparePutUser("joe", "s3krit", hasher, "unknown_role").get();
 
         final int negativeLookups = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < negativeLookups; i++) {
             if (anonymousEnabled && roleExists) {
                 ClusterHealthResponse response = client()
                         .filterWithHeader(Collections.singletonMap("Authorization",
-                                basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()))))
+                                basicAuthHeaderValue("joe", new SecureString("s3krit"))))
                         .admin().cluster().prepareHealth().get();
                 assertNoTimeout(response);
             } else {
                 ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> client()
                         .filterWithHeader(Collections.singletonMap("Authorization",
-                                basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()))))
+                                basicAuthHeaderValue("joe", new SecureString("s3krit"))))
                         .admin().cluster().prepareHealth().get());
                 assertThat(e.status(), is(RestStatus.FORBIDDEN));
             }
         }
 
-        securityClient.preparePutRole("unknown_role").cluster("all").get();
+        preparePutRole("unknown_role").cluster("all").get();
         ClusterHealthResponse response = client()
                 .filterWithHeader(Collections.singletonMap("Authorization",
-                        basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()))))
+                        basicAuthHeaderValue("joe", new SecureString("s3krit"))))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
@@ -771,14 +829,12 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
      * the loader returned a null value, while the other caller(s) would get a null value unexpectedly
      */
     public void testConcurrentRunAs() throws Exception {
-        securityClient().preparePutUser("joe", "s3krit".toCharArray(), hasher, SecuritySettingsSource
-            .TEST_ROLE).get();
-        securityClient().preparePutUser("executor", "s3krit".toCharArray(), hasher, "superuser").get();
-        final String token = basicAuthHeaderValue("executor", new SecureString("s3krit".toCharArray()));
-        final Client client = client().filterWithHeader(MapBuilder.<String, String>newMapBuilder()
-                .put("Authorization", token)
-                .put("es-security-runas-user", "joe")
-                .immutableMap());
+        preparePutUser("joe", "s3krit", hasher, SecuritySettingsSource.TEST_ROLE).get();
+        preparePutUser("executor", "s3krit", hasher, "superuser").get();
+        final String token = basicAuthHeaderValue("executor", new SecureString("s3krit"));
+        final Client client = client().filterWithHeader(Map.of(
+                "Authorization", token,
+                "es-security-runas-user", "joe"));
         final CountDownLatch latch = new CountDownLatch(1);
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
         final int numberOfThreads = scaledRandomIntBetween(numberOfProcessors, numberOfProcessors * 3);
@@ -793,6 +849,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                         assertNoTimeout(response);
                     }
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
             }));
         }
@@ -804,5 +861,16 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
+    }
+
+    private PutUserRequestBuilder preparePutUser(String username, String password, Hasher hasher, String... roles) {
+        return new PutUserRequestBuilder(client())
+            .username(username)
+            .password(password == null ? null : new SecureString(password.toCharArray()), hasher)
+            .roles(roles);
+    }
+
+    private PutRoleRequestBuilder preparePutRole(String name) {
+        return new PutRoleRequestBuilder(client()).name(name);
     }
 }

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
 
@@ -81,8 +80,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("start all the primary shards, replicas will start initializing");
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).shards().size(), equalTo(2));
@@ -105,32 +103,28 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("start the replica shards, rebalancing should start, but, only 3 should be rebalancing");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we only allow one relocation at a time
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(7));
         assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(3));
 
         logger.info("finalize this session relocation, 3 more should relocate now");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we only allow one relocation at a time
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(7));
         assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(3));
 
         logger.info("finalize this session relocation, 2 more should relocate now");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we only allow one relocation at a time
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(8));
         assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(2));
 
         logger.info("finalize this session relocation, no more relocation");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we only allow one relocation at a time
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(10));

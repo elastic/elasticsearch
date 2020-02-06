@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -38,6 +40,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
@@ -47,6 +50,8 @@ import java.util.function.Predicate;
 
 public class TransportClearVotingConfigExclusionsAction
     extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ClearVotingConfigExclusionsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
 
     @Inject
     public TransportClearVotingConfigExclusionsAction(TransportService transportService, ClusterService clusterService,
@@ -62,17 +67,12 @@ public class TransportClearVotingConfigExclusionsAction
     }
 
     @Override
-    protected ClearVotingConfigExclusionsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
         return new ClearVotingConfigExclusionsResponse(in);
     }
 
     @Override
-    protected void masterOperation(ClearVotingConfigExclusionsRequest request, ClusterState initialState,
+    protected void masterOperation(Task task, ClearVotingConfigExclusionsRequest request, ClusterState initialState,
                                    ActionListener<ClearVotingConfigExclusionsResponse> listener) throws Exception {
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();

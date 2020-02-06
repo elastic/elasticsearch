@@ -7,14 +7,14 @@ setup:
 ---
 teardown:
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "my_watch"
         ignore: 404
 
 ---
 "Test put watch api with index action using doc_id":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -37,7 +37,6 @@ teardown:
               "test_index": {
                 "index": {
                   "index": "my_test_index",
-                  "doc_type": "test2",
                   "doc_id": "test_id1"
                 }
               }
@@ -46,7 +45,7 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true }
   - match: { _id: "my_watch" }
@@ -54,7 +53,7 @@ teardown:
   - match: { watch.actions.test_index.index.doc_id: "test_id1" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.state: "executed" }
   - match: { watch_record.status.execution_state: "executed" }
@@ -63,7 +62,7 @@ teardown:
 ---
 "Test put watch api with index action using _id field":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -86,8 +85,7 @@ teardown:
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "my_test_index",
-                  "doc_type": "test2"
+                  "index": "my_test_index"
                 }
               }
             }
@@ -95,7 +93,7 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true }
   - match: { _id: "my_watch" }
@@ -103,7 +101,7 @@ teardown:
   - match: { watch.input.simple.value: 20 }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.state: "executed" }
   - match: { watch_record.status.execution_state: "executed" }
@@ -112,7 +110,7 @@ teardown:
 ---
 "Test put watch api with bulk index action using _id field":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -143,8 +141,7 @@ teardown:
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "my_test_index",
-                  "doc_type": "test2"
+                  "index": "my_test_index"
                 }
               }
             }
@@ -152,7 +149,7 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true }
   - match: { _id: "my_watch" }
@@ -162,7 +159,7 @@ teardown:
   - match: { watch.input.simple._doc.1.value: 40 }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.state: "executed" }
   - match: { watch_record.status.execution_state: "executed" }
@@ -172,7 +169,7 @@ teardown:
 ---
 "Test put watch api with bulk index action using _id field in one document":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -202,8 +199,7 @@ teardown:
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "my_test_index",
-                  "doc_type": "test2"
+                  "index": "my_test_index"
                 }
               }
             }
@@ -211,7 +207,7 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true }
   - match: { _id: "my_watch" }
@@ -220,7 +216,7 @@ teardown:
   - match: { watch.input.simple._doc.1.value: 60 }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.state: "executed" }
   - match: { watch_record.status.execution_state: "executed" }

@@ -19,15 +19,20 @@
 
 package org.elasticsearch.repositories.azure;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -38,18 +43,26 @@ import java.util.Map;
  */
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
+    public static final String REPOSITORY_THREAD_POOL_NAME = "repository_azure";
+
     // protected for testing
     final AzureStorageService azureStoreService;
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        this.azureStoreService = new AzureStorageService(settings);
+        this.azureStoreService = createAzureStoreService(settings);
+    }
+
+    // non-static, package private for testing
+    AzureStorageService createAzureStoreService(final Settings settings) {
+        return new AzureStorageService(settings);
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                           ClusterService clusterService) {
         return Collections.singletonMap(AzureRepository.TYPE,
-                (metadata) -> new AzureRepository(metadata, env, namedXContentRegistry, azureStoreService));
+                (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService));
     }
 
     @Override
@@ -57,6 +70,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         return Arrays.asList(
             AzureStorageSettings.ACCOUNT_SETTING,
             AzureStorageSettings.KEY_SETTING,
+            AzureStorageSettings.SAS_TOKEN_SETTING,
             AzureStorageSettings.ENDPOINT_SUFFIX_SETTING,
             AzureStorageSettings.TIMEOUT_SETTING,
             AzureStorageSettings.MAX_RETRIES_SETTING,
@@ -64,6 +78,15 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.PROXY_HOST_SETTING,
             AzureStorageSettings.PROXY_PORT_SETTING
         );
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return Collections.singletonList(executorBuilder());
+    }
+
+    public static ExecutorBuilder<?> executorBuilder() {
+        return new ScalingExecutorBuilder(REPOSITORY_THREAD_POOL_NAME, 0, 32, TimeValue.timeValueSeconds(30L));
     }
 
     @Override

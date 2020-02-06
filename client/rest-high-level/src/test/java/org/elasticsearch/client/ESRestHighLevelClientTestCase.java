@@ -19,21 +19,29 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.cluster.RemoteInfoRequest;
+import org.elasticsearch.client.cluster.RemoteInfoResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -43,14 +51,20 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     private static RestHighLevelClient restHighLevelClient;
+    private static boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
 
     @Before
     public void initHighLevelClient() throws IOException {
@@ -77,20 +91,20 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
                                        AsyncMethod<Req, Resp> asyncMethod) throws IOException {
         return execute(request, syncMethod, asyncMethod, RequestOptions.DEFAULT);
     }
-    
+
     /**
      * Executes the provided request using either the sync method or its async variant, both provided as functions
      */
     protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
                                        AsyncMethod<Req, Resp> asyncMethod, RequestOptions options) throws IOException {
-        if (randomBoolean()) {
+        if (async == false) {
             return syncMethod.execute(request, options);
         } else {
             PlainActionFuture<Resp> future = PlainActionFuture.newFuture();
             asyncMethod.execute(request, options, future);
             return future.actionGet();
         }
-    }    
+    }
 
     /**
      * Executes the provided request using either the sync method or its async
@@ -99,7 +113,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
      */
     protected static <Resp> Resp execute(SyncMethodNoRequest<Resp> syncMethodNoRequest, AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
             RequestOptions requestOptions) throws IOException {
-        if (randomBoolean()) {
+        if (async == false) {
             return syncMethodNoRequest.execute(requestOptions);
         } else {
             PlainActionFuture<Resp> future = PlainActionFuture.newFuture();
@@ -130,7 +144,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     private static class HighLevelClient extends RestHighLevelClient {
         private HighLevelClient(RestClient restClient) {
-            super(restClient, (client) -> {}, Collections.emptyList());
+            super(restClient, (client) -> {}, new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         }
     }
 
@@ -239,5 +253,31 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             .put("index.number_of_replicas", 0)
         );
         highLevelClient().indices().create(indexRequest, RequestOptions.DEFAULT);
+    }
+
+    protected static void setupRemoteClusterConfig(String remoteClusterName) throws Exception {
+        // Configure local cluster as remote cluster:
+        // TODO: replace with nodes info highlevel rest client code when it is available:
+        final Request request = new Request("GET", "/_nodes");
+        Map<?, ?> nodesResponse = (Map<?, ?>) toMap(client().performRequest(request)).get("nodes");
+        // Select node info of first node (we don't know the node id):
+        nodesResponse = (Map<?, ?>) nodesResponse.get(nodesResponse.keySet().iterator().next());
+        String transportAddress = (String) nodesResponse.get("transport_address");
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.transientSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
+        ClusterUpdateSettingsResponse updateSettingsResponse =
+                restHighLevelClient.cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
+        assertThat(updateSettingsResponse.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            RemoteInfoResponse response = highLevelClient().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT);
+            assertThat(response, notNullValue());
+            assertThat(response.getInfos().size(), greaterThan(0));
+        });
+    }
+
+    protected static Map<String, Object> toMap(Response response) throws IOException {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 }

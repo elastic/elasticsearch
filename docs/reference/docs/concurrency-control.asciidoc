@@ -1,5 +1,5 @@
 [[optimistic-concurrency-control]]
-== Optimistic concurrency control
+=== Optimistic concurrency control
 
 Elasticsearch is distributed. When documents are created, updated, or deleted,
 the new version of the document has to be replicated to other nodes in the cluster. 
@@ -20,7 +20,7 @@ a change that has a smaller sequence number assigned to it.
 For example, the following indexing command will create a document and assign it
 an initial sequence number and primary term:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT products/_doc/1567
 {
@@ -28,12 +28,11 @@ PUT products/_doc/1567
     "details" : "A resourceful astromech droid"
 }
 --------------------------------------------------
-// CONSOLE
 
 You can see the assigned sequence number and primary term in the 
-the `_seq_no` and `_primary_term` fields of the response:
+`_seq_no` and `_primary_term` fields of the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {
@@ -42,7 +41,6 @@ the `_seq_no` and `_primary_term` fields of the response:
         "successful" : 1
     },
     "_index" : "products",
-    "_type" : "_doc",
     "_id" : "1567",
     "_version" : 1,
     "_seq_no" : 362,
@@ -53,25 +51,23 @@ the `_seq_no` and `_primary_term` fields of the response:
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 2/"_primary_term" : $body._primary_term/]
 
 
-Elasticsearch keeps tracks of the sequence number and primary of the last
-operation to have changed each of the document it stores. The sequence number
+Elasticsearch keeps tracks of the sequence number and primary term of the last
+operation to have changed each of the documents it stores. The sequence number
 and primary term are returned in the `_seq_no` and `_primary_term` fields in
 the response of the <<docs-get,GET API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET products/_doc/1567
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_index" : "products",
-    "_type" : "_doc",
     "_id" : "1567",
     "_version" : 1,
     "_seq_no" : 362,
@@ -87,7 +83,7 @@ returns:
 
 
 Note: The <<search-search,Search API>> can return the `_seq_no` and `_primary_term`
-for each search hit by requesting the `_seq_no` and `_primary_term` <<search-request-docvalue-fields,Doc Value Fields>>.
+for each search hit by setting <<request-body-search-seq-no-primary-term,`seq_no_primary_term` parameter>>.
 
 The sequence number and the primary term uniquely identify a change. By noting down 
 the sequence number and primary term returned, you can make sure to only change the
@@ -99,7 +95,7 @@ For example, the following indexing call will make sure to add a tag to the
 document without losing any potential change to the description or an addition
 of another tag by another API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT products/_doc/1567?if_seq_no=362&if_primary_term=2
 {
@@ -108,7 +104,6 @@ PUT products/_doc/1567?if_seq_no=362&if_primary_term=2
     "tags": ["droid"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[catch: conflict]
 

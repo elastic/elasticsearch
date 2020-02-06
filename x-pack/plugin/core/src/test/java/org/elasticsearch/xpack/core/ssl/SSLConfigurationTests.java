@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.TrustConfig.CombiningTrustConfig;
 
 import javax.net.ssl.KeyManager;
@@ -22,6 +23,7 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
@@ -35,6 +37,8 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(globalConfig.keyConfig(), sameInstance(KeyConfig.NONE));
         assertThat(globalConfig.trustConfig(), is(not((globalConfig.keyConfig()))));
         assertThat(globalConfig.trustConfig(), instanceOf(DefaultJDKTrustConfig.class));
+        assertThat(globalConfig.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
+        assertThat(globalConfig.supportedProtocols(), not(hasItem("TLSv1")));
     }
 
     public void testThatOnlyKeystoreInSettingsSetsTruststoreSettings() {
@@ -241,8 +245,7 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     public void testPEMFile() {
-        Environment env = randomBoolean() ? null :
-                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
@@ -261,8 +264,7 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     public void testPEMFileBackcompat() {
-        Environment env = randomBoolean() ? null :
-                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = newEnvironment();
         Settings settings = Settings.builder()
             .put("key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
@@ -282,8 +284,7 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     public void testPEMKeyAndTrustFiles() {
-        Environment env = randomBoolean() ? null :
-                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = newEnvironment();
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
@@ -307,8 +308,7 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     public void testPEMKeyAndTrustFilesBackcompat() {
-        Environment env = randomBoolean() ? null :
-                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = newEnvironment();
         Settings settings = Settings.builder()
             .put("key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("key_passphrase", "testnode")
@@ -331,9 +331,10 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     private void assertCombiningTrustConfigContainsCorrectIssuers(SSLConfiguration sslConfiguration) {
-        X509Certificate[] trustConfAcceptedIssuers = sslConfiguration.trustConfig().createTrustManager(null).getAcceptedIssuers();
-        X509Certificate[] keyConfAcceptedIssuers = sslConfiguration.keyConfig().createTrustManager(null).getAcceptedIssuers();
-        X509Certificate[] defaultAcceptedIssuers = new DefaultJDKTrustConfig(null).createTrustManager(null)
+        Environment env = newEnvironment();
+        X509Certificate[] trustConfAcceptedIssuers = sslConfiguration.trustConfig().createTrustManager(env).getAcceptedIssuers();
+        X509Certificate[] keyConfAcceptedIssuers = sslConfiguration.keyConfig().createTrustManager(env).getAcceptedIssuers();
+        X509Certificate[] defaultAcceptedIssuers = new DefaultJDKTrustConfig(null).createTrustManager(env)
             .getAcceptedIssuers();
         assertEquals(keyConfAcceptedIssuers.length + defaultAcceptedIssuers.length, trustConfAcceptedIssuers.length);
         assertThat(Arrays.asList(keyConfAcceptedIssuers), everyItem(isIn(trustConfAcceptedIssuers)));

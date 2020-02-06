@@ -11,6 +11,7 @@ The Java High Level REST Client supports the following Document APIs:
 Single document APIs::
 * <<{upid}-index>>
 * <<{upid}-get>>
+* <<{upid}-get-source>>
 * <<{upid}-exists>>
 * <<{upid}-delete>>
 * <<{upid}-update>>
@@ -28,6 +29,7 @@ Multi-document APIs::
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
+include::document/get-source.asciidoc[]
 include::document/exists.asciidoc[]
 include::document/delete.asciidoc[]
 include::document/update.asciidoc[]
@@ -83,12 +85,12 @@ include::miscellaneous/ping.asciidoc[]
 include::miscellaneous/x-pack-info.asciidoc[]
 include::miscellaneous/x-pack-usage.asciidoc[]
 
-== Indices APIs
+== Index APIs
 
 :upid: {mainid}
 :doc-tests-file: {doc-tests}/IndicesClientDocumentationIT.java
 
-The Java High Level REST Client supports the following Indices APIs:
+The Java High Level REST Client supports the following Index APIs:
 
 Index Management::
 * <<{upid}-analyze>>
@@ -99,9 +101,9 @@ Index Management::
 * <<{upid}-close-index>>
 * <<{upid}-shrink-index>>
 * <<{upid}-split-index>>
+* <<{upid}-clone-index>>
 * <<{upid}-refresh>>
 * <<{upid}-flush>>
-* <<{upid}-flush-synced>>
 * <<{upid}-clear-cache>>
 * <<{upid}-force-merge>>
 * <<{upid}-rollover-index>>
@@ -119,6 +121,7 @@ Alias Management::
 * <<{upid}-update-aliases>>
 * <<{upid}-exists-alias>>
 * <<{upid}-get-alias>>
+* <<{upid}-delete-alias>>
 
 Template Management::
 * <<{upid}-get-templates>>
@@ -133,9 +136,9 @@ include::indices/open_index.asciidoc[]
 include::indices/close_index.asciidoc[]
 include::indices/shrink_index.asciidoc[]
 include::indices/split_index.asciidoc[]
+include::indices/clone_index.asciidoc[]
 include::indices/refresh.asciidoc[]
 include::indices/flush.asciidoc[]
-include::indices/flush_synced.asciidoc[]
 include::indices/clear_cache.asciidoc[]
 include::indices/force_merge.asciidoc[]
 include::indices/rollover.asciidoc[]
@@ -143,6 +146,7 @@ include::indices/put_mapping.asciidoc[]
 include::indices/get_mappings.asciidoc[]
 include::indices/get_field_mappings.asciidoc[]
 include::indices/update_aliases.asciidoc[]
+include::indices/delete_alias.asciidoc[]
 include::indices/exists_alias.asciidoc[]
 include::indices/get_alias.asciidoc[]
 include::indices/put_settings.asciidoc[]
@@ -155,6 +159,7 @@ include::indices/get_index.asciidoc[]
 include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
 include::indices/delete_template.asciidoc[]
+include::indices/reload_analyzers.asciidoc[]
 
 == Cluster APIs
 
@@ -163,12 +168,14 @@ The Java High Level REST Client supports the following Cluster APIs:
 * <<java-rest-high-cluster-put-settings>>
 * <<java-rest-high-cluster-get-settings>>
 * <<java-rest-high-cluster-health>>
+* <<java-rest-high-cluster-remote-info>>
 
 :upid: {mainid}-cluster
 :doc-tests-file: {doc-tests}/ClusterClientDocumentationIT.java
 include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
+include::cluster/remote_info.asciidoc[]
 
 == Ingest APIs
 The Java High Level REST Client supports the following Ingest APIs:
@@ -195,6 +202,7 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-get-snapshots>>
 * <<java-rest-high-snapshot-snapshots-status>>
 * <<java-rest-high-snapshot-delete-snapshot>>
+* <<java-rest-high-snapshot-restore-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
@@ -204,6 +212,7 @@ include::snapshot/create_snapshot.asciidoc[]
 include::snapshot/get_snapshots.asciidoc[]
 include::snapshot/snapshots_status.asciidoc[]
 include::snapshot/delete_snapshot.asciidoc[]
+include::snapshot/restore_snapshot.asciidoc[]
 
 == Tasks APIs
 
@@ -247,6 +256,7 @@ include::licensing/start-basic.asciidoc[]
 include::licensing/get-trial-status.asciidoc[]
 include::licensing/get-basic-status.asciidoc[]
 
+[role="xpack"]
 == Machine Learning APIs
 :upid: {mainid}-x-pack-ml
 :doc-tests-file: {doc-tests}/MlClientDocumentationIT.java
@@ -285,6 +295,18 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-put-calendar-job>>
 * <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
+* <<{upid}-get-data-frame-analytics>>
+* <<{upid}-get-data-frame-analytics-stats>>
+* <<{upid}-put-data-frame-analytics>>
+* <<{upid}-delete-data-frame-analytics>>
+* <<{upid}-start-data-frame-analytics>>
+* <<{upid}-stop-data-frame-analytics>>
+* <<{upid}-evaluate-data-frame>>
+* <<{upid}-explain-data-frame-analytics>>
+* <<{upid}-get-trained-models>>
+* <<{upid}-put-trained-model>>
+* <<{upid}-get-trained-models-stats>>
+* <<{upid}-delete-trained-model>>
 * <<{upid}-put-filter>>
 * <<{upid}-get-filters>>
 * <<{upid}-update-filter>>
@@ -295,6 +317,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-update-model-snapshot>>
 * <<{upid}-get-ml-info>>
 * <<{upid}-delete-expired-data>>
+* <<{upid}-set-upgrade-mode>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -328,6 +351,18 @@ include::ml/delete-calendar-event.asciidoc[]
 include::ml/put-calendar-job.asciidoc[]
 include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
+include::ml/get-data-frame-analytics.asciidoc[]
+include::ml/get-data-frame-analytics-stats.asciidoc[]
+include::ml/put-data-frame-analytics.asciidoc[]
+include::ml/delete-data-frame-analytics.asciidoc[]
+include::ml/start-data-frame-analytics.asciidoc[]
+include::ml/stop-data-frame-analytics.asciidoc[]
+include::ml/evaluate-data-frame.asciidoc[]
+include::ml/explain-data-frame-analytics.asciidoc[]
+include::ml/get-trained-models.asciidoc[]
+include::ml/put-trained-model.asciidoc[]
+include::ml/get-trained-models-stats.asciidoc[]
+include::ml/delete-trained-model.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/get-filters.asciidoc[]
 include::ml/update-filter.asciidoc[]
@@ -338,6 +373,7 @@ include::ml/revert-model-snapshot.asciidoc[]
 include::ml/update-model-snapshot.asciidoc[]
 include::ml/get-info.asciidoc[]
 include::ml/delete-expired-data.asciidoc[]
+include::ml/set-upgrade-mode.asciidoc[]
 
 == Migration APIs
 
@@ -346,14 +382,11 @@ include::ml/delete-expired-data.asciidoc[]
 
 The Java High Level REST Client supports the following Migration APIs:
 
-* <<java-rest-high-migration-get-assistance>>
-* <<{upid}-upgrade>>
 * <<{upid}-get-deprecation-info>>
 
-include::migration/get-assistance.asciidoc[]
-include::migration/upgrade.asciidoc[]
 include::migration/get-deprecation-info.asciidoc[]
 
+[role="xpack"]
 == Rollup APIs
 
 :upid: {mainid}-rollup
@@ -379,6 +412,7 @@ include::rollup/search.asciidoc[]
 include::rollup/get_rollup_caps.asciidoc[]
 include::rollup/get_rollup_index_caps.asciidoc[]
 
+[role="xpack"]
 == Security APIs
 
 :upid: {mainid}-security
@@ -406,9 +440,13 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
 * <<{upid}-invalidate-token>>
+* <<{upid}-get-builtin-privileges>>
 * <<{upid}-get-privileges>>
 * <<{upid}-put-privileges>>
 * <<{upid}-delete-privileges>>
+* <<{upid}-create-api-key>>
+* <<{upid}-get-api-key>>
+* <<{upid}-invalidate-api-key>>
 
 include::security/put-user.asciidoc[]
 include::security/get-users.asciidoc[]
@@ -420,6 +458,7 @@ include::security/put-role.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/delete-role.asciidoc[]
 include::security/delete-privileges.asciidoc[]
+include::security/get-builtin-privileges.asciidoc[]
 include::security/get-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
@@ -433,7 +472,11 @@ include::security/delete-role-mapping.asciidoc[]
 include::security/create-token.asciidoc[]
 include::security/invalidate-token.asciidoc[]
 include::security/put-privileges.asciidoc[]
+include::security/create-api-key.asciidoc[]
+include::security/get-api-key.asciidoc[]
+include::security/invalidate-api-key.asciidoc[]
 
+[role="xpack"]
 == Watcher APIs
 
 :upid: {mainid}-watcher
@@ -463,6 +506,7 @@ include::watcher/activate-watch.asciidoc[]
 include::watcher/execute-watch.asciidoc[]
 include::watcher/watcher-stats.asciidoc[]
 
+[role="xpack"]
 == Graph APIs
 
 The Java High Level REST Client supports the following Graph APIs:
@@ -483,6 +527,7 @@ don't leak into the rest of the documentation.
 :upid!:
 --
 
+[role="xpack"]
 == CCR APIs
 
 :upid: {mainid}-ccr
@@ -494,22 +539,31 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-pause-follow>>
 * <<{upid}-ccr-resume-follow>>
 * <<{upid}-ccr-unfollow>>
+* <<{upid}-ccr-forget-follower>>
 * <<{upid}-ccr-put-auto-follow-pattern>>
 * <<{upid}-ccr-delete-auto-follow-pattern>>
 * <<{upid}-ccr-get-auto-follow-pattern>>
+* <<{upid}-ccr-pause-auto-follow-pattern>>
+* <<{upid}-ccr-resume-auto-follow-pattern>>
 * <<{upid}-ccr-get-stats>>
 * <<{upid}-ccr-get-follow-stats>>
+* <<{upid}-ccr-get-follow-info>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
 include::ccr/resume_follow.asciidoc[]
 include::ccr/unfollow.asciidoc[]
+include::ccr/forget_follower.asciidoc[]
 include::ccr/put_auto_follow_pattern.asciidoc[]
 include::ccr/delete_auto_follow_pattern.asciidoc[]
 include::ccr/get_auto_follow_pattern.asciidoc[]
+include::ccr/pause_auto_follow_pattern.asciidoc[]
+include::ccr/resume_auto_follow_pattern.asciidoc[]
 include::ccr/get_stats.asciidoc[]
 include::ccr/get_follow_stats.asciidoc[]
+include::ccr/get_follow_info.asciidoc[]
 
+[role="xpack"]
 == Index Lifecycle Management APIs
 
 :upid: {mainid}-ilm
@@ -538,3 +592,79 @@ include::ilm/stop_lifecycle_management.asciidoc[]
 include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
+
+[role="xpack"]
+== Snapshot Lifecycle Management APIs
+
+:upid: {mainid}-ilm
+:doc-tests-file: {doc-tests}/ILMDocumentationIT.java
+
+The Java High Level REST Client supports the following Snapshot Lifecycle
+Management APIs:
+
+* <<{upid}-slm-put-snapshot-lifecycle-policy>>
+* <<{upid}-slm-delete-snapshot-lifecycle-policy>>
+* <<{upid}-ilm-get-lifecycle-policy>>
+* <<{upid}-slm-start-slm>>
+* <<{upid}-slm-stop-slm>>
+* <<{upid}-slm-status>>
+* <<{upid}-slm-execute-snapshot-lifecycle-policy>>
+* <<{upid}-slm-execute-snapshot-lifecycle-retention>>
+
+
+include::ilm/put_snapshot_lifecycle_policy.asciidoc[]
+include::ilm/delete_snapshot_lifecycle_policy.asciidoc[]
+include::ilm/get_snapshot_lifecycle_policy.asciidoc[]
+include::ilm/start_snapshot_lifecycle_management.asciidoc[]
+include::ilm/stop_snapshot_lifecycle_management.asciidoc[]
+include::ilm/snapshot_lifecycle_management_status.asciidoc[]
+include::ilm/execute_snapshot_lifecycle_policy.asciidoc[]
+include::ilm/execute_snapshot_lifecycle_retention.asciidoc[]
+
+
+[role="xpack"]
+[[transform_apis]]
+== {transform-cap} APIs
+
+:upid: {mainid}
+:doc-tests-file: {doc-tests}/TransformDocumentationIT.java
+
+The Java High Level REST Client supports the following {transform}
+APIs:
+
+* <<{upid}-get-transform>>
+* <<{upid}-get-transform-stats>>
+* <<{upid}-put-transform>>
+* <<{upid}-update-transform>>
+* <<{upid}-delete-transform>>
+* <<{upid}-preview-transform>>
+* <<{upid}-start-transform>>
+* <<{upid}-stop-transform>>
+
+include::transform/get_transform.asciidoc[]
+include::transform/get_transform_stats.asciidoc[]
+include::transform/put_transform.asciidoc[]
+include::transform/update_transform.asciidoc[]
+include::transform/delete_transform.asciidoc[]
+include::transform/preview_transform.asciidoc[]
+include::transform/start_transform.asciidoc[]
+include::transform/stop_transform.asciidoc[]
+
+== Enrich APIs
+
+:upid: {mainid}-enrich
+:doc-tests-file: {doc-tests}/EnrichDocumentationIT.java
+
+The Java High Level REST Client supports the following Enrich APIs:
+
+* <<{upid}-enrich-put-policy>>
+* <<{upid}-enrich-delete-policy>>
+* <<{upid}-enrich-get-policy>>
+* <<{upid}-enrich-stats>>
+* <<{upid}-enrich-execute-policy>>
+
+include::enrich/put_policy.asciidoc[]
+include::enrich/delete_policy.asciidoc[]
+include::enrich/get_policy.asciidoc[]
+include::enrich/stats.asciidoc[]
+include::enrich/execute_policy.asciidoc[]

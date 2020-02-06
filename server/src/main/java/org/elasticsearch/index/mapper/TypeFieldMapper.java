@@ -82,9 +82,9 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new TypeFieldMapper(indexSettings, fieldType);
+            return new TypeFieldMapper(indexSettings, defaultFieldType(indexSettings));
         }
     }
 
@@ -140,7 +140,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                     .anyMatch(indexType::equals)) {
                 if (context.getMapperService().hasNested()) {
                     // type filters are expected not to match nested docs
-                    return Queries.newNonNestedFilter(context.indexVersionCreated());
+                    return Queries.newNonNestedFilter();
                 } else {
                     return new MatchAllDocsQuery();
                 }
@@ -285,9 +285,9 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }
-        fields.add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType()));
+        fields.add(new Field(fieldType().name(), MapperService.SINGLE_MAPPING_NAME, fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(context.sourceToParse().type())));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(MapperService.SINGLE_MAPPING_NAME)));
         }
     }
 

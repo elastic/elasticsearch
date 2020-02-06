@@ -17,8 +17,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
@@ -28,14 +26,11 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -125,31 +120,15 @@ public class MockClientBuilder {
         return this;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    public MockClientBuilder addIndicesExistsResponse(String index, boolean exists) throws InterruptedException, ExecutionException {
-        ActionFuture actionFuture = mock(ActionFuture.class);
-        ArgumentCaptor<IndicesExistsRequest> requestCaptor = ArgumentCaptor.forClass(IndicesExistsRequest.class);
-
-        when(indicesAdminClient.exists(requestCaptor.capture())).thenReturn(actionFuture);
-        doAnswer(invocation -> {
-            IndicesExistsRequest request = (IndicesExistsRequest) invocation.getArguments()[0];
-            return request.indices()[0].equals(index) ? actionFuture : null;
-        }).when(indicesAdminClient).exists(any(IndicesExistsRequest.class));
-        when(actionFuture.get()).thenReturn(new IndicesExistsResponse(exists));
-        when(actionFuture.actionGet()).thenReturn(new IndicesExistsResponse(exists));
-        return this;
-    }
-
     @SuppressWarnings({ "unchecked" })
     public MockClientBuilder addIndicesDeleteResponse(String index, boolean exists, boolean exception,
             ActionListener<AcknowledgedResponse> actionListener) throws InterruptedException, ExecutionException, IOException {
-        AcknowledgedResponse response = DeleteIndexAction.INSTANCE.newResponse();
         StreamInput si = mock(StreamInput.class);
         // this looks complicated but Mockito can't mock the final method
         // DeleteIndexResponse.isAcknowledged() and the only way to create
         // one with a true response is reading from a stream.
         when(si.readByte()).thenReturn((byte) 0x01);
-        response.readFrom(si);
+        AcknowledgedResponse response = DeleteIndexAction.INSTANCE.getResponseReader().read(si);
 
         doAnswer(invocation -> {
             DeleteIndexRequest deleteIndexRequest = (DeleteIndexRequest) invocation.getArguments()[0];
@@ -164,14 +143,15 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareGet(String index, String type, String id, GetResponse response) {
+    public MockClientBuilder prepareGet(String index, String id, GetResponse response) {
         GetRequestBuilder getRequestBuilder = mock(GetRequestBuilder.class);
         when(getRequestBuilder.get()).thenReturn(response);
         when(getRequestBuilder.setFetchSource(false)).thenReturn(getRequestBuilder);
-        when(client.prepareGet(index, type, id)).thenReturn(getRequestBuilder);
+        when(client.prepareGet(index, id)).thenReturn(getRequestBuilder);
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder get(GetResponse response) {
         doAnswer(new Answer<Void>() {
             @Override
@@ -189,7 +169,7 @@ public class MockClientBuilder {
         CreateIndexRequestBuilder createIndexRequestBuilder = mock(CreateIndexRequestBuilder.class);
         CreateIndexResponse response = mock(CreateIndexResponse.class);
         when(createIndexRequestBuilder.setSettings(any(Settings.Builder.class))).thenReturn(createIndexRequestBuilder);
-        when(createIndexRequestBuilder.addMapping(any(String.class), any(XContentBuilder.class))).thenReturn(createIndexRequestBuilder);
+        when(createIndexRequestBuilder.setMapping(any(XContentBuilder.class))).thenReturn(createIndexRequestBuilder);
         when(createIndexRequestBuilder.get()).thenReturn(response);
         when(indicesAdminClient.prepareCreate(eq(index))).thenReturn(createIndexRequestBuilder);
         return this;
@@ -209,7 +189,6 @@ public class MockClientBuilder {
     @SuppressWarnings("unchecked")
     public MockClientBuilder prepareSearchExecuteListener(String index, SearchResponse response) {
         SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
-        when(builder.setTypes(anyString())).thenReturn(builder);
         when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
         when(builder.setFetchSource(anyBoolean())).thenReturn(builder);
         when(builder.setScroll(anyString())).thenReturn(builder);
@@ -253,10 +232,9 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareSearch(String index, String type, int from, int size, SearchResponse response,
+    public MockClientBuilder prepareSearch(String index, int from, int size, SearchResponse response,
             ArgumentCaptor<QueryBuilder> filter) {
         SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
-        when(builder.setTypes(eq(type))).thenReturn(builder);
         when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
         when(builder.setQuery(filter.capture())).thenReturn(builder);
         when(builder.setPostFilter(filter.capture())).thenReturn(builder);
@@ -355,39 +333,6 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareSearchAnySize(String index, String type, SearchResponse response, ArgumentCaptor<QueryBuilder> filter) {
-        SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
-        when(builder.setTypes(eq(type))).thenReturn(builder);
-        when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
-        when(builder.setQuery(filter.capture())).thenReturn(builder);
-        when(builder.setPostFilter(filter.capture())).thenReturn(builder);
-        when(builder.setFrom(any(Integer.class))).thenReturn(builder);
-        when(builder.setSize(any(Integer.class))).thenReturn(builder);
-        when(builder.setFetchSource(eq(true))).thenReturn(builder);
-        when(builder.addDocValueField(any(String.class))).thenReturn(builder);
-        when(builder.addDocValueField(any(String.class), any(String.class))).thenReturn(builder);
-        when(builder.addSort(any(String.class), any(SortOrder.class))).thenReturn(builder);
-        when(builder.get()).thenReturn(response);
-        when(client.prepareSearch(eq(index))).thenReturn(builder);
-        return this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public MockClientBuilder prepareIndex(String index, String type, String responseId, ArgumentCaptor<XContentBuilder> getSource) {
-        IndexRequestBuilder builder = mock(IndexRequestBuilder.class);
-        PlainActionFuture<IndexResponse> actionFuture = mock(PlainActionFuture.class);
-        IndexResponse response = mock(IndexResponse.class);
-        when(response.getId()).thenReturn(responseId);
-
-        when(client.prepareIndex(eq(index), eq(type))).thenReturn(builder);
-        when(client.prepareIndex(eq(index), eq(type), any(String.class))).thenReturn(builder);
-        when(builder.setSource(getSource.capture())).thenReturn(builder);
-        when(builder.setRefreshPolicy(eq(RefreshPolicy.IMMEDIATE))).thenReturn(builder);
-        when(builder.execute()).thenReturn(actionFuture);
-        when(actionFuture.actionGet()).thenReturn(response);
-        return this;
-    }
-
     @SuppressWarnings("unchecked")
     public MockClientBuilder prepareAlias(String indexName, String alias, QueryBuilder filter) {
         when(aliasesRequestBuilder.addAlias(eq(indexName), eq(alias), eq(filter))).thenReturn(aliasesRequestBuilder);
@@ -438,9 +383,9 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder preparePutMapping(AcknowledgedResponse response, String type) {
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder preparePutMapping(AcknowledgedResponse response) {
         PutMappingRequestBuilder requestBuilder = mock(PutMappingRequestBuilder.class);
-        when(requestBuilder.setType(eq(type))).thenReturn(requestBuilder);
         when(requestBuilder.setSource(any(XContentBuilder.class))).thenReturn(requestBuilder);
         doAnswer(new Answer<Void>() {
             @Override
@@ -456,6 +401,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder prepareGetMapping(GetMappingsResponse response) {
         GetMappingsRequestBuilder builder = mock(GetMappingsRequestBuilder.class);
 
@@ -473,6 +419,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder putTemplate(ArgumentCaptor<PutIndexTemplateRequest> requestCaptor) {
         doAnswer(new Answer<Void>() {
             @Override

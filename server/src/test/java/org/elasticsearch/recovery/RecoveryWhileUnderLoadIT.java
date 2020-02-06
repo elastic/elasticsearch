@@ -30,20 +30,27 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -53,10 +60,25 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
-@TestLogging("_root:DEBUG,org.elasticsearch.index.shard:TRACE,org.elasticsearch.cluster.service:TRACE," +
-        "org.elasticsearch.index.seqno:TRACE,org.elasticsearch.indices.recovery:TRACE")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     private final Logger logger = LogManager.getLogger(RecoveryWhileUnderLoadIT.class);
+
+    public static final class RetentionLeaseSyncIntervalSettingPlugin extends Plugin {
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING);
+        }
+
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(RetentionLeaseSyncIntervalSettingPlugin.class))
+            .collect(Collectors.toList());
+    }
 
     public void testRecoverWhileUnderLoadAllocateReplicasTest() throws Exception {
         logger.info("--> creating test index ...");
@@ -260,7 +282,8 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test", 3, Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, numShards)
                 .put(SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)));
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), randomFrom("100ms", "1s", "5s", "30s", "60s"))));
 
         final int numDocs = scaledRandomIntBetween(200, 9999);
 
@@ -299,8 +322,11 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         SearchResponse[] iterationResults = new SearchResponse[iterations];
         boolean error = false;
         for (int i = 0; i < iterations; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setSize((int) numberOfDocs).setQuery(matchAllQuery())
-                    .addSort("id", SortOrder.ASC).get();
+            SearchResponse searchResponse = client().prepareSearch()
+                .setSize((int) numberOfDocs)
+                .setQuery(matchAllQuery())
+                .setTrackTotalHits(true)
+                .addSort("id", SortOrder.ASC).get();
             logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
             iterationResults[i] = searchResponse;
             if (searchResponse.getHits().getTotalHits().value != numberOfDocs) {
@@ -313,7 +339,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().get();
             for (ShardStats shardStats : indicesStatsResponse.getShards()) {
                 DocsStats docsStats = shardStats.getStats().docs;
-                logger.info("shard [{}] - count {}, primary {}", shardStats.getShardRouting().id(), docsStats.getCount(), 
+                logger.info("shard [{}] - count {}, primary {}", shardStats.getShardRouting().id(), docsStats.getCount(),
                         shardStats.getShardRouting().primary());
             }
 
@@ -324,7 +350,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                     ShardId docShard = clusterService.operationRouting().shardId(state, "test", id, null);
                     if (docShard.id() == shard) {
                         for (ShardRouting shardRouting : state.routingTable().shardRoutingTable("test", shard)) {
-                            GetResponse response = client().prepareGet("test", "type", id)
+                            GetResponse response = client().prepareGet("test", id)
                                     .setPreference("_only_nodes:" + shardRouting.currentNodeId()).get();
                             if (response.isExists()) {
                                 logger.info("missing id [{}] on shard {}", id, shardRouting);
@@ -336,19 +362,23 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             //if there was an error we try to wait and see if at some point it'll get fixed
             logger.info("--> trying to wait");
-            assertTrue(awaitBusy(() -> {
-                                boolean errorOccurred = false;
-                                for (int i = 0; i < iterations; i++) {
-                                    SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-                                    if (searchResponse.getHits().getTotalHits().value != numberOfDocs) {
-                                        errorOccurred = true;
-                                    }
-                                }
-                                return !errorOccurred;
-                            },
-                            5,
-                            TimeUnit.MINUTES
-                    )
+            assertBusy(
+                () -> {
+                    boolean errorOccurred = false;
+                    for (int i = 0; i < iterations; i++) {
+                        SearchResponse searchResponse = client().prepareSearch()
+                            .setTrackTotalHits(true)
+                            .setSize(0)
+                            .setQuery(matchAllQuery())
+                            .get();
+                        if (searchResponse.getHits().getTotalHits().value != numberOfDocs) {
+                            errorOccurred = true;
+                        }
+                    }
+                    assertFalse("An error occurred while waiting", errorOccurred);
+                },
+                5,
+                TimeUnit.MINUTES
             );
             assertEquals(numberOfDocs, ids.size());
         }
@@ -360,13 +390,13 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     }
 
     private void logSearchResponse(int numberOfShards, long numberOfDocs, int iteration, SearchResponse searchResponse) {
-        logger.info("iteration [{}] - successful shards: {} (expected {})", iteration, 
+        logger.info("iteration [{}] - successful shards: {} (expected {})", iteration,
                 searchResponse.getSuccessfulShards(), numberOfShards);
         logger.info("iteration [{}] - failed shards: {} (expected 0)", iteration, searchResponse.getFailedShards());
         if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
             logger.info("iteration [{}] - shard failures: {}", iteration, Arrays.toString(searchResponse.getShardFailures()));
         }
-        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, 
+        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration,
                 searchResponse.getHits().getTotalHits().value, numberOfDocs);
     }
 

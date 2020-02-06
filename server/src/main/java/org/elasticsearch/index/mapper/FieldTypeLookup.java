@@ -20,13 +20,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -38,15 +38,30 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     final CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType;
     private final CopyOnWriteHashMap<String, String> aliasToConcreteName;
 
+    private final CopyOnWriteHashMap<String, DynamicKeyFieldMapper> dynamicKeyMappers;
+
+    /**
+     * The maximum field depth of any mapper that implements {@link DynamicKeyFieldMapper}.
+     * Allows us stop searching for a 'dynamic key' mapper as soon as we've passed the maximum
+     * possible field depth.
+     */
+    private final int maxDynamicKeyDepth;
+
     FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         aliasToConcreteName = new CopyOnWriteHashMap<>();
+        dynamicKeyMappers = new CopyOnWriteHashMap<>();
+        maxDynamicKeyDepth = 0;
     }
 
     private FieldTypeLookup(CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType,
-                            CopyOnWriteHashMap<String, String> aliasToConcreteName) {
+                            CopyOnWriteHashMap<String, String> aliasToConcreteName,
+                            CopyOnWriteHashMap<String, DynamicKeyFieldMapper> dynamicKeyMappers,
+                            int maxDynamicKeyDepth) {
         this.fullNameToFieldType = fullNameToFieldType;
         this.aliasToConcreteName = aliasToConcreteName;
+        this.dynamicKeyMappers = dynamicKeyMappers;
+        this.maxDynamicKeyDepth = maxDynamicKeyDepth;
     }
 
     /**
@@ -59,20 +74,23 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
                                          Collection<FieldMapper> fieldMappers,
                                          Collection<FieldAliasMapper> fieldAliasMappers) {
         Objects.requireNonNull(type, "type must not be null");
-        if (MapperService.DEFAULT_MAPPING.equals(type)) {
-            throw new IllegalArgumentException("Default mappings should not be added to the lookup");
-        }
 
         CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
         CopyOnWriteHashMap<String, String> aliases = this.aliasToConcreteName;
+        CopyOnWriteHashMap<String, DynamicKeyFieldMapper> dynamicKeyMappers = this.dynamicKeyMappers;
 
         for (FieldMapper fieldMapper : fieldMappers) {
+            String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
             MappedFieldType fullNameFieldType = fullName.get(fieldType.name());
 
-            if (!Objects.equals(fieldType, fullNameFieldType)) {
-                validateField(fullNameFieldType, fieldType, aliases);
+            if (Objects.equals(fieldType, fullNameFieldType) == false) {
                 fullName = fullName.copyAndPut(fieldType.name(), fieldType);
+            }
+
+            if (fieldMapper instanceof DynamicKeyFieldMapper) {
+                DynamicKeyFieldMapper dynamicKeyMapper = (DynamicKeyFieldMapper) fieldMapper;
+                dynamicKeyMappers = dynamicKeyMappers.copyAndPut(fieldName, dynamicKeyMapper);
             }
         }
 
@@ -80,76 +98,103 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
 
-            validateAlias(aliasName, path, aliases, fullName);
-            aliases = aliases.copyAndPut(aliasName, path);
+            String existingPath = aliases.get(aliasName);
+            if (Objects.equals(path, existingPath) == false) {
+                aliases = aliases.copyAndPut(aliasName, path);
+            }
         }
 
-        return new FieldTypeLookup(fullName, aliases);
+        int maxDynamicKeyDepth = getMaxDynamicKeyDepth(aliases, dynamicKeyMappers);
+
+        return new FieldTypeLookup(fullName, aliases, dynamicKeyMappers, maxDynamicKeyDepth);
+    }
+
+    private static int getMaxDynamicKeyDepth(CopyOnWriteHashMap<String, String> aliases,
+                                             CopyOnWriteHashMap<String, DynamicKeyFieldMapper> dynamicKeyMappers) {
+        int maxFieldDepth = 0;
+        for (Map.Entry<String, String> entry : aliases.entrySet()) {
+            String aliasName = entry.getKey();
+            String path = entry.getValue();
+            if (dynamicKeyMappers.containsKey(path)) {
+                maxFieldDepth = Math.max(maxFieldDepth, fieldDepth(aliasName));
+            }
+        }
+
+        for (String fieldName : dynamicKeyMappers.keySet()) {
+            if (dynamicKeyMappers.containsKey(fieldName)) {
+                maxFieldDepth = Math.max(maxFieldDepth, fieldDepth(fieldName));
+            }
+        }
+
+        return maxFieldDepth;
     }
 
     /**
-     * Checks that the new field type is valid.
+     * Computes the total depth of this field by counting the number of parent fields
+     * in its path. As an example, the field 'parent1.parent2.field' has depth 3.
      */
-    private void validateField(MappedFieldType existingFieldType,
-                               MappedFieldType newFieldType,
-                               CopyOnWriteHashMap<String, String> aliasToConcreteName) {
-        String fieldName = newFieldType.name();
-        if (aliasToConcreteName.containsKey(fieldName)) {
-            throw new IllegalArgumentException("The name for field [" + fieldName + "] has already" +
-                " been used to define a field alias.");
+    private static int fieldDepth(String field) {
+        int numDots = 0;
+        int dotIndex = -1;
+        while (true) {
+            dotIndex = field.indexOf('.', dotIndex + 1);
+            if (dotIndex < 0) {
+                break;
+            }
+            numDots++;
+        }
+        return numDots + 1;
+    }
+
+    /**
+     * Returns the mapped field type for the given field name.
+     */
+    public MappedFieldType get(String field) {
+        String concreteField = aliasToConcreteName.getOrDefault(field, field);
+        MappedFieldType fieldType = fullNameToFieldType.get(concreteField);
+        if (fieldType != null) {
+            return fieldType;
         }
 
-        if (existingFieldType != null) {
-            List<String> conflicts = new ArrayList<>();
-            existingFieldType.checkCompatibility(newFieldType, conflicts);
-            if (conflicts.isEmpty() == false) {
-                throw new IllegalArgumentException("Mapper for [" + fieldName +
-                    "] conflicts with existing mapping:\n" + conflicts.toString());
+        // If the mapping contains fields that support dynamic sub-key lookup, check
+        // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
+        return !dynamicKeyMappers.isEmpty() ? getKeyedFieldType(field) : null;
+    }
+
+    /**
+     * Check if the given field corresponds to a dynamic lookup mapper of the
+     * form 'path_to_field.path_to_key'. If so, returns a field type that
+     * can be used to perform searches on this field.
+     */
+    private MappedFieldType getKeyedFieldType(String field) {
+        int dotIndex = -1;
+        int fieldDepth = 0;
+
+        while (true) {
+            if (++fieldDepth > maxDynamicKeyDepth) {
+                return null;
+            }
+
+            dotIndex = field.indexOf('.', dotIndex + 1);
+            if (dotIndex < 0) {
+                return null;
+            }
+
+            String parentField = field.substring(0, dotIndex);
+            String concreteField = aliasToConcreteName.getOrDefault(parentField, parentField);
+            DynamicKeyFieldMapper mapper = dynamicKeyMappers.get(concreteField);
+
+            if (mapper != null) {
+                String key = field.substring(dotIndex + 1);
+                return mapper.keyedFieldType(key);
             }
         }
     }
 
     /**
-     * Checks that the new field alias is valid.
-     *
-     * Note that this method assumes that new concrete fields have already been processed, so that it
-     * can verify that an alias refers to an existing concrete field.
-     */
-    private void validateAlias(String aliasName,
-                               String path,
-                               CopyOnWriteHashMap<String, String> aliasToConcreteName,
-                               CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType) {
-        if (fullNameToFieldType.containsKey(aliasName)) {
-            throw new IllegalArgumentException("The name for field alias [" + aliasName + "] has already" +
-                " been used to define a concrete field.");
-        }
-
-        if (path.equals(aliasName)) {
-            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
-                aliasName + "]: an alias cannot refer to itself.");
-        }
-
-        if (aliasToConcreteName.containsKey(path)) {
-            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
-                aliasName + "]: an alias cannot refer to another alias.");
-        }
-
-        if (!fullNameToFieldType.containsKey(path)) {
-            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
-                aliasName + "]: an alias must refer to an existing field in the mappings.");
-        }
-    }
-
-    /** Returns the field for the given field */
-    public MappedFieldType get(String field) {
-        String concreteField = aliasToConcreteName.getOrDefault(field, field);
-        return fullNameToFieldType.get(concreteField);
-    }
-
-    /**
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
-    public Collection<String> simpleMatchToFullName(String pattern) {
+    public Set<String> simpleMatchToFullName(String pattern) {
         Set<String> fields = new HashSet<>();
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.name())) {
@@ -166,6 +211,20 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     @Override
     public Iterator<MappedFieldType> iterator() {
-        return fullNameToFieldType.values().iterator();
+        Iterator<MappedFieldType> concreteFieldTypes = fullNameToFieldType.values().iterator();
+
+        if (dynamicKeyMappers.isEmpty()) {
+            return concreteFieldTypes;
+        } else {
+            Iterator<MappedFieldType> keyedFieldTypes = dynamicKeyMappers.values().stream()
+                .<MappedFieldType>map(mapper -> mapper.keyedFieldType(""))
+                .iterator();
+            return Iterators.concat(concreteFieldTypes, keyedFieldTypes);
+        }
+    }
+
+    // Visible for testing.
+    int maxKeyedLookupDepth() {
+        return maxDynamicKeyDepth;
     }
 }

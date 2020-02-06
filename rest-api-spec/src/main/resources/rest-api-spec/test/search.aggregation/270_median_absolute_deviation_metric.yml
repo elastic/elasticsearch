@@ -1,7 +1,4 @@
 setup:
-  - skip:
-        version: " - 6.5.99"
-        reason:  "added in 6.6.0"
   - do:
         indices.create:
             index: test
@@ -9,33 +6,29 @@ setup:
               settings:
                 number_of_replicas: 0
               mappings:
-                _doc:
-                  properties:
-                    int_field:
-                      type: integer
-                    double_field:
-                      type: double
-                    incomplete_field:
-                      type: integer
+                properties:
+                  int_field:
+                    type: integer
+                  double_field:
+                    type: double
+                  incomplete_field:
+                    type: integer
   - do:
         bulk:
           refresh: true
           body:
             - index:
                 _index: test
-                _type: _doc
             - int_field: 100
               double_field: 100.0
               incomplete_field: 1000
             - index:
                 _index: test
-                _type: _doc
             - int_field: 200
               double_field: 200.0
               incomplete_field: 2000
             - index:
                 _index: test
-                _type: _doc
             - int_field: 300
               double_field: 300.0
 

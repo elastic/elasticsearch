@@ -6,38 +6,29 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestPostStartBasicLicense extends XPackRestHandler {
+public class RestPostStartBasicLicense extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPostStartBasicLicense.class));
-
-    RestPostStartBasicLicense(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/_license/start_basic", this,
-                POST, URI_BASE + "/license/start_basic", deprecationLogger);
+    RestPostStartBasicLicense(RestController controller) {
+        controller.registerHandler(POST, "/_license/start_basic", this);
     }
 
     @Override
-    protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         PostStartBasicRequest startBasicRequest = new PostStartBasicRequest();
         startBasicRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
         startBasicRequest.timeout(request.paramAsTime("timeout", startBasicRequest.timeout()));
         startBasicRequest.masterNodeTimeout(request.paramAsTime("master_timeout", startBasicRequest.masterNodeTimeout()));
-        return channel -> client.licensing().postStartBasic(startBasicRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(PostStartBasicAction.INSTANCE, startBasicRequest, new RestStatusToXContentListener<>(channel));
     }
 
     @Override

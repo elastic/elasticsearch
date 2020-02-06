@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 import com.ibm.icu.text.CharsetMatch;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PipedInputStream;
@@ -21,10 +23,10 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides.EMPTY_OVERRIDES;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -36,7 +38,7 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
 
     @Before
     public void setup() {
-        scheduler = new ScheduledThreadPoolExecutor(1);
+        scheduler = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         structureFinderManager = new FileStructureFinderManager(scheduler);
     }
 
@@ -54,7 +56,7 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
         }
     }
 
-    public void testFindCharsetGivenBinary() throws Exception {
+    public void testFindCharsetGivenRandomBinary() throws Exception {
 
         // This input should never match a single byte character set.  ICU4J will sometimes decide
         // that it matches a double byte character set, hence the two assertion branches.
@@ -73,9 +75,35 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
         }
     }
 
+    public void testFindCharsetGivenBinaryNearUtf16() throws Exception {
+
+        // This input should never match a single byte character set.  ICU4J will probably decide
+        // that it matches both UTF-16BE and UTF-16LE, but we should reject these as there's no
+        // clear winner.
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        if (randomBoolean()) {
+            stream.write(randomAlphaOfLengthBetween(3, 4).getBytes(StandardCharsets.UTF_16LE));
+        }
+        for (int i = 0; i < 50; ++i) {
+            stream.write(randomAlphaOfLengthBetween(5, 6).getBytes(StandardCharsets.UTF_16BE));
+            stream.write(randomAlphaOfLengthBetween(5, 6).getBytes(StandardCharsets.UTF_16LE));
+        }
+        if (randomBoolean()) {
+            stream.write(randomAlphaOfLengthBetween(3, 4).getBytes(StandardCharsets.UTF_16BE));
+        }
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> structureFinderManager.findCharset(explanation, new ByteArrayInputStream(stream.toByteArray()), NOOP_TIMEOUT_CHECKER));
+
+        assertEquals("Could not determine a usable character encoding for the input - could it be binary data?", e.getMessage());
+        assertThat(explanation.toString(),
+            containsString("but was rejected as the distribution of zero bytes between odd and even positions in the file is very close"));
+    }
+
     public void testMakeBestStructureGivenNdJson() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, NDJSON_SAMPLE, StandardCharsets.UTF_8.name(),
-            randomBoolean(), EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(NdJsonFileStructureFinder.class));
+            randomBoolean(), FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER),
+            instanceOf(NdJsonFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenNdJsonAndDelimitedOverride() throws Exception {
@@ -86,12 +114,14 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
             .setFormat(FileStructure.Format.DELIMITED).setQuote('\'').build();
 
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, NDJSON_SAMPLE, StandardCharsets.UTF_8.name(),
-            randomBoolean(), overrides, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
+            randomBoolean(), FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER),
+            instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXml() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, XML_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(XmlFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER),
+            instanceOf(XmlFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXmlAndTextOverride() throws Exception {
@@ -99,12 +129,14 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
         FileStructureOverrides overrides = FileStructureOverrides.builder().setFormat(FileStructure.Format.SEMI_STRUCTURED_TEXT).build();
 
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, XML_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            overrides, NOOP_TIMEOUT_CHECKER), instanceOf(TextLogFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER),
+            instanceOf(TextLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsv() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, CSV_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER),
+            instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsvAndJsonOverride() {
@@ -113,14 +145,15 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> structureFinderManager.makeBestStructureFinder(explanation, CSV_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-                overrides, NOOP_TIMEOUT_CHECKER));
+                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER));
 
         assertEquals("Input did not match the specified format [ndjson]", e.getMessage());
     }
 
     public void testMakeBestStructureGivenText() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, TEXT_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(TextLogFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER),
+            instanceOf(TextLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenTextAndDelimitedOverride() throws Exception {
@@ -130,7 +163,8 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
             .setFormat(FileStructure.Format.DELIMITED).setDelimiter(':').build();
 
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, TEXT_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            overrides, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER),
+            instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testFindFileStructureTimeout() throws IOException, InterruptedException {
@@ -163,7 +197,8 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
                 junkProducer.start();
 
                 ElasticsearchTimeoutException e = expectThrows(ElasticsearchTimeoutException.class,
-                    () -> structureFinderManager.findFileStructure(explanation, linesOfJunk - 1, bigInput, EMPTY_OVERRIDES, timeout));
+                    () -> structureFinderManager.findFileStructure(explanation, FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+                        linesOfJunk - 1, bigInput, EMPTY_OVERRIDES, timeout));
 
                 assertThat(e.getMessage(), startsWith("Aborting structure analysis during ["));
                 assertThat(e.getMessage(), endsWith("] as it has taken longer than the timeout of [" + timeout + "]"));

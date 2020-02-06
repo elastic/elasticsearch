@@ -4,14 +4,68 @@
       features: headers
 
   - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
       get:
         index: token_index
-        type:  doc
         id:    "6"
 
   - match: { _index:   token_index }
-  - match: { _type:    doc   }
   - match: { _id:      "6"      }
+  - is_true: _source.token
+  - set: { _source.token : token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      security.authenticate: {}
+
+  - match: { username: "token_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Token User" }
+
+  # call three times because the client rotates the nodes
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 8 }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 8 }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 8 }
+
+---
+"Get the indexed refreshed access token and use if to authenticate":
+  - skip:
+      features: headers
+
+  - do:
+      get:
+        index: token_index
+        id:    "7"
+
+  - match: { _index:   token_index }
+  - match: { _id:      "7"      }
   - is_true: _source.token
   - set: { _source.token : token }
 
@@ -31,7 +85,7 @@
         rest_total_hits_as_int: true
         index: token_index
 
-  - match: { hits.total: 6 }
+  - match: { hits.total: 8 }
 
   - do:
       headers:
@@ -40,7 +94,7 @@
         rest_total_hits_as_int: true
         index: token_index
 
-  - match: { hits.total: 6 }
+  - match: { hits.total: 8 }
 
   - do:
       headers:
@@ -49,5 +103,78 @@
         rest_total_hits_as_int: true
         index: token_index
 
-  - match: { hits.total: 6 }
+  - match: { hits.total: 8 }
 
+---
+"Get the indexed refresh token and use it to get another access token and authenticate":
+  - skip:
+      features: headers
+
+  - do:
+      get:
+        index: token_index
+        id:    "8"
+
+  - match: { _index:   token_index }
+  - match: { _id:      "8"      }
+  - is_true: _source.token
+  - set: { _source.token : refresh_token }
+
+  - do:
+      security.get_token:
+        body:
+          grant_type: "refresh_token"
+          refresh_token: "${refresh_token}"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+  - is_true: refresh_token
+  - set: { refresh_token: refresh_token }
+  - match: { expires_in: 3600 }
+  - is_false: scope
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      security.authenticate: {}
+
+  - match: { username: "token_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Token User" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 8 }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 8 }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 8 }
+
+    # overwrite the used refresh token with the new one
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      index:
+        index: token_index
+        id: "8"
+        body: { "token" : "${refresh_token}"}

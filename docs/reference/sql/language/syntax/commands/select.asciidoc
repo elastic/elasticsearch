@@ -1,0 +1,445 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-syntax-select]]
+=== SELECT
+
+.Synopsis
+[source, sql]
+----
+SELECT select_expr [, ...]
+[ FROM table_name ]
+[ WHERE condition ]
+[ GROUP BY grouping_element [, ...] ]
+[ HAVING condition]
+[ ORDER BY expression [ ASC | DESC ] [, ...] ]
+[ LIMIT [ count ] ]
+[ PIVOT ( aggregation_expr FOR column IN ( value [ [ AS ] alias ] [, ...] ) ) ]
+----
+
+.Description
+
+Retrieves rows from zero or more tables.
+
+The general execution of `SELECT` is as follows:
+
+. All elements in the `FROM` list are computed (each element can be base or alias table). Currently `FROM` supports exactly one table. Do note however that the table name can be a pattern (see <<sql-syntax-from, FROM Clause>> below).
+. If the `WHERE` clause is specified, all rows that do not satisfy the condition are eliminated from the output. (See <<sql-syntax-where, WHERE Clause>> below.)
+. If the `GROUP BY` clause is specified, or if there are aggregate function calls, the output is combined into groups of rows that match on one or more values, and the results of aggregate functions are computed. If the `HAVING` clause is present, it eliminates groups that do not satisfy the given condition. (See <<sql-syntax-group-by, GROUP BY Clause>> and <<sql-syntax-having, HAVING Clause>> below.)
+. The actual output rows are computed using the `SELECT` output expressions for each selected row or row group.
+. If the `ORDER BY` clause is specified, the returned rows are sorted in the specified order. If `ORDER BY` is not given, the rows are returned in whatever order the system finds fastest to produce. (See <<sql-syntax-order-by,ORDER BY Clause>> below.)
+. If the `LIMIT` is specified, the `SELECT` statement only returns a subset of the result rows. (See <<sql-syntax-limit, LIMIT Clause>> below.)
+
+
+[[sql-syntax-select-list]]
+==== `SELECT` List
+
+`SELECT` list, namely the expressions between `SELECT` and `FROM`, represent the output rows of the `SELECT` statement.
+
+As with a table, every output column of a `SELECT` has a name which can be either specified per column through the `AS` keyword :
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[selectColumnAlias]
+----
+
+Note: `AS` is an optional keyword however it helps with the readability and in some case ambiguity of the query
+which is why it is recommended to specify it.
+
+assigned by {es-sql} if no name is given:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[selectInline]
+----
+
+or if it's a simple column reference, use its name as the column name:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[selectColumn]
+----
+
+[[sql-syntax-select-wildcard]]
+==== Wildcard
+
+To select all the columns in the source, one can use `*`:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[wildcardWithOrder]
+----
+
+which essentially returns all(top-level fields, sub-fields, such as multi-fields are ignored] columns found.
+
+[[sql-syntax-from]]
+==== FROM Clause
+
+The `FROM` clause specifies one table for the `SELECT` and has the following syntax:
+
+[source, sql]
+----
+FROM table_name [ [ AS ] alias ]
+----
+
+where:
+
+`table_name`::
+
+Represents the name (optionally qualified) of an existing table, either a concrete or base one (actual index) or alias.
+
+
+If the table name contains special SQL characters (such as `.`,`-`,`*`,etc...) use double quotes to escape them:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[fromTableQuoted]
+----
+
+The name can be a <<multi-index, pattern>> pointing to multiple indices (likely requiring quoting as mentioned above) with the restriction that *all* resolved concrete tables have **exact mapping**.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
+----
+
+`alias`::
+A substitute name for the `FROM` item containing the alias. An alias is used for brevity or to eliminate ambiguity. When an alias is provided, it completely hides the actual name of the table and must be used in its place.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[fromTableAlias]
+----
+
+[[sql-syntax-where]]
+==== WHERE Clause
+
+The optional `WHERE` clause is used to filter rows from the query and has the following syntax:
+
+[source, sql]
+----
+WHERE condition
+----
+
+where:
+
+`condition`::
+
+Represents an expression that evaluates to a `boolean`. Only the rows that match the condition (to `true`) are returned.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[basicWhere]
+----
+
+[[sql-syntax-group-by]]
+==== GROUP BY
+
+The `GROUP BY` clause is used to divide the results into groups of rows on matching values from the designated columns. It has the following syntax:
+
+[source, sql]
+----
+GROUP BY grouping_element [, ...]
+----
+
+where:
+
+`grouping_element`::
+
+Represents an expression on which rows are being grouped _on_. It can be a column name, alias or ordinal number of a column or an arbitrary expression of column values.
+
+A common, group by column name:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByColumn]
+----
+
+Grouping by output ordinal:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByOrdinal]
+----
+
+Grouping by alias:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByAlias]
+----
+
+And grouping by column expression (typically used along-side an alias):
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByExpression]
+----
+
+Or a mixture of the above:
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByMulti]
+----
+
+
+When a `GROUP BY` clause is used in a `SELECT`, _all_ output expressions must be either aggregate functions or expressions used for grouping or derivatives of (otherwise there would be more than one possible value to return for each ungrouped column).
+
+To wit:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByAndAgg]
+----
+
+Expressions over aggregates used in output:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByAndAggExpression]
+----
+
+Multiple aggregates used:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByAndMultipleAggs]
+----
+
+[TIP]
+If custom bucketing is required, it can be achieved with the use of <<sql-functions-conditional-case, `CASE`>>,
+as shown <<sql-functions-conditional-case-groupby-custom-buckets, here>>.
+
+[[sql-syntax-group-by-implicit]]
+===== Implicit Grouping
+
+When an aggregation is used without an associated `GROUP BY`, an __implicit grouping__ is applied, meaning all selected rows are considered to form a single default, or implicit group.
+As such, the query emits only a single row (as there is only a single group).
+
+A common example is counting the number of records:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByImplicitCount]
+----
+
+Of course, multiple aggregations can be applied:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByImplicitMultipleAggs]
+----
+
+[[sql-syntax-having]]
+==== HAVING
+
+The `HAVING` clause can be used _only_ along aggregate functions (and thus `GROUP BY`) to filter what groups are kept or not and has the following syntax:
+
+[source, sql]
+----
+HAVING condition
+----
+
+where:
+
+`condition`::
+
+Represents an expression that evaluates to a `boolean`. Only groups that match the condition (to `true`) are returned.
+
+Both `WHERE` and `HAVING` are used for filtering however there are several significant differences between them:
+
+. `WHERE` works on individual *rows*, `HAVING` works on the *groups* created by ``GROUP BY``
+. `WHERE` is evaluated *before* grouping, `HAVING` is evaluated *after* grouping
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByHaving]
+----
+
+Further more, one can use multiple aggregate expressions inside `HAVING` even ones that are not used in the output (`SELECT`):
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByHavingMultiple]
+----
+
+[[sql-syntax-having-group-by-implicit]]
+===== Implicit Grouping
+
+As indicated above, it is possible to have a `HAVING` clause without a `GROUP BY`. In this case, the so-called <<sql-syntax-group-by-implicit, __implicit grouping__>> is applied, meaning all selected rows are considered to form a single group and `HAVING` can be applied on any of the aggregate functions specified on this group.
+As such, the query emits only a single row (as there is only a single group) and `HAVING` condition returns either one row (the group) or zero if the condition fails.
+
+In this example, `HAVING` matches:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByHavingImplicitMatch]
+----
+
+//However `HAVING` can also not match, in which case an empty result is returned:
+//
+//[source, sql]
+//----
+//include-tagged::{sql-specs}/docs/docs.csv-spec[groupByHavingImplicitNoMatch]
+//----
+
+
+[[sql-syntax-order-by]]
+==== ORDER BY
+
+The `ORDER BY` clause is used to sort the results of `SELECT` by one or more expressions:
+
+[source, sql]
+----
+ORDER BY expression [ ASC | DESC ] [, ...]
+----
+
+where:
+
+`expression`::
+
+Represents an input column, an output column or an ordinal number of the position (starting from one) of an output column. Additionally, ordering can be done based on the results _score_.
+The direction, if not specified, is by default `ASC` (ascending).
+Regardless of the ordering specified, null values are ordered last (at the end).
+
+IMPORTANT: When used along-side, `GROUP BY` expression can point _only_ to the columns used for grouping or aggregate functions.
+
+For example, the following query sorts by an arbitrary input field (`page_count`):
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[orderByBasic]
+----
+
+[[sql-syntax-order-by-grouping]]
+==== Order By and Grouping
+
+For queries that perform grouping, ordering can be applied either on the grouping columns (by default ascending) or on aggregate functions. 
+
+NOTE: With `GROUP BY`, make sure the ordering targets the resulting group - applying it to individual elements inside the group will have no impact on the results since regardless of the order, values inside the group are aggregated.
+
+For example, to order groups simply indicate the grouping key:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[orderByGroup]
+----
+
+Multiple keys can be specified of course:
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[groupByMulti]
+----
+
+Further more, it is possible to order groups based on aggregations of their values:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[orderByAgg]
+----
+
+IMPORTANT: Ordering by aggregation is possible for up to *10000* entries for memory consumption reasons.
+In cases where the results pass this threshold, use <<sql-syntax-limit,`LIMIT`>> to reduce the number
+of results.
+
+[[sql-syntax-order-by-score]]
+==== Order By Score
+
+When doing full-text queries in the `WHERE` clause, results can be returned based on their
+{defguide}/relevance-intro.html[score] or _relevance_ to the given query.
+
+NOTE: When doing multiple text queries in the `WHERE` clause then, their scores will be
+combined using the same rules as {es}'s
+<<query-dsl-bool-query,bool query>>. 
+
+To sort based on the `score`, use the special function `SCORE()`:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[orderByScore]
+----
+
+Note that you can return `SCORE()` by using a full-text search predicate in the `WHERE` clause.
+This is possible even if `SCORE()` is not used for sorting:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[orderByScoreWithMatch]
+----
+
+NOTE:
+Trying to return `score` from a non full-text query will return the same value for all results, as
+all are equally relevant.
+
+[[sql-syntax-limit]]
+==== LIMIT
+
+The `LIMIT` clause restricts (limits) the number of rows returns using the format:
+
+[source, sql]
+----
+LIMIT ( count | ALL )
+----
+
+where
+
+count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be less matches than the limit). If `0` is specified, no results are returned.
+
+ALL:: indicates there is no limit and thus all results are being returned.
+
+To return 
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[limitBasic]
+----
+
+[[sql-syntax-pivot]]
+==== PIVOT
+
+The `PIVOT` clause performs a cross tabulation on the results of the query: it aggregates the results and rotates rows into columns. The rotation is done by turning unique values from one column in the expression - the pivoting column - into multiple columns in the output. The column values are aggregations on the remaining columns specified in the expression.
+
+The clause can be broken down in three parts: the aggregation, the `FOR`- and the `IN`-subclause.
+
+The `aggregation_expr` subclause specifies an expression containing an <<sql-functions-aggs, aggregation function>> to be applied on one of the source columns. Only one aggregation can be provided, currently.
+
+The `FOR`-subclause specifies the pivoting column: the distinct values of this column will become the candidate set of values to be rotated.
+
+The `IN`-subclause defines a filter: the intersection between the set provided here and the candidate set from the `FOR`-subclause will be rotated to become the headers of the columns appended to the end result. The filter can not be a subquery, one must provide here literal values, obtained in advance.
+
+The pivoting operation will perform an implicit <<sql-syntax-group-by, GROUP BY>> on all source columns not specified in the `PIVOT` clause, along with the values filtered through the `IN`-clause. Consider the following statement:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[sumWithoutSubquery]
+----
+
+The query execution could logically be broken down in the following steps:
+
+. a <<sql-syntax-group-by, GROUP BY>> on the column in the `FOR`-clause: `languages`;
+. the resulting values are filtered through the set provided in the `IN`-clause;
+. the now filtered column is pivoted to form the headers of the two additional columns appended to the result: `1` and `2`;
+. a <<sql-syntax-group-by, GROUP BY>> on all columns of the source table `test_emp`, except `salary` (part of the aggregation subclause) and `languages` (part of the `FOR`-clause);
+. the values in these appended columns are the `SUM` aggregations of `salary`, grouped by the respective language.
+
+
+The table-value expression to cross-tabulate can also be the result of a subquery:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[averageWithOneValue]
+----
+
+The pivoted columns can be aliased (and quoting is required to accommodate white spaces), with or without a supporting `AS` token:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[averageWithTwoValuesAndAlias]
+----
+
+The resulting cross tabulation can further have the <<sql-syntax-order-by,ORDER BY>> and <<sql-syntax-limit, LIMIT>> clauses applied:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[averageWithOneValueAndOrder]
+----
+

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -92,6 +93,7 @@ public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
      * @throws IOException if an I/O exception occurs building the JSON
      */
     public void testLazyLoading() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/37342", Constants.WINDOWS);
         final BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -147,7 +149,7 @@ public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
         internalCluster().getInstance(IngestService.class, ingestNode);
         // the geo-IP database should not be loaded yet as we have no indexed any documents using a pipeline that has a geo-IP processor
         assertDatabaseLoadStatus(ingestNode, false);
-        final IndexRequest indexRequest = new IndexRequest("index", "_doc");
+        final IndexRequest indexRequest = new IndexRequest("index");
         indexRequest.setPipeline("geoip");
         indexRequest.source(Collections.singletonMap("ip", "1.1.1.1"));
         final IndexResponse indexResponse = client().index(indexRequest).actionGet();

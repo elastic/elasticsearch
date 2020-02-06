@@ -11,6 +11,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -18,8 +19,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
 
 import java.util.Objects;
 
@@ -29,12 +30,17 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private final DatafeedConfig datafeedConfig;
     private final Job job;
     private final TimeBasedExtractedFields extractedFields;
+    private final NamedXContentRegistry xContentRegistry;
+    private final DatafeedTimingStatsReporter timingStatsReporter;
 
-    private ScrollDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job, TimeBasedExtractedFields extractedFields) {
+    private ScrollDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job, TimeBasedExtractedFields extractedFields,
+                                       NamedXContentRegistry xContentRegistry, DatafeedTimingStatsReporter timingStatsReporter) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
         this.extractedFields = Objects.requireNonNull(extractedFields);
+        this.xContentRegistry = xContentRegistry;
+        this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
     }
 
     @Override
@@ -43,32 +49,40 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 job.getId(),
                 extractedFields,
                 datafeedConfig.getIndices(),
-                datafeedConfig.getParsedQuery(),
+                datafeedConfig.getParsedQuery(xContentRegistry),
                 datafeedConfig.getScriptFields(),
                 datafeedConfig.getScrollSize(),
                 start,
                 end,
                 datafeedConfig.getHeaders());
-        return new ScrollDataExtractor(client, dataExtractorContext);
+        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }
 
-    public static void create(Client client, DatafeedConfig datafeed, Job job, ActionListener<DataExtractorFactory> listener) {
+    public static void create(Client client,
+                              DatafeedConfig datafeed,
+                              Job job,
+                              NamedXContentRegistry xContentRegistry,
+                              DatafeedTimingStatsReporter timingStatsReporter,
+                              ActionListener<DataExtractorFactory> listener) {
 
         // Step 2. Contruct the factory and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
-                fieldCapabilitiesResponse -> {
-                    TimeBasedExtractedFields extractedFields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
-                    listener.onResponse(new ScrollDataExtractorFactory(client, datafeed, job, extractedFields));
-                }, e -> {
-                    if (e instanceof IndexNotFoundException) {
-                        listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()
-                                + "] cannot retrieve data because index " + ((IndexNotFoundException) e).getIndex() + " does not exist"));
-                    } else if (e instanceof IllegalArgumentException) {
-                        listener.onFailure(ExceptionsHelper.badRequestException("[" + datafeed.getId() + "] " + e.getMessage()));
-                    } else {
-                        listener.onFailure(e);
-                    }
+            fieldCapabilitiesResponse -> {
+                TimeBasedExtractedFields extractedFields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
+                listener.onResponse(
+                    new ScrollDataExtractorFactory(client, datafeed, job, extractedFields, xContentRegistry, timingStatsReporter));
+            },
+            e -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IndexNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()
+                            + "] cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"));
+                } else if (e instanceof IllegalArgumentException) {
+                    listener.onFailure(ExceptionsHelper.badRequestException("[" + datafeed.getId() + "] " + e.getMessage()));
+                } else {
+                    listener.onFailure(e);
                 }
+            }
         );
 
         // Step 1. Get field capabilities necessary to build the information of how to extract fields

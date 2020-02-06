@@ -1,10 +1,11 @@
 [[removal-of-types]]
 == Removal of mapping types
 
-IMPORTANT: Indices created in Elasticsearch 6.0.0 or later may only contain a
-single <<mapping-type,mapping type>>.  Indices created in 5.x with multiple
-mapping types will continue to function as before in Elasticsearch 6.x.
-Mapping types will be completely removed in Elasticsearch 7.0.0.
+IMPORTANT: Indices created in Elasticsearch 7.0.0 or later no longer accept a
+`_default_` mapping. Indices created in 6.x will continue to function as before
+in Elasticsearch 6.x. Types are deprecated in APIs in 7.0, with breaking changes
+to the index creation, put mapping, get mapping, put template, get template and
+get field mappings APIs.
 
 [float]
 === What are mapping types?
@@ -41,7 +42,7 @@ field, so documents of different types with the same `_id` could exist in a
 single index.
 
 Mapping types were also used to establish a
-<<mapping-parent-field,parent-child relationship>>
+<<parent-join,parent-child relationship>>
 between documents, so documents of type `question` could be parents to
 documents of type `answer`.
 
@@ -112,7 +113,7 @@ have looked something like this:
 
 [source,js]
 ----
-PUT twitter?include_type_name=true
+PUT twitter
 {
   "mappings": {
     "user": {
@@ -157,11 +158,11 @@ GET twitter/tweet/_search
 ----
 // NOTCONSOLE
 
-You could achieve the same thing by adding a custom `type` field as follows:
+You can achieve the same thing by adding a custom `type` field as follows:
 
 [source,js]
 ----
-PUT twitter?include_type_name=true
+PUT twitter
 {
   "mappings": {
     "_doc": {
@@ -215,6 +216,7 @@ GET twitter/_search
 <1> The explicit `type` field takes the place of the implicit `_type` field.
 
 [float]
+[[parent-child-mapping-types]]
 ==== Parent/Child without mapping types
 
 Previously, a parent-child relationship was represented by making one mapping
@@ -256,30 +258,30 @@ Elasticsearch 6.x::
 
 * The `_default_` mapping type is deprecated.
 
+* In 6.8, the index creation, index template, and mapping APIs support a query
+  string parameter (`include_type_name`) which indicates whether requests and
+  responses should include a type name. It defaults to `true`, and should be set
+  to an explicit value to prepare to upgrade to 7.0. Not setting `include_type_name`
+  will result in a deprecation warning. Indices which don't have an explicit type will
+  use the dummy type name `_doc`.
+
 Elasticsearch 7.x::
 
-* The `type` parameter in URLs are deprecated.  For instance, indexing
-  a document no longer requires a document `type`.  The new index APIs
+* Specifying types in requests is deprecated. For instance, indexing a
+  document no longer requires a document `type`.  The new index APIs
   are `PUT {index}/_doc/{id}` in case of explicit ids and `POST {index}/_doc`
-  for auto-generated ids.
+  for auto-generated ids. Note that in 7.0, `_doc` is a permanent part of the
+  path, and represents the endpoint name rather than the document type.
 
-* The index creation, `GET|PUT _mapping` and document APIs support a query
-  string parameter (`include_type_name`) which indicates whether requests and
-  responses should include a type name. It defaults to `true`.
-  7.x indices which don't have an explicit type will use the dummy type name
-  `_doc`. Not setting `include_type_name=false` will result in a deprecation
-  warning.
+* The `include_type_name` parameter in the index creation, index template,
+  and mapping APIs will default to `false`. Setting the parameter at all will
+  result in a deprecation warning.
 
 * The `_default_` mapping type is removed.
 
 Elasticsearch 8.x::
 
-* The `type` parameter is no longer supported in URLs.
-
-* The `include_type_name` parameter is deprecated, default to `false` and fails
-  the request when set to `true`.
-
-Elasticsearch 9.x::
+* Specifying types in requests is no longer supported.
 
 * The `include_type_name` parameter is removed.
 
@@ -299,7 +301,7 @@ This first example splits our `twitter` index into a `tweets` index and a
 
 [source,js]
 ----
-PUT users?include_type_name=true
+PUT users
 {
   "settings": {
     "index.mapping.single_type": true
@@ -321,7 +323,7 @@ PUT users?include_type_name=true
   }
 }
 
-PUT tweets?include_type_name=true
+PUT tweets
 {
   "settings": {
     "index.mapping.single_type": true
@@ -350,7 +352,8 @@ POST _reindex
     "type": "user"
   },
   "dest": {
-    "index": "users"
+    "index": "users",
+    "type": "_doc"
   }
 }
 
@@ -361,7 +364,8 @@ POST _reindex
     "type": "tweet"
   },
   "dest": {
-    "index": "tweets"
+    "index": "tweets",
+    "type": "_doc"
   }
 }
 ----
@@ -376,7 +380,7 @@ documents of different types which have conflicting IDs:
 
 [source,js]
 ----
-PUT new_twitter?include_type_name=true
+PUT new_twitter
 {
   "mappings": {
     "_doc": {
@@ -425,19 +429,34 @@ POST _reindex
 // NOTCONSOLE
 
 [float]
-=== Use `include_type_name=false` to prepare for upgrade to 8.0
+=== Typeless APIs in 7.0
 
-Index creation, mappings and document APIs support the `include_type_name`
-option. When set to `false`, this option enables the behavior that will become
-default in 8.0 when types are removed. See some examples of interactions with
-Elasticsearch with this option turned off:
+In Elasticsearch 7.0, each API will support typeless requests,
+and specifying a type will produce a deprecation warning.
+
+NOTE: Typeless APIs work even if the target index contains a custom type.
+For example, if an index has the custom type name `my_type`, we can add
+documents to it using typeless `index` calls, and load documents with typeless
+`get` calls.
 
 [float]
-==== Index creation
+==== Index APIs
 
-[source,js]
+Index creation, index template, and mapping APIs support a new `include_type_name`
+URL parameter that specifies whether mapping definitions in requests and responses
+should contain the type name. The parameter defaults to `true` in version 6.8 to
+match the pre-7.0 behavior of using type names in mappings. It defaults to `false`
+in version 7.0 and will be removed in version 8.0.
+
+It should be set explicitly in 6.8 to prepare to upgrade to 7.0. To avoid deprecation
+warnings in 6.8, the parameter can be set to either `true` or `false`. In 7.0, setting
+`include_type_name` at all will result in a deprecation warning.
+
+See some examples of interactions with Elasticsearch with this option set to `false`:
+
+[source,console]
 --------------------------------------------------
-PUT index?include_type_name=false
+PUT index
 {
   "mappings": {
     "properties": { <1>
@@ -448,34 +467,33 @@ PUT index?include_type_name=false
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Mappings are included directly under the `mappings` key, without a type name.
 
-[float]
-==== PUT and GET mappings
-
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT index
-
-PUT index/_mappings?include_type_name=false
+PUT index/_mappings
 {
   "properties": { <1>
-    "foo": {
-      "type": "keyword"
+    "bar": {
+      "type": "text"
     }
   }
 }
-
-GET index/_mappings?include_type_name=false
 --------------------------------------------------
-// CONSOLE
+// TEST[continued]
+
 <1> Mappings are included directly under the `mappings` key, without a type name.
 
+[source,console]
+--------------------------------------------------
+GET index/_mappings
+--------------------------------------------------
+// TEST[continued]
 
 The above call returns
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "index": {
@@ -483,36 +501,37 @@ The above call returns
       "properties": { <1>
         "foo": {
           "type": "keyword"
+        },
+        "bar": {
+          "type": "text"
         }
       }
     }
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> Mappings are included directly under the `mappings` key, without a type name.
 
 [float]
 ==== Document APIs
 
-Index APIs must be called with the `{index}/_doc` path for automatic generation of
-the `_id` and `{index}/_doc/{id}` with explicit ids.
+In 7.0, index APIs must be called with the `{index}/_doc` path for automatic
+generation of the `_id` and `{index}/_doc/{id}` with explicit ids.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/_doc/1
 {
-  "foo": "bar"
+  "foo": "baz"
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-  "_index": "index", <1>
+  "_index": "index",
   "_id": "1",
-  "_type": "_doc",
   "_version": 1,
   "result": "created",
   "_shards": {
@@ -524,9 +543,132 @@ PUT index/_doc/1
   "_primary_term": 1
 }
 --------------------------------------------------
-// TESTRESPONSE
-<1> The response does not include a `_type`.
 
-The <<docs-index_,GET>>, <<docs-delete,`DELETE`>>, <<docs-update,`_update`>> and <<search,`_search`>> APIs
-will continue to return a `_type` key in the response in 7.0, but it is considered deprecated and will be
-removed in 8.0.
+Similarly, the `get` and `delete` APIs use the path `{index}/_doc/{id}`:
+
+[source,console]
+--------------------------------------------------
+GET index/_doc/1
+--------------------------------------------------
+// TEST[continued]
+
+NOTE: In 7.0, `_doc` represents the endpoint name instead of the document type.
+The `_doc` component is a permanent part of the path for the document `index`,
+`get`, and `delete` APIs going forward, and will not be removed in 8.0.
+
+For API paths that contain both a type and endpoint name like `_update`,
+in 7.0 the endpoint will immediately follow the index name:
+
+[source,console]
+--------------------------------------------------
+POST index/_update/1
+{
+    "doc" : {
+        "foo" : "qux"
+    }
+}
+
+GET /index/_source/1
+--------------------------------------------------
+// TEST[continued]
+
+Types should also no longer appear in the body of requests. The following
+example of bulk indexing omits the type both in the URL, and in the individual
+bulk commands:
+
+[source,console]
+--------------------------------------------------
+POST _bulk
+{ "index" : { "_index" : "index", "_id" : "3" } }
+{ "foo" : "baz" }
+{ "index" : { "_index" : "index", "_id" : "4" } }
+{ "foo" : "qux" }
+--------------------------------------------------
+
+[float]
+==== Search APIs
+
+When calling a search API such `_search`, `_msearch`, or `_explain`, types
+should not be included in the URL. Additionally, the `_type` field should not
+be used in queries, aggregations, or scripts.
+
+[float]
+==== Index templates
+
+It is recommended to make index templates typeless by re-adding them with
+`include_type_name` set to `false`. Under the hood, typeless templates will use
+the dummy type `_doc` when creating indices.
+
+In case typeless templates are used with typed index creation calls or typed
+templates are used with typeless index creation calls, the template will still
+be applied but the index creation call decides whether there should be a type
+or not. For instance in the below example, `index-1-01` will have a type in
+spite of the fact that it matches a template that is typeless, and `index-2-01`
+will be typeless in spite of the fact that it matches a template that defines
+a type. Both `index-1-01` and `index-2-01` will inherit the `foo` field from
+the template that they match.
+
+[source,console]
+--------------------------------------------------
+PUT _template/template1
+{
+  "index_patterns":[ "index-1-*" ],
+  "mappings": {
+    "properties": {
+      "foo": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+PUT index-1-01
+{
+  "mappings": {
+    "properties": {
+      "bar": {
+        "type": "long"
+      }
+    }
+  }
+}
+
+PUT index-2-01
+{
+  "mappings": {
+    "properties": {
+      "bar": {
+        "type": "long"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/template1
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+In case of implicit index creation, because of documents that get indexed in
+an index that doesn't exist yet, the template is always honored. This is
+usually not a problem due to the fact that typeless index calls work on typed
+indices.
+
+[float]
+==== Mixed-version clusters
+
+In a cluster composed of both 6.8 and 7.0 nodes, the parameter
+`include_type_name` should be specified in index APIs like index
+creation. This is because the parameter has a different default between
+6.8 and 7.0, so the same mapping definition will not be valid for both
+node versions.
+
+Typeless document APIs such as `bulk` and `update` are only available as of
+7.0, and will not work with 6.8 nodes. This also holds true for the typeless
+versions of queries that perform document lookups, such as `terms`.

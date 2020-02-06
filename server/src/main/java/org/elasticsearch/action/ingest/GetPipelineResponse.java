@@ -20,6 +20,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +44,13 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     private List<PipelineConfiguration> pipelines;
 
-    public GetPipelineResponse() {
+    public GetPipelineResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        pipelines = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            pipelines.add(PipelineConfiguration.readFrom(in));
+        }
     }
 
     public GetPipelineResponse(List<PipelineConfiguration> pipelines) {
@@ -60,18 +67,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        pipelines = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            pipelines.add(PipelineConfiguration.readFrom(in));
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(pipelines.size());
         for (PipelineConfiguration pipeline : pipelines) {
             pipeline.writeTo(out);
@@ -109,13 +105,12 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         while(parser.nextToken().equals(Token.FIELD_NAME)) {
             String pipelineId = parser.currentName();
             parser.nextToken();
-            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-            contentBuilder.generator().copyCurrentStructure(parser);
-            PipelineConfiguration pipeline =
-                new PipelineConfiguration(
-                    pipelineId, BytesReference.bytes(contentBuilder), contentBuilder.contentType()
-                );
-            pipelines.add(pipeline);
+            try (XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
+                contentBuilder.generator().copyCurrentStructure(parser);
+                PipelineConfiguration pipeline =
+                    new PipelineConfiguration(pipelineId, BytesReference.bytes(contentBuilder), contentBuilder.contentType());
+                pipelines.add(pipeline);
+            }
         }
         ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
         return new GetPipelineResponse(pipelines);
@@ -146,6 +141,11 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         } else {
             return false;
         }
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override

@@ -1,11 +1,8 @@
 ---
-"Return empty object if field doesn't exist, but type and index do":
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
+"Return empty object if field doesn't exist, but index does":
+
   - do:
         indices.create:
-          include_type_name: false
           index: test_index
           body:
             mappings:
@@ -20,3 +17,4 @@
         fields: not_existent
 
   - match: { 'test_index.mappings': {}}
+

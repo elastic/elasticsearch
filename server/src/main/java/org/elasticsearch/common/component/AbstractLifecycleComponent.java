@@ -19,27 +19,18 @@
 
 package org.elasticsearch.common.component;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.settings.Settings;
-
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public abstract class AbstractLifecycleComponent implements LifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(AbstractLifecycleComponent.class);
 
     protected final Lifecycle lifecycle = new Lifecycle();
 
     private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<>();
 
     protected AbstractLifecycleComponent() {}
-
-    @Deprecated
-    protected AbstractLifecycleComponent(Settings settings) {
-        // TODO drop settings from ctor
-    }
 
     @Override
     public Lifecycle.State lifecycleState() {
@@ -58,16 +49,18 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
 
     @Override
     public void start() {
-        if (!lifecycle.canMoveToStarted()) {
-            return;
-        }
-        for (LifecycleListener listener : listeners) {
-            listener.beforeStart();
-        }
-        doStart();
-        lifecycle.moveToStarted();
-        for (LifecycleListener listener : listeners) {
-            listener.afterStart();
+        synchronized (lifecycle) {
+            if (!lifecycle.canMoveToStarted()) {
+                return;
+            }
+            for (LifecycleListener listener : listeners) {
+                listener.beforeStart();
+            }
+            doStart();
+            lifecycle.moveToStarted();
+            for (LifecycleListener listener : listeners) {
+                listener.afterStart();
+            }
         }
     }
 
@@ -75,16 +68,18 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
 
     @Override
     public void stop() {
-        if (!lifecycle.canMoveToStopped()) {
-            return;
-        }
-        for (LifecycleListener listener : listeners) {
-            listener.beforeStop();
-        }
-        lifecycle.moveToStopped();
-        doStop();
-        for (LifecycleListener listener : listeners) {
-            listener.afterStop();
+        synchronized (lifecycle) {
+            if (!lifecycle.canMoveToStopped()) {
+                return;
+            }
+            for (LifecycleListener listener : listeners) {
+                listener.beforeStop();
+            }
+            lifecycle.moveToStopped();
+            doStop();
+            for (LifecycleListener listener : listeners) {
+                listener.afterStop();
+            }
         }
     }
 
@@ -92,25 +87,26 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
 
     @Override
     public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.canMoveToClosed()) {
-            return;
-        }
-        for (LifecycleListener listener : listeners) {
-            listener.beforeClose();
-        }
-        lifecycle.moveToClosed();
-        try {
-            doClose();
-        } catch (IOException e) {
-            // TODO: we need to separate out closing (ie shutting down) services, vs releasing runtime transient
-            // structures. Shutting down services should use IOUtils.close
-            logger.warn("failed to close " + getClass().getName(), e);
-        }
-        for (LifecycleListener listener : listeners) {
-            listener.afterClose();
+        synchronized (lifecycle) {
+            if (lifecycle.started()) {
+                stop();
+            }
+            if (!lifecycle.canMoveToClosed()) {
+                return;
+            }
+            for (LifecycleListener listener : listeners) {
+                listener.beforeClose();
+            }
+            lifecycle.moveToClosed();
+            try {
+                doClose();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                for (LifecycleListener listener : listeners) {
+                    listener.afterClose();
+                }
+            }
         }
     }
 

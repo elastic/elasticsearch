@@ -21,7 +21,10 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -41,7 +44,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testOneUnconsumedParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -67,7 +70,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testMultipleUnconsumedParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -94,7 +97,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testUnconsumedParametersDidYouMean() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -141,7 +144,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testUnconsumedResponseParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -170,7 +173,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testDefaultResponseParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 return channel -> executed.set(true);
@@ -195,7 +198,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testCatResponseParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        AbstractCatAction handler = new AbstractCatAction(Settings.EMPTY) {
+        AbstractCatAction handler = new AbstractCatAction() {
             @Override
             protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
                 return channel -> executed.set(true);
@@ -230,6 +233,80 @@ public class BaseRestHandlerTests extends ESTestCase {
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         handler.handleRequest(request, channel, mock(NodeClient.class));
         assertTrue(executed.get());
+    }
+
+    public void testConsumedBody() throws Exception {
+        final AtomicBoolean executed = new AtomicBoolean();
+        final BaseRestHandler handler = new BaseRestHandler() {
+            @Override
+            protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+                request.content();
+                return channel -> executed.set(true);
+            }
+
+            @Override
+            public String getName() {
+                return "test_consumed_body";
+            }
+
+        };
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
+            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                    .withContent(new BytesArray(builder.toString()), XContentType.JSON)
+                    .build();
+            final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+            handler.handleRequest(request, channel, mock(NodeClient.class));
+            assertTrue(executed.get());
+        }
+    }
+
+    public void testUnconsumedNoBody() throws Exception {
+        final AtomicBoolean executed = new AtomicBoolean();
+        final BaseRestHandler handler = new BaseRestHandler() {
+            @Override
+            protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+                return channel -> executed.set(true);
+            }
+
+            @Override
+            public String getName() {
+                return "test_unconsumed_body";
+            }
+
+        };
+
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
+        final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        handler.handleRequest(request, channel, mock(NodeClient.class));
+        assertTrue(executed.get());
+    }
+
+    public void testUnconsumedBody() throws IOException {
+        final AtomicBoolean executed = new AtomicBoolean();
+        final BaseRestHandler handler = new BaseRestHandler() {
+            @Override
+            protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+                return channel -> executed.set(true);
+            }
+
+            @Override
+            public String getName() {
+                return "test_unconsumed_body";
+            }
+
+        };
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
+            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                    .withContent(new BytesArray(builder.toString()), XContentType.JSON)
+                    .build();
+            final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+            final IllegalArgumentException e =
+                    expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mock(NodeClient.class)));
+            assertThat(e, hasToString(containsString("request [GET /] does not support having a body")));
+            assertFalse(executed.get());
+        }
     }
 
 }

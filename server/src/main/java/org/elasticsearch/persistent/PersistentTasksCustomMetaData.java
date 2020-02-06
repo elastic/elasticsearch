@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -62,6 +63,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
 
     public static final String TYPE = "persistent_tasks";
     private static final String API_CONTEXT = MetaData.XContentContext.API.toString();
+    static final Assignment LOST_NODE_ASSIGNMENT = new Assignment(null, "awaiting reassignment after node loss");
 
     // TODO: Implement custom Diff for tasks
     private final Map<String, PersistentTask<?>> tasks;
@@ -117,6 +119,11 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         PERSISTENT_TASK_PARSER.declareObject(TaskBuilder::setAssignment, ASSIGNMENT_PARSER, new ParseField("assignment"));
         PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setAllocationIdOnLastStatusUpdate,
                 new ParseField("allocation_id_on_last_status_update"));
+    }
+
+
+    public static PersistentTasksCustomMetaData getPersistentTasksCustomMetaData(ClusterState clusterState) {
+        return clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
     }
 
     /**
@@ -207,6 +214,39 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             return (PersistentTask<Params>) tasks.getTask(taskId);
         }
         return null;
+    }
+
+    /**
+     * Unassign any persistent tasks executing on nodes that are no longer in
+     * the cluster. If the task's assigment has a non-null executor node and that
+     * node is no longer in the cluster then the assignment is set to
+     * {@link #LOST_NODE_ASSIGNMENT}
+     *
+     * @param clusterState The clusterstate
+     * @return If no changes the argument {@code clusterState} is returned else
+     *          a copy with the modified tasks
+     */
+    public static ClusterState disassociateDeadNodes(ClusterState clusterState) {
+        PersistentTasksCustomMetaData tasks = getPersistentTasksCustomMetaData(clusterState);
+        if (tasks == null) {
+            return clusterState;
+        }
+
+        PersistentTasksCustomMetaData.Builder taskBuilder = PersistentTasksCustomMetaData.builder(tasks);
+        for (PersistentTask<?> task : tasks.tasks()) {
+            if (task.getAssignment().getExecutorNode() != null &&
+                    clusterState.nodes().nodeExists(task.getAssignment().getExecutorNode()) == false) {
+                taskBuilder.reassignTask(task.getId(), LOST_NODE_ASSIGNMENT);
+            }
+        }
+
+        if (taskBuilder.isChanged() == false) {
+            return clusterState;
+        }
+
+        MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.metaData());
+        metaDataBuilder.putCustom(TYPE, taskBuilder.build());
+        return ClusterState.builder(clusterState).metaData(metaDataBuilder).build();
     }
 
     public static class Assignment {
@@ -308,11 +348,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             id = in.readString();
             allocationId = in.readLong();
             taskName = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                params = (P) in.readNamedWriteable(PersistentTaskParams.class);
-            } else {
-                params = (P) in.readOptionalNamedWriteable(PersistentTaskParams.class);
-            }
+            params = (P) in.readNamedWriteable(PersistentTaskParams.class);
             state = in.readOptionalNamedWriteable(PersistentTaskState.class);
             assignment = new Assignment(in.readOptionalString(), in.readString());
             allocationIdOnLastStatusUpdate = in.readOptionalLong();
@@ -323,11 +359,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             out.writeString(id);
             out.writeLong(allocationId);
             out.writeString(taskName);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeNamedWriteable(params);
-            } else {
-                out.writeOptionalNamedWriteable(params);
-            }
+            out.writeNamedWriteable(params);
             out.writeOptionalNamedWriteable(state);
             out.writeOptionalString(assignment.executorNode);
             out.writeString(assignment.explanation);
@@ -501,7 +533,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(lastAllocationId);
         Map<String, PersistentTask<?>> filteredTasks = tasks.values().stream()
-            .filter(t -> ClusterState.FeatureAware.shouldSerialize(out, t.getParams()))
+            .filter(t -> VersionedNamedWriteable.shouldSerialize(out, t.getParams()))
             .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
         out.writeMap(filteredTasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
     }

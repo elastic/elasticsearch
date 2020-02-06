@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -62,7 +61,8 @@ public class FileRealmTests extends ESTestCase {
         userPasswdStore = mock(FileUserPasswdStore.class);
         userRolesStore = mock(FileUserRolesStore.class);
         globalSettings = Settings.builder().put("path.home", createTempDir()).put("xpack.security.authc.password_hashing.algorithm",
-            randomFrom("bcrypt9", "pbkdf2")).build();
+            randomFrom("bcrypt9", "pbkdf2")).
+            put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "order", 0).build();
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(globalSettings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -93,7 +93,7 @@ public class FileRealmTests extends ESTestCase {
     public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
             .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "cache.hash_algo",
-                Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
+                randomFrom(Hasher.getAvailableAlgoCacheHash()))
             .put(globalSettings)
             .build();
         RealmConfig config = getRealmConfig(settings);
@@ -244,8 +244,8 @@ public class FileRealmTests extends ESTestCase {
 
         final int order = randomIntBetween(0, 10);
         Settings settings = Settings.builder()
-            .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "order", order)
             .put(globalSettings)
+            .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "order", order)
             .build();
 
         RealmConfig config = getRealmConfig(settings);

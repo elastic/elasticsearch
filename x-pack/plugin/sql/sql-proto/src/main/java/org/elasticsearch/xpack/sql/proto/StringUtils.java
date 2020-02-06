@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.proto;
 
 import java.sql.Timestamp;
 import java.time.Duration;
+import java.time.OffsetTime;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -20,16 +21,41 @@ import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
 import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
+import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public final class StringUtils {
 
     public static final String EMPTY = "";
     
-    private static final DateTimeFormatter ISO_WITH_MILLIS = new DateTimeFormatterBuilder()
+    public static final DateTimeFormatter ISO_DATE_WITH_MILLIS = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
             .append(ISO_LOCAL_DATE)
             .appendLiteral('T')
+            .appendValue(HOUR_OF_DAY, 2)
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 2)
+            .appendLiteral(':')
+            .appendValue(SECOND_OF_MINUTE, 2)
+            .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+            .appendOffsetId()
+            .toFormatter(Locale.ROOT);
+
+    public static final DateTimeFormatter ISO_DATE_WITH_NANOS = new DateTimeFormatterBuilder()
+            .parseCaseInsensitive()
+            .append(ISO_LOCAL_DATE)
+            .appendLiteral('T')
+            .appendValue(HOUR_OF_DAY, 2)
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 2)
+            .appendLiteral(':')
+            .appendValue(SECOND_OF_MINUTE, 2)
+            .appendFraction(NANO_OF_SECOND, 3, 9, true)
+            .appendOffsetId()
+            .toFormatter(Locale.ROOT);
+
+    public static final DateTimeFormatter ISO_TIME_WITH_MILLIS = new DateTimeFormatterBuilder()
+            .parseCaseInsensitive()
             .appendValue(HOUR_OF_DAY, 2)
             .appendLiteral(':')
             .appendValue(MINUTE_OF_HOUR, 2)
@@ -50,13 +76,15 @@ public final class StringUtils {
             return "null";
         }
         
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).format(ISO_DATE_WITH_MILLIS);
+        }
+        if (value instanceof OffsetTime) {
+            return ((OffsetTime) value).format(ISO_TIME_WITH_MILLIS);
+        }
         if (value instanceof Timestamp) {
             Timestamp ts = (Timestamp) value;
             return ts.toInstant().toString();
-        }
-
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).format(ISO_WITH_MILLIS);
         }
 
         // handle intervals
@@ -101,8 +129,14 @@ public final class StringUtils {
             sb.append(":");
             durationInSec = durationInSec % SECONDS_PER_MINUTE;
             sb.append(indent(durationInSec));
-            sb.append(".");
-            sb.append(TimeUnit.NANOSECONDS.toMillis(d.getNano()));
+            long millis = TimeUnit.NANOSECONDS.toMillis(d.getNano());
+            if (millis > 0) {
+                sb.append(".");
+                while (millis % 10 == 0) {
+                    millis /= 10;
+                }
+                sb.append(millis);
+            }
             return sb.toString();
         }
 

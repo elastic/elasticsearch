@@ -1,74 +1,1190 @@
 [[cluster-nodes-stats]]
-== Nodes Stats
+=== Nodes stats API
+++++
+<titleabbrev>Nodes stats</titleabbrev>
+++++
 
-[float]
-=== Nodes statistics
+Returns cluster nodes statistics.
 
-The cluster nodes stats API allows to retrieve one or more (or all) of
-the cluster nodes statistics.
+[[cluster-nodes-stats-api-request]]
+==== {api-request-title}
 
-[source,js]
---------------------------------------------------
-GET /_nodes/stats
-GET /_nodes/nodeId1,nodeId2/stats
---------------------------------------------------
-// CONSOLE
+`GET /_nodes/stats` +
 
-The first command retrieves stats of all the nodes in the cluster. The
-second command selectively retrieves nodes stats of only `nodeId1` and
-`nodeId2`. All the nodes selective options are explained
-<<cluster-nodes,here>>.
+`GET /_nodes/<node_id>/stats` +
 
-By default, all stats are returned. You can limit this by combining any
-of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
-`fs`, `breaker` and `thread_pool`. For example:
+`GET/_nodes/stats/<metric>` +
 
-[horizontal]
-`indices`::
-  Indices stats about size, document count, indexing and
-  deletion times, search times, field cache size, merges and flushes
+`GET/_nodes/<node_id>/stats/<metric>` +
 
-`fs`::
-  File system information, data path, free disk space, read/write
-  stats (see <<fs-info,FS information>>)
+`GET /_nodes/stats/<metric>/<index_metric>` +
 
-`http`::
-  HTTP connection information
+`GET /_nodes/<node_id>/stats/<metric>/<index_metric>`
 
-`jvm`::
-  JVM stats, memory pool information, garbage collection, buffer
-  pools, number of loaded/unloaded classes
 
-`os`::
-  Operating system stats, load average, mem, swap
-  (see <<os-stats,OS statistics>>)
+[[cluster-nodes-stats-api-desc]]
+==== {api-description-title}
 
-`process`::
-  Process statistics, memory consumption, cpu usage, open
-  file descriptors (see <<process-stats,Process statistics>>)
+You can use the cluster nodes stats API to retrieve statistics for nodes in a cluster.
 
-`thread_pool`::
-  Statistics about each thread pool, including current
-  size, queue and rejected tasks
 
-`transport`::
-  Transport statistics about sent and received bytes in
-  cluster communication
+All the nodes selective options are explained <<cluster-nodes,here>>.
 
-`breaker`::
-  Statistics about the field data circuit breaker
+By default, all stats are returned. You can limit the returned information by 
+using metrics.
 
-`discovery`::
-  Statistics about the discovery
+[[cluster-nodes-stats-api-path-params]]
+==== {api-path-parms-title}
 
-`ingest`::
-  Statistics about ingest preprocessing
 
-`adaptive_selection`::
-  Statistics about <<search-adaptive-replica,adaptive replica selection>>. See
-  <<adaptive-selection-stats,adaptive selection statistics>>.
+`<metric>`::
+    (Optional, string) Limits the information returned to the specific metrics. 
+    A comma-separated list of the following options: 
++
+--
+  `adaptive_selection`::
+      Statistics about <<search-adaptive-replica,adaptive replica selection>>.
+      
+  `breaker`::
+      Statistics about the field data circuit breaker.
+      
+  `discovery`::
+      Statistics about the discovery.
+          
+  `fs`::
+      File system information, data path, free disk space, read/write
+      stats.
+          
+  `http`::
+      HTTP connection information.
+  
+  `indices`::
+      Indices stats about size, document count, indexing and deletion times, 
+      search times, field cache size, merges and flushes.
+      
+  `ingest`::
+      Statistics about ingest preprocessing.
+  
+  `jvm`::
+      JVM stats, memory pool information, garbage collection, buffer
+      pools, number of loaded/unloaded classes.
 
-[source,js]
+  `os`::
+      Operating system stats, load average, mem, swap.
+
+  `process`::
+      Process statistics, memory consumption, cpu usage, open
+      file descriptors.
+
+  `thread_pool`::
+      Statistics about each thread pool, including current size, queue and 
+      rejected tasks.
+
+  `transport`::
+      Transport statistics about sent and received bytes in cluster 
+      communication.
+--
+
+`<index_metric>`::
+    (Optional, string) Limit the information returned for `indices` metric to 
+    the specific index metrics. It can be used only if `indices` (or `all`) 
+    metric is specified. Supported metrics are:
++    
+--
+    * `completion`
+    * `docs`
+    * `fielddata`
+    * `flush`
+    * `get`
+    * `indexing`
+    * `merge`
+    * `query_cache`
+    * `recovery`
+    * `refresh`
+    * `request_cache`
+    * `search`
+    * `segments`
+    * `store`
+    * `translog`
+    * `warmer`
+--
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
+
+
+[[cluster-nodes-stats-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=fields]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=groups]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=level]
+
+`types`::
+    (Optional, string) A comma-separated list of document types for the 
+    `indexing` index metric.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+
+
+[[cluster-nodes-stats-api-response-body]]
+==== {api-response-body-title}
+
+`cluster_name`::
+(string)
+Name of the cluster. Based on the <<cluster.name>> setting.
+
+`nodes.<node_id>.timestamp`::
+(integer)
+Time the node stats were collected for this response. Recorded in milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+
+`nodes.<node_id>.name`::
+(string)
+Human-readable identifier for the node. Based on the <<node.name>> setting.
+
+`nodes.<node_id>.transport_address`::
+(string)
+Host and port for the <<modules-transport,transport layer>>, used for internal
+communication between nodes in a cluster.
+
+`nodes.<node_id>.host`::
+(string)
+Network host for the node, based on the <<network.host>> setting.
+
+`nodes.<node_id>.ip`::
+(string)
+IP address and port for the node.
+
+`nodes.<node_id>.roles`::
+(array of strings)
+Roles assigned to the node. See <<modules-node>>.
+
+`nodes.<node_id>.attributes`::
+(object)
+Object containing a list of attributes for the node.
+
+[NOTE]
+====
+The remaining node statistics are grouped by section. Each statistic is keyed by `nodes.<node_id>`.
+====
+
+[[cluster-nodes-stats-api-response-body-indices]]
+===== `indices` section
+
+[%collapsible]
+====
+`indices.docs.count`::
+(integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
+
+`indices.docs.deleted`::
+(integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+
+`indices.store.size_in_bytes`::
+(integer)
+Size, in bytes, of the store.
+
+`indices.indexing.index_total`::
+(integer)
+Total number of indexing operations.
+
+`indices.indexing.index_time_in_millis`::
+(integer)
+Total time in milliseconds
+spent performing indexing operations.
+
+`indices.indexing.index_current`::
+(integer)
+Number of indexing operations currently running.
+
+`indices.indexing.index_failed`::
+(integer)
+Number of failed indexing operations.
+
+`indices.indexing.delete_total`::
+(integer)
+Total number of deletion operations.
+
+`indices.indexing.delete_time_in_millis`::
+(integer)
+Time in milliseconds
+spent performing deletion operations.
+
+`indices.indexing.delete_current`::
+(integer)
+Number of deletion operations currently running.
+
+`indices.indexing.noop_update_total`::
+(integer)
+Total number of noop operations.
+
+`indices.indexing.is_throttled`::
+(boolean)
+Number of times
+operations were throttled.
+
+`indices.indexing.throttle_time_in_millis`::
+(integer)
+Total time in milliseconds
+spent throttling operations.
+
+`indices.get.total`::
+(integer)
+Total number of get operations.
+
+`indices.get.time_in_millis`::
+(integer)
+Time in milliseconds
+spent performing get operations.
+
+`indices.get.exists_total`::
+(integer)
+Total number of successful get operations.
+
+`indices.get.exists_time_in_millis`::
+(integer)
+Time in milliseconds
+spent performing successful get operations.
+
+`indices.get.missing_total`::
+(integer)
+Total number of failed get operations.
+
+`indices.get.missing_time_in_millis`::
+(integer)
+Time in milliseconds
+spent performing failed get operations.
+
+`indices.get.current`::
+(integer)
+Number of get operations currently running.
+
+`indices.search.open_context`::
+(integer)
+Number of open search contexts.
+
+`indices.search.query_total`::
+(integer)
+Total number of query operations.
+
+`indices.search.query_time_in_millis`::
+(integer)
+Time in milliseconds
+spent performing query operations.
+
+`indices.search.query_current`::
+(integer)
+Number of query operations currently running.
+
+`indices.search.fetch_total`::
+(integer)
+Total number of fetch operations.
+
+`indices.search.fetch_time_in_millis`::
+(integer)
+Time in milliseconds
+spent performing fetch operations.
+
+`indices.search.fetch_current`::
+(integer)
+Number of fetch operations currently running.
+
+`indices.search.scroll_total`::
+(integer)
+Total number of scroll operations.
+
+`indices.search.scroll_time_in_millis`::
+(integer)
+Time in milliseconds
+spent performing scroll operations.
+
+`indices.search.scroll_current`::
+(integer)
+Number of scroll operations currently running.
+
+`indices.search.suggest_total`::
+(integer)
+Total number of suggest operations.
+
+`indices.search.suggest_time_in_millis`::
+(integer)
+Time in milliseconds
+spent performing suggest operations.
+
+`indices.search.suggest_current`::
+(integer)
+Number of suggest operations currently running.
+
+`indices.merges.current`::
+(integer)
+Number of merge operations currently running.
+
+`indices.merges.current_docs`::
+(integer)
+Number of document merges currently running.
+
+`indices.merges.current_size_in_bytes`::
+(integer)
+Memory, in bytes, used performing current document merges.
+
+`indices.merges.total`::
+(integer)
+Total number of merge operations.
+
+`indices.merges.total_time_in_millis`::
+(integer)
+Total time in milliseconds
+spent performing merge operations.
+
+`indices.merges.total_docs`::
+(integer)
+Total number of merged documents.
+
+`indices.merges.total_size_in_bytes`::
+(integer)
+Total size of document merges in bytes.
+
+`indices.merges.total_stopped_time_in_millis`::
+(integer)
+Total time in milliseconds
+spent stopping merge operations.
+
+`indices.merges.total_throttled_time_in_millis`::
+(integer)
+Total time in milliseconds
+spent throttling merge operations.
+
+`indices.merges.total_auto_throttle_in_bytes`::
+(integer)
+Total time in milliseconds
+spent automatically throttling merge operations.
+
+`indices.refresh.total`::
+(integer)
+Total number of refresh operations.
+
+`indices.refresh.total_time_in_millis`::
+(integer)
+Total time in milliseconds
+spent performing refresh operations.
+
+`indices.refresh.external_total`::
+(integer)
+Total number of external refresh operations.
+
+`indices.refresh.external_total_time_in_millis`::
+(integer)
+Total time in milliseconds
+spent performing external operations.
+
+`indices.refresh.listeners`::
+(integer)
+Number of refresh listeners.
+
+`indices.flush.total`::
+(integer)
+Number of flush operations.
+
+`indices.flush.periodic`::
+(integer)
+Number of flush periodic operations.
+
+`indices.flush.total_time_in_millis`::
+(integer)
+Total time in milliseconds
+spent performing flush operations.
+
+`indices.warmer.current`::
+(integer)
+Number of active index warmers.
+
+`indices.warmer.total`::
+(integer)
+Total number of index warmers.
+
+`indices.warmer.total_time_in_millis`::
+(integer)
+Total time in milliseconds
+spent performing index warming operations.
+
+`indices.query_cache.memory_size_in_bytes`::
+(integer)
+Memory, in bytes, used for query cache.
+
+`indices.query_cache.total_count`::
+(integer)
+Total count of hits, misses, and cached queries
+in the query cache.
+
+`indices.query_cache.hit_count`::
+(integer)
+Number of query cache hits.
+
+`indices.query_cache.miss_count`::
+(integer)
+Number of query cache misses.
+
+`indices.query_cache.cache_size`::
+(integer)
+Size, in bytes, of the query cache.
+
+`indices.query_cache.cache_count`::
+(integer)
+Count of queries
+in the query cache.
+
+`indices.query_cache.evictions`::
+(integer)
+Number of query cache evictions.
+
+`indices.fielddata.memory_size_in_bytes`::
+(integer)
+Memory, in bytes, used for fielddata cache.
+
+`indices.fielddata.evictions`::
+(integer)
+Number of fielddata evictions.
+
+`indices.completion.size_in_bytes`::
+(integer)
+Memory, in bytes, used for completion.
+
+`indices.segments.count`::
+(integer)
+Number of segments.
+
+`indices.segments.memory_in_bytes`::
+(integer)
+Size, in bytes, of segments.
+
+`indices.segments.terms_memory_in_bytes`::
+(integer)
+Memory, in bytes, used of terms
+in segments.
+
+`indices.segments.stored_fields_memory_in_bytes`::
+(integer)
+Size, in bytes, of stored fields
+in segments.
+
+`indices.segments.term_vectors_memory_in_bytes`::
+(integer)
+Size, in bytes, of term vectors
+in segments.
+
+`indices.segments.norms_memory_in_bytes`::
+(integer)
+Size, in bytes, of normalization factors 
+in segments.
+
+`indices.segments.points_memory_in_bytes`::
+(integer)
+Size, in bytes, of points
+in segments.
+
+`indices.segments.doc_values_memory_in_bytes`::
+(integer)
+Size, in bytes, of doc values
+in segments.
+
+`indices.segments.index_writer_memory_in_bytes`::
+(integer)
+Memory, in bytes, used by the index writer.
+
+`indices.segments.version_map_memory_in_bytes`::
+(integer)
+Memory, in bytes, used by the version map.
+
+`indices.segments.fixed_bit_set_memory_in_bytes`::
+(integer)
+Memory, in bytes,
+used by fixed bit sets
+for nested object field types
+and type filters
+for <<parent-join,join>> fields.
+
+`indices.segments.max_unsafe_auto_id_timestamp`::
+(integer)
+Time of the most recently retried indexing request. Recorded in milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+
+`indices.segments.file_sizes.size_in_bytes`::
+(integer)
+Size, in bytes,
+of the segment file.
+
+`indices.segments.file_sizes.description`::
+(string)
+Description of the segment file.
+
+`indices.translog.operations`::
+(integer)
+Number of transaction log operations.
+
+`indices.translog.size_in_bytes`::
+(integer)
+Size, in bytes, of the transaction log.
+
+`indices.translog.uncommitted_operations`::
+(integer)
+Number of uncommitted transaction log operations.
+
+`indices.translog.uncommitted_size_in_bytes`::
+(integer)
+Size, in bytes, of uncommitted transaction log operations.
+
+`indices.translog.earliest_last_modified_age`::
+(integer)
+Earliest last modified age
+for the transaction log.
+
+`indices.request_cache.memory_size_in_bytes`::
+(integer)
+Memory, in bytes, used by the request cache.
+
+`indices.request_cache.evictions`::
+(integer)
+Number of request cache operations.
+
+`indices.request_cache.hit_count`::
+(integer)
+Number of request cache hits.
+
+`indices.request_cache.miss_count`::
+(integer)
+Number of request cache misses.
+
+`indices.recovery.current_as_source`::
+(integer)
+Number of recoveries
+that used an index shard as a source.
+
+`indices.recovery.current_as_target`::
+(integer)
+Number of recoveries
+that used an index shard as a target.
+
+`indices.recovery.throttle_time_in_millis`::
+(integer)
+Time in milliseconds
+recovery operations were delayed due to throttling.
+====
+
+[[cluster-nodes-stats-api-response-body-os]]
+===== `os` section
+
+[%collapsible]
+====
+`os.timestamp`::
+    Last time the operating system statistics have been refreshed.
+
+`os.cpu.percent`::
+    Recent CPU usage for the whole system, or -1 if not supported.
+
+`os.cpu.load_average.1m`::
+    One-minute load average on the system (field is not present if one-minute 
+    load average is not available).
+    
+`os.cpu.load_average.5m`::
+    Five-minute load average on the system (field is not present if five-minute 
+    load average is not available).
+
+`os.cpu.load_average.15m`::
+    Fifteen-minute load average on the system (field is not present if 
+    fifteen-minute load average is not available).
+
+`os.mem.total_in_bytes`::
+    Total amount of physical memory in bytes.
+
+`os.mem.free_in_bytes`::
+    Amount of free physical memory in bytes.
+
+`os.mem.free_percent`::
+    Percentage of free memory.
+
+`os.mem.used_in_bytes`::
+    Amount of used physical memory in bytes.
+
+`os.mem.used_percent`::
+    Percentage of used memory.
+
+`os.swap.total_in_bytes`::
+    Total amount of swap space in bytes.
+
+`os.swap.free_in_bytes`::
+    Amount of free swap space in bytes.
+
+`os.swap.used_in_bytes`::
+    Amount of used swap space in bytes.
+
+`os.cgroup.cpuacct.control_group` (Linux only)::
+    The `cpuacct` control group to which the {es} process belongs.
+
+`os.cgroup.cpuacct.usage_nanos` (Linux only)::
+    The total CPU time (in nanoseconds) consumed by all tasks in the same cgroup 
+    as the {es} process.
+
+`os.cgroup.cpu.control_group` (Linux only)::
+    The `cpu` control group to which the {es} process belongs.
+
+`os.cgroup.cpu.cfs_period_micros` (Linux only)::
+    The period of time (in microseconds) for how regularly all tasks in the same 
+    cgroup as the {es} process should have their access to CPU resources 
+    reallocated.
+
+`os.cgroup.cpu.cfs_quota_micros` (Linux only)::
+    The total amount of time (in microseconds) for which all tasks in
+    the same cgroup as the {es} process can run during one period 
+    `os.cgroup.cpu.cfs_period_micros`.
+
+`os.cgroup.cpu.stat.number_of_elapsed_periods` (Linux only)::
+    The number of reporting periods (as specified by
+    `os.cgroup.cpu.cfs_period_micros`) that have elapsed.
+
+`os.cgroup.cpu.stat.number_of_times_throttled` (Linux only)::
+    The number of times all tasks in the same cgroup as the {es} process have 
+    been throttled.
+
+`os.cgroup.cpu.stat.time_throttled_nanos` (Linux only)::
+    The total amount of time (in nanoseconds) for which all tasks in the same 
+    cgroup as the {es} process have been throttled.
+
+`os.cgroup.memory.control_group` (Linux only)::
+    The `memory` control group to which the {es} process belongs.
+
+`os.cgroup.memory.limit_in_bytes` (Linux only)::
+    The maximum amount of user memory (including file cache) allowed for all 
+    tasks in the same cgroup as the {es} process. This value can be too big to 
+    store in a `long`, so is returned as a string so that the value returned can 
+    exactly match what the underlying operating system interface returns. Any 
+    value that is too large to parse into a `long` almost certainly means no 
+    limit has been set for the cgroup.
+
+`os.cgroup.memory.usage_in_bytes` (Linux only)::
+    The total current memory usage by processes in the cgroup (in bytes) by all 
+    tasks in the same cgroup as the {es} process. This value is stored as a 
+    string for consistency with `os.cgroup.memory.limit_in_bytes`.
+
+NOTE: For the cgroup stats to be visible, cgroups must be compiled into the 
+kernel, the `cpu` and `cpuacct` cgroup subsystems must be configured and stats 
+must be readable from `/sys/fs/cgroup/cpu` and `/sys/fs/cgroup/cpuacct`.
+====
+
+[[cluster-nodes-stats-api-response-body-process]]
+===== `process` section
+
+[%collapsible]
+====
+`process.timestamp`::
+    Last time the process statistics have been refreshed.
+
+`process.open_file_descriptors`::
+    Number of opened file descriptors associated with the current process, or -1 
+    if not supported.
+
+`process.max_file_descriptors`::
+    Maximum number of file descriptors allowed on the system, or -1 if not 
+    supported.
+
+`process.cpu.percent`::
+    CPU usage in percent, or -1 if not known at the time the stats are computed
+
+`process.cpu.total_in_millis`::
+    CPU time (in milliseconds) used by the process on which the Java virtual 
+    machine is running, or -1 if not supported.
+
+`process.mem.total_virtual_in_bytes`::
+    Size in bytes of virtual memory that is guaranteed to be available to the 
+    running process.
+====
+
+[[cluster-nodes-stats-api-response-body-jvm]]
+===== `jvm` section
+
+[%collapsible]
+====
+`jvm.timestamp`::
+(integer)
+Last time JVM statistics were refreshed.
+
+`jvm.uptime_in_millis`::
+(integer)
+JVM uptime in milliseconds.
+
+`jvm.mem.heap_used_in_bytes`::
+(integer)
+Memory, in bytes, currently in use by the heap.
+
+`jvm.mem.heap_used_percent`::
+(integer)
+Percentage of memory currently in use by the heap.
+
+`jvm.mem.heap_committed_in_bytes`::
+(integer)
+Amount of memory, in bytes, available for use by the heap.
+
+`jvm.mem.heap_max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the heap.
+
+`jvm.mem.non_heap_used_in_bytes`::
+(integer)
+Non-heap memory used, in bytes.
+
+`jvm.mem.non_heap_committed_in_bytes`::
+(integer)
+Amount of non-heap memory available, in bytes.
+
+`jvm.mem.pools.young.used_in_bytes`::
+(integer)
+Memory, in bytes, used by the young generation heap.
+
+`jvm.mem.pools.young.max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the young generation
+heap.
+
+`jvm.mem.pools.young.peak_used_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the young generation
+heap.
+
+`jvm.mem.pools.young.peak_max_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the young generation
+heap.
+
+`jvm.mem.pools.survivor.used_in_bytes`::
+(integer)
+Memory, in bytes, used by the survivor space.
+
+`jvm.mem.pools.survivor.max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the survivor space.
+
+`jvm.mem.pools.survivor.peak_used_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the survivor space.
+
+`jvm.mem.pools.survivor.peak_max_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the survivor space.
+
+`jvm.mem.pools.old.used_in_bytes`::
+(integer)
+Memory, in bytes, used by the old generation heap.
+
+`jvm.mem.pools.old.max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the old generation
+heap.
+
+`jvm.mem.pools.old.peak_used_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the old generation
+heap.
+
+`jvm.mem.pools.old.peak_max_in_bytes`::
+(integer)
+Highest memory limit, in bytes, historically available for use by the old
+generation heap.
+
+`jvm.threads.count`::
+(integer)
+Number of active threads in use by JVM.
+
+`jvm.threads.peak_count`::
+(integer)
+Highest number of threads used by JVM.
+
+`jvm.gc.collectors.young.collection_count`::
+(integer)
+Number of JVM garbage collectors that collect young generation objects.
+
+`jvm.gc.collectors.young.collection_time_in_millis`::
+(integer)
+Total time in milliseconds spent by JVM collecting young generation objects.
+
+`jvm.gc.collectors.old.collection_count`::
+(integer)
+Number of JVM garbage collectors that collect old generation objects.
+
+`jvm.gc.collectors.old.collection_time_in_millis`::
+(integer)
+Total time in milliseconds spent by JVM collecting old generation objects.
+
+`jvm.buffer_pools.mapped.count`::
+(integer)
+Number of mapped buffer pools.
+
+`jvm.buffer_pools.mapped.used_in_bytes`::
+(integer)
+Size, in bytes, of mapped buffer pools.
+
+`jvm.buffer_pools.mapped.total_capacity_in_bytes`::
+(integer)
+Total capacity, in bytes, of mapped buffer pools.
+
+`jvm.buffer_pools.direct.count`::
+(integer)
+Number of direct buffer pools.
+
+`jvm.buffer_pools.direct.used_in_bytes`::
+(integer)
+Size, in bytes, of direct buffer pools.
+
+`jvm.buffer_pools.direct.total_capacity_in_bytes`::
+(integer)
+Total capacity, in bytes, of direct buffer pools.
+
+`jvm.classes.current_loaded_count`::
+(integer)
+Number of buffer pool classes currently loaded by JVM.
+
+`jvm.classes.total_loaded_count`::
+(integer)
+Total number of buffer pool classes loaded since the JVM started.
+
+`jvm.classes.total_unloaded_count`::
+(integer)
+Total number of buffer pool classes unloaded since the JVM started.
+====
+
+[[cluster-nodes-stats-api-response-body-threadpool]]
+===== `thread_pool` section
+
+[%collapsible]
+====
+`thread_pool.<thread_pool_name>.threads`::
+(integer)
+Number of threads in the thread pool.
+
+`thread_pool.<thread_pool_name>.queue`::
+(integer)
+Number of tasks in queue for the thread pool.
+
+`thread_pool.<thread_pool_name>.active`::
+(integer)
+Number of active threads in the thread pool.
+
+`thread_pool.<thread_pool_name>.rejected`::
+(integer)
+Number of tasks rejected by the thread pool executor.
+
+`thread_pool.<thread_pool_name>.largest`::
+(integer)
+Highest number of active threads in the thread pool.
+
+`thread_pool.<thread_pool_name>.completed`::
+(integer)
+Number of tasks completed by the thread pool executor.
+====
+
+[[cluster-nodes-stats-api-response-body-fs]]
+===== `fs` section
+
+[%collapsible]
+====
+`fs.timestamp`::
+    Last time the file stores statistics have been refreshed.
+
+`fs.total.total_in_bytes`::
+    Total size (in bytes) of all file stores.
+
+`fs.total.free_in_bytes`::
+    Total number of unallocated bytes in all file stores.
+
+`fs.total.available_in_bytes`::
+    Total number of bytes available to this Java virtual machine on all file 
+    stores. Depending on OS or process level restrictions, this might appear 
+    less than `fs.total.free_in_bytes`. This is the actual amount of free disk 
+    space the {es} node can utilise.
+
+`fs.data`::
+    List of all file stores.
+
+`fs.data.path`::
+    Path to the file store.
+
+`fs.data.mount`::
+    Mount point of the file store (ex: /dev/sda2).
+
+`fs.data.type`::
+    Type of the file store (ex: ext4).
+
+`fs.data.total_in_bytes`::
+    Total size (in bytes) of the file store.
+
+`fs.data.free_in_bytes`::
+    Total number of unallocated bytes in the file store.
+
+`fs.data.available_in_bytes`::
+    Total number of bytes available to this Java virtual machine on this file 
+    store.
+
+`fs.io_stats.devices` (Linux only)::
+    Array of disk metrics for each device that is backing an {es} data path. 
+    These disk metrics are probed periodically and averages between the last 
+    probe and the current probe are computed.
+
+`fs.io_stats.devices.device_name` (Linux only)::
+    The Linux device name.
+
+`fs.io_stats.devices.operations` (Linux only)::
+    The total number of read and write operations for the device completed since 
+    starting {es}.
+
+`fs.io_stats.devices.read_operations` (Linux only)::
+    The total number of read operations for the device completed since starting 
+    {es}.
+
+`fs.io_stats.devices.write_operations` (Linux only)::
+    The total number of write operations for the device completed since starting 
+    {es}.
+
+`fs.io_stats.devices.read_kilobytes` (Linux only)::
+    The total number of kilobytes read for the device since starting {es}.
+
+`fs.io_stats.devices.write_kilobytes` (Linux only)::
+    The total number of kilobytes written for the device since starting {es}.
+
+`fs.io_stats.operations` (Linux only)::
+    The total number of read and write operations across all devices used by 
+    {es} completed since starting {es}.
+
+`fs.io_stats.read_operations` (Linux only)::
+    The total number of read operations for across all devices used by {es} 
+    completed since starting {es}.
+
+`fs.io_stats.write_operations` (Linux only)::
+    The total number of write operations across all devices used by {es} 
+    completed since starting {es}.
+
+`fs.io_stats.read_kilobytes` (Linux only)::
+    The total number of kilobytes read across all devices used by {es} since 
+    starting {es}.
+
+`fs.io_stats.write_kilobytes` (Linux only)::
+    The total number of kilobytes written across all devices used by {es} since 
+    starting {es}.
+====
+
+[[cluster-nodes-stats-api-response-body-transport]]
+===== `transport` section
+
+[%collapsible]
+====
+`transport.server_open`::
+(integer)
+Number of open TCP connections used for internal communication between nodes.
+
+`transport.rx_count`::
+(integer)
+Total number of RX (receive) packets received by the node during internal
+cluster communication.
+
+`transport.rx_size_in_bytes`::
+(integer)
+Size, in bytes, of RX packets received by the node during internal cluster
+communication.
+
+`transport.tx_count`::
+(integer)
+Total number of TX (transmit) packets sent by the node during internal cluster
+communication.
+
+`transport.tx_size_in_bytes`::
+(integer)
+Size, in bytes, of TX packets sent by the node during internal cluster
+communication.
+====
+
+[[cluster-nodes-stats-api-response-body-http]]
+===== `http` section
+
+[%collapsible]
+====
+`http.current_open`::
+(integer)
+Current number of open HTTP connections for the node.
+
+`http.total_opened`::
+(integer)
+Total number of HTTP connections opened for the node.
+====
+
+[[cluster-nodes-stats-api-response-body-breakers]]
+===== `breakers` section
+
+[%collapsible]
+====
+`breakers.<circuit_breaker_name>.limit_size_in_bytes`::
+(integer)
+Memory limit, in bytes, for the circuit breaker.
+
+`breakers.<circuit_breaker_name>.limit_size`::
+(<<byte-units,byte value>>)
+Memory limit for the circuit breaker.
+
+`breakers.<circuit_breaker_name>.estimated_size_in_bytes`::
+(integer)
+Estimated memory used, in bytes, for the operation.
+
+`breakers.<circuit_breaker_name>.estimated_size`::
+(<<byte-units,byte value>>)
+Estimated memory used for the operation.
+
+`breakers.<circuit_breaker_name>.overhead`::
+(float)
+A constant that all estimates for the circuit breaker are multiplied with to
+calculate a final estimate.
+
+`breakers.<circuit_breaker_name>.tripped`::
+(integer)
+Total number of times the circuit breaker has been triggered and prevented an
+out of memory error.
+====
+
+[[cluster-nodes-stats-api-response-body-script]]
+===== `script` section
+
+[%collapsible]
+====
+`script.compilations`::
+(integer)
+Total number of inline script compilations performed by the node.
+
+`script.cache_evictions`::
+(integer)
+Total number of times the script cache has evicted old data.
+
+`script.compilation_limit_triggered`::
+(integer)
+Total number of times the <<script-compilation-circuit-breaker,script
+compilation>> circuit breaker has limited inline script compilations.
+====
+
+[[cluster-nodes-stats-api-response-body-discovery]]
+===== `discovery` section
+
+[%collapsible]
+====
+`discovery.cluster_state_queue.total`::
+(integer)
+Total number of cluster states in queue.
+
+`discovery.cluster_state_queue.pending`::
+(integer)
+Number of pending cluster states in queue.
+
+`discovery.cluster_state_queue.committed`::
+(integer)
+Number of committed cluster states in queue.
+
+`discovery.published_cluster_states.full_states`::
+(integer)
+Number of published cluster states.
+
+`discovery.published_cluster_states.incompatible_diffs`::
+(integer)
+Number of incompatible differences between published cluster states.
+
+`discovery.published_cluster_states.compatible_diffs`::
+(integer)
+Number of compatible differences between published cluster states.
+====
+
+[[cluster-nodes-stats-api-response-body-ingest]]
+===== `ingest` section
+
+[%collapsible]
+====
+`ingest.total.count`::
+    (integer)
+    Total number of documents ingested during the lifetime of this node.
+
+`ingest.total.time_in_millis`::
+    (integer)
+    Total time spent preprocessing ingest documents during the lifetime of this
+    node.
+
+`ingest.total.current`::
+    (integer)
+    Total number of documents currently being ingested.
+
+`ingest.total.failed`::
+    (integer)
+    Total number of failed ingest operations during the lifetime of this node.
+
+`ingest.pipelines.<pipeline_id>.count`::
+    (integer)
+    Number of documents preprocessed by the ingest pipeline.
+
+`ingest.pipelines.<pipeline_id>.time_in_millis`::
+    (integer)
+    Total time spent preprocessing documents in the ingest pipeline.
+
+`ingest.pipelines.<pipeline_id>.failed`::
+    (integer)
+    Total number of failed operations for the ingest pipeline.
+
+`ingest.pipelines.<pipeline_id>.<processor>.count`::
+    (integer)
+    Number of documents transformed by the processor.
+
+`ingest.pipelines.<pipeline_id>.<processor>.time_in_millis`::
+    (integer)
+    Time spent by the processor transforming documents.
+
+`ingest.pipelines.<pipeline_id>.<processor>.current`::
+    (integer)
+    Number of documents currently being transformed by the processor.
+
+`ingest.pipelines.<pipeline_id>.<processor>.failed`::
+    (integer)
+    Number of failed operations for the processor.
+====
+
+[[cluster-nodes-stats-api-response-body-adaptive-selection]]
+===== `adaptive_selection` section
+
+[%collapsible]
+====
+`adaptive_selection.outgoing_searches`::
+    The number of outstanding search requests from the node these stats are for 
+    to the keyed node.
+
+`avg_queue_size`::
+    The exponentially weighted moving average queue size of search requests on 
+    the keyed node.
+
+`avg_service_time_ns`::
+    The exponentially weighted moving average service time of search requests on
+    the keyed node.
+
+`avg_response_time_ns`::
+    The exponentially weighted moving average response time of search requests 
+    on the keyed node.
+
+`rank`::
+    The rank of this node; used for shard selection when routing search 
+    requests.
+====
+
+
+[[cluster-nodes-stats-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 # return just indices
 GET /_nodes/stats/indices
@@ -79,284 +1195,32 @@ GET /_nodes/stats/os,process
 # return just process for node with IP address 10.0.0.1
 GET /_nodes/10.0.0.1/stats/process
 --------------------------------------------------
-// CONSOLE
 
-All stats can be explicitly requested via `/_nodes/stats/_all` or `/_nodes/stats?metric=_all`.
+All stats can be explicitly requested via `/_nodes/stats/_all` or 
+`/_nodes/stats?metric=_all`.
 
-[float]
-[[fs-info]]
-==== FS information
+You can get information about indices stats on `node`, `indices`, or `shards` 
+level.
 
-The `fs` flag can be set to retrieve
-information that concern the file system:
-
-`fs.timestamp`::
-  Last time the file stores statistics have been refreshed
-
-`fs.total.total_in_bytes`::
-  Total size (in bytes) of all file stores
-
-`fs.total.free_in_bytes`::
-  Total number of unallocated bytes in all file stores
-
-`fs.total.available_in_bytes`::
-  Total number of bytes available to this Java virtual machine on all file stores.
-  Depending on OS or process level restrictions, this might appear less than `fs.total.free_in_bytes`.
-  This is the actual amount of free disk space the Elasticsearch node can utilise.
-
-`fs.data`::
-  List of all file stores
-
-`fs.data.path`::
-  Path to the file store
-
-`fs.data.mount`::
-  Mount point of the file store (ex: /dev/sda2)
-
-`fs.data.type`::
-  Type of the file store (ex: ext4)
-
-`fs.data.total_in_bytes`::
-  Total size (in bytes) of the file store
-
-`fs.data.free_in_bytes`::
-  Total number of unallocated bytes in the file store
-
-`fs.data.available_in_bytes`::
-  Total number of bytes available to this Java virtual machine on this file store
-
-`fs.data.spins` (Linux only)::
-  Indicates if the file store is backed by spinning storage.
-  `null` means we could not determine it, `true` means the device possibly spins
-   and `false` means it does not (ex: solid-state disks).
-
-`fs.io_stats.devices` (Linux only)::
-    Array of disk metrics for each device that is backing an
-    Elasticsearch data path. These disk metrics are probed periodically
-    and averages between the last probe and the current probe are
-    computed.
-
-`fs.io_stats.devices.device_name` (Linux only)::
-    The Linux device name.
-
-`fs.io_stats.devices.operations` (Linux only)::
-    The total number of read and write operations for the device
-    completed since starting Elasticsearch.
-
-`fs.io_stats.devices.read_operations` (Linux only)::
-    The total number of read operations for the device completed since
-    starting Elasticsearch.
-
-`fs.io_stats.devices.write_operations` (Linux only)::
-    The total number of write operations for the device completed since
-    starting Elasticsearch.
-
-`fs.io_stats.devices.read_kilobytes` (Linux only)::
-    The total number of kilobytes read for the device since starting
-    Elasticsearch.
-
-`fs.io_stats.devices.write_kilobytes` (Linux only)::
-    The total number of kilobytes written for the device since
-    starting Elasticsearch.
-
-`fs.io_stats.operations` (Linux only)::
-    The total number of read and write operations across all devices
-    used by Elasticsearch completed since starting Elasticsearch.
-
-`fs.io_stats.read_operations` (Linux only)::
-    The total number of read operations for across all devices used by
-    Elasticsearch completed since starting Elasticsearch.
-
-`fs.io_stats.write_operations` (Linux only)::
-    The total number of write operations across all devices used by
-    Elasticsearch completed since starting Elasticsearch.
-
-`fs.io_stats.read_kilobytes` (Linux only)::
-    The total number of kilobytes read across all devices used by
-    Elasticsearch since starting Elasticsearch.
-
-`fs.io_stats.write_kilobytes` (Linux only)::
-    The total number of kilobytes written across all devices used by
-    Elasticsearch since starting Elasticsearch.
-
-[float]
-[[os-stats]]
-==== Operating System statistics
-
-The `os` flag can be set to retrieve statistics that concern
-the operating system:
-
-`os.timestamp`::
-  Last time the operating system statistics have been refreshed
-
-`os.cpu.percent`::
-    Recent CPU usage for the whole system, or -1 if not supported
-
-`os.cpu.load_average.1m`::
-    One-minute load average on the system (field is not present if
-    one-minute load average is not available)
-`os.cpu.load_average.5m`::
-    Five-minute load average on the system (field is not present if
-    five-minute load average is not available)
-`os.cpu.load_average.15m`::
-    Fifteen-minute load average on the system (field is not present if
-    fifteen-minute load average is not available)
-
-`os.mem.total_in_bytes`::
-  Total amount of physical memory in bytes
-
-`os.mem.free_in_bytes`::
-  Amount of free physical memory in bytes
-
-`os.mem.free_percent`::
-  Percentage of free memory
-
-`os.mem.used_in_bytes`::
-  Amount of used physical memory in bytes
-
-`os.mem.used_percent`::
-  Percentage of used memory
-
-`os.swap.total_in_bytes`::
-  Total amount of swap space in bytes
-
-`os.swap.free_in_bytes`::
-  Amount of free swap space in bytes
-
-`os.swap.used_in_bytes`::
-  Amount of used swap space in bytes
-
-`os.cgroup.cpuacct.control_group` (Linux only)::
-    The `cpuacct` control group to which the Elasticsearch process
-    belongs
-
-`os.cgroup.cpuacct.usage_nanos` (Linux only)::
-    The total CPU time (in nanoseconds) consumed by all tasks in the
-    same cgroup as the Elasticsearch process
-
-`os.cgroup.cpu.control_group` (Linux only)::
-    The `cpu` control group to which the Elasticsearch process belongs
-
-`os.cgroup.cpu.cfs_period_micros` (Linux only)::
-    The period of time (in microseconds) for how regularly all tasks in
-    the same cgroup as the Elasticsearch process should have their
-    access to CPU resources reallocated.
-
-`os.cgroup.cpu.cfs_quota_micros` (Linux only)::
-    The total amount of time (in microseconds) for which all tasks in
-    the same cgroup as the Elasticsearch process can run during one
-    period `os.cgroup.cpu.cfs_period_micros`
-
-`os.cgroup.cpu.stat.number_of_elapsed_periods` (Linux only)::
-    The number of reporting periods (as specified by
-    `os.cgroup.cpu.cfs_period_micros`) that have elapsed
-
-`os.cgroup.cpu.stat.number_of_times_throttled` (Linux only)::
-    The number of times all tasks in the same cgroup as the
-    Elasticsearch process have been throttled.
-
-`os.cgroup.cpu.stat.time_throttled_nanos` (Linux only)::
-    The total amount of time (in nanoseconds) for which all tasks in
-    the same cgroup as the Elasticsearch process have been throttled.
-
-`os.cgroup.memory.control_group` (Linux only)::
-    The `memory` control group to which the Elasticsearch process
-    belongs
-
-`os.cgroup.memory.limit_in_bytes` (Linux only)::
-    The maximum amount of user memory (including file cache) allowed
-    for all tasks in the same cgroup as the Elasticsearch process.
-    This value can be too big to store in a `long`, so is returned as
-    a string so that the value returned can exactly match what the
-    underlying operating system interface returns. Any value that is
-    too large to parse into a `long` almost certainly means no limit
-    has been set for the cgroup.
-
-`os.cgroup.memory.usage_in_bytes` (Linux only)::
-    The total current memory usage by processes in the cgroup (in bytes)
-    by all tasks in the same cgroup as the Elasticsearch process.
-    This value is stored as a string for consistency with
-    `os.cgroup.memory.limit_in_bytes`.
-
-NOTE: For the cgroup stats to be visible, cgroups must be compiled into
-the kernel, the `cpu` and `cpuacct` cgroup subsystems must be
-configured and stats must be readable from `/sys/fs/cgroup/cpu`
-and `/sys/fs/cgroup/cpuacct`.
-
-[float]
-[[process-stats]]
-==== Process statistics
-
-The `process` flag can be set to retrieve statistics that concern
-the current running process:
-
-`process.timestamp`::
-  Last time the process statistics have been refreshed
-
-`process.open_file_descriptors`::
-  Number of opened file descriptors associated with the current process, or -1 if not supported
-
-`process.max_file_descriptors`::
-  Maximum number of file descriptors allowed on the system, or -1 if not supported
-
-`process.cpu.percent`::
-  CPU usage in percent, or -1 if not known at the time the stats are computed
-
-`process.cpu.total_in_millis`::
-  CPU time (in milliseconds) used by the process on which the Java virtual machine is running, or -1 if not supported
-
-`process.mem.total_virtual_in_bytes`::
-  Size in bytes of virtual memory that is guaranteed to be available to the running process
-
-[float]
-[[node-indices-stats]]
-=== Indices statistics
-
-You can get information about indices stats on `node`, `indices`, or `shards` level.
-
-[source,js]
+[source,console]
 --------------------------------------------------
-# Fielddata summarised by node
+# Fielddata summarized by node
 GET /_nodes/stats/indices/fielddata?fields=field1,field2
 
-# Fielddata summarised by node and index
+# Fielddata summarized by node and index
 GET /_nodes/stats/indices/fielddata?level=indices&fields=field1,field2
 
-# Fielddata summarised by node, index, and shard
+# Fielddata summarized by node, index, and shard
 GET /_nodes/stats/indices/fielddata?level=shards&fields=field1,field2
 
 # You can use wildcards for field names
 GET /_nodes/stats/indices/fielddata?fields=field*
 --------------------------------------------------
-// CONSOLE
-
-Supported metrics are:
-
-* `completion`
-* `docs`
-* `fielddata`
-* `flush`
-* `get`
-* `indexing`
-* `merge`
-* `query_cache`
-* `recovery`
-* `refresh`
-* `request_cache`
-* `search`
-* `segments`
-* `store`
-* `translog`
-* `warmer`
-
-[float]
-[[search-groups]]
-=== Search groups
 
 You can get statistics about search groups for searches executed
 on this node.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # All groups with all stats
 GET /_nodes/stats?groups=_all
@@ -364,52 +1228,31 @@ GET /_nodes/stats?groups=_all
 # Some groups from just the indices stats
 GET /_nodes/stats/indices?groups=foo,bar
 --------------------------------------------------
-// CONSOLE
 
-[float]
-[[ingest-stats]]
-=== Ingest statistics
+[[cluster-nodes-stats-ingest-ex]]
+===== Retrieve ingest statistics only
 
-The `ingest` flag can be set to retrieve statistics that concern ingest:
+To return only ingest-related node statistics, set the `<metric>` path
+parameter to `ingest` and use the
+<<common-options-response-filtering,`filter_path`>> query parameter.
 
-`ingest.total.count`::
-  The total number of document ingested during the lifetime of this node
+[source,console]
+--------------------------------------------------
+GET /_nodes/stats/ingest?filter_path=nodes.*.ingest
+--------------------------------------------------
 
-`ingest.total.time_in_millis`::
-  The total time spent on ingest preprocessing documents during the lifetime of this node
+You can use the `metric` and `filter_path` query parameters to get the same
+response.
 
-`ingest.total.current`::
-  The total number of documents currently being ingested.
+[source,console]
+--------------------------------------------------
+GET /_nodes/stats?metric=ingest&filter_path=nodes.*.ingest
+--------------------------------------------------
 
-`ingest.total.failed`::
-  The total number ingest preprocessing operations failed during the lifetime of this node
+To further refine the response, change the `filter_path` value.
+For example, the following request only returns ingest pipeline statistics.
 
-On top of these overall ingest statistics, these statistics are also provided on a per pipeline basis.
-
-[float]
-[[adaptive-selection-stats]]
-=== Adaptive selection statistics
-
-The `adaptive_selection` flag can be set to retrieve statistics that concern
-<<search-adaptive-replica,adaptive replica selection>>. These statistics are
-keyed by node. For each node:
-
-`adaptive_selection.outgoing_searches`::
-  The number of outstanding search requests from the node these stats are for to
-  the keyed node.
-
-`avg_queue_size`::
-  The exponentially weighted moving average queue size of search requests on the
-  keyed node.
-
-`avg_service_time_ns`::
-  The exponentially weighted moving average service time of search requests on
-  the keyed node.
-
-`avg_response_time_ns`::
-  The exponentially weighted moving average response time of search requests on
-  the keyed node.
-
-`rank`::
-  The rank of this node; used for shard selection when routing search requests.
-
+[source,console]
+--------------------------------------------------
+GET /_nodes/stats?metric=ingest&filter_path=nodes.*.ingest.pipelines
+--------------------------------------------------

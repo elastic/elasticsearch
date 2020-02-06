@@ -1,0 +1,29 @@
+{
+  "license.get":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-license.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "local":{
+        "type":"boolean",
+        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      },
+      "accept_enterprise":{
+        "type":"boolean",
+        "deprecated":true,
+        "description":"Supported for backwards compatibility with 7.x. If this param is used it must be set to true"
+      }
+    }
+  }
+}

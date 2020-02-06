@@ -19,20 +19,19 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -69,20 +68,11 @@ public class RestSearchAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSearchAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in search requests is deprecated.";
-
-    public RestSearchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestSearchAction(RestController controller) {
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
         controller.registerHandler(POST, "/{index}/_search", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_search", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search", this);
     }
 
     @Override
@@ -109,7 +99,10 @@ public class RestSearchAction extends BaseRestHandler {
         request.withContentOrSourceParamParserOrNull(parser ->
             parseSearchRequest(searchRequest, request, parser, setSize));
 
-        return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> {
+            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+        };
     }
 
     /**
@@ -166,13 +159,11 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("search_with_types", TYPES_DEPRECATION_MESSAGE);
-            searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+        searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", true));
+
         checkRestTotalHits(request, searchRequest);
     }
 
@@ -200,6 +191,9 @@ public class RestSearchAction extends BaseRestHandler {
         }
         if (request.hasParam("version")) {
             searchSourceBuilder.version(request.paramAsBoolean("version", null));
+        }
+        if (request.hasParam("seq_no_primary_term")) {
+            searchSourceBuilder.seqNoAndPrimaryTerm(request.paramAsBoolean("seq_no_primary_term", null));
         }
         if (request.hasParam("timeout")) {
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
@@ -236,6 +230,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("track_scores")) {
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
         }
+
 
         if (request.hasParam("track_total_hits")) {
             if (Booleans.isBoolean(request.param("track_total_hits"))) {
@@ -286,17 +281,26 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     /**
-     * Throws an {@link IllegalArgumentException} if {@link #TOTAL_HITS_AS_INT_PARAM}
-     * is used in conjunction with a lower bound value for the track_total_hits option.
+     * Modify the search request to accurately count the total hits that match the query
+     * if {@link #TOTAL_HITS_AS_INT_PARAM} is set.
+     *
+     * @throws IllegalArgumentException if {@link #TOTAL_HITS_AS_INT_PARAM}
+     * is used in conjunction with a lower bound value (other than {@link SearchContext#DEFAULT_TRACK_TOTAL_HITS_UP_TO})
+     * for the track_total_hits option.
      */
     public static void checkRestTotalHits(RestRequest restRequest, SearchRequest searchRequest) {
-        int trackTotalHitsUpTo = searchRequest.source() == null ?
-            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : searchRequest.source().trackTotalHitsUpTo();
-        if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE ||
-                trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-            return ;
+        boolean totalHitsAsInt = restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false);
+        if (totalHitsAsInt == false) {
+            return;
         }
-        if (restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false)) {
+        if (searchRequest.source() == null) {
+            searchRequest.source(new SearchSourceBuilder());
+        }
+        Integer trackTotalHitsUpTo = searchRequest.source().trackTotalHitsUpTo();
+        if (trackTotalHitsUpTo == null) {
+            searchRequest.source().trackTotalHits(true);
+        } else if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE
+                && trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
             throw new IllegalArgumentException("[" + TOTAL_HITS_AS_INT_PARAM + "] cannot be used " +
                 "if the tracking of total hits is not accurate, got " + trackTotalHitsUpTo);
         }
@@ -305,5 +309,10 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     protected Set<String> responseParams() {
         return RESPONSE_PARAMS;
+    }
+
+    @Override
+    public boolean allowsUnsafeBuffers() {
+        return true;
     }
 }

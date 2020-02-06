@@ -26,10 +26,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,6 +36,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
@@ -46,7 +44,6 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -67,10 +64,8 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -82,25 +77,17 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  */
 public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
-    // these are no longer used, but leave them around for users upgrading
-    private static final Setting<Integer> CACHE_SIZE_SETTING =
-            Setting.intSetting(setting("authz.store.roles.index.cache.max_size"), 10000, Property.NodeScope, Property.Deprecated);
-    private static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(setting("authz.store.roles.index.cache.ttl"),
-            TimeValue.timeValueMinutes(20), Property.NodeScope, Property.Deprecated);
-    private static final String ROLE_DOC_TYPE = "doc";
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
 
     private final Settings settings;
     private final Client client;
     private final XPackLicenseState licenseState;
 
-    private SecurityClient securityClient;
     private final SecurityIndexManager securityIndex;
 
     public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
         this.settings = settings;
         this.client = client;
-        this.securityClient = new SecurityClient(client);
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
     }
@@ -114,15 +101,18 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
     public void getRoleDescriptors(Set<String> names, final ActionListener<RoleRetrievalResult> listener) {
-        if (securityIndex.indexExists() == false) {
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason()));
         } else if (names == null || names.isEmpty()) {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                    SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
                         .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                         .setQuery(query)
                         .setSize(1000)
@@ -140,7 +130,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
-                MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, roleIds).request();
+                MultiGetRequest multiGetRequest = client.prepareMultiGet().addIds(SECURITY_MAIN_ALIAS, roleIds).request();
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, multiGetRequest,
                     ActionListener.<MultiGetResponse>wrap(mGetResponse -> {
                             final MultiGetItemResponse[] responses = mGetResponse.getResponses();
@@ -176,8 +166,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                DeleteRequest request = client.prepareDelete(SecurityIndexManager.SECURITY_INDEX_NAME,
-                    ROLE_DOC_TYPE, getIdForRole(deleteRoleRequest.name())).request();
+                DeleteRequest request = client
+                        .prepareDelete(SECURITY_MAIN_ALIAS, getIdForRole(deleteRoleRequest.name())).request();
                 request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     new ActionListener<DeleteResponse>() {
@@ -217,7 +207,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForRole(role.getName()))
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS).setId(getIdForRole(role.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
@@ -251,10 +241,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareMultiSearch()
-                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                        .add(client.prepareSearch(SECURITY_MAIN_ALIAS)
                             .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                            .setTrackTotalHits(true)
                             .setSize(0))
-                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                        .add(client.prepareSearch(SECURITY_MAIN_ALIAS)
                             .setQuery(QueryBuilders.boolQuery()
                                 .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                                 .must(QueryBuilders.boolQuery()
@@ -262,12 +253,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                     .should(existsQuery("indices.field_security.except"))
                                     // for backwardscompat with 2.x
                                     .should(existsQuery("indices.fields"))))
+                            .setTrackTotalHits(true)
                             .setSize(0)
                             .setTerminateAfter(1))
-                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                        .add(client.prepareSearch(SECURITY_MAIN_ALIAS)
                             .setQuery(QueryBuilders.boolQuery()
                                 .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                                 .filter(existsQuery("indices.query")))
+                            .setTrackTotalHits(true)
                             .setSize(0)
                             .setTerminateAfter(1))
                         .request(),
@@ -308,17 +301,20 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {
-        if (securityIndex.indexExists() == false) {
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             resultListener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            resultListener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason()));
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(e -> resultListener.onResponse(RoleRetrievalResult.failure(e)), () ->
-                    executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
+            securityIndex.checkIndexVersionThenExecute(e -> resultListener.onResponse(RoleRetrievalResult.failure(e)),
+                    () -> executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
                             final RoleDescriptor descriptor = transformRole(response);
-                            resultListener.onResponse(RoleRetrievalResult.success(
-                                descriptor == null ? Collections.emptySet() : Collections.singleton(descriptor)));
+                            resultListener.onResponse(RoleRetrievalResult
+                                    .success(descriptor == null ? Collections.emptySet() : Collections.singleton(descriptor)));
                         }
 
                         @Override
@@ -332,16 +328,15 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
         securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_INDEX_NAME,
-                            ROLE_DOC_TYPE, getIdForRole(role)).request(),
+                    client.prepareGet(SECURITY_MAIN_ALIAS, getIdForRole(role)).request(),
                     listener,
                     client::get));
     }
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {
         ClearRolesCacheRequest request = new ClearRolesCacheRequest().names(role);
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                new ActionListener<ClearRolesCacheResponse>() {
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRolesCacheAction.INSTANCE, request,
+                new ActionListener<>() {
                     @Override
                     public void onResponse(ClearRolesCacheResponse nodes) {
                         listener.onResponse(response);
@@ -354,7 +349,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 + "] failed. please clear the role cache manually", e);
                         listener.onFailure(exception);
                     }
-                }, securityClient::clearRolesCache);
+                });
     }
 
     @Nullable
@@ -403,11 +398,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             logger.error(new ParameterizedMessage("error in the format of data for role [{}]", name), e);
             return null;
         }
-    }
-
-    public static void addSettings(List<Setting<?>> settings) {
-        settings.add(CACHE_SIZE_SETTING);
-        settings.add(CACHE_TTL_SETTING);
     }
 
     /**

@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,9 +58,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     public TermSuggestion(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            sort = SortBy.readFromStream(in);
-        }
+        sort = SortBy.readFromStream(in);
     }
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
@@ -131,10 +128,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            sort.writeTo(out);
-        }
+        sort.writeTo(out);
     }
 
     @Override
@@ -185,8 +179,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             return new Option(in);
         }
 
-        private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
-
+        private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
         static {
             declareCommonFields(PARSER);
             PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));

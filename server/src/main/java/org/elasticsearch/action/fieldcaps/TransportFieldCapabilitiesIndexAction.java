@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -36,6 +38,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -46,6 +49,8 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
     FieldCapabilitiesIndexResponse> {
 
     private static final String ACTION_NAME = FieldCapabilitiesAction.NAME + "[index]";
+    public static final ActionType<FieldCapabilitiesIndexResponse> TYPE =
+        new ActionType<>(ACTION_NAME, FieldCapabilitiesIndexResponse::new);
 
     private final IndicesService indicesService;
 
@@ -79,12 +84,14 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
             fieldNames.addAll(mapperService.simpleMatchToFullName(field));
         }
         Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
-        Map<String, FieldCapabilities> responseMap = new HashMap<>();
+        Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fullName(field);
             if (ft != null) {
-                if (indicesService.isMetaDataField(field) || fieldPredicate.test(ft.name())) {
-                    FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
+                if (indicesService.isMetaDataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
+                        || fieldPredicate.test(ft.name())) {
+                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.typeName(),
+                        ft.isSearchable(), ft.isAggregatable(), ft.meta());
                     responseMap.put(field, fieldCap);
                 } else {
                     continue;
@@ -102,7 +109,8 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
                         // no field type, it must be an object field
                         ObjectMapper mapper = mapperService.getObjectMapper(parentField);
                         String type = mapper.nested().isNested() ? "nested" : "object";
-                        FieldCapabilities fieldCap = new FieldCapabilities(parentField, type, false, false);
+                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
+                            false, false, Collections.emptyMap());
                         responseMap.put(parentField, fieldCap);
                     }
                     dotIndex = parentField.lastIndexOf('.');
@@ -113,8 +121,8 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
     }
 
     @Override
-    protected FieldCapabilitiesIndexResponse newResponse() {
-        return new FieldCapabilitiesIndexResponse();
+    protected Writeable.Reader<FieldCapabilitiesIndexResponse> getResponseReader() {
+        return FieldCapabilitiesIndexResponse::new;
     }
 
     @Override

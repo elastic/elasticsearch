@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -60,10 +61,17 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                             .field("type", "alias")
                             .field("path", "playlist")
                         .endObject()
+                        .startObject("old_field")
+                            .field("type", "long")
+                        .endObject()
+                        .startObject("new_field")
+                            .field("type", "alias")
+                            .field("path", "old_field")
+                        .endObject()
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("old_index").addMapping("_doc", oldIndexMapping));
+        assertAcked(prepareCreate("old_index").setMapping(oldIndexMapping));
 
         XContentBuilder newIndexMapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -75,10 +83,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                         .startObject("route_length_miles")
                             .field("type", "double")
                         .endObject()
+                        .startObject("new_field")
+                            .field("type", "long")
+                        .endObject()
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("new_index").addMapping("_doc", newIndexMapping));
+        assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
+        assertAcked(client().admin().indices().prepareAliases().addAlias("new_index", "current"));
     }
 
     public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
@@ -94,9 +106,9 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testFieldAlias() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("distance", "route_length_miles")
-            .get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("distance", "route_length_miles").get();
 
+        assertIndices(response, "old_index", "new_index");
         // Ensure the response has entries for both requested fields.
         assertTrue(response.get().containsKey("distance"));
         assertTrue(response.get().containsKey("route_length_miles"));
@@ -107,12 +119,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(distance.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("distance", "double", true, true, new String[] {"old_index"}, null, null),
+            new FieldCapabilities("distance", "double", true, true, new String[] {"old_index"}, null, null,
+                    Collections.emptyMap()),
             distance.get("double"));
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", true, false, new String[] {"new_index"}, null, null),
+            new FieldCapabilities("distance", "text", true, false, new String[] {"new_index"}, null, null,
+                    Collections.emptyMap()),
             distance.get("text"));
 
         // Check the capabilities for the 'route_length_miles' alias.
@@ -121,31 +135,80 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", true, true),
+            new FieldCapabilities("route_length_miles", "double", true, true, null, null, null, Collections.emptyMap()),
             routeLength.get("double"));
     }
 
     public void testFieldAliasWithWildcard() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("route*")
-            .get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("route*").get();
 
+        assertIndices(response, "old_index", "new_index");
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("route_length_miles"));
     }
 
     public void testFieldAliasFiltering() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields(
-            "secret-soundtrack", "route_length_miles")
-            .get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("secret-soundtrack", "route_length_miles").get();
+        assertIndices(response, "old_index", "new_index");
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("route_length_miles"));
     }
 
     public void testFieldAliasFilteringWithWildcard() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps()
-            .setFields("distance", "secret*")
-            .get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("distance", "secret*").get();
+        assertIndices(response, "old_index", "new_index");
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("distance"));
+    }
+
+    public void testWithUnmapped() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps()
+            .setFields("new_field", "old_field")
+            .setIncludeUnmapped(true)
+            .get();
+        assertIndices(response, "old_index", "new_index");
+
+        assertEquals(2, response.get().size());
+        assertTrue(response.get().containsKey("old_field"));
+
+        Map<String, FieldCapabilities> oldField = response.getField("old_field");
+        assertEquals(2, oldField.size());
+
+        assertTrue(oldField.containsKey("long"));
+        assertEquals(
+            new FieldCapabilities("old_field", "long", true, true, new String[] {"old_index"}, null, null,
+                    Collections.emptyMap()),
+            oldField.get("long"));
+
+        assertTrue(oldField.containsKey("unmapped"));
+        assertEquals(
+            new FieldCapabilities("old_field", "unmapped", false, false, new String[] {"new_index"}, null, null,
+                    Collections.emptyMap()),
+            oldField.get("unmapped"));
+
+        Map<String, FieldCapabilities> newField = response.getField("new_field");
+        assertEquals(1, newField.size());
+
+        assertTrue(newField.containsKey("long"));
+        assertEquals(
+            new FieldCapabilities("new_field", "long", true, true, null, null, null, Collections.emptyMap()),
+            newField.get("long"));
+    }
+
+    public void testWithIndexAlias() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("current").setFields("*").get();
+        assertIndices(response, "new_index");
+
+        FieldCapabilitiesResponse response1 = client().prepareFieldCaps("current", "old_index").setFields("*").get();
+        assertIndices(response1, "old_index", "new_index");
+        FieldCapabilitiesResponse response2 = client().prepareFieldCaps("current", "old_index", "new_index").setFields("*").get();
+        assertEquals(response1, response2);
+    }
+
+    private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
+        assertNotNull(response.getIndices());
+        Arrays.sort(indices);
+        Arrays.sort(response.getIndices());
+        assertArrayEquals(indices, response.getIndices());
     }
 }

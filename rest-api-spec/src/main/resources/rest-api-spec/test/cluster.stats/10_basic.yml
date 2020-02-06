@@ -32,9 +32,6 @@
 
 ---
 "get cluster stats returns cluster_uuid at the top level":
-  - skip:
-      version: " - 6.99.99"
-      reason:  "cluster stats including cluster_uuid at the top level is new in v6.5.0 and higher"
 
   - do:
       cluster.stats: {}
@@ -69,11 +66,74 @@
 
 ---
 "get cluster stats returns discovery types":
-  - skip:
-      version: " - 6.99.99"
-      reason:  "discovery types are added for v7.0.0"
 
   - do:
       cluster.stats: {}
 
   - is_true: nodes.discovery_types
+
+---
+"get cluster stats returns packaging types":
+
+  - skip:
+      version: " - 7.1.99"
+      reason:  "packaging types are added for v7.2.0"
+
+  - do:
+      cluster.stats: {}
+
+  - is_true: nodes.packaging_types
+
+---
+"get cluster stats returns mapping stats":
+
+  - skip:
+      version: " - 7.6.99"
+      reason:  "mapping stats are added for v7.7.0"
+
+  - do:
+      cluster.stats: {}
+
+  - length: { indices.mappings.field_types: 0 }
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+              bar:
+                properties:
+                  quux:
+                    type: integer
+                  baz:
+                    type: keyword
+
+  - do:
+      cluster.stats: {}
+
+  - length: { indices.mappings.field_types: 3 }
+
+  - match: { indices.mappings.field_types.0.name: integer }
+  - match: { indices.mappings.field_types.0.count: 1 }
+  - match: { indices.mappings.field_types.0.index_count: 1 }
+
+  - match: { indices.mappings.field_types.1.name: keyword }
+  - match: { indices.mappings.field_types.1.count: 3 }
+  - match: { indices.mappings.field_types.1.index_count: 2 }
+
+  - match: { indices.mappings.field_types.2.name: object }
+  - match: { indices.mappings.field_types.2.count: 1 }
+  - match: { indices.mappings.field_types.2.index_count: 1 }
+

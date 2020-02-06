@@ -23,10 +23,9 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -44,7 +43,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -77,18 +75,18 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
 
     private final long id;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
-    private final Counter timeEstimateCounter;
+    private final LongSupplier relativeTimeSupplier;
     private SearchType searchType;
     private final Engine.Searcher engineSearcher;
     private final BigArrays bigArrays;
@@ -107,6 +105,7 @@ final class DefaultSearchContext extends SearchContext {
     private ScrollContext scrollContext;
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
+    private boolean seqAndPrimaryTerm = false;
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
@@ -122,9 +121,7 @@ final class DefaultSearchContext extends SearchContext {
     private boolean lowLevelCancellation;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
-    private SearchTask task;
-    private final Version minNodeVersion;
-
+    private SearchShardTask task;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -158,8 +155,8 @@ final class DefaultSearchContext extends SearchContext {
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
-                         IndexShard indexShard, BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout,
-                         FetchPhase fetchPhase, Version minNodeVersion) {
+                         IndexShard indexShard, BigArrays bigArrays, LongSupplier relativeTimeSupplier, TimeValue timeout,
+                         FetchPhase fetchPhase) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -174,20 +171,18 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.clusterService = clusterService;
-        this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
-        this.timeEstimateCounter = timeEstimateCounter;
+        this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
+            engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy());
+        this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
-        this.minNodeVersion = minNodeVersion;
-        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis,
-            shardTarget.getClusterAlias());
-        queryShardContext.setTypes(request.types());
+        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher,
+            request::nowInMillis, shardTarget.getClusterAlias());
         queryBoost = request.indexBoost();
     }
 
     @Override
     public void doClose() {
-        // clear and scope phase we have
-        Releasables.close(searcher, engineSearcher);
+        Releasables.close(engineSearcher);
     }
 
     /**
@@ -260,7 +255,7 @@ final class DefaultSearchContext extends SearchContext {
             try {
                 this.query = searcher.rewrite(query);
             } catch (IOException e) {
-                throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
+                throw new QueryPhaseExecutionException(shardTarget, "Failed to rewrite main query", e);
             }
         }
     }
@@ -268,16 +263,11 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
-        Query typeFilter = createTypeFilter(queryShardContext.getTypes());
-        if (typeFilter != null) {
-            filters.add(typeFilter);
-        }
 
         if (mapperService().hasNested()
-                && typeFilter == null // when a _type filter is set, it will automatically exclude nested docs
                 && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
                 && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
-            filters.add(Queries.newNonNestedFilter(mapperService().getIndexSettings().getIndexVersionCreated()));
+            filters.add(Queries.newNonNestedFilter());
         }
 
         if (aliasFilter != null) {
@@ -285,7 +275,12 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            filters.add(sliceBuilder.toFilter(clusterService, request, queryShardContext, minNodeVersion));
+            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext);
+            if (slicedQuery instanceof MatchNoDocsQuery) {
+                return slicedQuery;
+            } else {
+                filters.add(slicedQuery);
+            }
         }
 
         if (filters.isEmpty()) {
@@ -298,17 +293,6 @@ final class DefaultSearchContext extends SearchContext {
             }
             return builder.build();
         }
-    }
-
-    private Query createTypeFilter(String[] types) {
-        if (types != null && types.length >= 1) {
-            MappedFieldType ft = mapperService().fullName(TypeFieldMapper.NAME);
-            if (ft != null) {
-                // ft might be null if no documents have been indexed yet
-                return ft.termsQuery(Arrays.asList(types), queryShardContext);
-            }
-        }
-        return null;
     }
 
     @Override
@@ -720,6 +704,16 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean seqNoAndPrimaryTerm() {
+        return seqAndPrimaryTerm;
+    }
+
+    @Override
+    public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        this.seqAndPrimaryTerm = seqNoAndPrimaryTerm;
+    }
+
+    @Override
     public int[] docIdsToLoad() {
         return docIdsToLoad;
     }
@@ -793,8 +787,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Counter timeEstimateCounter() {
-        return timeEstimateCounter;
+    public long getRelativeTimeInMillis() {
+        return relativeTimeSupplier.getAsLong();
     }
 
     @Override
@@ -817,12 +811,12 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchTask task) {
+    public void setTask(SearchShardTask task) {
         this.task = task;
     }
 
     @Override
-    public SearchTask getTask() {
+    public SearchShardTask getTask() {
         return task;
     }
 

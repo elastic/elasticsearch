@@ -6,30 +6,27 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ConfigurationFunction;
-import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZonedDateTime;
-import java.util.Objects;
 
-public class CurrentDateTime extends ConfigurationFunction {
+import static org.elasticsearch.xpack.sql.util.DateUtils.getNanoPrecision;
+
+public class CurrentDateTime extends CurrentFunction<ZonedDateTime> {
+
     private final Expression precision;
-    private final ZonedDateTime dateTime;
 
     public CurrentDateTime(Source source, Expression precision, Configuration configuration) {
-        super(source, configuration, DataType.DATE);
+        super(source, configuration, nanoPrecision(configuration.now(), precision), DataTypes.DATETIME);
         this.precision = precision;
-        int p = precision != null ? ((Number) precision.fold()).intValue() : 0;
-        this.dateTime = nanoPrecision(configuration().now(), p);
     }
 
-    @Override
-    public Object fold() {
-        return dateTime;
+    Expression precision() {
+        return precision;
     }
 
     @Override
@@ -37,34 +34,7 @@ public class CurrentDateTime extends ConfigurationFunction {
         return NodeInfo.create(this, CurrentDateTime::new, precision, configuration());
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(dateTime);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        CurrentDateTime other = (CurrentDateTime) obj;
-        return Objects.equals(dateTime, other.dateTime);
-    }
-
-    static ZonedDateTime nanoPrecision(ZonedDateTime zdt, int precision) {
-        if (zdt != null) {
-            int nano = zdt.getNano();
-            if (precision >= 0 && precision < 10) {
-                // remove the remainder
-                nano = nano - nano % (int) Math.pow(10, (9 - precision));
-                return zdt.withNano(nano);
-            }
-        }
-        return zdt;
+    static ZonedDateTime nanoPrecision(ZonedDateTime zdt, Expression precisionExpression) {
+        return zdt.withNano(getNanoPrecision(precisionExpression, zdt.getNano()));
     }
 }

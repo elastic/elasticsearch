@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -29,18 +28,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.Response> {
+public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAction.Response> {
 
     public static final RevertModelSnapshotAction INSTANCE = new RevertModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/revert";
 
     private RevertModelSnapshotAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -48,8 +42,7 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
         public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
         public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
 
-        private static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString((request, snapshotId) -> request.snapshotId = snapshotId, SNAPSHOT_ID);
@@ -72,6 +65,13 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
         private boolean deleteInterveningResults;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            snapshotId = in.readString();
+            deleteInterveningResults = in.readBoolean();
         }
 
         public Request(String jobId, String snapshotId) {
@@ -98,14 +98,6 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            snapshotId = in.readString();
-            deleteInterveningResults = in.readBoolean();
         }
 
         @Override
@@ -157,9 +149,11 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
         private static final ParseField MODEL = new ParseField("model");
         private ModelSnapshot model;
 
-        public Response() {
-
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            model = new ModelSnapshot(in);
         }
+
 
         public Response(ModelSnapshot modelSnapshot) {
             model = modelSnapshot;
@@ -170,22 +164,7 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
-            model = new ModelSnapshot(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             model.writeTo(out);
         }
 

@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -58,15 +59,17 @@ public class Exporters extends AbstractLifecycleComponent {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = Objects.requireNonNull(licenseState);
 
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, getSettings());
+        final List<Setting.AffixSetting<?>> dynamicSettings =
+            getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, dynamicSettings);
         HttpExporter.registerSettingValidators(clusterService);
-        // this ensures, that logging is happening by adding an empty consumer per affix setting
-        for (Setting.AffixSetting<?> affixSetting : getSettings()) {
+        // this ensures that logging is happening by adding an empty consumer per affix setting
+        for (Setting.AffixSetting<?> affixSetting : dynamicSettings) {
             clusterService.getClusterSettings().addAffixUpdateConsumer(affixSetting, (s, o) -> {}, (s, o) -> {});
         }
     }
 
-    private void setExportersSetting(Settings exportersSetting) {
+    public void setExportersSetting(Settings exportersSetting) {
         if (this.lifecycle.started()) {
             Map<String, Exporter> updated = initExporters(exportersSetting);
             closeExporters(logger, this.exporters.getAndSet(updated));
@@ -179,6 +182,14 @@ public class Exporters extends AbstractLifecycleComponent {
         }
 
         final Map<String, Exporter> exporterMap = exporters.get();
+
+        // if no exporters are defined (which is only possible if all are defined explicitly disabled),
+        // then ignore the request immediately
+        if (exporterMap.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+
         final AtomicArray<ExportBulk> accumulatedBulks = new AtomicArray<>(exporterMap.size());
         final CountDown countDown = new CountDown(exporterMap.size());
 
@@ -225,7 +236,7 @@ public class Exporters extends AbstractLifecycleComponent {
         } catch (ExportException e) {
             exceptionRef.set(e);
         } finally {
-            bulk.close(lifecycleState() == Lifecycle.State.STARTED, ActionListener.wrap(r -> {
+            bulk.flush(ActionListener.wrap(r -> {
                 if (exceptionRef.get() == null) {
                     listener.onResponse(null);
                 } else {

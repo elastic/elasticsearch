@@ -19,13 +19,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -34,17 +31,9 @@ import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.After;
 import org.junit.Before;
@@ -55,21 +44,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@TestLogging("org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.action.search:TRACE," +
-    "org.elasticsearch.search:TRACE")
 public class LicensingTests extends SecurityIntegTestCase {
-    public static final String ROLES =
+    private static final String ROLES =
             SecuritySettingsSource.TEST_ROLE + ":\n" +
                     "  cluster: [ all ]\n" +
                     "  indices:\n" +
@@ -92,7 +79,7 @@ public class LicensingTests extends SecurityIntegTestCase {
                     "    - names: 'b'\n" +
                     "      privileges: [all]\n";
 
-    public static final String USERS_ROLES =
+    private static final String USERS_ROLES =
             SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES +
                     "role_a:user_a,user_b\n" +
                     "role_b:user_b\n";
@@ -131,16 +118,9 @@ public class LicensingTests extends SecurityIntegTestCase {
         return super.maxNumberOfNodes() + 1;
     }
 
-    @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
-            .build();
-    }
-
     @Before
-    public void resetLicensing() {
-        enableLicensing();
+    public void resetLicensing() throws Exception {
+        enableLicensing(OperationMode.MISSING);
     }
 
     @After
@@ -149,25 +129,21 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testEnableDisableBehaviour() throws Exception {
-        IndexResponse indexResponse = index("test", "type", jsonBuilder()
+        IndexResponse indexResponse = index("test", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
 
-        indexResponse = index("test1", "type", jsonBuilder()
+        indexResponse = index("test1", jsonBuilder()
                 .startObject()
                 .field("name", "value1")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
-        // wait for all replicas to be started (to make sure that there are no more cluster state updates when we disable licensing)
-        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().routingTable()
-                .shardsWithState(ShardRoutingState.INITIALIZING).isEmpty()));
-
-        Client client = internalCluster().transportClient();
+        final Client client = internalCluster().client();
 
         disableLicensing();
 
@@ -227,86 +203,28 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(authorizedAuthenticateResponse.getStatusLine().getStatusCode(), is(200));
     }
 
-    public void testSecurityActionsByLicenseType() throws Exception {
-        // security actions should not work!
-        Settings settings = internalCluster().transportClient().settings();
-        try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
-            fail("security actions should not be enabled!");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.status(), is(RestStatus.FORBIDDEN));
-            assertThat(e.getMessage(), containsString("non-compliant"));
-        }
-
-        // enable a license that enables security
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
-        enableLicensing(mode);
-        // security actions should work!
-        try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            PutUserResponse response = new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
-            assertNotNull(response);
-        }
-    }
-
-    public void testTransportClientAuthenticationByLicenseType() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put(internalCluster().transportClient().settings());
-        // remove user info
-        builder.remove(SecurityField.USER_SETTING.getKey());
-        builder.remove(ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER);
-
-        // basic has no auth
-        try (TransportClient client = new TestXPackTransportClient(builder.build(), LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            assertGreenClusterState(client);
-        }
-
-        // enable a license that enables security
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
-        enableLicensing(mode);
-
-        try (TransportClient client = new TestXPackTransportClient(builder.build(), LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            client.admin().cluster().prepareHealth().get();
-            fail("should not have been able to connect to a node!");
-        } catch (NoNodeAvailableException e) {
-            // expected
-        }
-    }
-
     public void testNodeJoinWithoutSecurityExplicitlyEnabled() throws Exception {
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
-        ensureGreen();
 
-        final List<String> unicastHostsList = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
+        final List<String> seedHosts = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
             .getNodes().stream().map(n -> n.getTransport().getAddress().publishAddress().toString()).distinct()
             .collect(Collectors.toList());
 
         Path home = createTempDir();
         Path conf = home.resolve("config");
         Files.createDirectories(conf);
-        Settings nodeSettings = Settings.builder()
+        Settings.Builder nodeSettings = Settings.builder()
             .put(nodeSettings(maxNumberOfNodes() - 1).filter(s -> "xpack.security.enabled".equals(s) == false))
             .put("node.name", "my-test-node")
             .put("network.host", "localhost")
             .put("cluster.name", internalCluster().getClusterName())
-            .put("discovery.zen.minimum_master_nodes",
-                internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
             .put("path.home", home)
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
-            .putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey())
-            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), unicastHostsList)
-            .build();
-        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class,
-            MockHttpTransport.TestPlugin.class);
-        try (Node node = new MockNode(nodeSettings, mockPlugins)) {
+            .putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedHosts);
+
+        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, MockHttpTransport.TestPlugin.class);
+        try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
             node.start();
             ensureStableCluster(cluster().size() + 1);
         }
@@ -318,23 +236,50 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(ee.status(), is(RestStatus.FORBIDDEN));
     }
 
-    public static void disableLicensing() {
-        disableLicensing(License.OperationMode.BASIC);
+    private void disableLicensing() throws Exception {
+        // This method first makes sure licensing is enabled everywhere so that we can execute
+        // monitoring actions to ensure we have a stable cluster and only then do we disable.
+        // This is done in an assertBusy since there is a chance that the enabling of the license
+        // is overwritten by some other cluster activity and the node throws an exception while we
+        // wait for things to stabilize!
+        assertBusy(() -> {
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                if (licenseState.isAuthAllowed() == false) {
+                    enableLicensing(OperationMode.BASIC);
+                    break;
+                }
+            }
+
+            ensureGreen();
+            ensureClusterSizeConsistency();
+            ensureClusterStateConsistency();
+
+            // apply the disabling of the license once the cluster is stable
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                licenseState.update(OperationMode.BASIC, false, null);
+            }
+        }, 30L, TimeUnit.SECONDS);
     }
 
-    public static void disableLicensing(License.OperationMode operationMode) {
-        for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false, null);
-        }
-    }
+    private void enableLicensing(License.OperationMode operationMode) throws Exception {
+        // do this in an await busy since there is a chance that the enabling of the license is
+        // overwritten by some other cluster activity and the node throws an exception while we
+        // wait for things to stabilize!
+        assertBusy(() -> {
+            // first update the license so we can execute monitoring actions
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                licenseState.update(operationMode, true, null);
+            }
 
-    public static void enableLicensing() {
-        enableLicensing(License.OperationMode.BASIC);
-    }
+            ensureGreen();
+            ensureClusterSizeConsistency();
+            ensureClusterStateConsistency();
 
-    public static void enableLicensing(License.OperationMode operationMode) {
-        for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true, null);
-        }
+            // re-apply the update in case any node received an updated cluster state that triggered the license state
+            // to change
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                licenseState.update(operationMode, true, null);
+            }
+        }, 30L, TimeUnit.SECONDS);
     }
 }

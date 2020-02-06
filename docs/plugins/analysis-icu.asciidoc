@@ -1,7 +1,7 @@
 [[analysis-icu]]
 === ICU Analysis Plugin
 
-The ICU Analysis plugin integrates the Lucene ICU module into elasticsearch,
+The ICU Analysis plugin integrates the Lucene ICU module into {es},
 adding extended Unicode support using the http://site.icu-project.org/[ICU]
 libraries, including better analysis of Asian languages, Unicode
 normalization, Unicode-aware case folding, collation support, and
@@ -29,7 +29,7 @@ include::install_remove.asciidoc[]
 [[analysis-icu-analyzer]]
 ==== ICU Analyzer
 
-Performs basic normalization, tokenization and character folding, using the
+The `icu_analyzer` analyzer performs basic normalization, tokenization and character folding, using the
 `icu_normalizer` char filter, `icu_tokenizer` and `icu_normalizer` token filter
 
 The following parameters are accepted:
@@ -62,9 +62,9 @@ http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet]
 Here are two examples, the default usage and a customised character filter:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -95,7 +95,6 @@ PUT icu_sample?include_type_name=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfd_normalizer` token filter, which is set to use `nfc` normalization with decomposition.
@@ -110,9 +109,9 @@ but adds better support for some Asian languages by using a dictionary-based
 approach to identify words in Thai, Lao, Chinese, Japanese, and Korean, and
 using custom rules to break Myanmar and Khmer text into syllables.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -127,7 +126,6 @@ PUT icu_sample?include_type_name=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Rules customization
 
@@ -151,9 +149,9 @@ As a demonstration of how the rule files can be used, save the following user fi
 
 Then create an analyzer to use this rule file as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
     "settings": {
         "index":{
@@ -181,11 +179,10 @@ GET icu_sample/_analyze
   "text": "Elasticsearch. Wow!"
 }
 --------------------------------------------------
-// CONSOLE
 
 The above `analyze` request returns the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "tokens": [
@@ -199,7 +196,7 @@ The above `analyze` request returns the following:
    ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-icu-normalization]]
 ==== ICU Normalization Token Filter
@@ -219,9 +216,9 @@ You should probably prefer the <<analysis-icu-normalization-charfilter,Normaliza
 
 Here are two examples, the default usage and a customised token filter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -251,7 +248,6 @@ PUT icu_sample?include_type_name=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfc_normalizer` token filter, which is set to use `nfc` normalization.
@@ -265,9 +261,9 @@ Case folding of Unicode characters based on `UTR#30`, like the
 on steroids. It registers itself as the `icu_folding` token filter and is
 available to all indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -285,7 +281,6 @@ PUT icu_sample?include_type_name=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The ICU folding token filter already does Unicode normalization, so there is
 no need to use Normalize character or token filter as well.
@@ -299,9 +294,9 @@ to note that both upper and lowercase forms should be specified, and that
 these filtered character are not lowercased which is why we add the
 `lowercase` filter as well:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -326,7 +321,6 @@ PUT icu_sample?include_type_name=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[analysis-icu-collation]]
@@ -352,23 +346,21 @@ which is a best-effort attempt at language-neutral sorting.
 Below is an example of how to set up a field for sorting German names in
 ``phonebook'' order:
 
-[source,js]
+[source,console]
 --------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name": {   <1>
-          "type": "text",
-          "fields": {
-            "sort": {  <2>
-              "type": "icu_collation_keyword",
-              "index": false,
-              "language": "de",
-              "country": "DE",
-              "variant": "@collation=phonebook"
-            }
+    "properties": {
+      "name": {   <1>
+        "type": "text",
+        "fields": {
+          "sort": {  <2>
+            "type": "icu_collation_keyword",
+            "index": false,
+            "language": "de",
+            "country": "DE",
+            "variant": "@collation=phonebook"
           }
         }
       }
@@ -376,7 +368,7 @@ PUT my_index?include_type_name=true
   }
 }
 
-GET _search <3>
+GET /my_index/_search <3>
 {
   "query": {
     "match": {
@@ -387,7 +379,6 @@ GET _search <3>
 }
 
 --------------------------
-// CONSOLE
 
 <1> The `name` field uses the `standard` analyzer, and so support full text queries.
 <2> The `name.sort` field is an `icu_collation_keyword` field that will preserve the name as
@@ -414,6 +405,14 @@ The following parameters are accepted by `icu_collation_keyword` fields:
 
     Accepts a string value which is substituted for any explicit `null`
     values.  Defaults to `null`, which means the field is treated as missing.
+
+{ref}/ignore-above.html[`ignore_above`]::
+
+    Strings longer than the `ignore_above` setting will be ignored.
+    Checking is performed on the original string before the collation.
+    The `ignore_above` setting can be updated on existing fields
+    using the {ref}/indices-put-mapping.html[PUT mapping API].
+    By default, there is no limit and all values will be indexed.
 
 `store`::
 
@@ -501,9 +500,9 @@ rulesets are not yet supported.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -546,7 +545,6 @@ GET icu_sample/_analyze
 }
 
 --------------------------------------------------
-// CONSOLE
 
 <1> This transforms transliterates characters to Latin, and separates accents
     from their base characters, removes the accents, and then puts the

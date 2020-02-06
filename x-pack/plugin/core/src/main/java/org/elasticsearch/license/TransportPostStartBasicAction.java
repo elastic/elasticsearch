@@ -14,8 +14,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportPostStartBasicAction extends TransportMasterNodeAction<PostStartBasicRequest, PostStartBasicResponse> {
 
@@ -26,7 +30,7 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
                                          LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PostStartBasicAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PostStartBasicRequest::new);
+                PostStartBasicRequest::new, indexNameExpressionResolver);
         this.licenseService = licenseService;
     }
 
@@ -36,12 +40,12 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
     }
 
     @Override
-    protected PostStartBasicResponse newResponse() {
-        return new PostStartBasicResponse();
+    protected PostStartBasicResponse read(StreamInput in) throws IOException {
+        return new PostStartBasicResponse(in);
     }
 
     @Override
-    protected void masterOperation(PostStartBasicRequest request, ClusterState state,
+    protected void masterOperation(Task task, PostStartBasicRequest request, ClusterState state,
                                    ActionListener<PostStartBasicResponse> listener) throws Exception {
         licenseService.startBasicLicense(request, listener);
     }

@@ -32,8 +32,8 @@ import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid.Bucket;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -44,8 +44,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.PRECISION;
-import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.elasticsearch.geometry.utils.Geohash.PRECISION;
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -61,8 +61,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         return false;
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-            Version.CURRENT);
+    private Version version = VersionUtils.randomIndexCompatibleVersion(random());
 
     static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     static ObjectIntMap<String> multiValuedExpectedDocCountsForGeoHash = null;
@@ -76,7 +75,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
             source = source.field("location", latLon);
         }
         source = source.endObject();
-        return client().prepareIndex(index, "type").setSource(source);
+        return client().prepareIndex(index).setSource(source);
     }
 
     private static IndexRequestBuilder indexCity(String index, String name, String latLon) throws Exception {
@@ -90,7 +89,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(prepareCreate("idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
+                .setMapping("location", "type=geo_point", "city", "type=keyword"));
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = random();
@@ -115,7 +114,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         indexRandom(true, cities);
 
         assertAcked(prepareCreate("multi_valued_idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
+                .setMapping("location", "type=geo_point", "city", "type=keyword"));
 
         cities = new ArrayList<>();
         multiValuedExpectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
@@ -154,12 +153,12 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
             assertSearchResponse(response);
 
-            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
+            GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
             List<? extends Bucket> buckets = geoGrid.getBuckets();
             Object[] propertiesKeys = (Object[]) ((InternalAggregation)geoGrid).getProperty("_key");
             Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)geoGrid).getProperty("_count");
             for (int i = 0; i < buckets.size(); i++) {
-                GeoHashGrid.Bucket cell = buckets.get(i);
+                GeoGrid.Bucket cell = buckets.get(i);
                 String geohash = cell.getKeyAsString();
 
                 long bucketCount = cell.getDocCount();
@@ -185,8 +184,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
             assertSearchResponse(response);
 
-            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
-            for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
+            GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
+            for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {
                 String geohash = cell.getKeyAsString();
 
                 long bucketCount = cell.getDocCount();
@@ -217,8 +216,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
             Filter filter = response.getAggregations().get("filtered");
 
-            GeoHashGrid geoGrid = filter.getAggregations().get("geohashgrid");
-            for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
+            GeoGrid geoGrid = filter.getAggregations().get("geohashgrid");
+            for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {
                 String geohash = cell.getKeyAsString();
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = expectedDocCountsForGeoHash.get(geohash);
@@ -242,7 +241,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
             assertSearchResponse(response);
 
-            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
+            GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
             assertThat(geoGrid.getBuckets().size(), equalTo(0));
         }
 
@@ -259,8 +258,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
             assertSearchResponse(response);
 
-            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
-            for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
+            GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
+            for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {
                 String geohash = cell.getKeyAsString();
 
                 long bucketCount = cell.getDocCount();
@@ -285,10 +284,10 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
             assertSearchResponse(response);
 
-            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
+            GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
             //Check we only have one bucket with the best match for that resolution
             assertThat(geoGrid.getBuckets().size(), equalTo(1));
-            for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
+            for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {
                 String geohash = cell.getKeyAsString();
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = 0;

@@ -21,15 +21,16 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class FieldCapabilitiesRequestTests extends AbstractStreamableTestCase<FieldCapabilitiesRequest> {
+public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCase<FieldCapabilitiesRequest> {
 
     @Override
     protected FieldCapabilitiesRequest createTestInstance() {
@@ -50,12 +51,13 @@ public class FieldCapabilitiesRequestTests extends AbstractStreamableTestCase<Fi
         if (randomBoolean()) {
             request.indicesOptions(randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen());
         }
+        request.includeUnmapped(randomBoolean());
         return request;
     }
 
     @Override
-    protected FieldCapabilitiesRequest createBlankInstance() {
-        return new FieldCapabilitiesRequest();
+    protected Writeable.Reader<FieldCapabilitiesRequest> instanceReader() {
+        return FieldCapabilitiesRequest::new;
     }
 
     @Override
@@ -75,6 +77,7 @@ public class FieldCapabilitiesRequestTests extends AbstractStreamableTestCase<Fi
             request.indicesOptions(indicesOptions);
         });
         mutators.add(request -> request.setMergeResults(!request.isMergeResults()));
+        mutators.add(request -> request.includeUnmapped(!request.includeUnmapped()));
 
         FieldCapabilitiesRequest mutatedInstance = copyInstance(instance);
         Consumer<FieldCapabilitiesRequest> mutator = randomFrom(mutators);

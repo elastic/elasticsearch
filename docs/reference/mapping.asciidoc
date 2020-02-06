@@ -5,7 +5,7 @@
 --
 
 Mapping is the process of defining how a document, and the fields it contains,
-are stored and indexed.  For instance, use mappings to define:
+are stored and indexed. For instance, use mappings to define:
 
 * which string fields should be treated as full text fields.
 * which fields contain numbers, dates, or geolocations.
@@ -20,7 +20,7 @@ are stored and indexed.  For instance, use mappings to define:
 Each index has one _mapping type_ which determines how the document will be
 indexed.
 
-deprecated[6.0.0,See <<removal-of-types>>].
+deprecated::[6.0.0,See <<removal-of-types>>]
 
 A mapping type has:
 
@@ -38,6 +38,7 @@ document.
 
 
 [float]
+[[field-datatypes]]
 == Field datatypes
 
 Each field has a data `type` which can be:
@@ -47,7 +48,7 @@ Each field has a data `type` which can be:
 * a type which supports the hierarchical nature of JSON such as
   <<object,`object`>> or <<nested,`nested`>>.
 * or a specialised type like <<geo-point,`geo_point`>>,
-  <<geo-shape,`geo_shape`>>, or <<search-suggesters-completion,`completion`>>.
+  <<geo-shape,`geo_shape`>>, or <<completion-suggester,`completion`>>.
 
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be <<mapping-index,indexed>> as
@@ -79,6 +80,17 @@ causing a mapping explosion:
 `index.mapping.total_fields.limit`::
     The maximum number of fields in an index. Field and object mappings, as well as
     field aliases count towards this limit. The default value is `1000`.
++
+[IMPORTANT]
+====
+The limit is in place to prevent mappings and searches from becoming too
+large. Higher values can lead to performance degradations and memory issues,
+especially in clusters with a high load or few resources.
+
+If you increase this setting, we recommend you also increase the
+<<search-settings,`indices.query.bool.max_clause_count`>> setting, which
+limits the maximum number of <<query-dsl-bool-query,boolean clauses>> in a query.
+====
 
 `index.mapping.depth.limit`::
     The maximum depth for a field, which is measured as the number of inner
@@ -87,16 +99,18 @@ causing a mapping explosion:
     `2`, etc. The default is `20`.
 
 `index.mapping.nested_fields.limit`::
-    The maximum number of `nested` fields in an index, defaults to `50`.
-    Indexing 1 document with 100 nested fields actually indexes 101 documents
-    as each nested document is indexed as a separate hidden document.
+    The maximum number of distinct `nested` mappings in an index, defaults to `50`.
 
 `index.mapping.nested_objects.limit`::
-    The maximum number of `nested` json objects within a single document across
-    all nested fields, defaults to 10000. Indexing one document with an array of
-    100 objects within a nested field, will actually create 101 documents, as
-    each nested object will be indexed as a separate hidden document.
+    The maximum number of `nested` JSON objects within a single document across
+    all nested types, defaults to 10000.
 
+`index.mapping.field_name_length.limit`::
+    Setting for the maximum length of a field name. The default value is
+    Long.MAX_VALUE (no limit). This setting isn't really something that addresses
+    mappings explosion but might still be useful if you want to limit the field length.
+    It usually shouldn't be necessary to set this setting. The default is okay
+    unless a user starts to add a huge number of fields with really long names.
 
 [float]
 == Dynamic mapping
@@ -116,50 +130,147 @@ You know more about your data than Elasticsearch can guess, so while dynamic
 mapping can be useful to get started, at some point you will want to specify
 your own explicit mappings.
 
-You can create field mappings when you
-<<indices-create-index,create an index>>, and you can add
-fields to an existing index with the <<indices-put-mapping,PUT mapping API>>.
+You can create field mappings when you <<create-mapping,create an index>> and
+<<add-field-mapping,add fields to an existing index>>.
 
 [float]
-== Updating existing field mappings
+[[create-mapping]]
+== Create an index with an explicit mapping
 
-Other than where documented, *existing field mappings cannot be
-updated*. Changing the mapping would mean invalidating already indexed
-documents. Instead, you should create a new index with the correct mappings
-and <<docs-reindex,reindex>> your data into that index. If you only wish
-to rename a field and not change its mappings, it may make sense to introduce
-an <<alias, `alias`>> field.
+You can use the <<indices-create-index,create index>> API to create a new index
+with an explicit mapping.
 
-[float]
-== Example mapping
-
-A mapping could be specified when creating an index, as follows:
-
-[source,js]
----------------------------------------
-PUT my_index?include_type_name=true <1>
+[source,console]
+----
+PUT /my-index
 {
   "mappings": {
-    "_doc": { <2>
-      "properties": { <3>
-        "title":    { "type": "text"  }, <4>
-        "name":     { "type": "text"  }, <4>
-        "age":      { "type": "integer" },  <4>
-        "created":  {
-          "type":   "date", <4>
-          "format": "strict_date_optional_time||epoch_millis"
+    "properties": {
+      "age":    { "type": "integer" },  <1>
+      "email":  { "type": "keyword"  }, <2>
+      "name":   { "type": "text"  }     <3>
+    }
+  }
+}
+----
+
+<1> Creates `age`, an <<number,`integer`>> field
+<2> Creates `email`, a <<keyword,`keyword`>> field
+<3> Creates `name`, a <<text,`text`>> field
+
+[float]
+[[add-field-mapping]]
+== Add a field to an existing mapping
+
+You can use the <<indices-put-mapping, put mapping>> API to add one or more new
+fields to an existing index.
+
+The following example adds `employee-id`, a `keyword` field with an
+<<mapping-index,`index`>> mapping parameter value of `false`. This means values
+for the `employee-id` field are stored but not indexed or available for search.
+
+[source,console]
+----
+PUT /my-index/_mapping
+{
+  "properties": {
+    "employee-id": {
+      "type": "keyword",
+      "index": false
+    }
+  }
+}
+----
+// TEST[continued]
+
+[float]
+[[update-mapping]]
+=== Update the mapping of a field
+
+include::{docdir}/indices/put-mapping.asciidoc[tag=change-field-mapping]
+
+include::{docdir}/indices/put-mapping.asciidoc[tag=rename-field]
+
+[float]
+[[view-mapping]]
+== View the mapping of an index
+
+You can use the <<indices-get-mapping, get mapping>> API to view the mapping of
+an existing index.
+
+[source,console]
+----
+GET /my-index/_mapping
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my-index" : {
+    "mappings" : {
+      "properties" : {
+        "age" : {
+          "type" : "integer"
+        },
+        "email" : {
+          "type" : "keyword"
+        },
+        "employee-id" : {
+          "type" : "keyword",
+          "index" : false
+        },
+        "name" : {
+          "type" : "text"
         }
       }
     }
   }
 }
----------------------------------------
-// CONSOLE
-<1> Create an index called `my_index`.
-<2> Add a mapping type called `doc`.
-<3> Specify fields or _properties_.
-<4> Specify the data `type` and mapping for each field.
+----
 
+
+[float]
+[[view-field-mapping]]
+== View the mapping of specific fields
+
+If you only want to view the mapping of one or more specific fields, you can use
+the <<indices-get-field-mapping, get field mapping>> API.
+
+This is useful if you don't need the complete mapping of an index or your index
+contains a large number of fields.
+
+The following request retrieves the mapping for the `employee-id` field.
+
+[source,console]
+----
+GET /my-index/_mapping/field/employee-id
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my-index" : {
+    "mappings" : {
+      "employee-id" : {
+        "full_name" : "employee-id",
+        "mapping" : {
+          "employee-id" : {
+            "type" : "keyword",
+            "index" : false
+          }
+        }
+      }
+    }
+  }
+}
+
+----
 
 --
 

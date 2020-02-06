@@ -1,5 +1,8 @@
 [[geo-shape]]
-=== Geo-Shape datatype
+=== Geo-shape datatype
+++++
+<titleabbrev>Geo-shape</titleabbrev>
+++++
 
 The `geo_shape` datatype facilitates the indexing of and searching
 with arbitrary geo shapes such as rectangles and polygons. It should be
@@ -21,7 +24,7 @@ type.
 |=======================================================================
 |Option |Description| Default
 
-|`tree |deprecated[6.6, PrefixTrees no longer used] Name of the PrefixTree
+|`tree` |deprecated[6.6, PrefixTrees no longer used] Name of the PrefixTree
 implementation to be used: `geohash` for GeohashPrefixTree and `quadtree`
 for QuadPrefixTree. Note: This parameter is only relevant for `term` and
 `recursive` strategies.
@@ -108,6 +111,8 @@ geo-points containing any more than latitude and longitude (two dimensions) valu
 and reject the whole document.
 | `true`
 
+|`coerce` |If `true` unclosed linear rings in polygons will be automatically closed.
+| `false`
 
 |=======================================================================
 
@@ -126,6 +131,19 @@ this is the default indexing technique prefix trees can still be used by setting
 the `tree` or `strategy` parameters according to the appropriate
 <<geo-shape-mapping-options>>. Note that these parameters are now deprecated
 and will be removed in a future version.
+
+*IMPORTANT NOTES*
+
+The following features are not yet supported with the new indexing approach:
+
+* `geo_shape` query with `MultiPoint` geometry types - Elasticsearch currently prevents searching
+   geo_shape fields with a MultiPoint geometry type to avoid a brute force linear search
+   over each individual point. For now, if this is absolutely needed, this can be achieved
+   using a `bool` query with each individual point.
+
+* `CONTAINS` relation query - when using the new default vector indexing strategy, `geo_shape`
+   queries with `relation` defined as `contains` are supported for indices created with
+   ElasticSearch 7.5.0 or higher.
 
 [[prefix-trees]]
 [float]
@@ -196,22 +214,19 @@ the cell right next to it -- even though the shape is very close to the point.
 [float]
 ===== Example
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /example?include_type_name=true
+PUT /example
 {
     "mappings": {
-        "doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_shape"
-                }
+        "properties": {
+            "location": {
+                "type": "geo_shape"
             }
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 This mapping definition maps the location field to the geo_shape
@@ -279,7 +294,7 @@ differs from many Geospatial APIs (e.g., Google Maps) that generally
 use the colloquial latitude, longitude (Y, X).
 =============================================
 
-[[point]]
+[[geo-point-type]]
 [float]
 ===== http://geojson.org/geojson-spec.html#id2[Point]
 
@@ -287,9 +302,9 @@ A point is a single geographic coordinate, such as the location of a
 building or the current position given by a smartphone's Geolocation
 API. The following is an example of a point in GeoJSON.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "point",
@@ -297,20 +312,19 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a point in WKT:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "POINT (-77.03653 38.897676)"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
+[[geo-linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
 A `linestring` defined by an array of two or more positions. By
@@ -318,9 +332,9 @@ specifying only two points, the `linestring` will represent a straight
 line.  Specifying more than two points creates an arbitrary path. The
 following is an example of a LineString in GeoJSON.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "linestring",
@@ -328,32 +342,31 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a LineString in WKT:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "LINESTRING (-77.03653 38.897676, -77.009051 38.889939)"
 }
 --------------------------------------------------
-// CONSOLE
 
 The above `linestring` would draw a straight line starting at the White
 House to the US Capitol Building.
 
 [float]
+[[geo-polygon]]
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
 points in each (outer) list must be the same (the polygon must be
 closed). The following is an example of a Polygon in GeoJSON.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "polygon",
@@ -363,26 +376,24 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a Polygon in WKT:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))"
 }
 --------------------------------------------------
-// CONSOLE
 
 The first array represents the outer boundary of the polygon, the other
 arrays represent the interior shapes ("holes"). The following is a GeoJSON example
 of a polygon with a hole:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "polygon",
@@ -393,18 +404,16 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a Polygon with a hole in WKT:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2))"
 }
 --------------------------------------------------
-// CONSOLE
 
 *IMPORTANT NOTE:* WKT does not enforce a specific order for vertices thus
 ambiguous polygons around the dateline and poles are possible.
@@ -425,9 +434,9 @@ The following provides an example of an ambiguous polygon.  Elasticsearch will
 apply the GeoJSON standard to eliminate ambiguity resulting in a polygon that
 crosses the dateline.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "polygon",
@@ -438,16 +447,15 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:/mapper_parsing_exception/]
 
 An `orientation` parameter can be defined when setting the geo_shape mapping (see <<geo-shape-mapping-options>>). This will define vertex
 order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document.  The following is an example for
 overriding the orientation on a document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "polygon",
@@ -458,16 +466,16 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
+[[geo-multipoint]]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
 
 The following is an example of a list of geojson points:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "multipoint",
@@ -477,27 +485,26 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a list of WKT points:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "MULTIPOINT (102.0 2.0, 103.0 2.0)"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
+[[geo-multilinestring]]
 ===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
 
 The following is an example of a list of geojson linestrings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "multilinestring",
@@ -509,27 +516,26 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a list of WKT linestrings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "MULTILINESTRING ((102.0 2.0, 103.0 2.0, 103.0 3.0, 102.0 3.0), (100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8))"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
+[[geo-multipolygon]]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "multipolygon",
@@ -541,27 +547,26 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a list of WKT polygons (second polygon contains a hole):
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "MULTIPOLYGON (((102.0 2.0, 103.0 2.0, 103.0 3.0, 102.0 3.0, 102.0 2.0)), ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2)))"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
+[[geo-geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
 The following is an example of a collection of geojson geometry objects:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type": "geometrycollection",
@@ -578,18 +583,16 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of a collection of WKT geometry objects:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "GEOMETRYCOLLECTION (POINT (100.0 0.0), LINESTRING (101.0 0.0, 102.0 1.0))"
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [float]
@@ -597,11 +600,11 @@ POST /example/doc
 
 Elasticsearch supports an `envelope` type, which consists of coordinates
 for upper left and lower right points of the shape to represent a
-bounding rectangle in the format [[minLon, maxLat],[maxLon, minLat]]:
+bounding rectangle in the format `[[minLon, maxLat], [maxLon, minLat]]`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "envelope",
@@ -609,20 +612,18 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following is an example of an envelope using the WKT BBOX format:
 
 *NOTE:* WKT specification expects the following order: minLon, maxLon, maxLat, minLat.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "BBOX (100.0, 102.0, 2.0, 0.0)"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Circle
@@ -633,9 +634,9 @@ be indexed when using the `recursive` Prefix Tree strategy. For
 the default <<geoshape-indexing-approach>> circles should be approximated using
 a `POLYGON`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "circle",
@@ -644,7 +645,6 @@ POST /example/doc
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:not supported in default]
 
 Note: The inner `radius` field is required. If not specified, then

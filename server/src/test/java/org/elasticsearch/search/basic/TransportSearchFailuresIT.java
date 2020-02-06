@@ -52,7 +52,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
 
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        assertAcked(prepareCreate("test", 1).addMapping("type", "foo", "type=geo_point"));
+        assertAcked(prepareCreate("test", 1).setMapping("foo", "type=geo_point"));
 
         NumShards test = getNumShards("test");
 
@@ -86,7 +86,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealth = client()
                 .admin()
                 .cluster()
-                .health(clusterHealthRequest("test").waitForYellowStatus().waitForNoRelocatingShards(true)
+                .health(clusterHealthRequest("test").waitForYellowStatus().waitForNoRelocatingShards(true).waitForEvents(Priority.LANGUID)
                         .waitForActiveShards(test.totalNumShards)).actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
@@ -117,7 +117,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
     }
 
     private void index(Client client, String id, String nameValue, int age) throws IOException {
-        client.index(Requests.indexRequest("test").type("type").id(id).source(source(id, nameValue, age))).actionGet();
+        client.index(Requests.indexRequest("test").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {

@@ -20,9 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.client.migration.IndexUpgradeRequest;
+import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -30,37 +28,16 @@ import java.util.Map;
 
 public class MigrationRequestConvertersTests extends ESTestCase {
 
-    public void testGetMigrationAssistance() {
-        IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
-        String expectedEndpoint = "/_migration/assistance";
-        if (randomBoolean()) {
-            String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
-            upgradeInfoRequest.indices(indices);
-            expectedEndpoint += "/" + String.join(",", indices);
-        }
+    public void testGetDeprecationInfo() {
+        DeprecationInfoRequest deprecationInfoRequest = new DeprecationInfoRequest();
+        String expectedEndpoint = "/_migration/deprecations";
+
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomIndicesOptions(upgradeInfoRequest::indicesOptions, upgradeInfoRequest::indicesOptions,
-            expectedParams);
-        Request request = MigrationRequestConverters.getMigrationAssistance(upgradeInfoRequest);
+        Request request = MigrationRequestConverters.getDeprecationInfo(deprecationInfoRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(expectedEndpoint, request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(expectedParams, request.getParameters());
     }
 
-    public void testUpgradeRequest() {
-        String[] indices = RequestConvertersTests.randomIndicesNames(1, 1);
-        IndexUpgradeRequest upgradeInfoRequest = new IndexUpgradeRequest(indices[0]);
-
-        String expectedEndpoint = "/_migration/upgrade/" + indices[0];
-        Map<String, String> expectedParams = new HashMap<>();
-        expectedParams.put("wait_for_completion", Boolean.TRUE.toString());
-
-        Request request = MigrationRequestConverters.migrate(upgradeInfoRequest);
-
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals(expectedEndpoint, request.getEndpoint());
-        assertNull(request.getEntity());
-        assertEquals(expectedParams, request.getParameters());
-    }
 }

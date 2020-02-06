@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 
-public class SnapshotStats implements Streamable, ToXContentObject {
+public class SnapshotStats implements Writeable, ToXContentObject {
 
     private long startTime;
     private long time;
@@ -44,7 +44,20 @@ public class SnapshotStats implements Streamable, ToXContentObject {
     private long totalSize;
     private long processedSize;
 
-    SnapshotStats() {
+    SnapshotStats() {}
+
+    SnapshotStats(StreamInput in) throws IOException {
+        startTime = in.readVLong();
+        time = in.readVLong();
+
+        incrementalFileCount = in.readVInt();
+        processedFileCount = in.readVInt();
+
+        incrementalSize = in.readVLong();
+        processedSize = in.readVLong();
+
+        totalFileCount = in.readVInt();
+        totalSize = in.readVLong();
     }
 
     SnapshotStats(long startTime, long time,
@@ -52,6 +65,7 @@ public class SnapshotStats implements Streamable, ToXContentObject {
                   long incrementalSize, long totalSize, long processedSize) {
         this.startTime = startTime;
         this.time = time;
+        assert time >= 0 : "Tried to initialize snapshot stats with negative total time [" + time + "]";
         this.incrementalFileCount = incrementalFileCount;
         this.totalFileCount = totalFileCount;
         this.processedFileCount = processedFileCount;
@@ -116,13 +130,6 @@ public class SnapshotStats implements Streamable, ToXContentObject {
         return processedSize;
     }
 
-
-    public static SnapshotStats readSnapshotStats(StreamInput in) throws IOException {
-        SnapshotStats stats = new SnapshotStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(startTime);
@@ -134,30 +141,8 @@ public class SnapshotStats implements Streamable, ToXContentObject {
         out.writeVLong(incrementalSize);
         out.writeVLong(processedSize);
 
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeVInt(totalFileCount);
-            out.writeVLong(totalSize);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        startTime = in.readVLong();
-        time = in.readVLong();
-
-        incrementalFileCount = in.readVInt();
-        processedFileCount = in.readVInt();
-
-        incrementalSize = in.readVLong();
-        processedSize = in.readVLong();
-
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            totalFileCount = in.readVInt();
-            totalSize = in.readVLong();
-        } else {
-            totalFileCount = incrementalFileCount;
-            totalSize = incrementalSize;
-        }
+        out.writeVInt(totalFileCount);
+        out.writeVLong(totalSize);
     }
 
     static final class Fields {
@@ -304,7 +289,12 @@ public class SnapshotStats implements Streamable, ToXContentObject {
             processedSize);
     }
 
-    void add(SnapshotStats stats) {
+    /**
+     * Add stats instance to the total
+     * @param stats Stats instance to add
+     * @param updateTimestamps Whether or not start time and duration should be updated
+     */
+    void add(SnapshotStats stats, boolean updateTimestamps) {
         incrementalFileCount += stats.incrementalFileCount;
         totalFileCount += stats.totalFileCount;
         processedFileCount += stats.processedFileCount;
@@ -317,7 +307,7 @@ public class SnapshotStats implements Streamable, ToXContentObject {
             // First time here
             startTime = stats.startTime;
             time = stats.time;
-        } else {
+        } else if (updateTimestamps) {
             // The time the last snapshot ends
             long endTime = Math.max(startTime + time, stats.startTime + stats.time);
 
@@ -327,6 +317,8 @@ public class SnapshotStats implements Streamable, ToXContentObject {
             // Update duration
             time = endTime - startTime;
         }
+        assert time >= 0
+            : "Update with [" + Strings.toString(stats) + "][" + updateTimestamps + "] resulted in negative total time [" + time + "]";
     }
 
     @Override

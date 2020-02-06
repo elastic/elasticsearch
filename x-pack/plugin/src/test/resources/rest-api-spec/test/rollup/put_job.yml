@@ -6,12 +6,11 @@ setup:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                the_field:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
 
 ---
 "Test basic put_job":
@@ -19,7 +18,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -30,7 +29,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -43,7 +42,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
 
   - match:
@@ -56,7 +55,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:
@@ -79,7 +78,6 @@ setup:
             search_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 
 ---
 "Test put_job with existing name":
@@ -87,7 +85,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -98,7 +96,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -114,7 +112,7 @@ setup:
       catch: /Cannot create rollup job \[foo\] because job was previously created \(existing metadata\)/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -125,7 +123,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -142,10 +140,10 @@ setup:
       indices.create:
         index: non-rollup
   - do:
-      catch: /foo/
+      catch: /Rollup data cannot be added to existing indices that contain non-rollup data/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -156,7 +154,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -172,10 +170,10 @@ setup:
 "Try to include headers":
 
   - do:
-      catch: /unknown field \[headers\], parser not found/
+      catch: /unknown field \[headers\]/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -189,7 +187,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -207,7 +205,7 @@ setup:
       catch: /Could not find a \[numeric\] or \[date\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -218,7 +216,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -236,7 +234,7 @@ setup:
       catch: /Unsupported metric \[does_not_exist\]/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -247,7 +245,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -257,5 +255,88 @@ setup:
               }
             ]
           }
+
+---
+"Test put job with templates":
+
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: foo_*
+          mappings:
+            properties:
+              field:
+                type: keyword
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.get_mapping:
+        index: foo_rollup
+
+  - set: {foo_rollup.mappings._meta.rollup-version: version}
+
+  - match:
+      foo_rollup:
+        mappings:
+          _meta:
+            _rollup:
+              foo:
+                id: "foo"
+                index_pattern: "foo"
+                rollup_index: "foo_rollup"
+                cron: "*/30 * * * * ?"
+                page_size: 10
+                groups :
+                  date_histogram:
+                    calendar_interval: "1h"
+                    field: "the_field"
+                    time_zone: "UTC"
+                metrics:
+                  - field: "value_field"
+                    metrics:
+                     - "min"
+                     - "max"
+                     - "sum"
+                timeout: "20s"
+            rollup-version: $version
+          dynamic_templates:
+            - strings:
+                match_mapping_type: "string"
+                mapping:
+                  type: "keyword"
+            - date_histograms:
+                path_match: "*.date_histogram.timestamp"
+                mapping:
+                  type: "date"
+          properties:
+            field:
+              type: "keyword"
+
 
 

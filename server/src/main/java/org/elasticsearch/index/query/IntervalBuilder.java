@@ -26,20 +26,21 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchesIterator;
-import org.apache.lucene.search.intervals.IntervalIterator;
-import org.apache.lucene.search.intervals.Intervals;
-import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Constructs an IntervalsSource based on analyzed text
@@ -95,7 +96,7 @@ public class IntervalBuilder {
         // formulate a single term, boolean, or phrase.
 
         if (numTokens == 0) {
-            return null;
+            return NO_INTERVALS;
         } else if (numTokens == 1) {
             // single term
             return analyzeTerm(stream);
@@ -143,13 +144,22 @@ public class IntervalBuilder {
     protected List<IntervalsSource> analyzeTerms(TokenStream ts) throws IOException {
         List<IntervalsSource> terms = new ArrayList<>();
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
+        PositionIncrementAttribute posAtt = ts.addAttribute(PositionIncrementAttribute.class);
         ts.reset();
         while (ts.incrementToken()) {
             BytesRef term = bytesAtt.getBytesRef();
-            terms.add(Intervals.term(BytesRef.deepCopyOf(term)));
+            int precedingSpaces = posAtt.getPositionIncrement() - 1;
+            terms.add(extend(Intervals.term(BytesRef.deepCopyOf(term)), precedingSpaces));
         }
         ts.end();
         return terms;
+    }
+
+    public static IntervalsSource extend(IntervalsSource source, int precedingSpaces) {
+        if (precedingSpaces == 0) {
+            return source;
+        }
+        return Intervals.extend(source, precedingSpaces, 0);
     }
 
     protected IntervalsSource analyzeSynonyms(TokenStream ts, int maxGaps, boolean ordered) throws IOException {
@@ -158,23 +168,26 @@ public class IntervalBuilder {
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
         PositionIncrementAttribute posAtt = ts.addAttribute(PositionIncrementAttribute.class);
         ts.reset();
+        int spaces = 0;
         while (ts.incrementToken()) {
-            if (posAtt.getPositionIncrement() == 1) {
+            int posInc = posAtt.getPositionIncrement();
+            if (posInc > 0) {
                 if (synonyms.size() == 1) {
-                    terms.add(synonyms.get(0));
+                    terms.add(extend(synonyms.get(0), spaces));
                 }
                 else if (synonyms.size() > 1) {
-                    terms.add(Intervals.or(synonyms.toArray(new IntervalsSource[0])));
+                    terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
                 }
                 synonyms.clear();
+                spaces = posInc - 1;
             }
             synonyms.add(Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef())));
         }
         if (synonyms.size() == 1) {
-            terms.add(synonyms.get(0));
+            terms.add(extend(synonyms.get(0), spaces));
         }
         else {
-            terms.add(Intervals.or(synonyms.toArray(new IntervalsSource[0])));
+            terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
         }
         return combineSources(terms, maxGaps, ordered);
     }
@@ -218,7 +231,7 @@ public class IntervalBuilder {
         return clauses;
     }
 
-    private static final IntervalsSource NO_INTERVALS = new IntervalsSource() {
+    static final IntervalsSource NO_INTERVALS = new IntervalsSource() {
 
         @Override
         public IntervalIterator intervals(String field, LeafReaderContext ctx) {
@@ -276,8 +289,16 @@ public class IntervalBuilder {
         }
 
         @Override
-        public void extractTerms(String field, Set<Term> terms) {
+        public void visit(String field, QueryVisitor visitor) {}
 
+        @Override
+        public int minExtent() {
+            return 0;
+        }
+
+        @Override
+        public Collection<IntervalsSource> pullUpDisjunctions() {
+            return Collections.emptyList();
         }
 
         @Override

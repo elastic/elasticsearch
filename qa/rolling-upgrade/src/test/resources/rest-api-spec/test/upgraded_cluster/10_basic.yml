@@ -27,10 +27,10 @@
   - do:
       index:
         index: queries
-        type: doc
         id: q4
         refresh: true
         body:
+          id: q4
           query:
             bool:
               minimum_should_match: 2
@@ -58,7 +58,7 @@
         rest_total_hits_as_int: true
         index: queries
         body:
-          sort: _id
+          sort: id
           query:
             percolate:
               field: query
@@ -125,3 +125,5 @@
         wait_for_completion: true
         task_id: $task_id
   - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
+
+

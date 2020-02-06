@@ -26,29 +26,23 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
-import org.joda.time.Instant;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
-import java.util.Locale;
+import java.time.ZoneOffset;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ExtendedBoundsTests extends ESTestCase {
     /**
@@ -66,17 +60,19 @@ public class ExtendedBoundsTests extends ESTestCase {
      * Construct a random {@link ExtendedBounds} in pre-parsed form.
      */
     public static ExtendedBounds randomParsedExtendedBounds() {
+        long maxDateValue = 253402300799999L; // end of year 9999
+        long minDateValue = -377705116800000L; // beginning of year -9999
         if (randomBoolean()) {
             // Construct with one missing bound
             if (randomBoolean()) {
-                return new ExtendedBounds(null, randomLong());
+                return new ExtendedBounds(null, maxDateValue);
             }
-            return new ExtendedBounds(randomLong(), null);
+            return new ExtendedBounds(minDateValue, null);
         }
-        long a = randomLong();
+        long a = randomLongBetween(minDateValue, maxDateValue);
         long b;
         do {
-            b = randomLong();
+            b = randomLongBetween(minDateValue, maxDateValue);
         } while (a == b);
         long min = min(a, b);
         long max = max(a, b);
@@ -88,9 +84,9 @@ public class ExtendedBoundsTests extends ESTestCase {
      */
     public static ExtendedBounds unparsed(ExtendedBounds template) {
         // It'd probably be better to randomize the formatter
-        DateTimeFormatter formatter = ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
-        String minAsStr = template.getMin() == null ? null : formatter.print(new Instant(template.getMin()));
-        String maxAsStr = template.getMax() == null ? null : formatter.print(new Instant(template.getMax()));
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
+        String minAsStr = template.getMin() == null ? null : formatter.formatMillis(template.getMin());
+        String maxAsStr = template.getMax() == null ? null : formatter.formatMillis(template.getMax());
         return new ExtendedBounds(minAsStr, maxAsStr);
     }
 
@@ -98,35 +94,34 @@ public class ExtendedBoundsTests extends ESTestCase {
         long now = randomLong();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        SearchContext context = mock(SearchContext.class);
         QueryShardContext qsc = new QueryShardContext(0,
-                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, xContentRegistry(), writableRegistry(), null, null, () -> now, null);
-        when(context.getQueryShardContext()).thenReturn(qsc);
+                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+                null, null, () -> now, null, null);
         DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
-        DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);
+        DocValueFormat format = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);
 
         ExtendedBounds expected = randomParsedExtendedBounds();
-        ExtendedBounds parsed = unparsed(expected).parseAndValidate("test", context, format);
+        ExtendedBounds parsed = unparsed(expected).parseAndValidate("test", qsc, format);
         // parsed won't *equal* expected because equal includes the String parts
         assertEquals(expected.getMin(), parsed.getMin());
         assertEquals(expected.getMax(), parsed.getMax());
 
-        parsed = new ExtendedBounds("now", null).parseAndValidate("test", context, format);
+        parsed = new ExtendedBounds("now", null).parseAndValidate("test", qsc, format);
         assertEquals(now, (long) parsed.getMin());
         assertNull(parsed.getMax());
 
-        parsed = new ExtendedBounds(null, "now").parseAndValidate("test", context, format);
+        parsed = new ExtendedBounds(null, "now").parseAndValidate("test", qsc, format);
         assertNull(parsed.getMin());
         assertEquals(now, (long) parsed.getMax());
 
-        SearchParseException e = expectThrows(SearchParseException.class,
-                () -> new ExtendedBounds(100L, 90L).parseAndValidate("test", context, format));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new ExtendedBounds(100L, 90L).parseAndValidate("test", qsc, format));
         assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
                 e.getMessage());
 
-        e = expectThrows(SearchParseException.class,
-                () -> unparsed(new ExtendedBounds(100L, 90L)).parseAndValidate("test", context, format));
+        e = expectThrows(IllegalArgumentException.class,
+                () -> unparsed(new ExtendedBounds(100L, 90L)).parseAndValidate("test", qsc, format));
         assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
                 e.getMessage());
     }

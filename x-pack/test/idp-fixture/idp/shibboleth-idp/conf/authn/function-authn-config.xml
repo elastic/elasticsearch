@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                           http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+                           
+       default-init-method="initialize"
+       default-destroy-method="destroy">
+
+    <!--
+    Add authentication flow descriptor's supportedPrincipals collection to the resulting Subject?
+    You would normally only unset this if you plan to return a completely constructed Subject from
+    your authentication function.
+    -->
+    <util:constant id="shibboleth.authn.Function.addDefaultPrincipals" static-field="java.lang.Boolean.TRUE" />
+    
+    <!--
+    The entire flow depends on the execution of a function bean you supply. A pathological script example
+    is below. The function may return a String, Principal, Subject, or a null to signal failure.
+    -->
+    
+    <bean id="shibboleth.authn.Function.ResultLookupStrategy"
+            parent="shibboleth.ContextFunctions.Scripted" factory-method="inlineScript">
+        <constructor-arg>
+            <value>
+            <![CDATA[
+                null;
+            ]]>
+            </value>
+        </constructor-arg>
+    </bean>    
+</beans>

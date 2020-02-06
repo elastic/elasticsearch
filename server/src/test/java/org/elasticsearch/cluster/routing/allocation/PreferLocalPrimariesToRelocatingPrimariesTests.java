@@ -74,8 +74,8 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         clusterState = strategy.reroute(clusterState, "reroute");
 
 
-        while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()) {
-            clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        while (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty() == false) {
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         }
 
         logger.info("remove one of the nodes and apply filter to move everything from another node");
@@ -94,7 +94,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
                 .build();
         clusterState = ClusterState.builder(clusterState).metaData(metaData)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
-        clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
 
         logger.info("[{}] primaries should be still started but [{}] other primaries should be unassigned",
             numberOfShards, numberOfShards);

@@ -6,42 +6,42 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
+import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+
+import static java.util.Map.entry;
 
 public class MultiMatchQuery extends LeafQuery {
 
     private static final Map<String, BiConsumer<MultiMatchQueryBuilder, String>> BUILDER_APPLIERS;
 
     static {
-        HashMap<String, BiConsumer<MultiMatchQueryBuilder, String>> appliers = new HashMap<>(14);
         // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
-        appliers.put("slop", (qb, s) -> qb.slop(Integer.valueOf(s)));
-        // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
-        // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));
-        appliers.put("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s)));
-        appliers.put("cutoff_frequency", (qb, s) -> qb.cutoffFrequency(Float.valueOf(s)));
-        appliers.put("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s)));
-        appliers.put("fuzzy_rewrite", (qb, s) -> qb.fuzzyRewrite(s));
-        appliers.put("minimum_should_match", (qb, s) -> qb.minimumShouldMatch(s));
-        appliers.put("operator", (qb, s) -> qb.operator(Operator.fromString(s)));
-        appliers.put("max_expansions", (qb, s) -> qb.maxExpansions(Integer.valueOf(s)));
-        appliers.put("prefix_length", (qb, s) -> qb.prefixLength(Integer.valueOf(s)));
-        appliers.put("analyzer", (qb, s) -> qb.analyzer(s));
-        appliers.put("type", (qb, s) -> qb.type(s));
-        appliers.put("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s)));
-        appliers.put("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s)));
-        BUILDER_APPLIERS = Collections.unmodifiableMap(appliers);
+        BUILDER_APPLIERS = Map.ofEntries(
+                entry("slop", (qb, s) -> qb.slop(Integer.valueOf(s))),
+                // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
+                // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));
+                entry("analyzer", MultiMatchQueryBuilder::analyzer),
+                entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
+                entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
+                entry("fuzzy_rewrite", MultiMatchQueryBuilder::fuzzyRewrite),
+                entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
+                entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
+                entry("max_expansions", (qb, s) -> qb.maxExpansions(Integer.valueOf(s))),
+                entry("minimum_should_match", MultiMatchQueryBuilder::minimumShouldMatch),
+                entry("operator", (qb, s) -> qb.operator(Operator.fromString(s))),
+                entry("prefix_length", (qb, s) -> qb.prefixLength(Integer.valueOf(s))),
+                entry("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s))),
+                entry("type", MultiMatchQueryBuilder::type));
     }
 
     private final String query;

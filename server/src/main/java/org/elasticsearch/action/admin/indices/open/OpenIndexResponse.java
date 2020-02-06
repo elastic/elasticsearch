@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +39,8 @@ public class OpenIndexResponse extends ShardsAcknowledgedResponse {
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
     }
 
-    public OpenIndexResponse() {
+    public OpenIndexResponse(StreamInput in) throws IOException {
+        super(in, true);
     }
 
     public OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
@@ -48,19 +48,9 @@ public class OpenIndexResponse extends ShardsAcknowledgedResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            readShardsAcknowledged(in);
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            writeShardsAcknowledged(out);
-        }
+        writeShardsAcknowledged(out);
     }
 
     public static OpenIndexResponse fromXContent(XContentParser parser) {

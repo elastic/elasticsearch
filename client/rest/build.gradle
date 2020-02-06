@@ -22,8 +22,8 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
-targetCompatibility = JavaVersion.VERSION_1_7
-sourceCompatibility = JavaVersion.VERSION_1_7
+targetCompatibility = JavaVersion.VERSION_1_8
+sourceCompatibility = JavaVersion.VERSION_1_8
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-client'
@@ -44,17 +44,17 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
-  testCompile "org.elasticsearch.client:test:${version}"
+  testCompile project(":client:test")
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
   testCompile "org.elasticsearch:securemock:${versions.securemock}"
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
 tasks.withType(CheckForbiddenApis) {
   //client does not depend on server, so only jdk and http signatures should be checked
-  replaceSignatureFiles ('jdk-signatures', 'http-signatures')
+  replaceSignatureFiles('jdk-signatures', 'http-signatures')
 }
 
 forbiddenPatterns {
@@ -68,14 +68,8 @@ forbiddenApisTest {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:core
-jarHell.enabled=false
-
-namingConventions {
-  testClass = 'org.elasticsearch.client.RestClientTestCase'
-  //we don't have integration tests
-  skipIntegTestInDisguise = true
-}
+// TODO: Not anymore. Now in :libs:elasticsearch-core
+jarHell.enabled = false
 
 testingConventions {
   naming.clear()
@@ -86,7 +80,7 @@ testingConventions {
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',

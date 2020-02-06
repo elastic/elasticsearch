@@ -21,11 +21,8 @@ package org.elasticsearch.test.disruption;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -50,7 +47,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.ESTestCase.copyWriteable;
-import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 
 public abstract class DisruptableMockTransport extends MockTransport {
     private final DiscoveryNode localNode;
@@ -67,16 +63,6 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
     protected abstract void execute(Runnable runnable);
 
-    protected final void execute(String action, Runnable runnable) {
-        // handshake needs to run inline as the caller blockingly waits on the result
-        if (action.equals(HANDSHAKE_ACTION_NAME)) {
-            runnable.run();
-        } else {
-
-            execute(runnable);
-        }
-    }
-
     public DiscoveryNode getLocalNode() {
         return localNode;
     }
@@ -89,24 +75,30 @@ public abstract class DisruptableMockTransport extends MockTransport {
     }
 
     @Override
-    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
-        final Optional<DisruptableMockTransport> matchingTransport = getDisruptableMockTransport(node.getAddress());
-        if (matchingTransport.isPresent()) {
-            listener.onResponse(new CloseableConnection() {
-                @Override
-                public DiscoveryNode getNode() {
-                    return node;
-                }
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        final Optional<DisruptableMockTransport> optionalMatchingTransport = getDisruptableMockTransport(node.getAddress());
+        if (optionalMatchingTransport.isPresent()) {
+            final DisruptableMockTransport matchingTransport = optionalMatchingTransport.get();
+            final ConnectionStatus connectionStatus = getConnectionStatus(matchingTransport.getLocalNode());
+            if (connectionStatus != ConnectionStatus.CONNECTED) {
+                listener.onFailure(
+                    new ConnectTransportException(node, "node [" + node + "] is [" + connectionStatus + "] not [CONNECTED]"));
+            } else {
+                listener.onResponse(new CloseableConnection() {
+                    @Override
+                    public DiscoveryNode getNode() {
+                        return node;
+                    }
 
-                @Override
-                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                    throws TransportException {
-                    onSendRequest(requestId, action, request, matchingTransport.get());
-                }
-            });
-            return () -> {};
+                    @Override
+                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                        throws TransportException {
+                        onSendRequest(requestId, action, request, matchingTransport);
+                    }
+                });
+            }
         } else {
-            throw new ConnectTransportException(node, "node " + node + " does not exist");
+            listener.onFailure(new ConnectTransportException(node, "node " + node + " does not exist"));
         }
     }
 
@@ -116,11 +108,13 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false :
             "non-local message from " + getLocalNode() + " to itself";
 
-        execute(action, new Runnable() {
+        destinationTransport.execute(new Runnable() {
             @Override
             public void run() {
-                switch (getConnectionStatus(destinationTransport.getLocalNode())) {
+                final ConnectionStatus connectionStatus = getConnectionStatus(destinationTransport.getLocalNode());
+                switch (connectionStatus) {
                     case BLACK_HOLE:
+                    case BLACK_HOLE_REQUESTS_ONLY:
                         onBlackholedDuringSend(requestId, action, destinationTransport);
                         break;
 
@@ -131,6 +125,9 @@ public abstract class DisruptableMockTransport extends MockTransport {
                     case CONNECTED:
                         onConnectedDuringSend(requestId, action, request, destinationTransport);
                         break;
+
+                    default:
+                        throw new AssertionError("unexpected status: " + connectionStatus);
                 }
             }
 
@@ -161,18 +158,11 @@ public abstract class DisruptableMockTransport extends MockTransport {
     }
 
     protected void onBlackholedDuringSend(long requestId, String action, DisruptableMockTransport destinationTransport) {
-        if (action.equals(HANDSHAKE_ACTION_NAME)) {
-            logger.trace("ignoring blackhole and delivering {}",
-                getRequestDescription(requestId, action, destinationTransport.getLocalNode()));
-            // handshakes always have a timeout, and are sent in a blocking fashion, so we must respond with an exception.
-            destinationTransport.execute(action, getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
-        } else {
-            logger.trace("dropping {}", getRequestDescription(requestId, action, destinationTransport.getLocalNode()));
-        }
+        logger.trace("dropping {}", getRequestDescription(requestId, action, destinationTransport.getLocalNode()));
     }
 
     protected void onDisconnectedDuringSend(long requestId, String action, DisruptableMockTransport destinationTransport) {
-        destinationTransport.execute(action, getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
+        destinationTransport.execute(getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
     }
 
     protected void onConnectedDuringSend(long requestId, String action, TransportRequest request,
@@ -197,14 +187,23 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public void sendResponse(final TransportResponse response) {
-                execute(action, new Runnable() {
+                execute(new Runnable() {
                     @Override
                     public void run() {
-                        if (destinationTransport.getConnectionStatus(getLocalNode()) != ConnectionStatus.CONNECTED) {
-                            logger.trace("dropping response to {}: channel is not CONNECTED",
-                                requestDescription);
-                        } else {
-                            handleResponse(requestId, response);
+                        final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
+                        switch (connectionStatus) {
+                            case CONNECTED:
+                            case BLACK_HOLE_REQUESTS_ONLY:
+                                handleResponse(requestId, response);
+                                break;
+
+                            case BLACK_HOLE:
+                            case DISCONNECTED:
+                                logger.trace("dropping response to {}: channel is {}", requestDescription, connectionStatus);
+                                break;
+
+                            default:
+                                throw new AssertionError("unexpected status: " + connectionStatus);
                         }
                     }
 
@@ -217,14 +216,24 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public void sendResponse(Exception exception) {
-                execute(action, new Runnable() {
+
+                execute(new Runnable() {
                     @Override
                     public void run() {
-                        if (destinationTransport.getConnectionStatus(getLocalNode()) != ConnectionStatus.CONNECTED) {
-                            logger.trace("dropping response to {}: channel is not CONNECTED",
-                                requestDescription);
-                        } else {
-                            handleRemoteError(requestId, exception);
+                        final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
+                        switch (connectionStatus) {
+                            case CONNECTED:
+                            case BLACK_HOLE_REQUESTS_ONLY:
+                                handleRemoteError(requestId, exception);
+                                break;
+
+                            case BLACK_HOLE:
+                            case DISCONNECTED:
+                                logger.trace("dropping exception response to {}: channel is {}", requestDescription, connectionStatus);
+                                break;
+
+                            default:
+                                throw new AssertionError("unexpected status: " + connectionStatus);
                         }
                     }
 
@@ -254,13 +263,29 @@ public abstract class DisruptableMockTransport extends MockTransport {
         }
     }
 
-    private NamedWriteableRegistry writeableRegistry() {
-        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-    }
-
+    /**
+     * Response type from {@link DisruptableMockTransport#getConnectionStatus(DiscoveryNode)} indicating whether, and how, messages should
+     * be disrupted on this transport.
+     */
     public enum ConnectionStatus {
+        /**
+         * No disruption: deliver messages normally.
+         */
         CONNECTED,
-        DISCONNECTED, // network requests to or from this node throw a ConnectTransportException
-        BLACK_HOLE // network traffic to or from the corresponding node is silently discarded
+
+        /**
+         * Simulate disconnection: inbound and outbound messages throw a {@link ConnectTransportException}.
+         */
+        DISCONNECTED,
+
+        /**
+         * Simulate a blackhole partition: inbound and outbound messages are silently discarded.
+         */
+        BLACK_HOLE,
+
+        /**
+         * Simulate an asymmetric partition: outbound messages are silently discarded, but inbound messages are delivered normally.
+         */
+        BLACK_HOLE_REQUESTS_ONLY
     }
 }

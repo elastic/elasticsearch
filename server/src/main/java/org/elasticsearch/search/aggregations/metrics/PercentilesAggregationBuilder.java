@@ -25,18 +25,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,13 +43,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric, PercentilesAggregationBuilder> {
+public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, PercentilesAggregationBuilder> {
     public static final String NAME = Percentiles.TYPE_NAME;
 
     private static final double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
     public static final ParseField PERCENTS_FIELD = new ParseField("percents");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
-    public static final ParseField METHOD_FIELD = new ParseField("method");
     public static final ParseField COMPRESSION_FIELD = new ParseField("compression");
     public static final ParseField NUMBER_SIGNIFICANT_DIGITS_FIELD = new ParseField("number_of_significant_value_digits");
 
@@ -79,7 +77,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     private static final ObjectParser<InternalBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(PercentilesAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
 
         PARSER.declareDoubleArray(
                 (b, v) -> b.percentiles(v.stream().mapToDouble(Double::doubleValue).toArray()),
@@ -132,7 +130,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     private boolean keyed = true;
 
     public PercentilesAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,
@@ -154,7 +152,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
      * Read from a stream.
      */
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();
@@ -263,15 +261,17 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                    ValuesSourceConfig<ValuesSource> config,
+                                                                    AggregatorFactory parent,
+                                                                    Builder subFactoriesBuilder) throws IOException {
         switch (method) {
         case TDIGEST:
-            return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, context, parent,
+            return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, queryShardContext, parent,
                     subFactoriesBuilder, metaData);
         case HDR:
-            return new HDRPercentilesAggregatorFactory(name, config, percents, numberOfSignificantValueDigits, keyed, context, parent,
-                    subFactoriesBuilder, metaData);
+            return new HDRPercentilesAggregatorFactory(name, config, percents,
+                numberOfSignificantValueDigits, keyed, queryShardContext, parent, subFactoriesBuilder, metaData);
         default:
             throw new IllegalStateException("Illegal method [" + method + "]");
         }
@@ -292,35 +292,39 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         PercentilesAggregationBuilder other = (PercentilesAggregationBuilder) obj;
-        if (!Objects.equals(method, other.method)) {
+        if (Objects.equals(method, other.method) == false) {
             return false;
         }
         boolean equalSettings = false;
         switch (method) {
-        case HDR:
-            equalSettings = Objects.equals(numberOfSignificantValueDigits, other.numberOfSignificantValueDigits);
-            break;
-        case TDIGEST:
-            equalSettings = Objects.equals(compression, other.compression);
-            break;
-        default:
-            throw new IllegalStateException("Illegal method [" + method.toString() + "]");
+            case HDR:
+                equalSettings = Objects.equals(numberOfSignificantValueDigits, other.numberOfSignificantValueDigits);
+                break;
+            case TDIGEST:
+                equalSettings = Objects.equals(compression, other.compression);
+                break;
+            default:
+                throw new IllegalStateException("Illegal method [" + method.toString() + "]");
         }
         return equalSettings
-                && Objects.deepEquals(percents, other.percents)
-                && Objects.equals(keyed, other.keyed)
-                && Objects.equals(method, other.method);
+            && Objects.deepEquals(percents, other.percents)
+            && Objects.equals(keyed, other.keyed)
+            && Objects.equals(method, other.method);
     }
 
     @Override
-    protected int innerHashCode() {
+    public int hashCode() {
         switch (method) {
         case HDR:
-            return Objects.hash(Arrays.hashCode(percents), keyed, numberOfSignificantValueDigits, method);
+            return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed, numberOfSignificantValueDigits, method);
         case TDIGEST:
-            return Objects.hash(Arrays.hashCode(percents), keyed, compression, method);
+            return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed, compression, method);
         default:
             throw new IllegalStateException("Illegal method [" + method.toString() + "]");
         }

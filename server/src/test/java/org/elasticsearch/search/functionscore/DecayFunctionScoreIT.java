@@ -79,21 +79,18 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     private final QueryBuilder baseQuery = constantScoreQuery(termQuery("test", "value"));
 
     public void testDistanceScoreGeoLinGaussExp() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(client().prepareIndex()
-                .setType("type1")
                 .setId("1")
                 .setIndex("test")
                 .setSource(
                         jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 10).field("lon", 20).endObject()
                                 .endObject()));
         indexBuilders.add(client().prepareIndex()
-                .setType("type1")
                 .setId("2")
                 .setIndex("test")
                 .setSource(
@@ -103,7 +100,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         int numDummyDocs = 20;
         for (int i = 1; i <= numDummyDocs; i++) {
             indexBuilders.add(client().prepareIndex()
-                    .setType("type1")
                     .setId(Integer.toString(i + 3))
                     .setIndex("test")
                     .setSource(
@@ -176,22 +172,21 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testDistanceScoreGeoLinGaussExpWithOffset() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
 
         // add tw docs within offset
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
-        indexBuilders.add(client().prepareIndex().setType("type1").setId("1").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setId("1").setIndex("test")
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 0.5).endObject()));
-        indexBuilders.add(client().prepareIndex().setType("type1").setId("2").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setId("2").setIndex("test")
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.7).endObject()));
 
         // add docs outside offset
         int numDummyDocs = 20;
         for (int i = 0; i < numDummyDocs; i++) {
-            indexBuilders.add(client().prepareIndex().setType("type1").setId(Integer.toString(i + 3)).setIndex("test")
+            indexBuilders.add(client().prepareIndex().setId(Integer.toString(i + 3)).setIndex("test")
                     .setSource(jsonBuilder().startObject().field("test", "value").field("num", 3.0 + i).endObject()));
         }
 
@@ -251,11 +246,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testBoostModeSettingWorks() throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).build();
         assertAcked(prepareCreate("test").setSettings(settings)
-            .addMapping(
-                "type1",
+            .setMapping(
                 jsonBuilder()
                     .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                             .startObject("properties")
                                 .startObject("test").field("type", "text").endObject()
                                 .startObject("loc").field("type", "geo_point").endObject()
@@ -265,14 +259,12 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(client().prepareIndex()
-                .setType("type1")
                 .setId("1")
                 .setIndex("test")
                 .setSource(
                         jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 21)
                                 .endObject().endObject()));
         indexBuilders.add(client().prepareIndex()
-                .setType("type1")
                 .setId("2")
                 .setIndex("test")
                 .setSource(
@@ -320,13 +312,11 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testParseGeoPoint() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
 
         client().prepareIndex()
-                .setType("type1")
                 .setId("1")
                 .setIndex("test")
                 .setSource(
@@ -365,12 +355,11 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testCombineModes() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
 
-        client().prepareIndex().setType("type1").setId("1").setIndex("test").setRefreshPolicy(IMMEDIATE)
+        client().prepareIndex().setId("1").setIndex("test").setRefreshPolicy(IMMEDIATE)
                 .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject()).get();
         FunctionScoreQueryBuilder baseQuery = functionScoreQuery(constantScoreQuery(termQuery("test", "value")),
                 ScoreFunctionBuilders.weightFactorFunction(2));
@@ -445,15 +434,14 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testExceptionThrownIfScaleLE0() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
         client().index(
-                indexRequest("test").type("type1").id("1")
+                indexRequest("test").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("2")
+                indexRequest("test").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-28").endObject())).actionGet();
         refresh();
 
@@ -470,10 +458,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testParseDateMath() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
+        assertAcked(prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
+                    .startObject("_doc")
                         .startObject("properties")
                             .startObject("test")
                                 .field("type", "text")
@@ -485,10 +472,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                 .endObject()));
-        client().index(indexRequest("test").type("type1").id("1")
+        client().index(indexRequest("test").id("1")
                 .source(jsonBuilder().startObject().field("test", "value").field("num1", System.currentTimeMillis()).endObject()))
                 .actionGet();
-        client().index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("test", "value")
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("test", "value")
                 .field("num1", System.currentTimeMillis() - (1000 * 60 * 60 * 24)).endObject())).actionGet();
         refresh();
 
@@ -511,27 +498,26 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testValueMissingLin() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().startObject("num2").field("type", "double")
                         .endObject().endObject().endObject().endObject())
         );
 
 
         client().index(
-                indexRequest("test").type("type1").id("1")
+                indexRequest("test").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").field("num2", "1.0")
                                 .endObject())).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("2")
+                indexRequest("test").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num2", "1.0").endObject())).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("3")
+                indexRequest("test").id("3")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-30").field("num2", "1.0")
                                 .endObject())).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("4")
+                indexRequest("test").id("4")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-30").endObject())).actionGet();
 
         refresh();
@@ -561,28 +547,27 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testDateWithoutOrigin() throws Exception {
         ZonedDateTime dt = ZonedDateTime.now(ZoneOffset.UTC);
 
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
 
         ZonedDateTime docDate = dt.minusDays(1);
         String docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthValue()) + "-"
                 + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
-                indexRequest("test").type("type1").id("1")
+                indexRequest("test").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
         docDate = dt.minusDays(2);
         docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthValue()) + "-"
                 + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
-                indexRequest("test").type("type1").id("2")
+                indexRequest("test").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
         docDate = dt.minusDays(3);
         docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthValue()) + "-"
                 + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
-                indexRequest("test").type("type1").id("3")
+                indexRequest("test").id("3")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
 
         refresh();
@@ -610,15 +595,15 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testManyDocsLin() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("type").startObject("properties")
+        XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("test").field("type", "text").endObject().startObject("date").field("type", "date")
                 .field("doc_values", true).endObject().startObject("num").field("type", "double")
                 .field("doc_values", true).endObject().startObject("geo").field("type", "geo_point")
                 .field("ignore_malformed", true);
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", xContentBuilder));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         int numDocs = 200;
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
@@ -630,7 +615,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             String date = "2013-05-" + dayString;
 
             indexBuilders.add(client().prepareIndex()
-                    .setType("type")
                     .setId(Integer.toString(i))
                     .setIndex("test")
                     .setSource(
@@ -664,13 +648,12 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testParsingExceptionIfFieldDoesNotExist() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         int numDocs = 2;
         client().index(
-                indexRequest("test").type("type").source(
+                indexRequest("test").source(
                         jsonBuilder().startObject().field("test", "value").startObject("geo").field("lat", 1).field("lon", 2).endObject()
                                 .endObject())).actionGet();
         refresh();
@@ -692,12 +675,11 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testParsingExceptionIfFieldTypeDoesNotMatch() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "text").endObject().endObject().endObject().endObject()));
         client().index(
-                indexRequest("test").type("type").source(
+                indexRequest("test").source(
                         jsonBuilder().startObject().field("test", "value").field("num", Integer.toString(1)).endObject())).actionGet();
         refresh();
         // so, we indexed a string field, but now we try to score a num field
@@ -713,12 +695,11 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testNoQueryGiven() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         client().index(
-                indexRequest("test").type("type").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
+                indexRequest("test").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
                 .actionGet();
         refresh();
         // so, we indexed a string field, but now we try to score a num field
@@ -731,10 +712,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testMultiFieldOptions() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
+        assertAcked(prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
+                    .startObject("_doc")
                         .startObject("properties")
                             .startObject("test").field("type", "text").endObject()
                             .startObject("loc").field("type", "geo_point").endObject()
@@ -744,7 +724,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 .endObject()));
 
         // Index for testing MIN and MAX
-        IndexRequestBuilder doc1 = client().prepareIndex().setType("type1").setId("1").setIndex("test")
+        IndexRequestBuilder doc1 = client().prepareIndex().setId("1").setIndex("test")
                 .setSource(jsonBuilder().startObject()
                         .field("test", "value")
                         .startArray("loc")
@@ -753,7 +733,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         .endArray()
                     .endObject());
         IndexRequestBuilder doc2 = client().prepareIndex()
-                .setType("type1")
                 .setId("2")
                 .setIndex("test")
                 .setSource(
@@ -793,14 +772,12 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         // Now test AVG and SUM
 
         doc1 = client().prepareIndex()
-                .setType("type1")
                 .setId("1")
                 .setIndex("test")
                 .setSource(
                         jsonBuilder().startObject().field("test", "value").startArray("num").value(0.0).value(1.0).value(2.0).endArray()
                                 .endObject());
         doc2 = client().prepareIndex()
-                .setType("type1")
                 .setId("2")
                 .setIndex("test")
                 .setSource(

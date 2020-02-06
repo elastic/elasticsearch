@@ -26,18 +26,19 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeDate;
-import static org.joda.time.DateTimeZone.UTC;
 
 /**
  * Performs the watch de/activation operation.
@@ -50,9 +51,9 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
 
     @Inject
     public TransportActivateWatchAction(TransportService transportService, ActionFilters actionFilters,
-                                        Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
+                                        ClockHolder clockHolder, XPackLicenseState licenseState, WatchParser parser, Client client) {
         super(ActivateWatchAction.NAME, transportService, actionFilters, licenseState, ActivateWatchRequest::new);
-        this.clock = clock;
+        this.clock = clockHolder.clock;
         this.parser = parser;
         this.client = client;
     }
@@ -60,8 +61,8 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     @Override
     protected void doExecute(ActivateWatchRequest request, ActionListener<ActivateWatchResponse> listener) {
         try {
-            DateTime now = new DateTime(clock.millis(), UTC);
-            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
+            ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
+            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getWatchId());
             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             XContentBuilder builder = activateWatchBuilder(request.isActivate(), now);
             updateRequest.doc(builder);
@@ -72,15 +73,14 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
 
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
-                GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
+                GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId())
                         .preference(Preference.LOCAL.type()).realtime(true);
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
                         ActionListener.<GetResponse>wrap(getResponse -> {
                             if (getResponse.isExists()) {
                                 Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(), now,
-                                        XContentType.JSON);
-                                watch.version(getResponse.getVersion());
+                                        XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
                                 watch.status().version(getResponse.getVersion());
                                 listener.onResponse(new ActivateWatchResponse(watch.status()));
                             } else {
@@ -94,7 +94,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
         }
     }
 
-    private XContentBuilder activateWatchBuilder(boolean active, DateTime now) throws IOException {
+    private XContentBuilder activateWatchBuilder(boolean active, ZonedDateTime now) throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject()
                     .startObject(WatchField.STATUS.getPreferredName())

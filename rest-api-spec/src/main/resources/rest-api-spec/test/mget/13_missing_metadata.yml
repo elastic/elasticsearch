@@ -1,13 +1,10 @@
 ---
 "Missing metadata":
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
   - do:
       index:
           index:  test_1
-          type:   _doc
           id:     1
           body:   { foo: bar }
 
@@ -44,7 +41,6 @@
 
   - is_true: docs.0.found
   - match: { docs.0._index:     test_1      }
-  - match: { docs.0._type:      _doc        }
   - match: { docs.0._id:        "1"         }
   - match: { docs.0._version:   1           }
   - match: { docs.0._source:    { foo: bar }}

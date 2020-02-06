@@ -95,15 +95,24 @@ public final class MessageDigests {
      * @return a hex representation of the input as a String.
      */
     public static String toHexString(byte[] bytes) {
-        Objects.requireNonNull(bytes);
-        StringBuilder sb = new StringBuilder(2 * bytes.length);
+        return new String(toHexCharArray(bytes));
+    }
 
+    /**
+     * Encodes the byte array into a newly created hex char array, without allocating any other temporary variables.
+     *
+     * @param bytes the input to be encoded as hex.
+     * @return the hex encoding of the input as a char array.
+     */
+    public static char[] toHexCharArray(byte[] bytes) {
+        Objects.requireNonNull(bytes);
+        final char[] result = new char[2 * bytes.length];
         for (int i = 0; i < bytes.length; i++) {
             byte b = bytes[i];
-            sb.append(HEX_DIGITS[b >> 4 & 0xf]).append(HEX_DIGITS[b & 0xf]);
+            result[2 * i] = HEX_DIGITS[b >> 4 & 0xf];
+            result[2 * i + 1] = HEX_DIGITS[b & 0xf];
         }
-
-        return sb.toString();
+        return result;
     }
 
 }

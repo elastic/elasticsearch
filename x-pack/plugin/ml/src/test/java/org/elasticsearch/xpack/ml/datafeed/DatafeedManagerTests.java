@@ -20,10 +20,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
@@ -33,14 +33,11 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedActionTests;
-import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -48,7 +45,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -74,7 +71,7 @@ public class DatafeedManagerTests extends ESTestCase {
     private DatafeedJob datafeedJob;
     private DatafeedManager datafeedManager;
     private long currentTime = 120000;
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
     private ArgumentCaptor<ClusterStateListener> capturedClusterStateListener = ArgumentCaptor.forClass(ClusterStateListener.class);
     private AtomicBoolean hasOpenAutodetectCommunicator;
 
@@ -97,24 +94,18 @@ public class DatafeedManagerTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(cs.build());
 
-
-        ArgumentCaptor<XContentBuilder> argumentCaptor = ArgumentCaptor.forClass(XContentBuilder.class);
-        Client client = new MockClientBuilder("foo")
-                .prepareIndex(AuditorField.NOTIFICATIONS_INDEX, AuditMessage.TYPE.getPreferredName(), "responseId", argumentCaptor)
-                .build();
-
         DiscoveryNode dNode = mock(DiscoveryNode.class);
         when(dNode.getName()).thenReturn("this_node_has_a_name");
         when(clusterService.localNode()).thenReturn(dNode);
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
 
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
-            return null;
+            return mock(Future.class);
         }).when(executorService).submit(any(Runnable.class));
         when(threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME)).thenReturn(executorService);
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
@@ -123,6 +114,7 @@ public class DatafeedManagerTests extends ESTestCase {
         when(datafeedJob.isRunning()).thenReturn(true);
         when(datafeedJob.stop()).thenReturn(true);
         when(datafeedJob.getJobId()).thenReturn(job.getId());
+        when(datafeedJob.getMaxEmptySearches()).thenReturn(null);
         DatafeedJobBuilder datafeedJobBuilder = mock(DatafeedJobBuilder.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
@@ -135,14 +127,14 @@ public class DatafeedManagerTests extends ESTestCase {
         AutodetectProcessManager autodetectProcessManager = mock(AutodetectProcessManager.class);
         doAnswer(invocation -> hasOpenAutodetectCommunicator.get()).when(autodetectProcessManager).hasOpenAutodetectCommunicator(anyLong());
 
-        datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder, () -> currentTime, auditor,
-            autodetectProcessManager);
+        datafeedManager = new DatafeedManager(threadPool, mock(Client.class), clusterService, datafeedJobBuilder,
+                () -> currentTime, auditor, autodetectProcessManager);
 
         verify(clusterService).addListener(capturedClusterStateListener.capture());
     }
 
     public void testLookbackOnly_WarnsWhenNoDataIsRetrieved() throws Exception {
-        when(datafeedJob.runLookBack(0L, 60000L)).thenThrow(new DatafeedJob.EmptyDataCountException(0L));
+        when(datafeedJob.runLookBack(0L, 60000L)).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));
         Consumer<Exception> handler = mockConsumer();
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedManager.run(task, handler);
@@ -178,21 +170,21 @@ public class DatafeedManagerTests extends ESTestCase {
         int[] counter = new int[] {0};
         doAnswer(invocationOnMock -> {
             if (counter[0]++ < 10) {
-                Runnable r = (Runnable) invocationOnMock.getArguments()[2];
+                Runnable r = (Runnable) invocationOnMock.getArguments()[0];
                 currentTime += 600000;
                 r.run();
             }
-            return mock(ScheduledFuture.class);
+            return mock(Scheduler.ScheduledCancellable.class);
         }).when(threadPool).schedule(any(), any(), any());
 
-        when(datafeedJob.runLookBack(anyLong(), anyLong())).thenThrow(new DatafeedJob.EmptyDataCountException(0L));
-        when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.EmptyDataCountException(0L));
+        when(datafeedJob.runLookBack(anyLong(), anyLong())).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));
+        when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));
 
         Consumer<Exception> handler = mockConsumer();
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, null);
         datafeedManager.run(task, handler);
 
-        verify(threadPool, times(11)).schedule(any(), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME), any());
+        verify(threadPool, times(11)).schedule(any(), any(), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME));
         verify(auditor, times(1)).warning(eq("job_id"), anyString());
     }
 
@@ -248,7 +240,7 @@ public class DatafeedManagerTests extends ESTestCase {
             verify(handler).accept(null);
             assertThat(datafeedManager.isRunning(task.getAllocationId()), is(false));
         } else {
-            verify(threadPool, times(1)).schedule(eq(new TimeValue(1)), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME), any());
+            verify(threadPool, times(1)).schedule(any(), eq(new TimeValue(1)), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME));
             assertThat(datafeedManager.isRunning(task.getAllocationId()), is(true));
         }
     }
@@ -437,13 +429,13 @@ public class DatafeedManagerTests extends ESTestCase {
         return builder;
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private static DatafeedTask createDatafeedTask(String datafeedId, long startTime, Long endTime) {
         DatafeedTask task = mock(DatafeedTask.class);
         when(task.getDatafeedId()).thenReturn(datafeedId);
         when(task.getDatafeedStartTime()).thenReturn(startTime);
         when(task.getEndTime()).thenReturn(endTime);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(mock(PersistentTask.class));
             return null;
@@ -456,10 +448,10 @@ public class DatafeedManagerTests extends ESTestCase {
         return mock(Consumer.class);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private DatafeedTask spyDatafeedTask(DatafeedTask task) {
         task = spy(task);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(mock(PersistentTask.class));
             return null;

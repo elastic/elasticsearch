@@ -27,16 +27,21 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -44,6 +49,8 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetCalendarEventsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetFiltersRequest;
@@ -53,6 +60,8 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -60,17 +69,21 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
-import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -104,11 +117,11 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getJobRequest.getAllowNoJobs() != null) {
             params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.getAllowNoJobs()));
         }
-
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -121,10 +134,11 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getJobStatsRequest.getAllowNoJobs() != null) {
             params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.getAllowNoJobs()));
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -170,14 +184,14 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (deleteJobRequest.getForce() != null) {
             params.putParam("force", Boolean.toString(deleteJobRequest.getForce()));
         }
         if (deleteJobRequest.getWaitForCompletion() != null) {
             params.putParam("wait_for_completion", Boolean.toString(deleteJobRequest.getWaitForCompletion()));
         }
-
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -248,12 +262,12 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getDatafeedRequest.getAllowNoDatafeeds() != null) {
             params.putParam(GetDatafeedRequest.ALLOW_NO_DATAFEEDS.getPreferredName(),
                     Boolean.toString(getDatafeedRequest.getAllowNoDatafeeds()));
         }
-
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -264,10 +278,11 @@ final class MLRequestConverters {
                 .addPathPart(deleteDatafeedRequest.getDatafeedId())
                 .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (deleteDatafeedRequest.getForce() != null) {
             params.putParam("force", Boolean.toString(deleteDatafeedRequest.getForce()));
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -304,10 +319,11 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getDatafeedStatsRequest.getAllowNoDatafeeds() != null) {
             params.putParam("allow_no_datafeeds", Boolean.toString(getDatafeedStatsRequest.getAllowNoDatafeeds()));
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -330,13 +346,14 @@ final class MLRequestConverters {
             .addPathPart(Strings.collectionToCommaDelimitedString(deleteForecastRequest.getForecastIds()))
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (deleteForecastRequest.getAllowNoForecasts() != null) {
             params.putParam("allow_no_forecasts", Boolean.toString(deleteForecastRequest.getAllowNoForecasts()));
         }
         if (deleteForecastRequest.timeout() != null) {
             params.putParam("timeout", deleteForecastRequest.timeout().getStringRep());
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -452,7 +469,7 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (postDataRequest.getResetStart() != null) {
             params.putParam(PostDataRequest.RESET_START.getPreferredName(), postDataRequest.getResetStart());
         }
@@ -460,6 +477,7 @@ final class MLRequestConverters {
             params.putParam(PostDataRequest.RESET_END.getPreferredName(), postDataRequest.getResetEnd());
         }
         BytesReference content = postDataRequest.getContent();
+        request.addParameters(params.asMap());
         if (content != null) {
             BytesRef source = postDataRequest.getContent().toBytesRef();
             HttpEntity byteEntity = new NByteArrayEntity(source.bytes,
@@ -575,6 +593,219 @@ final class MLRequestConverters {
         return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
+    static Request putDataFrameAnalytics(PutDataFrameAnalyticsRequest putRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(putRequest.getConfig().getId())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getDataFrameAnalytics(GetDataFrameAnalyticsRequest getRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getIds()))
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (getRequest.getPageParams() != null) {
+            PageParams pageParams = getRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        if (getRequest.getAllowNoMatch() != null) {
+            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getRequest.getAllowNoMatch()));
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getDataFrameAnalyticsStats(GetDataFrameAnalyticsStatsRequest getStatsRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getStatsRequest.getIds()))
+            .addPathPartAsIs("_stats")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (getStatsRequest.getPageParams() != null) {
+            PageParams pageParams = getStatsRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        if (getStatsRequest.getAllowNoMatch() != null) {
+            params.putParam(GetDataFrameAnalyticsStatsRequest.ALLOW_NO_MATCH.getPreferredName(),
+                Boolean.toString(getStatsRequest.getAllowNoMatch()));
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request startDataFrameAnalytics(StartDataFrameAnalyticsRequest startRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(startRequest.getId())
+            .addPathPartAsIs("_start")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (startRequest.getTimeout() != null) {
+            params.withTimeout(startRequest.getTimeout());
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request stopDataFrameAnalytics(StopDataFrameAnalyticsRequest stopRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(stopRequest.getId())
+            .addPathPartAsIs("_stop")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (stopRequest.getTimeout() != null) {
+            params.withTimeout(stopRequest.getTimeout());
+        }
+        if (stopRequest.getAllowNoMatch() != null) {
+            params.putParam(
+                StopDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(stopRequest.getAllowNoMatch()));
+        }
+        if (stopRequest.getForce() != null) {
+            params.putParam(StopDataFrameAnalyticsRequest.FORCE.getPreferredName(), Boolean.toString(stopRequest.getForce()));
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest deleteRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(deleteRequest.getId())
+            .build();
+
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (deleteRequest.getForce() != null) {
+            params.putParam("force", Boolean.toString(deleteRequest.getForce()));
+        }
+        request.addParameters(params.asMap());
+
+        return request;
+    }
+
+    static Request evaluateDataFrame(EvaluateDataFrameRequest evaluateRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "_evaluate")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(evaluateRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request explainDataFrameAnalytics(ExplainDataFrameAnalyticsRequest explainRequest) throws IOException {
+        EndpointBuilder endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics");
+        if (explainRequest.getId() != null) {
+            endpoint.addPathPart(explainRequest.getId());
+        }
+        endpoint.addPathPartAsIs("_explain");
+
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint.build());
+        if (explainRequest.getConfig() != null) {
+            request.setEntity(createEntity(explainRequest.getConfig(), REQUEST_BODY_CONTENT_TYPE));
+        }
+        return request;
+    }
+
+    static Request getTrainedModels(GetTrainedModelsRequest getTrainedModelsRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "inference")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIds()))
+            .build();
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (getTrainedModelsRequest.getPageParams() != null) {
+            PageParams pageParams = getTrainedModelsRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        if (getTrainedModelsRequest.getAllowNoMatch() != null) {
+            params.putParam(GetTrainedModelsRequest.ALLOW_NO_MATCH,
+                Boolean.toString(getTrainedModelsRequest.getAllowNoMatch()));
+        }
+        if (getTrainedModelsRequest.getDecompressDefinition() != null) {
+            params.putParam(GetTrainedModelsRequest.DECOMPRESS_DEFINITION,
+                Boolean.toString(getTrainedModelsRequest.getDecompressDefinition()));
+        }
+        if (getTrainedModelsRequest.getIncludeDefinition() != null) {
+            params.putParam(GetTrainedModelsRequest.INCLUDE_MODEL_DEFINITION,
+                Boolean.toString(getTrainedModelsRequest.getIncludeDefinition()));
+        }
+        if (getTrainedModelsRequest.getTags() != null) {
+            params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
+        }
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getTrainedModelsStats(GetTrainedModelsStatsRequest getTrainedModelsStatsRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "inference")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsStatsRequest.getIds()))
+            .addPathPart("_stats")
+            .build();
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (getTrainedModelsStatsRequest.getPageParams() != null) {
+            PageParams pageParams = getTrainedModelsStatsRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        if (getTrainedModelsStatsRequest.getAllowNoMatch() != null) {
+            params.putParam(GetTrainedModelsStatsRequest.ALLOW_NO_MATCH,
+                Boolean.toString(getTrainedModelsStatsRequest.getAllowNoMatch()));
+        }
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteTrainedModel(DeleteTrainedModelRequest deleteRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "inference")
+            .addPathPart(deleteRequest.getId())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
+    static Request putTrainedModel(PutTrainedModelRequest putTrainedModelRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "inference")
+            .addPathPart(putTrainedModelRequest.getTrainedModelConfig().getModelId())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putTrainedModelRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request putFilter(PutFilterRequest putFilterRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml")
@@ -593,13 +824,14 @@ final class MLRequestConverters {
             .addPathPart(getFiltersRequest.getFilterId())
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getFiltersRequest.getSize() != null) {
             params.putParam(PageParams.SIZE.getPreferredName(), getFiltersRequest.getSize().toString());
         }
         if (getFiltersRequest.getFrom() != null) {
             params.putParam(PageParams.FROM.getPreferredName(), getFiltersRequest.getFrom().toString());
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -624,6 +856,18 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request setUpgradeMode(SetUpgradeModeRequest setUpgradeModeRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "set_upgrade_mode").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.putParam(SetUpgradeModeRequest.ENABLED.getPreferredName(), Boolean.toString(setUpgradeModeRequest.isEnabled()));
+        if (setUpgradeModeRequest.getTimeout() != null) {
+            params.putParam(SetUpgradeModeRequest.TIMEOUT.getPreferredName(), setUpgradeModeRequest.getTimeout().toString());
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
     static Request mlInfo(MlInfoRequest infoRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml", "info")
@@ -638,7 +882,7 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (findFileStructureRequest.getLinesToSample() != null) {
             params.putParam(FindFileStructureRequest.LINES_TO_SAMPLE.getPreferredName(),
                 findFileStructureRequest.getLinesToSample().toString());
@@ -683,7 +927,7 @@ final class MLRequestConverters {
         if (findFileStructureRequest.getExplain() != null) {
             params.putParam(FindFileStructureRequest.EXPLAIN.getPreferredName(), findFileStructureRequest.getExplain().toString());
         }
-
+        request.addParameters(params.asMap());
         BytesReference sample = findFileStructureRequest.getSample();
         BytesRef source = sample.toBytesRef();
         HttpEntity byteEntity = new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));

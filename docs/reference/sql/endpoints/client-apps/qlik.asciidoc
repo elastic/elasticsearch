@@ -3,14 +3,14 @@
 [[sql-client-apps-qlik]]
 === Qlik Sense Desktop
 
-experimental[]
-
 [quote, https://help.qlik.com/en-US/sense/February2018/Subsystems/Hub/Content/Introduction/at-a-glance.htm]
 ____
 https://www.qlik.com/us/try-or-buy/download-qlik-sense[Qlik Sense Desktop] is a Windows application that gives individuals the opportunity
 to use Qlik Sense and create personalized, interactive data visualizations, reports, and dashboards from multiple data sources with
 drag-and-drop ease.
 ____
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
@@ -20,7 +20,7 @@ ____
 
 ==== Data loading
 
-To use the {product} to load data into Qlik Sense Desktop perform the following steps in sequence.
+To use the {odbc} to load data into Qlik Sense Desktop perform the following steps in sequence.
 
 . Create new app
 +

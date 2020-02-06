@@ -22,8 +22,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -33,9 +31,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.discovery.zen.NodesFaultDetection;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
@@ -77,7 +75,7 @@ public class FollowersChecker {
     // the timeout for each check sent to each node
     public static final Setting<TimeValue> FOLLOWER_CHECK_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.fault_detection.follower_check.timeout",
-            TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     // the number of failed checks that must happen before the follower is considered to have failed.
     public static final Setting<Integer> FOLLOWER_CHECK_RETRY_COUNT_SETTING =
@@ -114,13 +112,9 @@ public class FollowersChecker {
         updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(FOLLOWER_CHECK_ACTION_NAME, Names.SAME, false, false, FollowerCheckRequest::new,
             (request, transportChannel, task) -> handleFollowerCheck(request, transportChannel));
-        transportService.registerRequestHandler(
-            NodesFaultDetection.PING_ACTION_NAME, NodesFaultDetection.PingRequest::new, Names.SAME, false, false,
-            (request, channel, task) -> // TODO: check that we're a follower of the requesting node?
-                channel.sendResponse(new NodesFaultDetection.PingResponse()));
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
-            public void onNodeDisconnected(DiscoveryNode node) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                 handleDisconnectedNode(node);
             }
         });
@@ -135,7 +129,7 @@ public class FollowersChecker {
             followerCheckers.keySet().removeIf(isUnknownNode);
             faultyNodes.removeIf(isUnknownNode);
 
-            for (final DiscoveryNode discoveryNode : discoveryNodes) {
+            discoveryNodes.mastersFirstStream().forEach(discoveryNode -> {
                 if (discoveryNode.equals(discoveryNodes.getLocalNode()) == false
                     && followerCheckers.containsKey(discoveryNode) == false
                     && faultyNodes.contains(discoveryNode) == false) {
@@ -144,7 +138,7 @@ public class FollowersChecker {
                     followerCheckers.put(discoveryNode, followerChecker);
                     followerChecker.start();
                 }
-            }
+            });
         }
     }
 
@@ -249,11 +243,9 @@ public class FollowersChecker {
     }
 
     private void handleDisconnectedNode(DiscoveryNode discoveryNode) {
-        synchronized (mutex) {
-            FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
-            if (followerChecker != null && followerChecker.running()) {
-                followerChecker.failNode("disconnected");
-            }
+        FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
+        if (followerChecker != null) {
+            followerChecker.failNode("disconnected");
         }
     }
 
@@ -304,17 +296,7 @@ public class FollowersChecker {
             final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term, transportService.getLocalNode());
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
 
-            final String actionName;
-            final TransportRequest transportRequest;
-            if (Coordinator.isZen1Node(discoveryNode)) {
-                actionName = NodesFaultDetection.PING_ACTION_NAME;
-                transportRequest = new NodesFaultDetection.PingRequest(discoveryNode, ClusterName.CLUSTER_NAME_SETTING.get(settings),
-                    transportService.getLocalNode(), ClusterState.UNKNOWN_VERSION);
-            } else {
-                actionName = FOLLOWER_CHECK_ACTION_NAME;
-                transportRequest = request;
-            }
-            transportService.sendRequest(discoveryNode, actionName, transportRequest,
+            transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
                 TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
                 new TransportResponseHandler<Empty>() {
                     @Override
@@ -374,9 +356,10 @@ public class FollowersChecker {
                 public void run() {
                     synchronized (mutex) {
                         if (running() == false) {
-                            logger.debug("{} condition no longer applies, not marking faulty", discoveryNode);
+                            logger.trace("{} no longer running, not marking faulty", FollowerChecker.this);
                             return;
                         }
+                        logger.debug("{} marking node as faulty", FollowerChecker.this);
                         faultyNodes.add(discoveryNode);
                         followerCheckers.remove(discoveryNode);
                     }
@@ -391,7 +374,7 @@ public class FollowersChecker {
         }
 
         private void scheduleNextWakeUp() {
-            transportService.getThreadPool().schedule(followerCheckInterval, Names.SAME, new Runnable() {
+            transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
                     handleWakeUp();
@@ -401,7 +384,7 @@ public class FollowersChecker {
                 public String toString() {
                     return FollowerChecker.this + "::handleWakeUp";
                 }
-            });
+            }, followerCheckInterval, Names.SAME);
         }
 
         @Override

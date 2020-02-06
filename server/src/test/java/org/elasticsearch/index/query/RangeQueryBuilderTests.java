@@ -32,7 +32,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -41,13 +40,14 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -72,18 +72,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 break;
             case 1:
                 // use mapped date field, using date string representation
+                Instant now = Instant.now();
+                ZonedDateTime start = now.minusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
+                ZonedDateTime end = now.plusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
                 query = new RangeQueryBuilder(randomFrom(
                     DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, DATE_ALIAS_FIELD_NAME));
-                query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
-                query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
+                query.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start));
+                query.to(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end));
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
                 if (createShardContext().getMapperService().fullName(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
-                        query.timeZone(randomDateTimeZone().getID());
+                        query.timeZone(randomZone().getId());
                     }
                     if (randomBoolean()) {
-                        query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
+                        String format = "strict_date_optional_time";
+                        query.format(format);
                     }
                 }
                 break;
@@ -129,15 +133,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
-            if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                    && context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
+            if (context.getMapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-            } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0) &&
-                            context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
+            } else if (context.getMapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
                 expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
@@ -158,22 +160,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             query = ((IndexOrDocValuesQuery) query).getIndexQuery();
             assertThat(query, instanceOf(PointRangeQuery.class));
-            MapperService mapperService = context.getQueryShardContext().getMapperService();
+            MapperService mapperService = context.getMapperService();
             MappedFieldType mappedFieldType = mapperService.fullName(expectedFieldName);
             final Long fromInMillis;
             final Long toInMillis;
             // we have to normalize the incoming value into milliseconds since it could be literally anything
             if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
                 fromInMillis = queryBuilder.from() == null ? null :
-                    ((DateFieldMapper.DateFieldType) mappedFieldType).parseToMilliseconds(queryBuilder.from(),
+                    ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(queryBuilder.from(),
                         queryBuilder.includeLower(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
+                        queryBuilder.getForceDateParser(), context::nowInMillis);
                 toInMillis = queryBuilder.to() == null ? null :
-                    ((DateFieldMapper.DateFieldType) mappedFieldType).parseToMilliseconds(queryBuilder.to(),
+                    ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(queryBuilder.to(),
                         queryBuilder.includeUpper(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
+                        queryBuilder.getForceDateParser(), context::nowInMillis);
             } else {
                 fromInMillis = toInMillis = null;
                 fail("unexpected mapped field type: [" + mappedFieldType.getClass() + "] " + mappedFieldType.toString());
@@ -419,8 +421,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         // Range query with open bounds rewrite to an exists query
         Query luceneQuery = rewrittenRange.toQuery(queryShardContext);
         final Query expectedQuery;
-        if (queryShardContext.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                && queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
+        if (queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
             expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
         } else {
             expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
@@ -444,7 +445,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
-        query.timeZone(randomDateTimeZone().getID());
+        query.timeZone(randomZone().getId());
         query.format("yyyy-MM-dd");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
@@ -598,5 +599,26 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             .from("value1");
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    /**
+     * Range queries should generally be cacheable, at least the ones we create randomly.
+     * This test makes sure we also test the non-cacheable cases regularly.
+     */
+    @Override
+    public void testCacheability() throws IOException {
+        RangeQueryBuilder queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        // queries on date fields using "now" should not be cached
+        queryBuilder = new RangeQueryBuilder(randomFrom(DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, DATE_ALIAS_FIELD_NAME));
+        queryBuilder.to("now");
+        context = createShardContext();
+        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 }

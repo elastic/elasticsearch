@@ -22,12 +22,11 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
-import org.elasticsearch.search.RandomSearchRequestGenerator;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
@@ -36,31 +35,34 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
     @Override
     protected SearchRequest createSearchRequest() throws IOException {
+        SearchRequest request = super.createSearchRequest();
         if (randomBoolean()) {
-            return super.createSearchRequest();
+            return request;
         }
         //clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
-        SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong());
-        RandomSearchRequestGenerator.randomSearchRequest(searchRequest, this::createSearchSourceBuilder);
-        return searchRequest;
+        return SearchRequest.subSearchRequest(request, request.indices(),
+            randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong(), randomBoolean());
     }
 
-    public void testClusterAliasValidation() {
-        expectThrows(NullPointerException.class, () -> new SearchRequest(null, 0));
-        expectThrows(IllegalArgumentException.class, () -> new SearchRequest("", -1));
-        SearchRequest searchRequest = new SearchRequest("", 0);
+    public void testWithLocalReduction() {
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
+        SearchRequest request = new SearchRequest();
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(request, null, "", 0, randomBoolean()));
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(request,
+            new String[]{null}, "", 0, randomBoolean()));
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(request,
+            Strings.EMPTY_ARRAY, null, 0, randomBoolean()));
+        expectThrows(IllegalArgumentException.class, () -> SearchRequest.subSearchRequest(request,
+            Strings.EMPTY_ARRAY, "", -1, randomBoolean()));
+        SearchRequest searchRequest = SearchRequest.subSearchRequest(request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
         assertNull(searchRequest.validate());
     }
 
@@ -72,42 +74,20 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
-    public void testClusterAliasSerialization() throws IOException {
+    public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
-        if (version.before(Version.V_6_7_0)) {
-            assertNull(deserializedRequest.getLocalClusterAlias());
-            assertAbsoluteStartMillisIsCurrentTime(deserializedRequest);
-        } else {
-            assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
-            assertEquals(searchRequest.getOrCreateAbsoluteStartMillis(), deserializedRequest.getOrCreateAbsoluteStartMillis());
-        }
-    }
-
-    public void testReadFromPre6_7_0() throws IOException {
-        String msg = "AAEBBWluZGV4AAAAAQACAAAA/////w8AAAAAAAAA/////w8AAAAAAAACAAAAAAABAAMCBAUBAAKABACAAQIAAA==";
-        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(msg))) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_6_7_0)));
-            SearchRequest searchRequest = new SearchRequest(in);
-            assertArrayEquals(new String[]{"index"}, searchRequest.indices());
-            assertNull(searchRequest.getLocalClusterAlias());
-            assertAbsoluteStartMillisIsCurrentTime(searchRequest);
-        }
-    }
-
-    private static void assertAbsoluteStartMillisIsCurrentTime(SearchRequest searchRequest) {
-        long before = System.currentTimeMillis();
-        long absoluteStartMillis = searchRequest.getOrCreateAbsoluteStartMillis();
-        long after = System.currentTimeMillis();
-        assertThat(absoluteStartMillis, allOf(greaterThanOrEqualTo(before), lessThanOrEqualTo(after)));
+        assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
+        assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
+        assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
+        assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
     }
 
     public void testIllegalArguments() {
         SearchRequest searchRequest = new SearchRequest();
         assertNotNull(searchRequest.indices());
         assertNotNull(searchRequest.indicesOptions());
-        assertNotNull(searchRequest.types());
         assertNotNull(searchRequest.searchType());
 
         NullPointerException e = expectThrows(NullPointerException.class, () -> searchRequest.indices((String[]) null));
@@ -117,11 +97,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
         e = expectThrows(NullPointerException.class, () -> searchRequest.indicesOptions(null));
         assertEquals("indicesOptions must not be null", e.getMessage());
-
-        e = expectThrows(NullPointerException.class, () -> searchRequest.types((String[]) null));
-        assertEquals("types must not be null", e.getMessage());
-        e = expectThrows(NullPointerException.class, () -> searchRequest.types((String) null));
-        assertEquals("type must not be null", e.getMessage());
 
         e = expectThrows(NullPointerException.class, () -> searchRequest.searchType((SearchType)null));
         assertEquals("searchType must not be null", e.getMessage());
@@ -206,7 +181,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.indices(ArrayUtils.concat(searchRequest.indices(), new String[] { randomAlphaOfLength(10) })));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(searchRequest.indicesOptions(),
                 () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
-        mutators.add(() -> mutation.types(ArrayUtils.concat(searchRequest.types(), new String[] { randomAlphaOfLength(10) })));
         mutators.add(() -> mutation.preference(randomValueOtherThan(searchRequest.preference(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.routing(randomValueOtherThan(searchRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), ESTestCase::randomBoolean))));
@@ -215,6 +189,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(),
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
+        mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
         randomFrom(mutators).run();
         return mutation;
     }

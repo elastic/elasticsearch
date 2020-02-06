@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client.ml.job.process;
 
+import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.util.TimeUtil;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -34,7 +34,7 @@ import java.util.Objects;
  * Job processed record counts.
  * <p>
  * The getInput... methods return the actual number of
- * fields/records sent the the API including invalid records.
+ * fields/records sent the API including invalid records.
  * The getProcessed... methods are the number sent to the
  * Engine.
  * <p>

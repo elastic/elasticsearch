@@ -20,11 +20,12 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -38,6 +39,9 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SearchScrollAsyncActionTests extends ESTestCase {
 
@@ -71,7 +75,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult =
                             new SearchAsyncActionTests.TestSearchPhaseResult(internalRequest.id(), connection.getNode());
                         testSearchPhaseResult.setSearchShardTarget(new SearchShardTarget(connection.getNode().getId(),
-                            new Index("test", "_na_"), 1, null));
+                            new ShardId("test", "_na_", 1), null, OriginalIndices.NONE));
                         searchActionListener.onResponse(testSearchPhaseResult);
                     }).start();
                 }
@@ -162,7 +166,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult =
                             new SearchAsyncActionTests.TestSearchPhaseResult(internalRequest.id(), connection.getNode());
                         testSearchPhaseResult.setSearchShardTarget(new SearchShardTarget(connection.getNode().getId(),
-                            new Index("test", "_na_"), 1, null));
+                            new ShardId("test", "_na_", 1), null, OriginalIndices.NONE));
                         searchActionListener.onResponse(testSearchPhaseResult);
                     }).start();
                 }
@@ -235,7 +239,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult =
                             new SearchAsyncActionTests.TestSearchPhaseResult(internalRequest.id(), connection.getNode());
                         testSearchPhaseResult.setSearchShardTarget(new SearchShardTarget(connection.getNode().getId(),
-                            new Index("test", "_na_"), 1, null));
+                            new ShardId("test", "_na_", 1), null, OriginalIndices.NONE));
                         searchActionListener.onResponse(testSearchPhaseResult);
                     }).start();
                 }
@@ -266,7 +270,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         latch.await();
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(1, shardSearchFailures.length);
-        assertEquals("IllegalStateException[node [node2] is not available]", shardSearchFailures[0].reason());
+        // .reason() returns the full stack trace
+        assertThat(shardSearchFailures[0].reason(), startsWith("java.lang.IllegalStateException: node [node2] is not available"));
 
         ScrollIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
@@ -312,7 +317,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                             SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult =
                                 new SearchAsyncActionTests.TestSearchPhaseResult(internalRequest.id(), connection.getNode());
                             testSearchPhaseResult.setSearchShardTarget(new SearchShardTarget(connection.getNode().getId(),
-                                new Index("test", "_na_"), 1, null));
+                                new ShardId("test", "_na_", 1), null, OriginalIndices.NONE));
                             searchActionListener.onResponse(testSearchPhaseResult);
                         }
                     }).start();
@@ -344,7 +349,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         latch.await();
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(1, shardSearchFailures.length);
-        assertEquals("IllegalArgumentException[BOOM on shard]", shardSearchFailures[0].reason());
+        assertThat(shardSearchFailures[0].reason(), containsString("IllegalArgumentException: BOOM on shard"));
 
         ScrollIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
@@ -430,7 +435,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(context.length, shardSearchFailures.length);
-        assertEquals("IllegalArgumentException[BOOM on shard]", shardSearchFailures[0].reason());
+        assertThat(shardSearchFailures[0].reason(), containsString("IllegalArgumentException: BOOM on shard"));
 
         for (int i = 0; i < results.length(); i++) {
             assertNull(results.get(i));

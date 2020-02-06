@@ -115,11 +115,6 @@ public final class TransportActionProxy {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             targetNode.writeTo(out);
@@ -173,6 +168,14 @@ public final class TransportActionProxy {
             return ((ProxyRequest)request).wrapped;
         }
         return request;
+    }
+
+    /**
+     * Unwraps a proxy action and returns the underlying action
+     */
+    public static String unwrapAction(String action) {
+        assert isProxyAction(action) : "Attempted to unwrap non-proxy action: " + action;
+        return action.substring(PROXY_ACTION_PREFIX.length());
     }
 
     /**

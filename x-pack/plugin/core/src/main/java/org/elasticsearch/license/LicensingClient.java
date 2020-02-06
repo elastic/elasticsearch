@@ -45,11 +45,11 @@ public class LicensingClient {
     }
 
     public PostStartTrialRequestBuilder preparePostStartTrial() {
-        return new PostStartTrialRequestBuilder(client, PostStartTrialAction.INSTANCE);
+        return new PostStartTrialRequestBuilder(client);
     }
 
     public GetTrialStatusRequestBuilder prepareGetStartTrial() {
-        return new GetTrialStatusRequestBuilder(client, GetTrialStatusAction.INSTANCE);
+        return new GetTrialStatusRequestBuilder(client);
     }
 
     public void postStartTrial(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener) {
@@ -61,10 +61,10 @@ public class LicensingClient {
     }
 
     public PostStartBasicRequestBuilder preparePostStartBasic() {
-        return new PostStartBasicRequestBuilder(client, PostStartBasicAction.INSTANCE);
+        return new PostStartBasicRequestBuilder(client);
     }
 
     public GetBasicStatusRequestBuilder prepareGetStartBasic() {
-        return new GetBasicStatusRequestBuilder(client, GetBasicStatusAction.INSTANCE);
+        return new GetBasicStatusRequestBuilder(client);
     }
 }

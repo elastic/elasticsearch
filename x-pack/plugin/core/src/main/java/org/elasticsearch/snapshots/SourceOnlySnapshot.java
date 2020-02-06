@@ -6,6 +6,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
@@ -80,7 +81,8 @@ public class SourceOnlySnapshot {
         List<String> createdFiles = new ArrayList<>();
         String segmentFileName;
         try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
-             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit)) {
+             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit,
+                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()))) {
             SegmentInfos segmentInfos = reader.getSegmentInfos().clone();
             DirectoryReader wrappedReader = wrapReader(reader);
             List<SegmentCommitInfo> newInfos = new ArrayList<>();

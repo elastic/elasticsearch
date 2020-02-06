@@ -23,13 +23,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -62,7 +62,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     private static final double src_lon = -117.151;
     private static final double tgt_lat = 32.81;
     private static final double tgt_lon = -117.21;
-    private static final String tgt_geohash = GeoHashUtils.stringEncode(tgt_lon, tgt_lat);
+    private static final String tgt_geohash = Geohash.stringEncode(tgt_lon, tgt_lat);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -104,18 +104,17 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     @Before
     public void setupTestIndex() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("location").field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
     }
 
     public void testDistanceScript() throws Exception {
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject()
                         .field("name", "TestPosition")
                         .startObject("location")
@@ -149,8 +148,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
                     Collections.emptyMap())).get();
         Double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance4,
-                closeTo(GeoUtils.arcDistance(src_lat, src_lon, GeoHashUtils.decodeLatitude(tgt_geohash),
-                    GeoHashUtils.decodeLongitude(tgt_geohash)), 0.01d));
+                closeTo(GeoUtils.arcDistance(src_lat, src_lon, Geohash.decodeLatitude(tgt_geohash),
+                    Geohash.decodeLongitude(tgt_geohash)), 0.01d));
 
         // Test doc['location'].arcDistance(lat, lon + 360)/1000d
         SearchResponse searchResponse5 = client().prepareSearch().addStoredField("_source")
@@ -170,7 +169,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testGeoDistanceAggregation() throws IOException {
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject()
                 .field("name", "TestPosition")
                 .startObject("location")
@@ -186,7 +185,6 @@ public class GeoDistanceIT extends ESIntegTestCase {
         String name = "TestPosition";
 
         search.setQuery(QueryBuilders.matchAllQuery())
-            .setTypes("type1")
             .addAggregation(AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
             .field("location")
             .unit(DistanceUnit.MILES)

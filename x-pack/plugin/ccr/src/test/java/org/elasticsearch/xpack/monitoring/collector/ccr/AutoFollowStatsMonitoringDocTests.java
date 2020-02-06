@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -19,11 +20,10 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<AutoFollowStatsMonitoringDoc> {
-
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
     private AutoFollowStats autoFollowStats;
 
     @Before
@@ -94,7 +94,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
             equalTo(
                 "{"
                     + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\"" + new DateTime(timestamp, DateTimeZone.UTC).toString() + "\","
+                    + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(timestamp) + "\","
                     + "\"interval_ms\":" + intervalMillis + ","
                     + "\"type\":\"ccr_auto_follow_stats\","
                     + "\"source_node\":{"
@@ -103,7 +103,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                         + "\"transport_address\":\"_addr\","
                         + "\"ip\":\"_ip\","
                         + "\"name\":\"_name\","
-                        + "\"timestamp\":\"" + new DateTime(nodeTimestamp, DateTimeZone.UTC).toString() +  "\""
+                        + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp) +  "\""
                     + "},"
                     + "\"ccr_auto_follow_stats\":{"
                         + "\"number_of_failed_follow_indices\":" + autoFollowStats.getNumberOfFailedFollowIndices() + ","
@@ -148,7 +148,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
         Map<String, Object> template =
             XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
         Map<?, ?> autoFollowStatsMapping =
-            (Map<?, ?>) XContentMapValues.extractValue("mappings.doc.properties.ccr_auto_follow_stats.properties", template);
+            (Map<?, ?>) XContentMapValues.extractValue("mappings._doc.properties.ccr_auto_follow_stats.properties", template);
 
         assertThat(serializedStatus.size(), equalTo(autoFollowStatsMapping.size()));
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {

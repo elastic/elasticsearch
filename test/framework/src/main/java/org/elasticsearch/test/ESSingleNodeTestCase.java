@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -50,8 +51,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -61,9 +61,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -94,16 +95,17 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .preparePutTemplate("random-soft-deletes-template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
-                    randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
-            ).get();
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
+            .get();
     }
 
-    private static void stopNode() throws IOException {
+    private static void stopNode() throws IOException, InterruptedException {
         Node node = NODE;
         NODE = null;
         IOUtils.close(node);
+        if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
+            throw new AssertionError("Node couldn't close within 10 seconds.");
+        }
     }
 
     @Override
@@ -120,7 +122,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
@@ -128,6 +130,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 metaData.persistentSettings().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
                 metaData.transientSettings().size(), equalTo(0));
+        GetIndexResponse indices = client().admin().indices().prepareGetIndex().addIndices("*").get();
+        assertThat("test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
+            indices.indices(), equalTo(Strings.EMPTY_ARRAY));
         if (resetNodeAfterTest()) {
             assert NODE != null;
             stopNode();
@@ -142,7 +147,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void tearDownClass() throws IOException {
+    public static void tearDownClass() throws Exception {
         stopNode();
     }
 
@@ -190,10 +195,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
-            .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
+            .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
             .put(Node.NODE_DATA_SETTING.getKey(), true)
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
             // default the watermarks low values to prevent tests from failing on nodes without enough disk space
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
@@ -202,7 +207,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
@@ -211,10 +216,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (plugins.contains(getTestTransportPlugin()) == false) {
             plugins = new ArrayList<>(plugins);
             plugins.add(getTestTransportPlugin());
-        }
-        if (plugins.contains(TestZenDiscovery.TestPlugin.class) == false) {
-            plugins = new ArrayList<>(plugins);
-            plugins.add(TestZenDiscovery.TestPlugin.class);
         }
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
@@ -264,16 +265,16 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Create a new index on the singleton node with the provided index settings.
      */
     protected IndexService createIndex(String index, Settings settings) {
-        return createIndex(index, settings, null, (XContentBuilder) null);
+        return createIndex(index, settings, null);
     }
 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+    protected IndexService createIndex(String index, Settings settings, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
-        if (type != null && mappings != null) {
-            createIndexRequestBuilder.addMapping(type, mappings);
+        if (mappings != null) {
+            createIndexRequestBuilder.setMapping(mappings);
         }
         return createIndex(index, createIndexRequestBuilder);
     }
@@ -281,10 +282,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
+    protected IndexService createIndex(String index, Settings settings, String type, String... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null) {
-            createIndexRequestBuilder.addMapping(type, mappings);
+            createIndexRequestBuilder.setMapping(mappings);
         }
         return createIndex(index, createIndexRequestBuilder);
     }
@@ -314,8 +315,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
-        ThreadPool threadPool = indexService.getThreadPool();
-        return new TestSearchContext(threadPool, bigArrays, indexService);
+        return new TestSearchContext(bigArrays, indexService);
     }
 
     /**

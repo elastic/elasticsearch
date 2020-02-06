@@ -1,54 +1,61 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-data-types]]
-== Data Types
+=== Data Types
 
-beta[]
-
-Most of {es} <<mapping-types, data types>> are available in {es-sql}, as indicated below:
-
-[cols="^,^m,^"]
+[cols="^,^m,^,^"]
 
 |===
 s|{es} type
+s|{es-sql} type
 s|SQL type
 s|SQL precision
 
-3+h| Core types
+4+h| Core types
 
-| <<null-value, `null`>>      | null        | 0
-| <<boolean, `boolean`>>      | boolean     | 1
-| <<number, `byte`>>          | tinyint     | 3
-| <<number, `short`>>         | smallint    | 5
-| <<number, `integer`>>       | integer     | 10
-| <<number, `long`>>          | bigint      | 19
-| <<number, `double`>>        | double      | 15
-| <<number, `float`>>         | real        | 7
-| <<number, `half_float`>>    | float       | 16
-| <<number, `scaled_float`>>  | float       | 19
-| <<keyword, `keyword`>>      | varchar     | based on <<ignore-above>>
-| <<text, `text`>>            | varchar     | 2,147,483,647
-| <<binary, `binary`>>        | varbinary   | 2,147,483,647
-| <<date, `date`>>            | timestamp   | 24
-| <<ip, `ip`>>                | varchar     | 39
-                                
-3+h| Complex types              
-                                
-| <<object, `object`>>        | struct      | 0
-| <<nested, `nested`>>        | struct      | 0
+| <<null-value, `null`>>      | null          | NULL        | 0
+| <<boolean, `boolean`>>      | boolean       | BOOLEAN     | 1
+| <<number, `byte`>>          | byte          | TINYINT     | 3
+| <<number, `short`>>         | short         | SMALLINT    | 5
+| <<number, `integer`>>       | integer       | INTEGER     | 10
+| <<number, `long`>>          | long          | BIGINT      | 19
+| <<number, `double`>>        | double        | DOUBLE      | 15
+| <<number, `float`>>         | float         | REAL        | 7
+| <<number, `half_float`>>    | half_float    | FLOAT       | 3
+| <<number, `scaled_float`>>  | scaled_float  | DOUBLE      | 15
+| <<keyword, `keyword`>>      | keyword       | VARCHAR     | 32,766
+| <<text, `text`>>            | text          | VARCHAR     | 2,147,483,647
+| <<binary, `binary`>>        | binary        | VARBINARY   | 2,147,483,647
+| <<date, `date`>>            | datetime      | TIMESTAMP   | 29
+| <<ip, `ip`>>                | ip            | VARCHAR     | 39
 
-3+h| Unsupported types
+4+h| Complex types
 
-| _types not mentioned above_ | unsupported | 0
+| <<object, `object`>>        | object        | STRUCT      | 0
+| <<nested, `nested`>>        | nested        | STRUCT      | 0
+
+4+h| Unsupported types
+
+| _types not mentioned above_ | unsupported   | OTHER       | 0
 
 |===
 
+[NOTE]
+Most of {es} <<mapping-types, data types>> are available in {es-sql}, as indicated above.
+As one can see, all of {es} <<mapping-types, data types>> are mapped to the data type with the same
+name in {es-sql}, with the exception of **date** data type which is mapped to **datetime** in {es-sql}.
+This is to avoid confusion with the ANSI SQL types **DATE** (date only) and **TIME** (time only), which are also
+supported by {es-sql} in queries (with the use of
+<<sql-functions-type-conversion-cast>>/<<sql-functions-type-conversion-convert>>), but don't correspond to an
+actual mapping in {es} (see the <<es-sql-only-types, `table`>> below).
 
 Obviously, not all types in {es} have an equivalent in SQL and vice-versa hence why, {es-sql}
 uses the data type _particularities_ of the former over the latter as ultimately {es} is the backing store.
 
 In addition to the types above, {es-sql} also supports at _runtime_ SQL-specific types that do not have an equivalent in {es}.
 Such types cannot be loaded from {es} (as it does not know about them) however can be used inside {es-sql} in queries or their results.
+
+[[es-sql-only-types]]
 
 The table below indicates these types:
 
@@ -59,6 +66,8 @@ s|SQL type
 s|SQL precision
 
 
+| date                      | 29
+| time                      | 18
 | interval_year             | 7
 | interval_month            | 7
 | interval_day              | 23
@@ -72,13 +81,16 @@ s|SQL precision
 | interval_hour_to_minute   | 23
 | interval_hour_to_second   | 23
 | interval_minute_to_second | 23
+| geo_point                 | 52
+| geo_shape                 | 2,147,483,647
+| shape                     | 2,147,483,647
 
 |===
 
 
 [[sql-multi-field]]
 [float]
-=== SQL and multi-fields
+==== SQL and multi-fields
 
 A core concept in {es} is that of an `analyzed` field, that is a full-text value that is interpreted in order
 to be effectively indexed. These fields are of type <<text, `text`>> and are not used for sorting or aggregations as their actual value depends on the <<analyzer, `analyzer`>> used hence why {es} also offers the <<keyword, `keyword`>> type for storing the _exact_
@@ -91,7 +103,7 @@ To do that, it will search for the first `keyword` that it can find that is _not
 
 Consider the following `string` mapping:
 
-[source, js]
+[source,js]
 ----
 {
     "first_name" : {

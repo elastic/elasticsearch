@@ -24,7 +24,6 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -56,8 +55,8 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context.getQueryShardContext());
+    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context);
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
         assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
@@ -150,5 +149,20 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         assertEquals(json, 1.2, parsed.boost(), 0.0001);
         assertEquals(json, 0.7, parsed.tieBreaker(), 0.0001);
         assertEquals(json, 2, parsed.innerQueries().size());
+    }
+
+    public void testRewriteMultipleTimes() throws IOException {
+        DisMaxQueryBuilder dismax = new DisMaxQueryBuilder();
+        dismax.add(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
+        QueryBuilder rewritten = dismax.rewrite(createShardContext());
+        DisMaxQueryBuilder expected = new DisMaxQueryBuilder();
+        expected.add(new MatchAllQueryBuilder());
+        assertEquals(expected, rewritten);
+
+        expected = new DisMaxQueryBuilder();
+        expected.add(new MatchAllQueryBuilder());
+        QueryBuilder rewrittenAgain = rewritten.rewrite(createShardContext());
+        assertEquals(rewrittenAgain, expected);
+        assertEquals(Rewriteable.rewrite(dismax, createShardContext()), expected);
     }
 }

@@ -3,8 +3,6 @@
 [[sql-functions-system]]
 === System Functions
 
-beta[]
-
 These functions return metadata type of information about the system being queried.
 
 [[sql-functions-system-database]]
@@ -26,9 +24,9 @@ Returns the name of the database being queried. In the case of Elasticsearch SQL
 is the name of the Elasticsearch cluster. This function should always return a non-null
 value.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[database]
+include-tagged::{sql-specs}/docs/docs.csv-spec[database]
 --------------------------------------------------
 
 [[sql-functions-system-user]]
@@ -46,9 +44,9 @@ USER()
 .Description:
 
 Returns the username of the authenticated user executing the query. This function can
-return `null` in case {stack-ov}/elasticsearch-security.html[Security] is disabled.
+return `null` in case <<elasticsearch-security,security>> is disabled.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[user]
+include-tagged::{sql-specs}/docs/docs.csv-spec[user]
 --------------------------------------------------

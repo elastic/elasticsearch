@@ -19,59 +19,30 @@
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
-archivesBaseName = 'elasticsearch-secure-sm'
-
-publishing {
-    publications {
-        nebula {
-            artifactId = archivesBaseName
-        }
-    }
-}
-
 dependencies {
-    // do not add non-test compile dependencies to secure-sm without a good reason to do so
+  // do not add non-test compile dependencies to secure-sm without a good reason to do so
 
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
-    if (isEclipse == false || project.path == ":libs:secure-sm-tests") {
-        testCompile("org.elasticsearch.test:framework:${version}") {
-            exclude group: 'org.elasticsearch', module: 'secure-sm'
-        }
-    }
+  testCompile(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-secure-sm'
+  }
 }
 
 forbiddenApisMain {
-    replaceSignatureFiles 'jdk-signatures'
-}
-
-if (isEclipse) {
-    // in Eclipse the project is under a fake root so we need to change around the source sets
-    sourceSets {
-        if (project.path == ":libs:secure-sm") {
-            main.java.srcDirs = ['java']
-            main.resources.srcDirs = ['resources']
-        } else {
-            test.java.srcDirs = ['java']
-            test.resources.srcDirs = ['resources']
-        }
-    }
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 // JAR hell is part of core which we do not want to add as a dependency
 jarHell.enabled = false
 
-namingConventions {
-    testClass = 'junit.framework.TestCase'
-}
-
 testingConventions {
-    naming.clear()
-    naming {
-        Tests {
-            baseClass 'junit.framework.TestCase'
-        }
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'junit.framework.TestCase'
     }
+  }
 }

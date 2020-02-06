@@ -1,0 +1,24 @@
+{
+  "license.post_start_basic":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-basic.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license/start_basic",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "acknowledge":{
+        "type":"boolean",
+        "description":"whether the user has acknowledged acknowledge messages (default: false)"
+      }
+    }
+  }
+}

@@ -5,10 +5,11 @@
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
+    "index.lifecycle.name": "watch-history-ilm-policy",
     "index.format": 6
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "_meta": {
         "watcher-history-version": "${xpack.watcher.template.version}"
       },
@@ -263,6 +264,13 @@
                 "reason" : {
                   "type" : "keyword"
                 },
+                "number_of_actions_executed": {
+                  "type": "integer"
+                },
+                "foreach" : {
+                  "type": "object",
+                  "enabled" : false
+                },
                 "email": {
                   "type": "object",
                   "dynamic": true,
@@ -327,63 +335,6 @@
                         },
                         "id": {
                           "type": "keyword"
-                        }
-                      }
-                    }
-                  }
-                },
-                "hipchat" : {
-                  "type": "object",
-                  "dynamic": true,
-                  "properties": {
-                    "account": {
-                      "type": "keyword"
-                    },
-                    "sent_messages": {
-                      "type": "nested",
-                      "include_in_parent": true,
-                      "dynamic": true,
-                      "properties": {
-                        "status": {
-                          "type": "keyword"
-                        },
-                        "reason": {
-                          "type": "text"
-                        },
-                        "request" : {
-                          "type" : "object",
-                          "enabled" : false
-                        },
-                        "response" : {
-                          "type" : "object",
-                          "enabled" : false
-                        },
-                        "room" : {
-                          "type": "keyword"
-                        },
-                        "user" : {
-                          "type": "keyword"
-                        },
-                        "message" : {
-                          "type" : "object",
-                          "dynamic" : true,
-                          "properties" : {
-                            "message_format" : {
-                              "type" : "keyword"
-                            },
-                            "color" : {
-                              "type" : "keyword"
-                            },
-                            "notify" : {
-                              "type" : "boolean"
-                            },
-                            "message" : {
-                              "type" : "text"
-                            },
-                            "from" : {
-                              "type" : "text"
-                            }
-                          }
                         }
                       }
                     }

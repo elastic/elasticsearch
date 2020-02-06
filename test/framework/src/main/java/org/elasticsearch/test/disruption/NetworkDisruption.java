@@ -20,7 +20,6 @@
 package org.elasticsearch.test.disruption;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,9 +37,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.BiConsumer;
-
-import static org.junit.Assert.assertFalse;
 
 /**
  * Network disruptions are modeled using two components:
@@ -49,7 +47,7 @@ import static org.junit.Assert.assertFalse;
  */
 public class NetworkDisruption implements ServiceDisruptionScheme {
 
-    private final Logger logger = LogManager.getLogger(NetworkDisruption.class);
+    private static final Logger logger = LogManager.getLogger(NetworkDisruption.class);
 
     private final DisruptedLinks disruptedLinks;
     private final NetworkLinkDisruptionType networkLinkDisruptionType;
@@ -103,17 +101,22 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
      * handy to be able to ensure this happens faster
      */
     public static void ensureFullyConnectedCluster(InternalTestCluster cluster) {
-        for (String node: cluster.getNodeNames()) {
+        final String[] nodeNames = cluster.getNodeNames();
+        final CountDownLatch countDownLatch = new CountDownLatch(nodeNames.length);
+        for (String node : nodeNames) {
             ClusterState stateOnNode = cluster.getInstance(ClusterService.class, node).state();
-            cluster.getInstance(NodeConnectionsService.class, node).connectToNodes(stateOnNode.nodes());
+            cluster.getInstance(NodeConnectionsService.class, node).reconnectToNodes(stateOnNode.nodes(), countDownLatch::countDown);
+        }
+
+        try {
+            countDownLatch.await();
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
         }
     }
 
     protected void ensureNodeCount(InternalTestCluster cluster) {
-        assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
-            .setWaitForNodes(String.valueOf(cluster.size()))
-            .setWaitForNoRelocatingShards(true)
-            .get().isTimedOut());
+        cluster.validateClusterFormed();
     }
 
     @Override

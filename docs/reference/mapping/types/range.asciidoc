@@ -1,5 +1,8 @@
 [[range]]
 === Range datatypes
+++++
+<titleabbrev>Range</titleabbrev>
+++++
 
 The following range types are supported:
 
@@ -14,23 +17,21 @@ The following range types are supported:
 
 Below is an example of configuring a mapping with various range fields followed by an example that indexes several range types.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT range_index?include_type_name=true
+PUT range_index
 {
   "settings": {
     "number_of_shards": 2
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "expected_attendees": {
-          "type": "integer_range"
-        },
-        "time_frame": {
-          "type": "date_range", <1>
-          "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
-        }
+    "properties": {
+      "expected_attendees": {
+        "type": "integer_range"
+      },
+      "time_frame": {
+        "type": "date_range", <1>
+        "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
       }
     }
   }
@@ -48,7 +49,6 @@ PUT range_index/_doc/1?refresh
   }
 }
 --------------------------------------------------
-//CONSOLE
 // TESTSETUP
 
 <1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
@@ -58,7 +58,7 @@ PUT range_index/_doc/1?refresh
 
 The following is an example of a <<query-dsl-term-query, term query>> on the `integer_range` field named "expected_attendees".
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET range_index/_search
 {
@@ -71,11 +71,10 @@ GET range_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The result produced by the above query.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -95,7 +94,6 @@ The result produced by the above query.
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
@@ -115,7 +113,7 @@ The result produced by the above query.
 
 The following is an example of a `date_range` query over the `date_range` field named "time_frame".
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET range_index/_search
 {
@@ -130,7 +128,6 @@ GET range_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Range queries work the same as described in <<query-dsl-range-query, range query>>.
 <2> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
@@ -138,7 +135,7 @@ GET range_index/_search
 
 This query produces a similar result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -158,7 +155,6 @@ This query produces a similar result:
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
@@ -182,7 +178,7 @@ This query produces a similar result:
 In addition to the range format above, IP ranges can be provided in
 https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR] notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT range_index/_mapping
 {
@@ -198,7 +194,6 @@ PUT range_index/_doc/2
   "ip_whitelist" : "192.168.0.0/16"
 }
 --------------------------------------------------
-// CONSOLE
 
 [[range-params]]
 ==== Parameters for range fields
@@ -211,11 +206,6 @@ The following parameters are accepted by range types:
 
     Try to convert strings to numbers and truncate fractions for integers.
     Accepts `true` (default) and `false`.
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<mapping-index,`index`>>::
 

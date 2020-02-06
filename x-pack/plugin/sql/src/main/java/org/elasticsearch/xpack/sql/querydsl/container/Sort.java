@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.sql.expression.Order.NullsPosition;
-import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
+import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 
-public class Sort {
+public abstract class Sort {
 
     public enum Direction {
         ASC, DESC;

@@ -1,10 +1,13 @@
 [[object]]
 === Object datatype
+++++
+<titleabbrev>Object</titleabbrev>
+++++
 
 JSON documents are hierarchical in nature: the document may contain inner
 objects which, in turn, may contain inner objects themselves:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index/_doc/1
 { <1>
@@ -18,7 +21,7 @@ PUT my_index/_doc/1
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The outer document is also a JSON object.
 <2> It contains an inner object called `manager`.
 <3> Which in turn contains an inner object called `name`.
@@ -39,24 +42,22 @@ pairs, something like this:
 
 An explicit mapping for the above document could look like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": { <1>
-      "properties": {
-        "region": {
-          "type": "keyword"
-        },
-        "manager": { <2>
-          "properties": {
-            "age":  { "type": "integer" },
-            "name": { <3>
-              "properties": {
-                "first": { "type": "text" },
-                "last":  { "type": "text" }
-              }
+    "properties": { <1>
+      "region": {
+        "type": "keyword"
+      },
+      "manager": { <2>
+        "properties": {
+          "age":  { "type": "integer" },
+          "name": { <3>
+            "properties": {
+              "first": { "type": "text" },
+              "last":  { "type": "text" }
             }
           }
         }
@@ -65,8 +66,8 @@ PUT my_index?include_type_name=true
   }
 }
 --------------------------------------------------
-// CONSOLE
-<1> The mapping type is a type of object, and has a `properties` field.
+
+<1> Properties in the top-level mappings definition.
 <2> The `manager` field is an inner `object` field.
 <3> The `manager.name` field is an inner `object` field within the `manager` field.
 

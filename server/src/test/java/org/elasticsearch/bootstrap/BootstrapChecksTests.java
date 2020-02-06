@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
@@ -45,7 +45,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -105,7 +104,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom(ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, "single-node");
+        final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
 
         assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
@@ -123,7 +122,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom(ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, "single-node");
+        final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
 
         assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
@@ -188,7 +187,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testFileDescriptorLimits() throws NodeValidationException {
         final boolean osX = randomBoolean(); // simulates OS X versus non-OS X
-        final int limit = osX ? 10240 : 1 << 16;
+        final int limit = osX ? 10240 : 65535;
         final AtomicLong maxFileDescriptorCount = new AtomicLong(randomIntBetween(1, limit - 1));
         final BootstrapChecks.FileDescriptorCheck check;
         if (osX) {
@@ -713,12 +712,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         // not enforced for non-zen2 discovery
         BootstrapChecks.check(createTestContext(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-            randomFrom(ZEN_DISCOVERY_TYPE, "single-node", randomAlphaOfLength(5))).build(), MetaData.EMPTY_META_DATA), true, checks);
+            randomFrom("single-node", randomAlphaOfLength(5))).build(), MetaData.EMPTY_META_DATA), true, checks);
 
         final NodeValidationException e = expectThrows(NodeValidationException.class,
             () -> BootstrapChecks.check(zen2Context, true, checks));
         assertThat(e, hasToString(containsString("the default discovery settings are unsuitable for production use; at least one " +
-            "of [discovery.zen.ping.unicast.hosts, discovery.zen.hosts_provider, cluster.initial_master_nodes] must be configured")));
+            "of [discovery.seed_hosts, discovery.seed_providers, cluster.initial_master_nodes] must be configured")));
 
         CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b ->
         {
@@ -727,8 +726,8 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             BootstrapChecks.check(context, true, checks);
         };
 
-        ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
-        ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey()));
     }
 }

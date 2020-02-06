@@ -90,6 +90,8 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
+        final CompensatedSum compensatedSumOfSqr = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override
@@ -117,34 +119,24 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     // which is more accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
+                    compensatedSum.reset(sum, compensation);
+
                     double sumOfSqr = sumOfSqrs.get(bucket);
                     double compensationOfSqr = compensationOfSqrs.get(bucket);
+                    compensatedSumOfSqr.reset(sumOfSqr, compensationOfSqr);
+
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        if (Double.isFinite(value) == false) {
-                            sum += value;
-                            sumOfSqr += value * value;
-                        } else {
-                            if (Double.isFinite(sum)) {
-                                double corrected = value - compensation;
-                                double newSum = sum + corrected;
-                                compensation = (newSum - sum) - corrected;
-                                sum = newSum;
-                            }
-                            if (Double.isFinite(sumOfSqr)) {
-                                double correctedOfSqr = value * value - compensationOfSqr;
-                                double newSumOfSqr = sumOfSqr + correctedOfSqr;
-                                compensationOfSqr = (newSumOfSqr - sumOfSqr) - correctedOfSqr;
-                                sumOfSqr = newSumOfSqr;
-                            }
-                        }
+                        compensatedSum.add(value);
+                        compensatedSumOfSqr.add(value * value);
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }
-                    sums.set(bucket, sum);
-                    compensations.set(bucket, compensation);
-                    sumOfSqrs.set(bucket, sumOfSqr);
-                    compensationOfSqrs.set(bucket, compensationOfSqr);
+
+                    sums.set(bucket, compensatedSum.value());
+                    compensations.set(bucket, compensatedSum.delta());
+                    sumOfSqrs.set(bucket, compensatedSumOfSqr.value());
+                    compensationOfSqrs.set(bucket, compensatedSumOfSqr.delta());
                     mins.set(bucket, min);
                     maxes.set(bucket, max);
                 }
@@ -202,7 +194,8 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     private double variance(long owningBucketOrd) {
         double sum = sums.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
-        return (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / count;
+        double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / count;
+        return variance < 0  ? 0 : variance;
     }
 
     @Override

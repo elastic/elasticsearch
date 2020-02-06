@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
-import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -79,6 +78,9 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             ++linesConsumed;
         }
 
+        // null to allow GC before timestamp search
+        sampleDocEnds = null;
+
         // If we get here the XML parser should have confirmed this
         assert messagePrefix.charAt(0) == '<';
         String topLevelTag = messagePrefix.substring(1);
@@ -91,17 +93,18 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setMultilineStartPattern("^\\s*<" + topLevelTag);
 
-        Tuple<String, TimestampMatch> timeField =
+        Tuple<String, TimestampFormatFinder> timeField =
             FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides, timeoutChecker);
         if (timeField != null) {
             boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();
 
             structureBuilder.setTimestampField(timeField.v1())
-                .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
-                .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
+                .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
+                .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
-                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, topLevelTag + "." + timeField.v1(),
-                    timeField.v2().jodaTimestampFormats, needClientTimeZone));
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null,
+                    Collections.emptyMap(), topLevelTag + "." + timeField.v1(), timeField.v2().getJavaTimestampFormats(),
+                    needClientTimeZone));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
@@ -118,8 +121,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         SortedMap<String, Object> outerMappings = new TreeMap<>();
         outerMappings.put(topLevelTag, secondLevelProperties);
         if (timeField != null) {
-            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
-                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
         }
 
         FileStructure structure = structureBuilder

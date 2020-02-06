@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +38,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -72,7 +74,7 @@ public class ClusterRequestConvertersTests extends ESTestCase {
     public void testClusterHealth() {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomLocal(healthRequest, expectedParams);
+        RequestConvertersTests.setRandomLocal(healthRequest::local, expectedParams);
         String timeoutType = ESTestCase.randomFrom("timeout", "masterTimeout", "both", "none");
         String timeout = ESTestCase.randomTimeValue();
         String masterTimeout = ESTestCase.randomTimeValue();
@@ -146,5 +148,13 @@ public class ClusterRequestConvertersTests extends ESTestCase {
             Assert.assertThat(request.getEndpoint(), equalTo("/_cluster/health"));
         }
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testRemoteInfo() {
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        Request expectedRequest = ClusterRequestConverters.remoteInfo(request);
+        assertEquals("/_remote/info", expectedRequest.getEndpoint());
+        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(emptyMap(), expectedRequest.getParameters());
     }
 }

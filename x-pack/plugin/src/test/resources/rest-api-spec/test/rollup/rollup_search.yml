@@ -6,19 +6,18 @@ setup:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                partition:
-                  type: keyword
-                price:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              partition:
+                type: keyword
+              price:
+                type: integer
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -29,7 +28,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -51,7 +50,6 @@ setup:
         body:
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T05:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -67,7 +65,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T06:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -83,7 +80,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T07:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -99,7 +95,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -115,7 +110,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -133,7 +127,7 @@ setup:
 "Basic Search":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -141,7 +135,34 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
+                time_zone: "UTC"
+
+  - length: { aggregations.histo.buckets: 4 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-01T06:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01T07:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
+  - match: { aggregations.histo.buckets.3.doc_count: 20 }
+
+---
+"Basic Search with rest_total_hits_as_int":
+  - skip:
+      version: " - 6.5.99"
+      reason: rest_total_hits_as_int was introduced in 6.6.0
+  - do:
+      rollup.rollup_search:
+        index: "foo_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "1h"
                 time_zone: "UTC"
 
   - length: { aggregations.histo.buckets: 4 }
@@ -158,7 +179,7 @@ setup:
 "Formatted Date Histo":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -166,7 +187,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
                 format: "yyyy-MM-dd"
 
@@ -184,7 +205,7 @@ setup:
 "Empty aggregation":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         rest_total_hits_as_int: true
         index: "foo_rollup"
         body:
@@ -199,7 +220,7 @@ setup:
 "Empty aggregation with new response format":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -216,7 +237,7 @@ setup:
 "Search with Metric":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -224,7 +245,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -249,7 +270,7 @@ setup:
 "Search with Query":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -260,7 +281,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -286,7 +307,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -297,7 +318,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -319,7 +340,6 @@ setup:
         body:
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T05:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -335,7 +355,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T06:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -351,7 +370,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T07:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -367,7 +385,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -383,7 +400,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -399,7 +415,7 @@ setup:
 
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -407,7 +423,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -434,7 +450,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -445,7 +461,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -467,7 +483,6 @@ setup:
         body:
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T05:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -483,7 +498,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T06:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -499,7 +513,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T07:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -515,7 +528,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -531,7 +543,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -547,7 +558,7 @@ setup:
 
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -558,7 +569,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -584,7 +595,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -595,7 +606,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1d"
+                "calendar_interval": "1d"
               },
               "terms": {
                 "fields": ["partition"]
@@ -617,7 +628,6 @@ setup:
         body:
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T05:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -633,7 +643,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T06:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -649,7 +658,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T07:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -665,7 +673,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -681,7 +688,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -696,7 +702,7 @@ setup:
             "_rollup.version": 1
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -707,7 +713,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -731,7 +737,7 @@ setup:
 "Wildcards matching single rollup index":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup*"
         body:
           size: 0
@@ -739,7 +745,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
 
   - length: { aggregations.histo.buckets: 4 }
@@ -760,19 +766,18 @@ setup:
         index: bar
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                partition:
-                  type: keyword
-                price:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              partition:
+                type: keyword
+              price:
+                type: integer
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: bar
         body:  >
           {
@@ -783,7 +788,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -799,7 +804,7 @@ setup:
 
   - do:
       catch: /RollupSearch currently only supports searching one rollup index at a time\./
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "*_rollup"
         body:
           size: 0
@@ -807,7 +812,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
 
 
@@ -820,7 +825,7 @@ setup:
         name: rollup_alias
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "rollup_alias"
         body:
           size: 0
@@ -828,7 +833,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
 
   - length: { aggregations.histo.buckets: 4 }
@@ -849,19 +854,18 @@ setup:
         index: bar
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                partition:
-                  type: keyword
-                price:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              partition:
+                type: keyword
+              price:
+                type: integer
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: bar
         body:  >
           {
@@ -872,7 +876,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -893,7 +897,7 @@ setup:
 
   - do:
        catch: /RollupSearch currently only supports searching one rollup index at a time\./
-       xpack.rollup.rollup_search:
+       rollup.rollup_search:
          index: "rollup_alias"
          body:
            size: 0
@@ -901,15 +905,311 @@ setup:
              histo:
                date_histogram:
                  field: "timestamp"
-                 interval: "1h"
+                 calendar_interval: "1h"
                  time_zone: "UTC"
+
+---
+"Obsolete Timezone":
+  - skip:
+        version: " - 7.1.99"
+        reason: "IANA TZ deprecations in 7.2"
+        features: "warnings"
+  - do:
+      indices.create:
+        index: tz
+        body:
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              partition:
+                type: keyword
+              price:
+                type: integer
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      warnings:
+        - "Creating Rollup job [tz] with timezone [Canada/Mountain], but [Canada/Mountain] has been deprecated by the IANA.  Use [America/Edmonton] instead."
+      rollup.put_job:
+        id: tz
+        body:  >
+          {
+            "index_pattern": "tz",
+            "rollup_index": "tz_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "timestamp",
+                "interval": "5m",
+                "time_zone": "Canada/Mountain"
+              },
+              "terms": {
+                "fields": ["partition"]
+              }
+            },
+            "metrics": [
+              {
+                "field": "price",
+                "metrics": ["max"]
+              }
+            ]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: "tz_rollup"
+          - timestamp.date_histogram.timestamp: 1531221000000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "America/Edmonton"
+            timestamp.date_histogram._count: 1
+            partition.terms.value: "a"
+            partition.terms._count: 1
+            price.max.value: 1
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+          - index:
+              _index: "tz_rollup"
+          - timestamp.date_histogram.timestamp: 1531221300000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "America/Edmonton"
+            timestamp.date_histogram._count: 2
+            partition.terms.value: "b"
+            partition.terms._count: 2
+            price.max.value: 2
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+          - index:
+              _index: "tz_rollup"
+          - timestamp.date_histogram.timestamp: 1531221600000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "America/Edmonton"
+            timestamp.date_histogram._count: 10
+            partition.terms.value: "a"
+            partition.terms._count: 10
+            price.max.value: 3
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+  - do:
+      rollup.rollup_search:
+        index: "tz_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                fixed_interval: "5m"
+                time_zone: "America/Edmonton"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2018-07-10T05:10:00.000-06:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.0.the_max.value: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2018-07-10T05:15:00.000-06:00" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.the_max.value: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2018-07-10T05:20:00.000-06:00" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.2.the_max.value: 3 }
+
+  - do:
+      rollup.rollup_search:
+        index: "tz_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                fixed_interval: "5m"
+                time_zone: "Canada/Mountain"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2018-07-10T05:10:00.000-06:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.0.the_max.value: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2018-07-10T05:15:00.000-06:00" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.the_max.value: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2018-07-10T05:20:00.000-06:00" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.2.the_max.value: 3 }
+
+---
+"Obsolete BWC Timezone":
+  - skip:
+        version: " - 7.1.99"
+        reason: "IANA TZ deprecations in 7.2"
+  - do:
+      indices.create:
+        index: tz_rollup
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              partition.terms.value:
+                type: keyword
+              partition.terms._count:
+                type: long
+              timestamp.date_histogram.time_zone:
+                type: keyword
+              timestamp.date_histogram.interval:
+                type: keyword
+              timestamp.date_histogram.timestamp:
+                type: date
+              timestamp.date_histogram._count:
+                type: long
+              price.max.value:
+                type: double
+              _rollup.id:
+                type: keyword
+              _rollup.version:
+                type: long
+            _meta:
+              _rollup:
+                sensor:
+                  cron: "* * * * * ?"
+                  rollup_index: "tz_rollup"
+                  index_pattern: "tz"
+                  timeout: "20s"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      field: "timestamp"
+                      interval: "5m"
+                      time_zone: "Canada/Mountain"
+                    terms:
+                      fields:
+                        - "partition"
+                  id: tz
+                  metrics:
+                    - field: "price"
+                      metrics:
+                        - max
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: "tz_rollup"
+          - timestamp.date_histogram.timestamp: 1531221000000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "Canada/Mountain"
+            timestamp.date_histogram._count: 1
+            partition.terms.value: "a"
+            partition.terms._count: 1
+            price.max.value: 1
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+          - index:
+              _index: "tz_rollup"
+          - timestamp.date_histogram.timestamp: 1531221300000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "Canada/Mountain"
+            timestamp.date_histogram._count: 2
+            partition.terms.value: "b"
+            partition.terms._count: 2
+            price.max.value: 2
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+          - index:
+              _index: "tz_rollup"
+          - timestamp.date_histogram.timestamp: 1531221600000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "Canada/Mountain"
+            timestamp.date_histogram._count: 10
+            partition.terms.value: "a"
+            partition.terms._count: 10
+            price.max.value: 3
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+  - do:
+      rollup.rollup_search:
+        index: "tz_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                fixed_interval: "5m"
+                time_zone: "America/Edmonton"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2018-07-10T05:10:00.000-06:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.0.the_max.value: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2018-07-10T05:15:00.000-06:00" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.the_max.value: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2018-07-10T05:20:00.000-06:00" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.2.the_max.value: 3 }
+
+
+  - do:
+      rollup.rollup_search:
+        index: "tz_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                fixed_interval: "5m"
+                time_zone: "Canada/Mountain"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2018-07-10T05:10:00.000-06:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.0.the_max.value: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2018-07-10T05:15:00.000-06:00" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.the_max.value: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2018-07-10T05:20:00.000-06:00" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.2.the_max.value: 3 }
 
 
 ---
 "Search with typed_keys":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         typed_keys: true
         body:
@@ -918,7 +1218,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -937,3 +1237,50 @@ setup:
   - match: { aggregations.date_histogram#histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
   - match: { aggregations.date_histogram#histo.buckets.3.doc_count: 20 }
   - match: { aggregations.date_histogram#histo.buckets.3.max#the_max.value: 4 }
+
+---
+"Search error against live index":
+
+  - do:
+      catch: bad_request
+      rollup.rollup_search:
+        index: "foo"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "asdfasdf"
+
+
+---
+"Search error against rollup and live index":
+
+  - do:
+      catch: bad_request
+      rollup.rollup_search:
+        index: "foo*"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "asdfasdf"
+
+---
+"Search error no matching indices":
+
+  - do:
+      catch: /Must specify at least one concrete index/
+      rollup.rollup_search:
+        index: "bar*"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
+

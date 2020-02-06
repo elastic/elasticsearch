@@ -5,24 +5,28 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor.doProcess;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Returns the starting position of the first occurrence of the pattern within the source string.
@@ -31,7 +35,7 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  * position indicated by the value of start. The first character position in the source string is indicated by the value 1.
  * If the pattern is not found within the source string, the value 0 is returned.
  */
-public class Locate extends ScalarFunction {
+public class Locate extends ScalarFunction implements OptionalArgument {
 
     private final Expression pattern, source, start;
     
@@ -48,19 +52,17 @@ public class Locate extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution patternResolution = isStringAndExact(pattern, sourceText(), ParamOrdinal.FIRST);
         if (patternResolution.unresolved()) {
             return patternResolution;
         }
         
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.SECOND);
+        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.SECOND);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
-        
-        return start == null ?
-            TypeResolution.TYPE_RESOLVED :
-                Expressions.typeMustBeNumeric(start, sourceText(), ParamOrdinal.THIRD);
+
+        return start == null ? TypeResolution.TYPE_RESOLVED : isNumeric(start, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override
@@ -80,7 +82,7 @@ public class Locate extends ScalarFunction {
     public boolean foldable() {
         return pattern.foldable()
                 && source.foldable()
-                && (start == null? true : start.foldable());
+                && (start == null || start.foldable());
     }
 
     @Override
@@ -122,21 +124,23 @@ public class Locate extends ScalarFunction {
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
-                paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+                paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataTypes.INTEGER;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
+        if (start != null && newChildren.size() != 3) {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
+        } else if (start == null && newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
         }
 
-        return new Locate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Locate(source(), newChildren.get(0), newChildren.get(1), start == null ? null : newChildren.get(2));
     }
 }

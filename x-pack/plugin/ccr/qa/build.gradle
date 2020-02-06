@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.build'
-unitTest.enabled = false
+test.enabled = false
 
 dependencies {
   compile project(':test:framework')
@@ -14,4 +14,5 @@ subprojects {
       include 'rest-api-spec/api/**'
     }
   }
+
 }

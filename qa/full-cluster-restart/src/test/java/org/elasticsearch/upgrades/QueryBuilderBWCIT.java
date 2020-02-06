@@ -155,7 +155,6 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             }
             {
                 mappingsAndSettings.startObject("mappings");
-                mappingsAndSettings.startObject("doc");
                 mappingsAndSettings.startObject("properties");
                 {
                     mappingsAndSettings.startObject("query");
@@ -174,7 +173,6 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 }
                 mappingsAndSettings.endObject();
                 mappingsAndSettings.endObject();
-                mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
@@ -183,20 +181,20 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
-                request = new Request("PUT", "/" + index + "/doc/" + Integer.toString(i));
+                request = new Request("PUT", "/" + index + "/_doc/" + Integer.toString(i));
                 request.setJsonEntity((String) CANDIDATES.get(i)[0]);
                 rsp = client().performRequest(request);
                 assertEquals(201, rsp.getStatusLine().getStatusCode());
             }
         } else {
-            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, false,
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY,
                 Collections.emptyList()).getNamedWriteables());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
                 Request request = new Request("GET", "/" + index + "/_search");
                 request.setJsonEntity("{\"query\": {\"ids\": {\"values\": [\"" + Integer.toString(i) + "\"]}}, " +
-                        "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\", \"format\":\"use_field_mapping\"}]}");
+                        "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\"}]}");
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
                 Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>)toMap(rsp).get("hits")).get("hits")).get(0);

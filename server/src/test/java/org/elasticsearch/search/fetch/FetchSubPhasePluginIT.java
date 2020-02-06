@@ -64,20 +64,14 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         return Collections.singletonList(FetchTermVectorsPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
         client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping(
-                        "type1",
+                .setMapping(
                         jsonBuilder()
-                                .startObject().startObject("type1")
+                                .startObject().startObject("_doc")
                                 .startObject("properties")
                                 .startObject("test")
                                 .field("type", "text").field("term_vector", "yes")
@@ -86,7 +80,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                                 .endObject().endObject()).get();
 
         client().index(
-                indexRequest("test").type("type1").id("1")
+                indexRequest("test").id("1")
                         .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())).actionGet();
 
         client().admin().indices().prepareRefresh().get();
@@ -134,7 +128,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitContext.hit().getFields().put(NAME, hitField);
             }
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
-                    hitContext.hit().getType(), hitContext.hit().getId());
+                    hitContext.hit().getId());
             TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), termVectorsRequest);
             try {
                 Map<String, Integer> tv = new HashMap<>();

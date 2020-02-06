@@ -3,15 +3,15 @@
 :request: GetRecordsRequest
 :response: GetRecordsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Records API
+=== Get records API
 
-The Get Records API retrieves one or more record results.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Retrieves one or more record results.
+It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Records Request
+==== Get records request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 
@@ -19,9 +19,9 @@ A +{request}+ object gets created with an existing non-null `jobId`.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request referencing an existing `jobId`
+<1> Constructing a new request referencing an existing `jobId`.
 
-==== Optional Arguments
+==== Optional arguments
 The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -46,8 +46,9 @@ include-tagged::{doc-tests-file}[{api}-exclude-interim]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-page]
 --------------------------------------------------
-<1> The page parameters `from` and `size`. `from` specifies the number of records to skip.
-`size` specifies the maximum number of records to get. Defaults to `0` and `100` respectively.
+<1> The page parameters `from` and `size`. `from` specifies the number of
+records to skip. `size` specifies the maximum number of records to get. Defaults
+to `0` and `100` respectively.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -70,7 +71,7 @@ include-tagged::{doc-tests-file}[{api}-start]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get Records Response
+==== Get records response
 
 The returned +{response}+ contains the requested records:
 
@@ -78,5 +79,5 @@ The returned +{response}+ contains the requested records:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of records that were matched
-<2> The records retrieved
+<1> The count of records that were matched.
+<2> The records retrieved.

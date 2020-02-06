@@ -21,11 +21,17 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -34,7 +40,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -46,47 +52,39 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
+        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
         try {
-            client().prepareIndex("index", "type", "2").setSource("foo", "bar").get();
+            client().prepareIndex("index").setId("2").setSource("foo", "bar").get();
             fail("Indexing request should have failed!");
         } catch (MapperParsingException e) {
-            // expected
+            // general case, the parsing code complains that it can't parse "bar" as a "long"
+            assertThat(e.getMessage(),
+                    Matchers.containsString("failed to parse field [foo] of type [long]"));
+        } catch (IllegalArgumentException e) {
+            // rare case: the node that processes the index request doesn't have the mappings
+            // yet and sends a mapping update to the master node to map "bar" as "text". This
+            // fails as it had been already mapped as a long by the previous index request.
+            assertThat(e.getMessage(),
+                    Matchers.containsString("mapper [foo] of different type, current_type [long], merged_type [text]"));
         }
     }
 
     public void testConflictingDynamicMappingsBulk() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
-        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("index", "type", "1").setSource("foo", 3)).get();
+        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("1").setSource("foo", 3)).get();
         assertFalse(bulkResponse.hasFailures());
-        bulkResponse = client().prepareBulk().add(client().prepareIndex("index", "type", "2").setSource("foo", "bar")).get();
+        bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("2").setSource("foo", "bar")).get();
         assertTrue(bulkResponse.hasFailures());
     }
 
-    private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String type, String field) throws IOException {
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.getMappings().get("index");
+    private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String field) throws IOException {
+        MappingMetaData indexMappings = mappings.getMappings().get("index");
         assertNotNull(indexMappings);
-        MappingMetaData typeMappings = indexMappings.get(type);
-        assertNotNull(typeMappings);
-        Map<String, Object> typeMappingsMap = typeMappings.getSourceAsMap();
+        Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
-    }
-
-    public void testMappingsPropagatedToMasterNodeImmediately() throws IOException {
-        assertAcked(prepareCreate("index"));
-
-        // works when the type has been dynamically created
-        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
-        assertMappingsHaveField(mappings, "index", "type", "foo");
-
-        // works if the type already existed
-        client().prepareIndex("index", "type", "1").setSource("bar", "baz").get();
-        mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
-        assertMappingsHaveField(mappings, "index", "type", "bar");
     }
 
     public void testConcurrentDynamicUpdates() throws Throwable {
@@ -101,7 +99,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 public void run() {
                     try {
                         startLatch.await();
-                        assertEquals(DocWriteResponse.Result.CREATED, client().prepareIndex("index", "type", id)
+                        assertEquals(DocWriteResponse.Result.CREATED, client().prepareIndex("index").setId(id)
                             .setSource("field" + id, "bar").get().getResult());
                     } catch (Exception e) {
                         error.compareAndSet(null, e);
@@ -118,12 +116,46 @@ public class DynamicMappingIT extends ESIntegTestCase {
             throw error.get();
         }
         Thread.sleep(2000);
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
+        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").get();
         for (int i = 0; i < indexThreads.length; ++i) {
-            assertMappingsHaveField(mappings, "index", "type", "field" + i);
+            assertMappingsHaveField(mappings, "index", "field" + i);
         }
         for (int i = 0; i < indexThreads.length; ++i) {
-            assertTrue(client().prepareGet("index", "type", Integer.toString(i)).get().isExists());
+            assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
+        }
+    }
+
+    public void testPreflightCheckAvoidsMaster() throws InterruptedException {
+        createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
+        ensureGreen("index");
+        client().prepareIndex("index").setId("1").setSource("field1", "value1").get();
+
+        final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
+        final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
+
+        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).submitStateUpdateTask("block-state-updates",
+            new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                masterBlockedLatch.countDown();
+                indexingCompletedLatch.await();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError("unexpected", e);
+            }
+        });
+
+        masterBlockedLatch.await();
+        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId("2").setSource("field2", "value2");
+        try {
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
+                Matchers.containsString("Limit of total fields [2] in index [index] has been exceeded"));
+        } finally {
+            indexingCompletedLatch.countDown();
         }
     }
 }

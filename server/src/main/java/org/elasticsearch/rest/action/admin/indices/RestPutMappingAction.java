@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -31,34 +31,21 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutMappingAction extends BaseRestHandler {
-    public RestPutMappingAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(PUT, "/{index}/_mapping/", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(PUT, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(PUT, "/_mapping/{type}", this);
 
+    public RestPutMappingAction(RestController controller) {
+        controller.registerHandler(PUT, "/{index}/_mapping/", this);
         controller.registerHandler(POST, "/{index}/_mapping/", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(POST, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(POST, "/_mapping/{type}", this);
 
         //register the same paths, but with plural form _mappings
         controller.registerHandler(PUT, "/{index}/_mappings/", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_mappings", this);
-        controller.registerHandler(PUT, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(PUT, "/_mappings/{type}", this);
-
         controller.registerHandler(POST, "/{index}/_mappings/", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mappings", this);
-        controller.registerHandler(POST, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(POST, "/_mappings/{type}", this);
     }
 
     @Override
@@ -68,16 +55,15 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        final String type = request.param("type");
-        if (type != null && includeTypeName == false) {
-            throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
-                "the include_type_name parameter is set to true.");
+
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
+            request.getXContentType()).v2();
+        if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap)) {
+            throw new IllegalArgumentException("Types cannot be provided in put mapping requests");
         }
-        putMappingRequest.type(includeTypeName ? type : MapperService.SINGLE_MAPPING_NAME);
-        putMappingRequest.source(request.requiredContent(), request.getXContentType());
+
+        putMappingRequest.source(sourceAsMap);
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));

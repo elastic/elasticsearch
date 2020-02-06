@@ -14,8 +14,8 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.junit.After;
 import org.junit.Before;
 
@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -66,8 +66,8 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
     public void indexRandomDocuments() {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(IMMEDIATE);
         for (int i = 0; i < randomIntBetween(10, 50); i++) {
-            bulkRequestBuilder.add(client().prepareIndex("index", "type",
-                    String.valueOf(i)).setSource("{ \"foo\" : \"bar\" }", XContentType.JSON));
+            bulkRequestBuilder.add(client().prepareIndex("index")
+                .setId(String.valueOf(i)).setSource("{ \"foo\" : \"bar\" }", XContentType.JSON));
         }
         BulkResponse bulkItemResponses = bulkRequestBuilder.get();
         assertThat(bulkItemResponses.hasFailures(), is(false));
@@ -75,7 +75,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
         int count = randomIntBetween(5, 15);
         for (int i = 0; i < count; i++) {
-            multiSearchRequestBuilder.add(client().prepareSearch("index").setTypes("type").setScroll("10m").setSize(1));
+            multiSearchRequestBuilder.add(client().prepareSearch("index").setScroll("10m").setSize(1));
         }
         MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
         scrollIds = getScrollIds(multiSearchResponse);
@@ -93,7 +93,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         Map<String, String> headers = new HashMap<>();
         headers.put(SecurityField.USER_SETTING.getKey(), user);
         headers.put(BASIC_AUTH_HEADER, basicAuth);
-        ClearScrollResponse clearScrollResponse = internalCluster().transportClient().filterWithHeader(headers)
+        ClearScrollResponse clearScrollResponse = client().filterWithHeader(headers)
             .prepareClearScroll()
             .addScrollId("_all").get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
@@ -107,7 +107,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         Map<String, String> headers = new HashMap<>();
         headers.put(SecurityField.USER_SETTING.getKey(), user);
         headers.put(BASIC_AUTH_HEADER, basicAuth);
-        assertThrows(internalCluster().transportClient().filterWithHeader(headers)
+        assertThrows(client().filterWithHeader(headers)
                 .prepareClearScroll()
                 .addScrollId("_all"), ElasticsearchSecurityException.class,
                 "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");

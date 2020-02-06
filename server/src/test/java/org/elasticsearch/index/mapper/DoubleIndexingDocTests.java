@@ -40,17 +40,17 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(random(), Lucene.STANDARD_ANALYZER));
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").endObject()
                 .endObject().endObject());
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
         MapperService mapperService = index.mapperService();
         DocumentMapper mapper = mapperService.documentMapper();
 
         QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L, null);
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "value1")
@@ -61,7 +61,7 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type")
+        client().admin().indices().preparePutMapping("test")
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         writer.addDocument(doc.rootDoc());

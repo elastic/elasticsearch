@@ -16,7 +16,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
@@ -28,6 +28,7 @@ import java.time.Clock;
 import java.util.Arrays;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
@@ -48,14 +49,13 @@ public class WatcherExecutorServiceBenchmark {
             .put("cluster.name", "bench")
             .put("network.host", "localhost")
             .put("script.disable_dynamic", false)
-            .put("discovery.zen.ping.unicast.hosts", "localhost")
+            .put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), "localhost")
             .put("http.cors.enabled", true)
             .put("cluster.routing.allocation.disk.threshold_enabled", false)
 //                .put("recycler.page.limit.heap", "60%")
             .build();
 
     private static Client client;
-    private static WatcherClient watcherClient;
     private static ScheduleTriggerEngineMock scheduler;
 
     protected static void start() throws Exception {
@@ -64,7 +64,6 @@ public class WatcherExecutorServiceBenchmark {
         client = node.client();
         client.admin().cluster().prepareHealth("*").setWaitForGreenStatus().get();
         Thread.sleep(5000);
-        watcherClient = node.injector().getInstance(WatcherClient.class);
         scheduler = node.injector().getInstance(ScheduleTriggerEngineMock.class);
     }
 
@@ -73,7 +72,7 @@ public class WatcherExecutorServiceBenchmark {
         public static void main(String[] args) throws Exception {
             start();
             client.admin().indices().prepareCreate("test").get();
-            client.prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
+            client.prepareIndex().setIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
             int numAlerts = 1000;
             for (int i = 0; i < numAlerts; i++) {
@@ -87,7 +86,7 @@ public class WatcherExecutorServiceBenchmark {
                                 "ctx.payload.hits.total.value > 0",
                                 emptyMap()))).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
-                watcherClient.putWatch(putAlertRequest).actionGet();
+                client.execute(PutWatchAction.INSTANCE, putAlertRequest).actionGet();
             }
 
             int numThreads = 50;
@@ -128,9 +127,9 @@ public class WatcherExecutorServiceBenchmark {
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
                                 .extractKeys("hits.total.value"))
                         .condition(new ScriptCondition(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 == 1", emptyMap())))
-                        .addAction("_id", indexAction("index", "type")).buildAsBytes(XContentType.JSON), XContentType.JSON);
+                        .addAction("_id", indexAction("index")).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
-                watcherClient.putWatch(putAlertRequest).actionGet();
+                client.execute(PutWatchAction.INSTANCE, putAlertRequest).actionGet();
             }
 
             int numThreads = 50;
@@ -177,7 +176,7 @@ public class WatcherExecutorServiceBenchmark {
                                 "ctx.payload.tagline == \"You Know, for Search\"",
                                 emptyMap()))).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
-                watcherClient.putWatch(putAlertRequest).actionGet();
+                client.execute(PutWatchAction.INSTANCE, putAlertRequest).actionGet();
             }
 
             int numThreads = 50;

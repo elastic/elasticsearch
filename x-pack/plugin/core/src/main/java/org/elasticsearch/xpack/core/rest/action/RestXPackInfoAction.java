@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.core.rest.action;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
+import org.elasticsearch.xpack.core.action.XPackInfoRequestBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -19,11 +19,10 @@ import java.util.EnumSet;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
-public class RestXPackInfoAction extends XPackRestHandler {
-    public RestXPackInfoAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(HEAD, URI_BASE, this);
-        controller.registerHandler(GET, URI_BASE, this);
+public class RestXPackInfoAction extends BaseRestHandler {
+    public RestXPackInfoAction(RestController controller) {
+        controller.registerHandler(HEAD, "/_xpack", this);
+        controller.registerHandler(GET, "/_xpack", this);
     }
 
     @Override
@@ -32,7 +31,7 @@ public class RestXPackInfoAction extends XPackRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
 
         // we piggyback verbosity on "human" output
         boolean verbose = request.paramAsBoolean("human", true);
@@ -40,7 +39,7 @@ public class RestXPackInfoAction extends XPackRestHandler {
         EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category
                 .toSet(request.paramAsStringArray("categories", new String[] { "_all" }));
         return channel ->
-                client.prepareInfo()
+                new XPackInfoRequestBuilder(client)
                         .setVerbose(verbose)
                         .setCategories(categories)
                         .execute(new RestToXContentListener<>(channel));

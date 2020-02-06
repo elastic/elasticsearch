@@ -23,6 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -40,16 +42,16 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+
+import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.isIndexVerifiedBeforeClosed;
 
 public class LocalAllocateDangledIndices {
 
@@ -72,48 +74,21 @@ public class LocalAllocateDangledIndices {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
-        transportService.registerRequestHandler(ACTION_NAME, AllocateDangledRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SAME, AllocateDangledRequest::new,
             new AllocateDangledRequestHandler());
     }
 
-    public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
+    public void allocateDangled(Collection<IndexMetaData> indices, ActionListener<AllocateDangledResponse> listener) {
         ClusterState clusterState = clusterService.state();
         DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
         if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
+            listener.onFailure(new MasterNotDiscoveredException());
             return;
         }
         AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(),
             indices.toArray(new IndexMetaData[indices.size()]));
-        transportService.sendRequest(masterNode, ACTION_NAME, request, new TransportResponseHandler<AllocateDangledResponse>() {
-            @Override
-            public AllocateDangledResponse read(StreamInput in) throws IOException {
-                final AllocateDangledResponse response = new AllocateDangledResponse();
-                response.readFrom(in);
-                return response;
-            }
-
-            @Override
-            public void handleResponse(AllocateDangledResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                listener.onFailure(exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
-        });
-    }
-
-    public interface Listener {
-        void onResponse(AllocateDangledResponse response);
-
-        void onFailure(Throwable e);
+        transportService.sendRequest(masterNode, ACTION_NAME, request,
+            new ActionListenerResponseHandler<>(listener, AllocateDangledResponse::new, ThreadPool.Names.SAME));
     }
 
     class AllocateDangledRequestHandler implements TransportRequestHandler<AllocateDangledRequest> {
@@ -144,6 +119,13 @@ public class LocalAllocateDangledIndices {
                                 minIndexCompatibilityVersion);
                             continue;
                         }
+                        if (currentState.nodes().getMinNodeVersion().before(indexMetaData.getCreationVersion())) {
+                            logger.warn("ignoring dangled index [{}] on node [{}]" +
+                                " since its created version [{}] is later than the oldest versioned node in the cluster [{}]",
+                                indexMetaData.getIndex(), request.fromNode, indexMetaData.getCreationVersion(),
+                                currentState.getNodes().getMasterNode().getVersion());
+                            continue;
+                        }
                         if (currentState.metaData().hasIndex(indexMetaData.getIndex().getName())) {
                             continue;
                         }
@@ -169,7 +151,7 @@ public class LocalAllocateDangledIndices {
                         }
                         metaData.put(upgradedIndexMetaData, false);
                         blocks.addBlocks(upgradedIndexMetaData);
-                        if (upgradedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
+                        if (upgradedIndexMetaData.getState() == IndexMetaData.State.OPEN || isIndexVerifiedBeforeClosed(indexMetaData)) {
                             routingTableBuilder.addAsFromDangling(upgradedIndexMetaData);
                         }
                         sb.append("[").append(upgradedIndexMetaData.getIndex()).append("/").append(upgradedIndexMetaData.getState())
@@ -203,7 +185,7 @@ public class LocalAllocateDangledIndices {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     try {
-                        channel.sendResponse(new AllocateDangledResponse(true));
+                        channel.sendResponse(new AllocateDangledResponse());
                     } catch (IOException e) {
                         logger.warn("failed send response for allocating dangled", e);
                     }
@@ -217,22 +199,18 @@ public class LocalAllocateDangledIndices {
         DiscoveryNode fromNode;
         IndexMetaData[] indices;
 
-        public AllocateDangledRequest() {
-        }
-
-        AllocateDangledRequest(DiscoveryNode fromNode, IndexMetaData[] indices) {
-            this.fromNode = fromNode;
-            this.indices = indices;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public AllocateDangledRequest(StreamInput in) throws IOException {
+            super(in);
             fromNode = new DiscoveryNode(in);
             indices = new IndexMetaData[in.readVInt()];
             for (int i = 0; i < indices.length; i++) {
                 indices[i] = IndexMetaData.readFrom(in);
             }
+        }
+
+        AllocateDangledRequest(DiscoveryNode fromNode, IndexMetaData[] indices) {
+            this.fromNode = fromNode;
+            this.indices = indices;
         }
 
         @Override
@@ -248,29 +226,20 @@ public class LocalAllocateDangledIndices {
 
     public static class AllocateDangledResponse extends TransportResponse {
 
-        private boolean ack;
-
-        AllocateDangledResponse() {
+        private AllocateDangledResponse(StreamInput in) throws IOException {
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                in.readBoolean();
+            }
         }
 
-        AllocateDangledResponse(boolean ack) {
-            this.ack = ack;
-        }
-
-        public boolean ack() {
-            return ack;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            ack = in.readBoolean();
+        private AllocateDangledResponse() {
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBoolean(ack);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeBoolean(true);
+            }
         }
     }
 }

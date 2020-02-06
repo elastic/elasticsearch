@@ -25,7 +25,6 @@ import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,22 +35,11 @@ public abstract class FieldScript {
 
     public static final String[] PARAMETERS = {};
 
-    private static final Map<String, String> DEPRECATIONS;
-
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
+    private static final Map<String, String> DEPRECATIONS = Map.of(
             "doc",
-            "Accessing variable [doc] via [params.doc] from within a field script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        deprecations.put(
+            "Accessing variable [doc] via [params.doc] from within a field script is deprecated in favor of directly accessing [doc].",
             "_doc",
-            "Accessing variable [doc] via [params._doc] from within a field script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
+            "Accessing variable [doc] via [params._doc] from within a field script is deprecated in favor of directly accessing [doc].");
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -63,7 +51,7 @@ public abstract class FieldScript {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         params = new HashMap<>(params);
         params.putAll(leafLookup.asMap());
-        this.params = new DeprecationMap(params, DEPRECATIONS);
+        this.params = new DeprecationMap(params, DEPRECATIONS, "field-script");
     }
 
     // for expression engine
@@ -99,7 +87,7 @@ public abstract class FieldScript {
         FieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
     }
 

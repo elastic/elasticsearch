@@ -18,31 +18,30 @@ can be configured via the index settings as shown below. The index
 options can be provided when creating an index or updating index
 settings.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /index?include_type_name=true
+PUT /index
 {
-    "settings" : {
-        "index" : {
-            "similarity" : {
-              "my_similarity" : {
-                "type" : "DFR",
-                "basic_model" : "g",
-                "after_effect" : "l",
-                "normalization" : "h2",
-                "normalization.h2.c" : "3.0"
-              }
-            }
+  "settings": {
+    "index": {
+      "similarity": {
+        "my_similarity": {
+          "type": "DFR",
+          "basic_model": "g",
+          "after_effect": "l",
+          "normalization": "h2",
+          "normalization.h2.c": "3.0"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
-Here we configure the DFRSimilarity so it can be referenced as
+Here we configure the DFR similarity so it can be referenced as
 `my_similarity` in mappings as is illustrate in the below example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /index/_mapping
 {
@@ -51,7 +50,6 @@ PUT /index/_mapping
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -92,22 +90,14 @@ from randomness] framework. This similarity has the following options:
 
 [horizontal]
 `basic_model`::
-    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelG.html[`be`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelD.html[`d`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelG.html[`g`],
+    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelG.html[`g`],
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIF.html[`if`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIn.html[`in`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIne.html[`ine`] and
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelP.html[`p`].
-
-`be`, `d` and `p` should be avoided in practice as they might return scores that
-are equal to 0 or infinite with terms that do not meet the expected random
-distribution.
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIn.html[`in`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIne.html[`ine`].
 
 `after_effect`::
-    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffect.NoAfterEffect.html[`no`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`b`] and
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectL.html[`l`].
+    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`b`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`l`].
 
 `normalization`::
     Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/Normalization.NoNormalization.html[`no`],
@@ -198,9 +188,9 @@ A similarity that allows you to use a script in order to specify how scores
 should be computed. For instance, the below example shows how to reimplement
 TF-IDF:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /index?include_type_name=true
+PUT /index
 {
   "settings": {
     "number_of_shards": 1, 
@@ -214,12 +204,10 @@ PUT /index?include_type_name=true
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "field": {
-          "type": "text",
-          "similarity": "scripted_tfidf"
-        }
+    "properties": {
+      "field": {
+        "type": "text",
+        "similarity": "scripted_tfidf"
       }
     }
   }
@@ -247,11 +235,10 @@ GET /index/_search?explain=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Which yields:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 12,
@@ -273,7 +260,6 @@ Which yields:
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {
@@ -367,9 +353,9 @@ document-independent contribution to the score.
 The below configuration will give the same tf-idf scores but is slightly
 more efficient:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /index?include_type_name=true
+PUT /index
 {
   "settings": {
     "number_of_shards": 1, 
@@ -386,22 +372,19 @@ PUT /index?include_type_name=true
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "field": {
-          "type": "text",
-          "similarity": "scripted_tfidf"
-        }
+    "properties": {
+      "field": {
+        "type": "text",
+        "similarity": "scripted_tfidf"
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /index/_doc/1
 {
@@ -425,10 +408,9 @@ GET /index/_search?explain=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 1,
@@ -450,7 +432,6 @@ GET /index/_search?explain=true
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {
@@ -535,9 +516,9 @@ By default, Elasticsearch will use whatever similarity is configured as
 You can change the default similarity for all fields in an index when
 it is <<indices-create-index,created>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /index?include_type_name=true
+PUT /index
 {
   "settings": {
     "index": {
@@ -550,13 +531,12 @@ PUT /index?include_type_name=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 If you want to change the default similarity after creating the index
 you must <<indices-open-close,close>> your index, send the following
 request and <<indices-open-close,open>> it again afterwards:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /index/_close
 
@@ -573,5 +553,4 @@ PUT /index/_settings
 
 POST /index/_open
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

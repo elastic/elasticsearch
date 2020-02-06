@@ -19,9 +19,9 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -32,10 +32,10 @@ import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -73,7 +73,7 @@ public final class InternalAutoDateHistogram extends
             this.format = format;
             key = in.readLong();
             docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override
@@ -108,7 +108,7 @@ public final class InternalAutoDateHistogram extends
 
         @Override
         public Object getKey() {
-            return new DateTime(key, DateTimeZone.UTC);
+            return Instant.ofEpochMilli(key).atZone(ZoneOffset.UTC);
         }
 
         @Override
@@ -119,17 +119,6 @@ public final class InternalAutoDateHistogram extends
         @Override
         public Aggregations getAggregations() {
             return aggregations;
-        }
-
-        Bucket reduce(List<Bucket> buckets, Rounding rounding, ReduceContext context) {
-            List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
-            long docCount = 0;
-            for (Bucket bucket : buckets) {
-                docCount += bucket.docCount;
-                aggregations.add((InternalAggregations) bucket.getAggregations());
-            }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-            return new InternalAutoDateHistogram.Bucket(rounding.round(key), docCount, format, aggs);
         }
 
         @Override
@@ -175,7 +164,7 @@ public final class InternalAutoDateHistogram extends
                 roundingInfos[i] = new RoundingInfo(in);
             }
             roundingIdx = in.readVInt();
-            emptySubAggregations = InternalAggregations.readAggregations(in);
+            emptySubAggregations = new InternalAggregations(in);
         }
 
         void writeTo(StreamOutput out) throws IOException {
@@ -328,14 +317,14 @@ public final class InternalAutoDateHistogram extends
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same key
             List<Bucket> currentBuckets = new ArrayList<>();
-            double key = reduceRounding.round(pq.top().current.key);
+            long key = reduceRounding.round(pq.top().current.key);
 
             do {
                 final IteratorAndCurrent top = pq.top();
 
                 if (reduceRounding.round(top.current.key) != key) {
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
-                    final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceRounding, reduceContext);
+                    final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                     reduceContext.consumeBucketsAndMaybeBreak(1);
                     reducedBuckets.add(reduced);
                     currentBuckets.clear();
@@ -355,7 +344,7 @@ public final class InternalAutoDateHistogram extends
             } while (pq.size() > 0);
 
             if (currentBuckets.isEmpty() == false) {
-                final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceRounding, reduceContext);
+                final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                 reduceContext.consumeBucketsAndMaybeBreak(1);
                 reducedBuckets.add(reduced);
             }
@@ -391,7 +380,7 @@ public final class InternalAutoDateHistogram extends
                 sameKeyedBuckets.add(createBucket(key, bucket.docCount, bucket.aggregations));
             } else {
                 reduceContext.consumeBucketsAndMaybeBreak(1);
-                mergedBuckets.add(sameKeyedBuckets.get(0).reduce(sameKeyedBuckets, reduceRounding, reduceContext));
+                mergedBuckets.add(reduceBucket(sameKeyedBuckets, reduceContext));
                 sameKeyedBuckets.clear();
                 key = roundedBucketKey;
                 reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket) - 1);
@@ -400,10 +389,23 @@ public final class InternalAutoDateHistogram extends
         }
         if (sameKeyedBuckets.isEmpty() == false) {
             reduceContext.consumeBucketsAndMaybeBreak(1);
-            mergedBuckets.add(sameKeyedBuckets.get(0).reduce(sameKeyedBuckets, reduceRounding, reduceContext));
+            mergedBuckets.add(reduceBucket(sameKeyedBuckets, reduceContext));
         }
         reducedBuckets = mergedBuckets;
         return reducedBuckets;
+    }
+
+    @Override
+    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+        long docCount = 0;
+        for (Bucket bucket : buckets) {
+            docCount += bucket.docCount;
+            aggregations.add((InternalAggregations) bucket.getAggregations());
+        }
+        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        return new InternalAutoDateHistogram.Bucket(buckets.get(0).key, docCount, format, aggs);
     }
 
     private static class BucketReduceResult {
@@ -496,7 +498,7 @@ public final class InternalAutoDateHistogram extends
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         BucketReduceResult reducedBucketsResult = reduceBuckets(aggregations, reduceContext);
 
         if (reduceContext.isFinalReduce()) {
@@ -526,6 +528,9 @@ public final class InternalAutoDateHistogram extends
         if (buckets.size() > targetBuckets) {
             for (int interval : roundingInfo.innerIntervals) {
                 int resultingBuckets = buckets.size() / interval;
+                if (buckets.size() % interval != 0) {
+                    resultingBuckets++;
+                }
                 if (resultingBuckets <= targetBuckets) {
                     return mergeConsecutiveBuckets(buckets, interval, roundingIdx, roundingInfo, reduceContext);
                 }
@@ -544,7 +549,7 @@ public final class InternalAutoDateHistogram extends
             Bucket bucket = reducedBuckets.get(i);
             if (i % mergeInterval == 0 && sameKeyedBuckets.isEmpty() == false) {
                 reduceContext.consumeBucketsAndMaybeBreak(1);
-                mergedBuckets.add(sameKeyedBuckets.get(0).reduce(sameKeyedBuckets, roundingInfo.rounding, reduceContext));
+                mergedBuckets.add(reduceBucket(sameKeyedBuckets, reduceContext));
                 sameKeyedBuckets.clear();
                 key = roundingInfo.rounding.round(bucket.key);
             }
@@ -553,7 +558,7 @@ public final class InternalAutoDateHistogram extends
         }
         if (sameKeyedBuckets.isEmpty() == false) {
             reduceContext.consumeBucketsAndMaybeBreak(1);
-            mergedBuckets.add(sameKeyedBuckets.get(0).reduce(sameKeyedBuckets, roundingInfo.rounding, reduceContext));
+            mergedBuckets.add(reduceBucket(sameKeyedBuckets, reduceContext));
         }
         return new BucketReduceResult(mergedBuckets, roundingInfo, roundingIdx, mergeInterval);
     }
@@ -598,7 +603,11 @@ public final class InternalAutoDateHistogram extends
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalAutoDateHistogram that = (InternalAutoDateHistogram) obj;
         return Objects.equals(buckets, that.buckets)
                 && Objects.equals(format, that.format)
@@ -606,7 +615,7 @@ public final class InternalAutoDateHistogram extends
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(buckets, format, bucketInfo);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, format, bucketInfo);
     }
 }

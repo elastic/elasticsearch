@@ -27,7 +27,8 @@ enum ExtTypes implements SQLType {
     INTERVAL_DAY_TO_SECOND(110),
     INTERVAL_HOUR_TO_MINUTE(111),
     INTERVAL_HOUR_TO_SECOND(112),
-    INTERVAL_MINUTE_TO_SECOND(113);
+    INTERVAL_MINUTE_TO_SECOND(113),
+    GEOMETRY(114);
 
     private final Integer type;
 

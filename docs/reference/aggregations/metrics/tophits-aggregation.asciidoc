@@ -17,21 +17,22 @@ One or more bucket aggregators determines by which properties a result set get s
 
 The top_hits aggregation returns regular search hits, because of this many per hit features can be supported:
 
-* <<search-request-highlighting,Highlighting>>
-* <<search-request-explain,Explain>>
-* <<search-request-named-queries-and-filters,Named filters and queries>>
-* <<search-request-source-filtering,Source filtering>>
-* <<search-request-stored-fields,Stored fields>>
-* <<search-request-script-fields,Script fields>>
-* <<search-request-docvalue-fields,Doc value fields>>
-* <<search-request-version,Include versions>>
+* <<request-body-search-highlighting,Highlighting>>
+* <<request-body-search-explain,Explain>>
+* <<request-body-search-queries-and-filters,Named filters and queries>>
+* <<request-body-search-source-filtering,Source filtering>>
+* <<request-body-search-stored-fields,Stored fields>>
+* <<request-body-search-script-fields,Script fields>>
+* <<request-body-search-docvalue-fields,Doc value fields>>
+* <<request-body-search-version,Include versions>>
+* <<request-body-search-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
 ==== Example
 
 In the following example we group the sales by type and per type we show the last sale. 
 For each sale only the date and price fields are being included in the source.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -62,12 +63,11 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Possible response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...
@@ -89,7 +89,6 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChK",
                          "_source": {
                             "date": "2015/03/01 00:00:00",
@@ -117,7 +116,6 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChL",
                          "_source": {
                             "date": "2015/03/01 00:00:00",
@@ -145,7 +143,6 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "_doc",
                          "_id": "AVnNBmatCQpcRyxw6ChH",
                          "_source": {
                             "date": "2015/01/01 00:00:00",
@@ -184,7 +181,7 @@ belong to. By defining a `terms` aggregator on the `domain` field we group the r
 Also a `max` aggregator is defined which is used by the `terms` aggregator's order feature to return the buckets by
 relevancy order of the most relevant document in a bucket.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -217,7 +214,6 @@ POST /sales/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 At the moment the `max` (or `min`) aggregator is needed to make sure the buckets from the `terms` aggregator are
@@ -238,32 +234,30 @@ and includes the array field and the offset in the array field the nested hit be
 
 Let's see how it works with a real sample. Considering the following mapping:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /sales?include_type_name=true
+PUT /sales
 {
     "mappings": {
-        "_doc" : {
-            "properties" : {
-                "tags" : { "type" : "keyword" },
-                "comments" : { <1>
-                    "type" : "nested",
-                    "properties" : {
-                        "username" : { "type" : "keyword" },
-                        "comment" : { "type" : "text" }
-                    }
+        "properties" : {
+            "tags" : { "type" : "keyword" },
+            "comments" : { <1>
+                "type" : "nested",
+                "properties" : {
+                    "username" : { "type" : "keyword" },
+                    "comment" : { "type" : "text" }
                 }
             }
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `comments` is an array that holds nested documents under the `product` object.
 
 And some documents:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /sales/_doc/1?refresh
 {
@@ -275,12 +269,11 @@ PUT /sales/_doc/1?refresh
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 It's now possible to execute the following `top_hits` aggregation (wrapped in a `nested` aggregation):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -309,13 +302,12 @@ POST /sales/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[s/_search/_search\?filter_path=aggregations.by_sale.by_user.buckets/]
 
 Top hits response snippet with a nested hit, which resides in the first slot of array field `comments`:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...
@@ -336,7 +328,6 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
                 "hits": [
                   {
                     "_index": "sales",
-                    "_type" : "_doc",
                     "_id": "1",
                     "_nested": {
                       "field": "comments",  <1>
@@ -360,6 +351,7 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
+
 <1> Name of the array field containing the nested hit
 <2> Position if the nested hit in the containing array
 <3> Source of the nested hit
@@ -389,7 +381,6 @@ the second slow of the `nested_child_field` field:
  "hits": [
    {
      "_index": "a",
-     "_type": "b",
      "_id": "1",
      "_score": 1,
      "_nested" : {

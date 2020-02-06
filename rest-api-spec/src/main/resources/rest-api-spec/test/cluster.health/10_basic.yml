@@ -94,9 +94,6 @@
 
 ---
 "cluster health basic test, one index with wait for no initializing shards":
-  - skip:
-      version: " - 6.1.99"
-      reason: "wait_for_no_initializing_shards is introduced in 6.2.0"
 
   - do:
       indices.create:
@@ -132,4 +129,150 @@
   - is_true: indices
   - is_true: indices.test_index.shards
 
+---
+"cluster health with closed index (pre 7.2.0)":
+  - skip:
+      version: "7.2.0 - "
+      reason:  "closed indices are replicated starting version 7.2.0"
 
+  - do:
+      indices.create:
+        index: index-1
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+  - match:     { status:     green }
+
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            index:
+              number_of_replicas: 50
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+        wait_for_no_relocating_shards: true
+  - match:     { status:     yellow }
+
+  - do:
+      cluster.health:
+        index: index-*
+  - match:     { status:     yellow }
+
+  - do:
+      cluster.health:
+        index: index-1
+  - match:     { status:     green }
+
+  - do:
+      cluster.health:
+        index: index-2
+  - match:     { status:     yellow }
+
+  - do:
+      indices.close:
+        index: index-2
+  - is_true: acknowledged
+
+  # closing the index-2 turns the cluster health back to green
+  - do:
+      cluster.health:
+        wait_for_status: green
+  - match:     { status:     green }
+
+  - do:
+      cluster.health:
+        index: index-*
+  - match:     { status:     green }
+
+  - do:
+      cluster.health:
+        index: index-1
+  - match:     { status:     green }
+
+  - do:
+      cluster.health:
+        index: index-2
+  - match:     { status:     green }
+
+---
+"cluster health with closed index":
+  - skip:
+      version: " - 7.1.99"
+      reason:  "closed indices are replicated starting version 7.2.0"
+
+  - do:
+      indices.create:
+        index: index-1
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+  - match:     { status:     green }
+
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            index:
+              number_of_replicas: 50
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+        wait_for_no_relocating_shards: true
+  - match:     { status:     yellow }
+
+  - do:
+      cluster.health:
+        index: index-*
+  - match:     { status:     yellow }
+
+  - do:
+      cluster.health:
+        index: index-1
+  - match:     { status:     green }
+
+  - do:
+      cluster.health:
+        index: index-2
+  - match:     { status:     yellow }
+
+  # closing the index-2 does not change the cluster health with replicated closed indices
+  - do:
+      indices.close:
+        index: index-2
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - match:     { status:     yellow }
+
+  - do:
+      cluster.health:
+        index: index-*
+  - match:     { status:     yellow }
+
+  - do:
+      cluster.health:
+        index: index-1
+  - match:     { status:     green }
+
+  - do:
+      cluster.health:
+        index: index-2
+  - match:     { status:     yellow }

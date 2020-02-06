@@ -1,23 +1,42 @@
 [[indices-create-index]]
-== Create Index
+=== Create index API
+++++
+<titleabbrev>Create index</titleabbrev>
+++++
 
-The Create Index API is used to manually create an index in Elasticsearch.  All documents in Elasticsearch
-are stored inside of one index or another.
+Creates a new index.
 
-The most basic command is the following:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT twitter
+PUT /twitter
 --------------------------------------------------
-// CONSOLE
 
-This create an index named `twitter` with all default setting.
 
-[NOTE]
-.Index name limitations
-======================================================
-There are several limitations to what you can name your index.  The complete list of limitations are:
+[[indices-create-api-request]]
+==== {api-request-title}
+
+`PUT /<index>`
+
+[[indices-create-api-desc]]
+==== {api-description-title}
+You can use the create index API to add a new index to an {es} cluster. When
+creating an index, you can specify the following:
+
+* Settings for the index
+* Mappings for fields in the index
+* Index aliases
+
+
+[[indices-create-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
++
+--
+(Optional, string) Name of the index you wish to create.
+
+// tag::index-name-reqs[]
+Index names must meet the following criteria:
 
 - Lowercase only
 - Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` ` (space character), `,`, `#`
@@ -25,19 +44,42 @@ There are several limitations to what you can name your index.  The complete lis
 - Cannot start with `-`, `_`, `+`
 - Cannot be `.` or `..`
 - Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+- Names starting with `.` are deprecated, except for <<index-hidden,hidden indices>> and internal indices managed by plugins
+// end::index-name-reqs[]
+--
 
-======================================================
 
-[float]
+[[indices-create-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[indices-create-api-request-body]]
+==== {api-request-body-title}
+
+`aliases`::
+(Optional, <<indices-aliases,alias object>>) Index aliases which include the
+index. See <<indices-aliases>>.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+
+[[indices-create-api-example]]
+==== {api-examples-title}
+
 [[create-index-settings]]
-=== Index Settings
+===== Index settings
 
 Each index created can have specific settings
 associated with it, defined in the body:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT twitter
+PUT /twitter
 {
     "settings" : {
         "index" : {
@@ -47,15 +89,15 @@ PUT twitter
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Default for `number_of_shards` is 1
 <2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
 
 or more simplified
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT twitter
+PUT /twitter
 {
     "settings" : {
         "number_of_shards" : 3,
@@ -63,7 +105,6 @@ PUT twitter
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [NOTE]
 You do not have to explicitly specify `index` section inside the
@@ -73,16 +114,14 @@ For more information regarding all the different index level settings
 that can be set when creating an index, please check the
 <<index-modules,index modules>> section.
 
-
-[float]
 [[mappings]]
-=== Mappings
+===== Mappings
 
 The create index API allows for providing a mapping definition:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT test
+PUT /test
 {
     "settings" : {
         "number_of_shards" : 1
@@ -94,21 +133,15 @@ PUT test
     }
 }
 --------------------------------------------------
-// CONSOLE
 
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
-types in requests is now deprecated, a type can still be provided if the request parameter
-include_type_name is set. For more details, please see <<removal-of-types>>.
-
-[float]
 [[create-index-aliases]]
-=== Aliases
+===== Aliases
 
 The create index API allows also to provide a set of <<indices-aliases,aliases>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT test
+PUT /test
 {
     "aliases" : {
         "alias_1" : {},
@@ -121,17 +154,15 @@ PUT test
     }
 }
 --------------------------------------------------
-// CONSOLE
 
-[float]
 [[create-index-wait-for-active-shards]]
-=== Wait For Active Shards
+===== Wait For active shards
 
 By default, index creation will only return a response to the client when the primary copies of
 each shard have been started, or the request times out. The index creation response will indicate
 what happened:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged": true,
@@ -139,7 +170,6 @@ what happened:
     "index": "test"
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 `acknowledged` indicates whether the index was successfully created in the cluster, while
 `shards_acknowledged` indicates whether the requisite number of shard copies were started for
@@ -156,25 +186,23 @@ We can change the default of only waiting for the primary shards to start throug
 setting `index.write.wait_for_active_shards` (note that changing this setting will also affect
 the `wait_for_active_shards` value on all subsequent write operations):
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT test
+PUT /test
 {
     "settings": {
         "index.write.wait_for_active_shards": "2"
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:requires two nodes]
 
 or through the request parameter `wait_for_active_shards`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT test?wait_for_active_shards=2
+PUT /test?wait_for_active_shards=2
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:requires two nodes]
 
 A detailed explanation of `wait_for_active_shards` and its possible values can be found

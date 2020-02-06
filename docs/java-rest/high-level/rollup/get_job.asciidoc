@@ -1,3 +1,4 @@
+[role="xpack"]
 [[java-rest-high-x-pack-rollup-get-job]]
 === Get Rollup Job API
 

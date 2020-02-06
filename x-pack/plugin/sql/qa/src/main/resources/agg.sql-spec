@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.sql-spec
+
 //
 // Group-By
 //
@@ -18,13 +20,13 @@ SELECT gender g FROM "test_emp" WHERE emp_no < 10020 GROUP BY g ORDER BY gender;
 groupByOnTextOnAliasOrderDesc
 SELECT gender g FROM "test_emp" WHERE emp_no < 10020 GROUP BY g ORDER BY g DESC;
 
-groupByOnDate
+groupByOnDateTime
 SELECT birth_date b FROM "test_emp" GROUP BY birth_date ORDER BY birth_date DESC;
-groupByOnDateWithWhereClause
+groupByOnDateTimeWithWhereClause
 SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC;
-groupByOnDateWithWhereAndLimit
+groupByOnDateTimeWithWhereAndLimit
 SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC LIMIT 1;
-groupByOnDateOnAlias
+groupByOnDateTimeOnAlias
 SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY b ORDER BY birth_date DESC;
 
 groupByOnNumber
@@ -49,6 +51,32 @@ groupByMulScalar
 SELECT emp_no * 2 AS e FROM test_emp GROUP BY e ORDER BY e;
 groupByModScalar
 SELECT (emp_no % 3) + 1 AS e FROM test_emp GROUP BY e ORDER BY e;
+groupByCastScalar
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) FROM test_emp GROUP BY CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) ORDER BY CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) NULLS FIRST;
+groupByCastScalarWithAlias
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) as "cast" FROM test_emp GROUP BY "cast" ORDER BY "cast" NULLS FIRST;
+
+// group by nested functions with no alias
+groupByTruncate
+SELECT CAST(TRUNCATE(EXTRACT(YEAR FROM "birth_date")) AS INTEGER) FROM test_emp GROUP BY CAST(TRUNCATE(EXTRACT(YEAR FROM "birth_date")) AS INTEGER) ORDER BY CAST(TRUNCATE(EXTRACT(YEAR FROM "birth_date")) AS INTEGER);
+groupByRound
+SELECT CAST(ROUND(EXTRACT(YEAR FROM "birth_date")) AS INTEGER) FROM test_emp GROUP BY CAST(ROUND(EXTRACT(YEAR FROM "birth_date")) AS INTEGER) ORDER BY CAST(ROUND(EXTRACT(YEAR FROM "birth_date")) AS INTEGER);
+groupByAtan2
+SELECT ATAN2(YEAR("birth_date"), 5) FROM test_emp GROUP BY ATAN2(YEAR("birth_date"), 5) ORDER BY ATAN2(YEAR("birth_date"), 5);
+groupByPower
+SELECT POWER(YEAR("birth_date"), 2) FROM test_emp GROUP BY POWER(YEAR("birth_date"), 2) ORDER BY POWER(YEAR("birth_date"), 2);
+groupByPowerWithCast
+SELECT CAST(POWER(YEAR("birth_date"), 2) AS DOUBLE) FROM test_emp GROUP BY CAST(POWER(YEAR("birth_date"), 2) AS DOUBLE) ORDER BY CAST(POWER(YEAR("birth_date"), 2) AS DOUBLE);
+groupByConcat
+SELECT LEFT(CONCAT("first_name", "last_name"), 3) FROM test_emp GROUP BY LEFT(CONCAT("first_name", "last_name"), 3) ORDER BY LEFT(CONCAT("first_name", "last_name"), 3) LIMIT 15;
+groupByLocateWithTwoParams
+SELECT LOCATE('a', CONCAT("first_name", "last_name")) FROM test_emp GROUP BY LOCATE('a', CONCAT("first_name", "last_name")) ORDER BY LOCATE('a', CONCAT("first_name", "last_name"));
+groupByLocateWithThreeParams
+SELECT LOCATE('a', CONCAT("first_name", "last_name"), 3) FROM test_emp GROUP BY LOCATE('a', CONCAT("first_name", "last_name"), 3) ORDER BY LOCATE('a', CONCAT("first_name", "last_name"), 3);
+groupByRoundAndTruncateWithTwoParams
+SELECT ROUND(SIN(TRUNCATE("salary", 2)), 2) FROM "test_emp" GROUP BY ROUND(SIN(TRUNCATE("salary", 2)), 2) ORDER BY ROUND(SIN(TRUNCATE("salary", 2)), 2) LIMIT 5;
+groupByRoundAndTruncateWithOneParam
+SELECT ROUND(SIN(TRUNCATE("languages"))) FROM "test_emp" GROUP BY ROUND(SIN(TRUNCATE("languages"))) ORDER BY ROUND(SIN(TRUNCATE("languages"))) LIMIT 5;
 
 // multiple group by
 groupByMultiOnText
@@ -62,13 +90,13 @@ SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY g, l 
 groupByMultiOnTextOnAliasOrderDesc
 SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY g, l ORDER BY g, l ASC;
 
-groupByMultiOnDate
+groupByMultiOnDateTime
 SELECT birth_date b, languages l FROM "test_emp" GROUP BY birth_date, languages ORDER BY birth_date DESC, languages;
-groupByMultiOnDateWithWhereClause
+groupByMultiOnDateTimeWithWhereClause
 SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date, languages ORDER BY birth_date DESC, languages;
-groupByMultiOnDateWithWhereAndLimit
+groupByMultiOnDateTimeWithWhereAndLimit
 SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date, languages ORDER BY birth_date DESC, languages LIMIT 1;
-groupByMultiOnDateOnAlias
+groupByMultiOnDateTimeOnAlias
 SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY b, l ORDER BY birth_date DESC, languages;
 
 groupByMultiAddScalar
@@ -89,6 +117,8 @@ SELECT (emp_no % 3) + 1 AS e, (languages % 3) + 1 AS l FROM test_emp GROUP BY e,
 
 // COUNT
 aggCountImplicit
+SELECT COUNT(*) FROM test_emp;
+aggCountImplicitAlias
 SELECT COUNT(*) AS count FROM test_emp;
 aggCountImplicitWithCast
 SELECT CAST(COUNT(*) AS INT) c FROM "test_emp";
@@ -109,6 +139,8 @@ SELECT gender g, CAST(COUNT(*) AS INT) c FROM "test_emp" WHERE emp_no < 10020 GR
 aggCountWithAlias
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g ORDER BY gender;
 countDistinct
+SELECT COUNT(DISTINCT "hire_date") FROM test_emp;
+countDistinctAlias
 SELECT COUNT(DISTINCT hire_date) AS count FROM test_emp;
 countDistinctAndCountSimpleWithAlias
 SELECT COUNT(*) cnt, COUNT(DISTINCT first_name) as names, gender FROM test_emp GROUP BY gender ORDER BY gender;
@@ -149,10 +181,7 @@ aggCountOnColumnAndMultipleHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender ;
 aggCountOnColumnAndMultipleHavingEquals
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c = 63 ORDER BY gender ;
-//
-// Count(column) = Column(*) which is a bug
-// https://github.com/elastic/elasticsearch/issues/34549
-//
+
 aggCountOnColumnAndMultipleHavingWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;
 aggCountOnColumnAndHavingBetween-Ignore
@@ -248,8 +277,10 @@ aggMinWithCastAndFilter
 SELECT gender g, CAST(MIN(emp_no) AS SMALLINT) m, COUNT(1) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender ORDER BY gender;
 aggMinWithAlias
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
-aggMinOnDate
+aggMinOnDateTime
 SELECT gender, MIN(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
+aggMinOnDateTimeCastAsDate
+SELECT gender, YEAR(CAST(MIN(birth_date) AS DATE)) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 
 // Conditional MIN
 aggMinWithHaving
@@ -304,8 +335,10 @@ aggMaxAndCountWithFilterAndLimit
 SELECT gender g, MAX(emp_no) m, COUNT(1) c FROM "test_emp" WHERE emp_no > 10000 GROUP BY gender ORDER BY gender LIMIT 1;
 aggMaxWithAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
-aggMaxOnDate
+aggMaxOnDateTime
 SELECT gender, MAX(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
+aggMaxOnDateTimeCastAsDate
+SELECT gender, YEAR(CAST(MAX(birth_date) AS DATE)) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvgAndMaxWithLikeFilter
 SELECT CAST(AVG(salary) AS LONG) AS avg, CAST(SUM(salary) AS LONG) AS s FROM "test_emp" WHERE first_name LIKE 'G%';
 
@@ -396,6 +429,31 @@ SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING 
 aggAvgWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a > 10 AND AVG(emp_no) > 10000000 ORDER BY g ;
 
+// Implicit grouping with filtering
+implicitGroupingWithLiteralAndFiltering
+SELECT 1 FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithLiteralAliasAndFiltering
+SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithLiteralAndFilteringOnAlias
+SELECT 1, COUNT(*) AS c FROM test_emp HAVING c > 0; 
+implicitGroupingWithLiteralAliasAndFilteringOnAlias
+SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithAggs
+SELECT MAX(emp_no) AS m FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithOptimizedAggs
+SELECT MIN(emp_no) AS m FROM test_emp HAVING MAX(emp_no) > 0 AND COUNT(*) > 0;
+implicitGroupingWithNull
+SELECT NULL AS x FROM test_emp HAVING COUNT(1) > 1;
+implicitGroupingWithNullFunction
+SELECT LTRIM(CAST(YEAR(CAST(NULL AS DATE)) AS VARCHAR)) AS x FROM test_emp HAVING COUNT(1) > 1;
+implicitGroupingWithNullDateTimeFunction
+SELECT DAYNAME(CAST(NULL AS TIMESTAMP)) AS x FROM test_emp HAVING COUNT(1) > 1;
+implicitGroupingWithScalarInsideCase
+SELECT (CASE WHEN 'D' IS NULL THEN NULL WHEN 'D' IS NOT NULL THEN (LOCATE('D', 'Data') = 1) END) AS x FROM test_emp HAVING (COUNT(1) > 0);
+implicitGroupingWithMultiLevelCase
+SELECT (CASE WHEN ('Data' IS NULL) OR ('Xyz' IS NULL) THEN NULL WHEN 'Data' < 'Xyz' THEN 'Data' ELSE 'Xyz' END) AS x FROM test_emp HAVING (COUNT(1) > 0);
+
+
 //
 // GroupBy on Scalar plus Having
 //
@@ -482,9 +540,9 @@ selectCountWhereIsNull
 SELECT COUNT(*) count FROM test_emp WHERE first_name IS NULL;
 selectLanguagesCountWithNullsAndGroupByLanguage
 SELECT languages l, COUNT(*) c FROM test_emp GROUP BY languages ORDER BY languages;
-selectHireDateGroupByHireDate
+selectHireDateTimeGroupByHireDateTime
 SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
-selectHireDateGroupByHireDate
+selectHireDateTimeGroupByHireDateTime
 SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
 selectSalaryGroupBySalary
 SELECT salary, COUNT(*) c FROM test_emp GROUP BY salary ORDER BY salary DESC;
@@ -501,3 +559,9 @@ aggMultiWithHavingUsingInAndNullHandling
 SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max IN(74999, null, 74600) ORDER BY gender;
 aggMultiGroupByMultiWithHavingUsingInAndNullHandling
 SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, null, 74600) ORDER BY gender, languages;
+
+// group by with literal
+implicitGroupByWithLiteral
+SELECT 10, MAX("salary") FROM test_emp;
+groupByWithLiteralAndCount
+SELECT 20, COUNT(*) from test_emp GROUP BY gender ORDER BY 2;

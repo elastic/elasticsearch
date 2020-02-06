@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,7 +74,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
      *     "payload" : STRING_ARRAY
      * }
      */
-    private static final ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> PARSER = new ObjectParser<>(SUGGESTION_NAME, null);
+    private static final ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> PARSER = new ObjectParser<>(SUGGESTION_NAME);
     static {
         PARSER.declareField((parser, completionSuggestionContext, context) -> {
                 if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
@@ -133,9 +132,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         fuzzyOptions = in.readOptionalWriteable(FuzzyOptions::new);
         regexOptions = in.readOptionalWriteable(RegexOptions::new);
         contextBytes = in.readOptionalBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            skipDuplicates = in.readBoolean();
-        }
+        skipDuplicates = in.readBoolean();
     }
 
     @Override
@@ -143,9 +140,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         out.writeOptionalWriteable(fuzzyOptions);
         out.writeOptionalWriteable(regexOptions);
         out.writeOptionalBytesReference(contextBytes);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(skipDuplicates);
-        }
+        out.writeBoolean(skipDuplicates);
     }
 
     /**

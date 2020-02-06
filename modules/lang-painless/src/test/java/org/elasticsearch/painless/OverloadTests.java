@@ -41,14 +41,14 @@ public class OverloadTests extends ScriptTestCase {
     }
     
     public void testConstructor() {
-        assertEquals(true, exec("org.elasticsearch.painless.FeatureTest f = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(true, exec("org.elasticsearch.painless.FeatureTestObject f = new org.elasticsearch.painless.FeatureTestObject();" +
                                 "return f.x == 0 && f.y == 0;"));
-        assertEquals(true, exec("org.elasticsearch.painless.FeatureTest f = new org.elasticsearch.painless.FeatureTest(1, 2);" +
+        assertEquals(true, exec("org.elasticsearch.painless.FeatureTestObject f = new org.elasticsearch.painless.FeatureTestObject(1, 2);" +
                                 "return f.x == 1 && f.y == 2;"));
     }
     
     public void testStatic() {
-        assertEquals(true, exec("return org.elasticsearch.painless.FeatureTest.overloadedStatic();"));
-        assertEquals(false, exec("return org.elasticsearch.painless.FeatureTest.overloadedStatic(false);"));
+        assertEquals(true, exec("return org.elasticsearch.painless.FeatureTestObject.overloadedStatic();"));
+        assertEquals(false, exec("return org.elasticsearch.painless.FeatureTestObject.overloadedStatic(false);"));
     }
 }

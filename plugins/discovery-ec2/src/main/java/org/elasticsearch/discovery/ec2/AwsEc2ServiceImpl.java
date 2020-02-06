@@ -22,25 +22,21 @@ package org.elasticsearch.discovery.ec2;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
-import com.amazonaws.internal.StaticCredentialsProvider;
-import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
 
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
 class AwsEc2ServiceImpl implements AwsEc2Service {
-    
+
     private static final Logger logger = LogManager.getLogger(AwsEc2ServiceImpl.class);
 
     private final AtomicReference<LazyInitializable<AmazonEc2Reference, ElasticsearchException>> lazyClientReference =
@@ -48,7 +44,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     private AmazonEC2 buildClient(Ec2ClientSettings clientSettings) {
         final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
-        final ClientConfiguration configuration = buildConfiguration(logger, clientSettings);
+        final ClientConfiguration configuration = buildConfiguration(clientSettings);
         final AmazonEC2 client = buildClient(credentials, configuration);
         if (Strings.hasText(clientSettings.endpoint)) {
             logger.debug("using explicit ec2 endpoint [{}]", clientSettings.endpoint);
@@ -64,7 +60,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     }
 
     // pkg private for tests
-    static ClientConfiguration buildConfiguration(Logger logger, Ec2ClientSettings clientSettings) {
+    static ClientConfiguration buildConfiguration(Ec2ClientSettings clientSettings) {
         final ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
@@ -78,17 +74,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }
         // Increase the number of retries in case of 5xx API responses
-        final Random rand = Randomness.get();
-        final RetryPolicy retryPolicy = new RetryPolicy(
-            RetryPolicy.RetryCondition.NO_RETRY_CONDITION,
-            (originalRequest, exception, retriesAttempted) -> {
-               // with 10 retries the max delay time is 320s/320000ms (10 * 2^5 * 1 * 1000)
-               logger.warn("EC2 API request failed, retry again. Reason was:", exception);
-               return 1000L * (long) (10d * Math.pow(2, retriesAttempted / 2.0d) * (1.0d + rand.nextDouble()));
-            },
-            10,
-            false);
-        clientConfiguration.setRetryPolicy(retryPolicy);
+        clientConfiguration.setMaxErrorRetry(10);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
         return clientConfiguration;
     }
@@ -97,11 +83,11 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     static AWSCredentialsProvider buildCredentials(Logger logger, Ec2ClientSettings clientSettings) {
         final AWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
-            logger.debug("Using either environment variables, system properties or instance profile credentials");
-            return new DefaultAWSCredentialsProviderChain();
+            logger.debug("Using default provider chain");
+            return DefaultAWSCredentialsProviderChain.getInstance();
         } else {
             logger.debug("Using basic key/secret credentials");
-            return new StaticCredentialsProvider(credentials);
+            return new AWSStaticCredentialsProvider(credentials);
         }
     }
 

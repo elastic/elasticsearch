@@ -21,10 +21,13 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -46,6 +49,7 @@ import java.util.List;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -57,6 +61,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -77,7 +82,7 @@ public class NestedIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
 
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested", "incorrect", "type=object"));
+                .setMapping("nested", "type=nested", "incorrect", "type=object"));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -107,13 +112,13 @@ public class NestedIT extends ESIntegTestCase {
                 source = source.startObject().field("value", i + 1 + j).endObject();
             }
             source = source.endArray().endObject();
-            builders.add(client().prepareIndex("idx", "type", ""+i+1).setSource(source));
+            builders.add(client().prepareIndex("idx").setId(""+i+1).setSource(source));
         }
 
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer", "nested", "type=nested").get();
         ensureGreen("empty_bucket_idx");
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i*2)
                     .startArray("nested")
@@ -127,7 +132,7 @@ public class NestedIT extends ESIntegTestCase {
         }
 
         assertAcked(prepareCreate("idx_nested_nested_aggs")
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                             .field("type", "nested")
                             .startObject("properties")
@@ -140,7 +145,7 @@ public class NestedIT extends ESIntegTestCase {
         ensureGreen("idx_nested_nested_aggs");
 
         builders.add(
-                client().prepareIndex("idx_nested_nested_aggs", "type", "1")
+                client().prepareIndex("idx_nested_nested_aggs").setId("1")
                         .setSource(jsonBuilder().startObject()
                                 .startArray("nested1")
                                     .startObject()
@@ -363,7 +368,7 @@ public class NestedIT extends ESIntegTestCase {
 
     // Test based on: https://github.com/elastic/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("provider").startObject("properties")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
                     .startObject("comments")
                         .field("type", "nested")
                         .startObject("properties")
@@ -395,21 +400,21 @@ public class NestedIT extends ESIntegTestCase {
                 .endObject().endObject().endObject();
         assertAcked(prepareCreate("idx2")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("provider", mapping));
+                .setMapping(mapping));
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
-        indexRequests.add(client().prepareIndex("idx2", "provider", "1")
+        indexRequests.add(client().prepareIndex("idx2").setId("1")
                 .setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, " +
                         "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [" +
                         "{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
-        indexRequests.add(client().prepareIndex("idx2", "provider", "2")
+        indexRequests.add(client().prepareIndex("idx2").setId("2")
                 .setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, " +
                         "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [" +
                         "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
         indexRandom(true, indexRequests);
 
-        SearchResponse response = client().prepareSearch("idx2").setTypes("provider")
+        SearchResponse response = client().prepareSearch("idx2")
                 .addAggregation(
                         terms("startDate").field("dates.month.start").subAggregation(
                                 terms("endDate").field("dates.month.end").subAggregation(
@@ -470,11 +475,11 @@ public class NestedIT extends ESIntegTestCase {
         assertAcked(
                 prepareCreate("idx4")
                         .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+                        .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
 
-        client().prepareIndex("idx4", "product", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("idx4").setId("1").setSource(jsonBuilder().startObject()
                     .field("name", "product1")
                     .array("categories", "1", "2", "3", "4")
                     .startArray("property")
@@ -483,7 +488,7 @@ public class NestedIT extends ESIntegTestCase {
                         .startObject().field("id", 3).endObject()
                     .endArray()
                 .endObject()).get();
-        client().prepareIndex("idx4", "product", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("idx4").setId("2").setSource(jsonBuilder().startObject()
                 .field("name", "product2")
                 .array("categories", "1", "2")
                 .startArray("property")
@@ -494,7 +499,7 @@ public class NestedIT extends ESIntegTestCase {
                 .endObject()).get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("idx4").setTypes("product")
+        SearchResponse response = client().prepareSearch("idx4")
                 .addAggregation(terms("category").field("categories").subAggregation(
                         nested("property", "property").subAggregation(
                                 terms("property_id").field("property.id")
@@ -554,7 +559,7 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testFilterAggInsideNestedAgg() throws Exception {
         assertAcked(prepareCreate("classes")
-                .addMapping("class", jsonBuilder().startObject().startObject("class").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("name").field("type", "text").endObject()
                         .startObject("methods")
                             .field("type", "nested")
@@ -571,7 +576,7 @@ public class NestedIT extends ESIntegTestCase {
                             .endObject()
                         .endObject().endObject().endObject().endObject()));
 
-        client().prepareIndex("classes", "class", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("classes").setId("1").setSource(jsonBuilder().startObject()
                     .field("name", "QueryBuilder")
                     .startArray("methods")
                         .startObject()
@@ -606,7 +611,7 @@ public class NestedIT extends ESIntegTestCase {
                         .endObject()
                     .endArray()
                 .endObject()).get();
-        client().prepareIndex("classes", "class", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("classes").setId("2").setSource(jsonBuilder().startObject()
                     .field("name", "Document")
                     .startArray("methods")
                         .startObject()
@@ -673,5 +678,47 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1L));
         numStringParams = bucket.getAggregations().get("num_string_params");
         assertThat(numStringParams.getDocCount(), equalTo(0L));
+    }
+
+    public void testExtractInnerHitBuildersWithDuplicateHitName() throws Exception {
+        assertAcked(
+            prepareCreate("idxduplicatehitnames")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
+        );
+        ensureGreen("idxduplicatehitnames");
+
+        SearchRequestBuilder searchRequestBuilder = client()
+            .prepareSearch("idxduplicatehitnames")
+            .setQuery(boolQuery()
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1")))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih2")))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1"))));
+
+        assertFailures(
+            searchRequestBuilder,
+            RestStatus.BAD_REQUEST,
+            containsString("[inner_hits] already contains an entry for key [ih1]"));
+    }
+
+    public void testExtractInnerHitBuildersWithDuplicatePath() throws Exception {
+        assertAcked(
+            prepareCreate("idxnullhitnames")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
+        );
+        ensureGreen("idxnullhitnames");
+
+        SearchRequestBuilder searchRequestBuilder = client()
+            .prepareSearch("idxnullhitnames")
+            .setQuery(boolQuery()
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder())));
+
+        assertFailures(
+            searchRequestBuilder,
+            RestStatus.BAD_REQUEST,
+            containsString("[inner_hits] already contains an entry for key [property]"));
     }
 }

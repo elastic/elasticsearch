@@ -6,8 +6,7 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -15,13 +14,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -33,18 +30,19 @@ import java.util.stream.Collectors;
  */
 abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
-    private final Client client;
+    private final OriginSettingClient client;
 
-    AbstractExpiredJobDataRemover(Client client) {
+    AbstractExpiredJobDataRemover(OriginSettingClient client) {
         this.client = client;
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener) {
-        removeData(newJobIterator(), listener);
+    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+        removeData(newJobIterator(), listener, isTimedOutSupplier);
     }
 
-    private void removeData(WrappedBatchedJobsIterator jobIterator, ActionListener<Boolean> listener) {
+    private void removeData(WrappedBatchedJobsIterator jobIterator, ActionListener<Boolean> listener,
+                            Supplier<Boolean> isTimedOutSupplier) {
         if (jobIterator.hasNext() == false) {
             listener.onResponse(true);
             return;
@@ -56,13 +54,29 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             return;
         }
 
-        Long retentionDays = getRetentionDays(job);
-        if (retentionDays == null) {
-            removeData(jobIterator, listener);
+        if (isTimedOutSupplier.get()) {
+            listener.onResponse(false);
             return;
         }
-        long cutoffEpochMs = calcCutoffEpochMs(retentionDays);
-        removeDataBefore(job, cutoffEpochMs, ActionListener.wrap(response -> removeData(jobIterator, listener), listener::onFailure));
+
+        Long retentionDays = getRetentionDays(job);
+        if (retentionDays == null) {
+            removeData(jobIterator, listener, isTimedOutSupplier);
+            return;
+        }
+
+        calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(
+                cutoffEpochMs -> {
+                    if (cutoffEpochMs == null) {
+                        removeData(jobIterator, listener, isTimedOutSupplier);
+                    } else {
+                        removeDataBefore(job, cutoffEpochMs, ActionListener.wrap(
+                                response -> removeData(jobIterator, listener, isTimedOutSupplier),
+                                listener::onFailure));
+                    }
+                },
+                listener::onFailure
+        ));
     }
 
     private WrappedBatchedJobsIterator newJobIterator() {
@@ -70,20 +84,17 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
-    private long calcCutoffEpochMs(long retentionDays) {
-        long nowEpochMs = DateTime.now(ISOChronology.getInstance()).getMillis();
-        return nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-    }
+    abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener);
 
-    protected abstract Long getRetentionDays(Job job);
+    abstract Long getRetentionDays(Job job);
 
     /**
      * Template method to allow implementation details of various types of data (e.g. results, model snapshots).
      * Implementors need to call {@code listener.onResponse} when they are done in order to continue to the next job.
      */
-    protected abstract void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener);
+    abstract void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener);
 
-    protected static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
+    static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
         return QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                 .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"));

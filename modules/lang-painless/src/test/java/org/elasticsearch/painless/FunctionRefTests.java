@@ -46,12 +46,12 @@ public class FunctionRefTests extends ScriptTestCase {
 
     public void testQualifiedStaticMethodReference() {
         assertEquals(true,
-                exec("List l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTest::overloadedStatic).findFirst().get()"));
+                exec("List l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTestObject::overloadedStatic).findFirst().get()"));
     }
 
     public void testQualifiedStaticMethodReferenceDef() {
         assertEquals(true,
-                exec("def l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTest::overloadedStatic).findFirst().get()"));
+                exec("def l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTestObject::overloadedStatic).findFirst().get()"));
     }
 
     public void testQualifiedVirtualMethodReference() {
@@ -133,7 +133,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("testingcdefg", exec(
                 "String x = 'testing';" +
                 "String y = 'abcdefg';" +
-                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "org.elasticsearch.painless.FeatureTestObject test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
@@ -141,7 +141,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("testingcdefg", exec(
                 "def x = 'testing';" +
                 "def y = 'abcdefg';" +
-                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "org.elasticsearch.painless.FeatureTestObject test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
@@ -149,7 +149,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("testingcdefg", exec(
                 "String x = 'testing';" +
                 "String y = 'abcdefg';" +
-                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "def test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
@@ -157,7 +157,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("testingcdefg", exec(
                 "def x = 'testing';" +
                 "def y = 'abcdefg';" +
-                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "def test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
@@ -205,7 +205,7 @@ public class FunctionRefTests extends ScriptTestCase {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = [2, 1]; l.sort(Bogus::bogus); return l.get(0);", false);
         });
-        assertThat(e.getMessage(), endsWith("Variable [Bogus] is not defined."));
+        assertThat(e.getMessage(), endsWith("variable [Bogus] is not defined"));
     }
 
     public void testQualifiedClassMissing() {

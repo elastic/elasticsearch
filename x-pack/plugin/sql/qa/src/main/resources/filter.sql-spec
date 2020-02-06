@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.sql-spec
+
 //
 // Filter
 //
@@ -51,6 +53,8 @@ whereFieldWithLikeMatch
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND last_name LIKE 'K%';
 whereFieldWithNotLikeMatch
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10020 AND first_name NOT LIKE 'Ma%';
+whereFieldWithInlineLikeMatch
+SELECT emp_no FROM "test_emp" WHERE 'aaabbb' LIKE 'aa%b%' AND 'aaabbb' NOT LIKE 'a%%c%' AND emp_no < 10080 ORDER BY emp_no DESC LIMIT 5;
 
 whereFieldWithOrderNot
 SELECT last_name l FROM "test_emp" WHERE NOT emp_no < 10003 ORDER BY emp_no LIMIT 5;
@@ -63,6 +67,9 @@ SELECT last_name l FROM "test_emp" WHERE NOT (emp_no < 10003 AND last_name NOT L
 
 whereFieldOnMatchWithAndAndOr
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND (gender = 'M' AND NOT FALSE OR last_name LIKE 'K%') ORDER BY emp_no;
+
+whereFieldWithLikeAndNotLike
+SELECT COUNT(*), last_name AS f FROM test_emp WHERE last_name LIKE '%o%' AND last_name NOT LIKE '%f%' GROUP BY f HAVING COUNT(*) > 1;
 
 // TODO: (NOT) RLIKE in particular and more NOT queries in general
 

@@ -26,10 +26,7 @@ import org.elasticsearch.common.inject.spi.HasDependencies;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
 
-import java.util.HashSet;
 import java.util.Set;
-
-import static java.util.Collections.unmodifiableSet;
 
 public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T>
         implements ProviderInstanceBinding<T> {
@@ -71,7 +68,7 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T>
     @Override
     public Set<Dependency<?>> getDependencies() {
         return providerInstance instanceof HasDependencies
-                ? unmodifiableSet(new HashSet<>((((HasDependencies) providerInstance).getDependencies())))
+                ? Set.copyOf(((HasDependencies) providerInstance).getDependencies())
                 : Dependency.forInjectionPoints(injectionPoints);
     }
 

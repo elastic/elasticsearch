@@ -33,7 +33,7 @@ fi
 
 # Sets the default values for elasticsearch variables used in this script
 ES_HOME="/usr/share/elasticsearch"
-MAX_OPEN_FILES=65536
+MAX_OPEN_FILES=65535
 MAX_MAP_COUNT=262144
 ES_PATH_CONF="${path.conf}"
 
@@ -67,21 +67,7 @@ if [ ! -x "$exec" ]; then
     exit 1
 fi
 
-checkJava() {
-    if [ -x "$JAVA_HOME/bin/java" ]; then
-        JAVA="$JAVA_HOME/bin/java"
-    else
-        JAVA=`which java`
-    fi
-
-    if [ ! -x "$JAVA" ]; then
-        echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
-        exit 1
-    fi
-}
-
 start() {
-    checkJava
     [ -x $exec ] || exit 5
 
     if [ -n "$MAX_OPEN_FILES" ]; then
@@ -90,7 +76,7 @@ start() {
     if [ -n "$MAX_LOCKED_MEMORY" ]; then
         ulimit -l $MAX_LOCKED_MEMORY
     fi
-    if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count -a "$MAX_MAP_COUNT" -gt $(cat /proc/sys/vm/max_map_count) ]; then
+    if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count ] && [ "$MAX_MAP_COUNT" -gt $(cat /proc/sys/vm/max_map_count) ]; then
         sysctl -q -w vm.max_map_count=$MAX_MAP_COUNT
     fi
 

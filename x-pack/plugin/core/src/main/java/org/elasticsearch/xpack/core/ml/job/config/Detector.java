@@ -246,11 +246,7 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(DetectionRule.VERSION_INTRODUCED)) {
-            out.writeList(rules);
-        } else {
-            out.writeList(Collections.emptyList());
-        }
+        out.writeList(rules);
         out.writeInt(detectorIndex);
     }
 
@@ -489,44 +485,54 @@ public class Detector implements ToXContentObject, Writeable {
             this.fieldName = fieldName;
         }
 
-        public void setDetectorDescription(String detectorDescription) {
+        public Builder setDetectorDescription(String detectorDescription) {
             this.detectorDescription = detectorDescription;
+            return this;
         }
 
-        public void setFunction(String function) {
+        public Builder setFunction(String function) {
             this.function = DetectorFunction.fromString(function);
+            return this;
         }
 
-        public void setFieldName(String fieldName) {
+        public Builder setFieldName(String fieldName) {
             this.fieldName = fieldName;
+            return this;
         }
 
-        public void setByFieldName(String byFieldName) {
+        public Builder setByFieldName(String byFieldName) {
             this.byFieldName = byFieldName;
+            return this;
         }
 
-        public void setOverFieldName(String overFieldName) {
+        public Builder setOverFieldName(String overFieldName) {
             this.overFieldName = overFieldName;
+            return this;
         }
 
-        public void setPartitionFieldName(String partitionFieldName) {
+        public Builder setPartitionFieldName(String partitionFieldName) {
             this.partitionFieldName = partitionFieldName;
+            return this;
         }
 
-        public void setUseNull(boolean useNull) {
+        public Builder setUseNull(boolean useNull) {
             this.useNull = useNull;
+            return this;
         }
 
-        public void setExcludeFrequent(ExcludeFrequent excludeFrequent) {
+        public Builder setExcludeFrequent(ExcludeFrequent excludeFrequent) {
             this.excludeFrequent = excludeFrequent;
+            return this;
         }
 
-        public void setRules(List<DetectionRule> rules) {
+        public Builder setRules(List<DetectionRule> rules) {
             this.rules = rules;
+            return this;
         }
 
-        public void setDetectorIndex(int detectorIndex) {
+        public Builder setDetectorIndex(int detectorIndex) {
             this.detectorIndex = detectorIndex;
+            return this;
         }
 
         public Detector build() {

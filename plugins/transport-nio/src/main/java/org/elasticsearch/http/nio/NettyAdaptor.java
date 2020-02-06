@@ -29,14 +29,14 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.WriteOperation;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.function.BiConsumer;
 
-public class NettyAdaptor implements AutoCloseable {
+class NettyAdaptor {
 
     private final EmbeddedChannel nettyChannel;
     private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
@@ -64,7 +64,6 @@ public class NettyAdaptor implements AutoCloseable {
         nettyChannel.pipeline().addLast(handlers);
     }
 
-    @Override
     public void close() throws Exception {
         assert flushOperations.isEmpty() : "Should close outbound operations before calling close";
 
@@ -98,7 +97,7 @@ public class NettyAdaptor implements AutoCloseable {
         return byteBuf.readerIndex() - initialReaderIndex;
     }
 
-    public int read(InboundChannelBuffer.Page[] pages) {
+    public int read(Page[] pages) {
         ByteBuf byteBuf = PagedByteBuf.byteBufFromPages(pages);
         int readableBytes = byteBuf.readableBytes();
         nettyChannel.writeInbound(byteBuf);

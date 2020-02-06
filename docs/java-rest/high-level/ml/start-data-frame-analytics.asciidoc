@@ -1,0 +1,29 @@
+--
+:api: start-data-frame-analytics
+:request: StartDataFrameAnalyticsRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Start {dfanalytics-jobs} API
+
+Starts an existing {dfanalytics-job}.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Start {dfanalytics-job} request
+
+A +{request}+ object requires a {dfanalytics-job} ID.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new start request referencing an existing {dfanalytics-job}
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ object acknowledges the {dfanalytics-job} has started.

@@ -32,10 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -474,8 +471,10 @@ public final class DiffableUtils {
             }
             out.writeVInt(upsertsCount);
             for (Map.Entry<K, T> entry : upserts.entrySet()) {
-                keySerializer.writeKey(entry.getKey(), out);
-                valueSerializer.write(entry.getValue(), out);
+                if(valueSerializer.supportsVersion(entry.getValue(), version)) {
+                    keySerializer.writeKey(entry.getKey(), out);
+                    valueSerializer.write(entry.getValue(), out);
+                }
             }
         }
     }
@@ -610,18 +609,20 @@ public final class DiffableUtils {
      * @param <V> type of map values
      */
     public abstract static class DiffableValueSerializer<K, V extends Diffable<V>> implements ValueSerializer<K, V> {
+        @SuppressWarnings("rawtypes")
         private static final DiffableValueSerializer WRITE_ONLY_INSTANCE = new DiffableValueSerializer() {
             @Override
-            public Object read(StreamInput in, Object key) throws IOException {
+            public Object read(StreamInput in, Object key) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Diff<Object> readDiff(StreamInput in, Object key) throws IOException {
+            public Diff<Object> readDiff(StreamInput in, Object key) {
                 throw new UnsupportedOperationException();
             }
         };
 
+        @SuppressWarnings("unchecked")
         private static <K, V extends Diffable<V>> DiffableValueSerializer<K, V> getWriteOnlyInstance() {
             return WRITE_ONLY_INSTANCE;
         }
@@ -641,6 +642,7 @@ public final class DiffableUtils {
             value.writeTo(out);
         }
 
+        @Override
         public void writeDiff(Diff<V> value, StreamOutput out) throws IOException {
             value.writeTo(out);
         }
@@ -664,12 +666,12 @@ public final class DiffableUtils {
         }
 
         @Override
-        public void writeDiff(Diff<V> value, StreamOutput out) throws IOException {
+        public void writeDiff(Diff<V> value, StreamOutput out) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Diff<V> readDiff(StreamInput in, K key) throws IOException {
+        public Diff<V> readDiff(StreamInput in, K key) {
             throw new UnsupportedOperationException();
         }
     }
@@ -704,9 +706,11 @@ public final class DiffableUtils {
      *
      * @param <K> type of map key
      */
+    @SuppressWarnings("rawtypes")
     public static class StringSetValueSerializer<K> extends NonDiffableValueSerializer<K, Set<String>> {
         private static final StringSetValueSerializer INSTANCE = new StringSetValueSerializer();
 
+        @SuppressWarnings("unchecked")
         public static <K> StringSetValueSerializer<K> getInstance() {
             return INSTANCE;
         }
@@ -718,7 +722,7 @@ public final class DiffableUtils {
 
         @Override
         public Set<String> read(StreamInput in, K key) throws IOException {
-            return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(in.readStringArray())));
+            return Set.of(in.readStringArray());
         }
     }
 }

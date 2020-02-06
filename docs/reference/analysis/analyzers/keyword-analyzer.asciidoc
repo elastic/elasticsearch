@@ -7,7 +7,7 @@ string as a single token.
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -15,11 +15,10 @@ POST _analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -33,7 +32,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -66,9 +64,9 @@ into tokens, but just in case you need it, this would recreate the
 built-in `keyword` analyzer and you can use it as a starting point
 for further customization:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
-PUT /keyword_example?include_type_name=true
+PUT /keyword_example
 {
   "settings": {
     "analysis": {
@@ -83,6 +81,6 @@ PUT /keyword_example?include_type_name=true
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: keyword_example, first: keyword, second: rebuilt_keyword}\nendyaml\n/]
+
 <1> You'd add any token filters here.

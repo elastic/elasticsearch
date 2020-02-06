@@ -27,16 +27,9 @@ public class SamlBaseRestHandlerTests extends ESTestCase {
         assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), Matchers.nullValue());
     }
 
-    public void testSecurityNotAvailableOnBasic() {
-        final SamlBaseRestHandler handler = buildHandler(License.OperationMode.BASIC);
-        Exception e = handler.checkFeatureAvailable(new FakeRestRequest());
-        assertThat(e, instanceOf(ElasticsearchException.class));
-        ElasticsearchException elasticsearchException = (ElasticsearchException) e;
-        assertThat(elasticsearchException.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), contains("security"));
-    }
-
-    public void testSamlNotAvailableOnStandardOrGold() {
-        final SamlBaseRestHandler handler = buildHandler(randomFrom(License.OperationMode.STANDARD, License.OperationMode.GOLD));
+    public void testSamlNotAvailableOnBasicStandardOrGold() {
+        final SamlBaseRestHandler handler = buildHandler(randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD,
+            License.OperationMode.GOLD));
         Exception e = handler.checkFeatureAvailable(new FakeRestRequest());
         assertThat(e, instanceOf(ElasticsearchException.class));
         ElasticsearchException elasticsearchException = (ElasticsearchException) e;

@@ -55,7 +55,7 @@ public abstract class AbstractScopedSettings {
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
-    protected final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger;
 
     private final Settings settings;
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
@@ -70,6 +70,7 @@ public abstract class AbstractScopedSettings {
             final Set<Setting<?>> settingsSet,
             final Set<SettingUpgrader<?>> settingUpgraders,
             final Setting.Property scope) {
+        this.logger = LogManager.getLogger(this.getClass());
         this.settings = settings;
         this.lastSettingsApplied = Settings.EMPTY;
 
@@ -110,13 +111,14 @@ public abstract class AbstractScopedSettings {
         }
     }
 
-    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
+    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other, Logger logger) {
+        this.logger = logger;
         this.settings = nodeSettings;
         this.lastSettingsApplied = scopeSettings;
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
-        settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
+        settingUpgraders = Map.copyOf(other.settingUpgraders);
         settingUpdaters.addAll(other.settingUpdaters);
     }
 
@@ -193,7 +195,6 @@ public abstract class AbstractScopedSettings {
         } catch (Exception ex) {
             logger.warn("failed to apply settings", ex);
             throw ex;
-        } finally {
         }
         return lastSettingsApplied = newSettings;
     }
@@ -290,6 +291,55 @@ public abstract class AbstractScopedSettings {
             @Override
             public void apply(Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
                 for (Map.Entry<String, Tuple<A, B>> entry : values.entrySet()) {
+                    consumer.accept(entry.getKey(), entry.getValue());
+                }
+            }
+        });
+    }
+
+    /**
+     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * notified if at least one of the settings change.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     */
+    @SuppressWarnings("rawtypes")
+    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+        List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
+        for (Setting.AffixSetting<?> setting : settings) {
+            ensureSettingIsRegistered(setting);
+            affixUpdaters.add(setting.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {}));
+        }
+
+        addSettingsUpdater(new SettingUpdater<Map<String, Settings>>() {
+
+            @Override
+            public boolean hasChanged(Settings current, Settings previous) {
+                return affixUpdaters.stream().anyMatch(au -> au.hasChanged(current, previous));
+            }
+
+            @Override
+            public Map<String, Settings> getValue(Settings current, Settings previous) {
+                Set<String> namespaces = new HashSet<>();
+                for (Setting.AffixSetting<?> setting : settings) {
+                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) ->{});
+                    affixUpdaterA.apply(current, previous);
+                }
+                Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
+                for (String namespace : namespaces) {
+                    Set<String> concreteSettings = new HashSet<>(settings.size());
+                    for (Setting.AffixSetting<?> setting : settings) {
+                        concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
+                    }
+                    namespaceToSettings.put(namespace, current.filter(concreteSettings::contains));
+                }
+                return namespaceToSettings;
+            }
+
+            @Override
+            public void apply(Map<String, Settings> values, Settings current, Settings previous) {
+                for (Map.Entry<String, Settings> entry : values.entrySet()) {
                     consumer.accept(entry.getKey(), entry.getValue());
                 }
             }
@@ -456,7 +506,7 @@ public abstract class AbstractScopedSettings {
      */
     void validate(
             final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
-        Setting setting = getRaw(key);
+        Setting<?> setting = getRaw(key);
         if (setting == null) {
             LevenshteinDistance ld = new LevenshteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
@@ -482,20 +532,24 @@ public abstract class AbstractScopedSettings {
             }
             throw new IllegalArgumentException(msg);
         } else  {
-            Set<Setting<?>> settingsDependencies = setting.getSettingsDependencies(key);
+            Set<Setting.SettingDependency> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
             }
             if (validateDependencies && settingsDependencies.isEmpty() == false) {
-                for (final Setting<?> settingDependency : settingsDependencies) {
-                    if (settingDependency.existsOrFallbackExists(settings) == false) {
+                for (final Setting.SettingDependency settingDependency : settingsDependencies) {
+                    final Setting<?> dependency = settingDependency.getSetting();
+                    // validate the dependent setting is set
+                    if (dependency.existsOrFallbackExists(settings) == false) {
                         final String message = String.format(
                                 Locale.ROOT,
                                 "missing required setting [%s] for setting [%s]",
-                                settingDependency.getKey(),
+                                dependency.getKey(),
                                 setting.getKey());
                         throw new IllegalArgumentException(message);
                     }
+                    // validate the dependent setting value
+                    settingDependency.validate(setting.getKey(), setting.get(settings), dependency.get(settings));
                 }
             }
             // the only time that validateInternalOrPrivateIndex should be true is if this call is coming via the update settings API

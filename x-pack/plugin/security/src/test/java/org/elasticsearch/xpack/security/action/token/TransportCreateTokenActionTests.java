@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.security.action.token;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -25,9 +26,13 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -38,20 +43,25 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -70,6 +80,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     private ClusterService clusterService;
     private AtomicReference<IndexRequest> idxReqReference;
     private AuthenticationService authenticationService;
+    private XPackLicenseState license;
 
     @Before
     public void setupClient() {
@@ -82,10 +93,9 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                .setType((String) invocationOnMock.getArguments()[1])
-                .setId((String) invocationOnMock.getArguments()[2]);
+                .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
+        }).when(client).prepareGet(anyString(), anyString());
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
@@ -103,14 +113,15 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
-        when(client.prepareIndex(any(String.class), any(String.class), any(String.class)))
+        when(client.prepareIndex(any(String.class)))
             .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareUpdate(any(String.class), any(String.class), any(String.class)))
+        when(client.prepareUpdate(any(String.class), any(String.class)))
             .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             idxReqReference.set((IndexRequest) invocationOnMock.getArguments()[1]);
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
-            responseActionListener.onResponse(new IndexResponse());
+            responseActionListener.onResponse(new IndexResponse(new ShardId(".security", UUIDs.randomBase64UUID(), randomInt()),
+                    randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
 
@@ -123,17 +134,36 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
 
         doAnswer(invocationOnMock -> {
-            UsernamePasswordToken token = (UsernamePasswordToken) invocationOnMock.getArguments()[2];
-            User user = new User(token.principal());
+            AuthenticationToken authToken = (AuthenticationToken) invocationOnMock.getArguments()[2];
+            ActionListener<Authentication> authListener = (ActionListener<Authentication>) invocationOnMock.getArguments()[3];
+            User user = null;
+            if (authToken instanceof UsernamePasswordToken) {
+                UsernamePasswordToken token = (UsernamePasswordToken) invocationOnMock.getArguments()[2];
+                user = new User(token.principal());
+            } else if (authToken instanceof KerberosAuthenticationToken) {
+                KerberosAuthenticationToken token = (KerberosAuthenticationToken) invocationOnMock.getArguments()[2];
+                if (token.credentials() instanceof byte[]
+                        && new String((byte[]) token.credentials(), StandardCharsets.UTF_8).equals("fail")) {
+                    String errorMessage = "failed to authenticate user, gss context negotiation not complete";
+                    ElasticsearchSecurityException ese = new ElasticsearchSecurityException(errorMessage, RestStatus.UNAUTHORIZED);
+                    ese.addHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate FAIL");
+                    authListener.onFailure(ese);
+                    return Void.TYPE;
+                }
+                user = new User(token.principal());
+                threadPool.getThreadContext().addResponseHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate SUCCESS");
+            }
             Authentication authentication = new Authentication(user, new Authentication.RealmRef("fake", "mock", "n1"), null);
             authentication.writeToContext(threadPool.getThreadContext());
-            ActionListener<Authentication> authListener = (ActionListener<Authentication>) invocationOnMock.getArguments()[3];
             authListener.onResponse(authentication);
             return Void.TYPE;
         }).when(authenticationService).authenticate(eq(CreateTokenAction.NAME), any(CreateTokenRequest.class),
-            any(UsernamePasswordToken.class), any(ActionListener.class));
+            any(AuthenticationToken.class), any(ActionListener.class));
 
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        this.license = mock(XPackLicenseState.class);
+        when(license.isTokenServiceAllowed()).thenReturn(true);
     }
 
     @After
@@ -144,7 +174,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     }
 
     public void testClientCredentialsCreatesWithoutRefreshToken() throws Exception {
-        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, securityIndex, clusterService);
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license,
+                securityIndex, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
@@ -168,7 +199,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     }
 
     public void testPasswordGrantTypeCreatesWithRefreshToken() throws Exception {
-        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, securityIndex, clusterService);
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license,
+                securityIndex, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
@@ -191,5 +223,42 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         assertNotNull(sourceMap);
         assertNotNull(sourceMap.get("access_token"));
         assertNotNull(sourceMap.get("refresh_token"));
+    }
+
+    public void testKerberosGrantTypeCreatesWithRefreshToken() throws Exception {
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license,
+                securityIndex, securityIndex, clusterService);
+        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        authentication.writeToContext(threadPool.getThreadContext());
+
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,
+            mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
+            authenticationService);
+        final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
+        createTokenRequest.setGrantType("_kerberos");
+        String failOrSuccess = randomBoolean() ? "fail" : "success";
+        String kerbCredentialsBase64 = Base64.getEncoder().encodeToString(failOrSuccess.getBytes(StandardCharsets.UTF_8));
+        createTokenRequest.setKerberosTicket(new SecureString(kerbCredentialsBase64.toCharArray()));
+
+        PlainActionFuture<CreateTokenResponse> tokenResponseFuture = new PlainActionFuture<>();
+        action.doExecute(null, createTokenRequest, tokenResponseFuture);
+        if (failOrSuccess.equals("fail")) {
+            ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> tokenResponseFuture.actionGet());
+            assertNotNull(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE));
+            assertThat(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).size(), is(1));
+            assertThat(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0), is("Negotiate FAIL"));
+        } else {
+            CreateTokenResponse createTokenResponse = tokenResponseFuture.get();
+            assertNotNull(createTokenResponse.getRefreshToken());
+            assertNotNull(createTokenResponse.getTokenString());
+            assertNotNull(createTokenResponse.getKerberosAuthenticationResponseToken());
+            assertThat(createTokenResponse.getKerberosAuthenticationResponseToken(), is("SUCCESS"));
+
+            assertNotNull(idxReqReference.get());
+            Map<String, Object> sourceMap = idxReqReference.get().sourceAsMap();
+            assertNotNull(sourceMap);
+            assertNotNull(sourceMap.get("access_token"));
+            assertNotNull(sourceMap.get("refresh_token"));
+        }
     }
 }

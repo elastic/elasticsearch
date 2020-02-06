@@ -19,18 +19,18 @@
 package org.elasticsearch.env;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -52,29 +52,14 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
     private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
-    public void testNodeLockSillySettings() {
-        try {
-            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(Settings.builder()
-                    .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), between(Integer.MIN_VALUE, 0)).build());
-            fail("expected failure");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("must be >= 1"));
-        }
-
-        // Even though its silly MAXINT nodes is a-ok!
-        int value = between(1, Integer.MAX_VALUE);
-        int max = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(
-                Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build());
-        assertEquals(value, max);
-    }
-
-    public void testNodeLockSingleEnvironment() throws IOException {
-        final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 1).build());
+    public void testNodeLock() throws IOException {
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
         NodeEnvironment env = newNodeEnvironment(settings);
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
 
@@ -116,28 +101,15 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    public void testNodeLockMultipleEnvironment() throws IOException {
-        final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 2).build());
-        final NodeEnvironment first = newNodeEnvironment(settings);
-        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
-        NodeEnvironment second = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-        assertEquals(first.nodeDataPaths().length, dataPaths.size());
-        assertEquals(second.nodeDataPaths().length, dataPaths.size());
-        for (int i = 0; i < dataPaths.size(); i++) {
-            assertEquals(first.nodeDataPaths()[i].getParent(), second.nodeDataPaths()[i].getParent());
-        }
-        IOUtils.close(first, second);
-    }
-
     public void testShardLock() throws Exception {
         final NodeEnvironment env = newNodeEnvironment();
 
         Index index = new Index("foo", "fooUUID");
-        ShardLock fooLock = env.shardLock(new ShardId(index, 0));
+        ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
         assertEquals(new ShardId(index, 0), fooLock.getShardId());
 
         try {
-            env.shardLock(new ShardId(index, 0));
+            env.shardLock(new ShardId(index, 0), "2");
             fail("shard is locked");
         } catch (ShardLockObtainFailedException ex) {
             // expected
@@ -147,7 +119,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             Files.createDirectories(path.resolve("1"));
         }
         try {
-            env.lockAllForIndex(index, idxSettings, randomIntBetween(0, 10));
+            env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10));
             fail("shard 0 is locked");
         } catch (ShardLockObtainFailedException ex) {
             // expected
@@ -155,11 +127,11 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         fooLock.close();
         // can lock again?
-        env.shardLock(new ShardId(index, 0)).close();
+        env.shardLock(new ShardId(index, 0), "4").close();
 
-        List<ShardLock> locks = env.lockAllForIndex(index, idxSettings, randomIntBetween(0, 10));
+        List<ShardLock> locks = env.lockAllForIndex(index, idxSettings, "5", randomIntBetween(0, 10));
         try {
-            env.shardLock(new ShardId(index, 0));
+            env.shardLock(new ShardId(index, 0), "6");
             fail("shard is locked");
         } catch (ShardLockObtainFailedException ex) {
             // expected
@@ -237,7 +209,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     public void testDeleteSafe() throws Exception {
         final NodeEnvironment env = newNodeEnvironment();
         final Index index = new Index("foo", "fooUUID");
-        ShardLock fooLock = env.shardLock(new ShardId(index, 0));
+        ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
         assertEquals(new ShardId(index, 0), fooLock.getShardId());
 
         for (Path path : env.indexPaths(index)) {
@@ -293,7 +265,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     start.await();
-                    try (ShardLock autoCloses = env.shardLock(new ShardId(index, 0))) {
+                    try (ShardLock autoCloses = env.shardLock(new ShardId(index, 0), "2")) {
                         blockLatch.countDown();
                         Thread.sleep(randomIntBetween(1, 10));
                     }
@@ -351,7 +323,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), 
+                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), "1",
                                     scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
@@ -384,43 +356,35 @@ public class NodeEnvironmentTests extends ESTestCase {
         String[] dataPaths = tmpPaths();
         NodeEnvironment env = newNodeEnvironment(dataPaths, "/tmp", Settings.EMPTY);
 
-        final Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "myindexUUID").build();
-        IndexSettings s1 = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
-        IndexSettings s2 = IndexSettingsModule.newIndexSettings("myindex", Settings.builder()
-                .put(indexSettings)
-                .put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build());
         Index index = new Index("myindex", "myindexUUID");
         ShardId sid = new ShardId(index, 0);
 
-        assertFalse("no settings should mean no custom data path", s1.hasCustomDataPath());
-        assertTrue("settings with path_data should have a custom data path", s2.hasCustomDataPath());
-
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertThat(env.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0")));
+        assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
+            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
+                equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
-
-        IndexSettings s3 = new IndexSettings(s2.getIndexMetaData(), Settings.builder().build());
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
 
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertThat(env.resolveCustomLocation(s3, sid), equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0")));
+        assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
+            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
+                equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
 
         env.close();
     }
 
-    public void testPersistentNodeId() throws IOException {
+    public void testNodeIdNotPersistedAtInitialization() throws IOException {
         NodeEnvironment env = newNodeEnvironment(new String[0], Settings.builder()
             .put("node.local_storage", false)
             .put("node.master", false)
@@ -434,7 +398,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         nodeID = env.nodeId();
         env.close();
         env = newNodeEnvironment(paths, Settings.EMPTY);
-        assertThat(env.nodeId(), equalTo(nodeID));
+        assertThat(env.nodeId(), not(equalTo(nodeID)));
         env.close();
         env = newNodeEnvironment(Settings.EMPTY);
         assertThat(env.nodeId(), not(equalTo(nodeID)));
@@ -445,7 +409,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         String[] paths = tmpPaths();
         // simulate some previous left over temp files
         for (String path : randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
-            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
+            final Path nodePath = PathUtils.get(path);
             Files.createDirectories(nodePath);
             Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
             if (randomBoolean()) {
@@ -460,7 +424,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // check we clean up
         for (String path: paths) {
-            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
+            final Path nodePath = PathUtils.get(path);
             final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
             assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
             final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
@@ -468,6 +432,98 @@ public class NodeEnvironmentTests extends ESTestCase {
             final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
             assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
         }
+    }
+
+    public void testEnsureNoShardDataOrIndexMetaData() throws IOException {
+        Settings settings = buildEnvSettings(Settings.EMPTY);
+        Index index = new Index("test", "testUUID");
+
+        // build settings using same path.data as original but with node.data=false and node.master=false
+        Settings noDataNoMasterSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_DATA_SETTING.getKey(), false)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+
+        // test that we can create data=false and master=false with no meta information
+        newNodeEnvironment(noDataNoMasterSettings).close();
+
+        Path indexPath;
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            for (Path path : env.indexPaths(index)) {
+                Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+            }
+            indexPath = env.indexPaths(index)[0];
+        }
+
+        verifyFailsOnMetaData(noDataNoMasterSettings, indexPath);
+
+        // build settings using same path.data as original but with node.data=false
+        Settings noDataSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_DATA_SETTING.getKey(), false).build();
+
+        String shardDataDirName = Integer.toString(randomInt(10));
+
+        // test that we can create data=false env with only meta information. Also create shard data for following asserts
+        try (NodeEnvironment env = newNodeEnvironment(noDataSettings)) {
+            for (Path path : env.indexPaths(index)) {
+                Files.createDirectories(path.resolve(shardDataDirName));
+            }
+        }
+
+        verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
+
+        // assert that we get the stricter message on meta-data when both conditions fail
+        verifyFailsOnMetaData(noDataNoMasterSettings, indexPath);
+
+        // build settings using same path.data as original but with node.master=false
+        Settings noMasterSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+
+        // test that we can create master=false env regardless of data.
+        newNodeEnvironment(noMasterSettings).close();
+
+        // test that we can create data=true, master=true env. Also remove state dir to leave only shard data for following asserts
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            for (Path path : env.indexPaths(index)) {
+                Files.delete(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+            }
+        }
+
+        // assert that we fail on shard data even without the metadata dir.
+        verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
+        verifyFailsOnShardData(noDataNoMasterSettings, indexPath, shardDataDirName);
+    }
+
+    private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+            "Must fail creating NodeEnvironment on a data path that has shard data if node.data=false",
+            () -> newNodeEnvironment(settings).close());
+
+        assertThat(ex.getMessage(),
+            containsString(indexPath.resolve(shardDataDirName).toAbsolutePath().toString()));
+        assertThat(ex.getMessage(),
+            startsWith("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false, but has shard data"));
+    }
+
+    private void verifyFailsOnMetaData(Settings settings, Path indexPath) {
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+            "Must fail creating NodeEnvironment on a data path that has index meta-data if node.data=false and node.master=false",
+            () -> newNodeEnvironment(settings).close());
+
+        assertThat(ex.getMessage(),
+            containsString(indexPath.resolve(MetaDataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
+        assertThat(ex.getMessage(),
+            startsWith("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false and "
+                + Node.NODE_MASTER_SETTING.getKey()
+                + "=false, but has index metadata"));
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

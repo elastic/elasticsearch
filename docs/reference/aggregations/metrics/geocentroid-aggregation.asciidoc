@@ -5,22 +5,20 @@ A metric aggregation that computes the weighted https://en.wikipedia.org/wiki/Ce
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /museums?include_type_name=true
+PUT /museums
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_point"
-                }
+        "properties": {
+            "location": {
+                "type": "geo_point"
             }
         }
     }
 }
 
-POST /museums/_doc/_bulk?refresh
+POST /museums/_bulk?refresh
 {"index":{"_id":1}}
 {"location": "52.374081,4.912350", "city": "Amsterdam", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
@@ -45,7 +43,6 @@ POST /museums/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `geo_centroid` aggregation specifies the field to use for computing the centroid. (NOTE: field must be a <<geo-point>> type)
 
@@ -53,15 +50,15 @@ The above aggregation demonstrates how one would compute the centroid of the loc
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
     "aggregations": {
         "centroid": {
             "location": {
-                "lat": 51.009829603135586,
-                "lon": 3.9662130642682314
+                "lat": 51.00982965203002,
+                "lon": 3.9662131341174245
             },
             "count": 6
         }
@@ -74,7 +71,7 @@ The `geo_centroid` aggregation is more interesting when combined as a sub-aggreg
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /museums/_search?size=0
 {
@@ -90,7 +87,6 @@ POST /museums/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The above example uses `geo_centroid` as a sub-aggregation to a
@@ -99,7 +95,7 @@ for finding the central location for museums in each city.
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -113,8 +109,8 @@ The response for the above aggregation:
                    "doc_count": 3,
                    "centroid": {
                       "location": {
-                         "lat": 52.371655642054975,
-                         "lon": 4.9095632415264845
+                         "lat": 52.371655656024814,
+                         "lon": 4.909563297405839
                       },
                       "count": 3
                    }
@@ -125,7 +121,7 @@ The response for the above aggregation:
                    "centroid": {
                       "location": {
                          "lat": 48.86055548675358,
-                         "lon": 2.331694420427084
+                         "lon": 2.3316944623366
                       },
                       "count": 2
                    }
@@ -147,3 +143,17 @@ The response for the above aggregation:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+
+[WARNING]
+.Using `geo_centroid` as a sub-aggregation of `geohash_grid`
+====
+The <<search-aggregations-bucket-geohashgrid-aggregation,`geohash_grid`>>
+aggregation places documents, not individual geo-points, into buckets. If a
+document's `geo_point` field contains <<array,multiple values>>, the document
+could be assigned to multiple buckets, even if one or more of its geo-points are
+outside the bucket boundaries.
+    
+If a `geocentroid` sub-aggregation is also used, each centroid is calculated
+using all geo-points in a bucket, including those outside the bucket boundaries.
+This can result in centroids outside of bucket boundaries.
+====

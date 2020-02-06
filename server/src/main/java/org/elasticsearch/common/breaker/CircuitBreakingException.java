@@ -19,7 +19,6 @@
 package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,11 +39,7 @@ public class CircuitBreakingException extends ElasticsearchException {
         super(in);
         byteLimit = in.readLong();
         bytesWanted = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            durability = in.readEnum(CircuitBreaker.Durability.class);
-        } else {
-            durability = CircuitBreaker.Durability.PERMANENT;
-        }
+        durability = in.readEnum(CircuitBreaker.Durability.class);
     }
 
     public CircuitBreakingException(String message, CircuitBreaker.Durability durability) {
@@ -63,9 +58,7 @@ public class CircuitBreakingException extends ElasticsearchException {
         super.writeTo(out);
         out.writeLong(byteLimit);
         out.writeLong(bytesWanted);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeEnum(durability);
-        }
+        out.writeEnum(durability);
     }
 
     public long getBytesWanted() {

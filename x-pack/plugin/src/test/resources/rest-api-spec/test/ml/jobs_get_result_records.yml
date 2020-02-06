@@ -23,7 +23,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-jobs-get-result-records
-        type:   doc
         id:     jobs-get-result-records_1464739200000_1_1
         body:
           {
@@ -40,7 +39,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-jobs-get-result-records
-        type:   doc
         id:     jobs-get-result-records_1464825600000_1_2
         body:
           {

@@ -18,19 +18,17 @@
  */
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -61,7 +59,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(emptySet(), null, client,
         new NoneCircuitBreakerService(), usageService);
-    private static RestValidateQueryAction action = new RestValidateQueryAction(Settings.EMPTY, controller);
+    private static RestValidateQueryAction action = new RestValidateQueryAction(controller);
 
     /**
      * Configures {@link NodeClient} to stub {@link ValidateQueryAction} transport action.
@@ -79,14 +77,14 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             }
         };
 
-        final Map<Action, TransportAction> actions = new HashMap<>();
+        final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(actions, () -> "local", null);
+        client.initialize(actions, taskManager, () -> "local", null);
     }
 
     @AfterClass
-    public static void terminateThreadPool() throws InterruptedException {
+    public static void terminateThreadPool() {
         terminate(threadPool);
 
         threadPool = null;
@@ -153,32 +151,4 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             .build();
     }
 
-    public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/some_type/_validate/query")
-            .build();
-
-        performRequest(request);
-        assertWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testTypeParameter() {
-        Map<String, String> params = new HashMap<>();
-        params.put("type", "some_type");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
-            .withPath("_validate/query")
-            .withParams(params)
-            .build();
-
-        performRequest(request);
-        assertWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    private void performRequest(RestRequest request) {
-        RestChannel channel = new FakeRestChannel(request, false, 1);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        controller.dispatchRequest(request, channel, threadContext);
-    }
 }

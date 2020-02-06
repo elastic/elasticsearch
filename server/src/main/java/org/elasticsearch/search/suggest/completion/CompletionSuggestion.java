@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -84,9 +83,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     public CompletionSuggestion(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            skipDuplicates = in.readBoolean();
-        }
+        skipDuplicates = in.readBoolean();
     }
 
     @Override
@@ -97,9 +94,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(skipDuplicates);
-        }
+        out.writeBoolean(skipDuplicates);
     }
 
     /**
@@ -145,7 +140,16 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
         @Override
         protected boolean lessThan(ShardOptions a, ShardOptions b) {
-            return COMPARATOR.compare(a.current, b.current) < 0;
+            int compare = COMPARATOR.compare(a.current, b.current);
+            if (compare != 0) {
+                return compare < 0;
+            }
+            ScoreDoc aDoc = a.current.getDoc();
+            ScoreDoc bDoc = b.current.getDoc();
+            if (aDoc.shardIndex == bDoc.shardIndex) {
+                return aDoc.doc < bDoc.doc;
+            }
+            return aDoc.shardIndex < bDoc.shardIndex;
         }
     }
 
@@ -157,6 +161,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             assert optionsIterator.hasNext();
             this.optionsIterator = optionsIterator;
             this.current = optionsIterator.next();
+            assert this.current.getDoc().shardIndex != -1 : "shardIndex is not set";
         }
 
         boolean advanceToNextOption() {
@@ -169,11 +174,8 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
     }
 
-    /**
-     * Reduces suggestions to a single suggestion containing at most
-     * top {@link CompletionSuggestion#getSize()} options across <code>toReduce</code>
-     */
-    public static CompletionSuggestion reduceTo(List<Suggest.Suggestion<Entry>> toReduce) {
+    @Override
+    public CompletionSuggestion reduce(List<Suggest.Suggestion<Entry>> toReduce) {
         if (toReduce.isEmpty()) {
             return null;
         } else {
@@ -209,7 +211,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                         pq.pop();
                     }
                     if (leader.skipDuplicates == false ||
-                            seenSurfaceForms.add(current.getText().toString())) {
+                        seenSurfaceForms.add(current.getText().toString())) {
                         options.add(current);
                         if (options.size() >= size) {
                             break;
@@ -221,11 +223,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 return suggestion;
             }
         }
-    }
-
-    @Override
-    public Suggest.Suggestion<Entry> reduce(List<Suggest.Suggestion<Entry>> toReduce) {
-        return reduceTo(toReduce);
     }
 
     public void setShardIndex(int shardIndex) {
@@ -263,9 +260,8 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             return new Option(in);
         }
 
-        private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("CompletionSuggestionEntryParser", true,
+        private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("CompletionSuggestionEntryParser", true,
                 Entry::new);
-
         static {
             declareCommonFields(PARSER);
             PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
@@ -292,7 +288,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    this.hit = SearchHit.readSearchHit(in);
+                    this.hit = new SearchHit(in);
                 }
                 int contextSize = in.readInt();
                 this.contexts = new LinkedHashMap<>(contextSize);
@@ -356,7 +352,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 return builder;
             }
 
-            private static ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>("CompletionOptionParser",
+            private static final ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>("CompletionOptionParser",
                     true, HashMap::new);
 
             static {

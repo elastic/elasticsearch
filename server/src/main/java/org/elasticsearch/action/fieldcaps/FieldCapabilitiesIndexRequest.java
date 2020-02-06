@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,14 +28,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class FieldCapabilitiesIndexRequest
-    extends SingleShardRequest<FieldCapabilitiesIndexRequest> {
+public class FieldCapabilitiesIndexRequest extends SingleShardRequest<FieldCapabilitiesIndexRequest> {
 
-    private String[] fields;
-    private OriginalIndices originalIndices;
+    private final String[] fields;
+    private final OriginalIndices originalIndices;
 
     // For serialization
-    FieldCapabilitiesIndexRequest() {}
+    FieldCapabilitiesIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        fields = in.readStringArray();
+        originalIndices = OriginalIndices.readOriginalIndices(in);
+    }
 
     FieldCapabilitiesIndexRequest(String[] fields, String index, OriginalIndices originalIndices) {
         super(index);
@@ -64,23 +66,10 @@ public class FieldCapabilitiesIndexRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        fields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            originalIndices = OriginalIndices.readOriginalIndices(in);
-        } else {
-            originalIndices = OriginalIndices.NONE;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(fields);
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            OriginalIndices.writeOriginalIndices(originalIndices, out);
-        }
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
     @Override

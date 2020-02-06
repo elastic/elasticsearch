@@ -7,10 +7,9 @@ package org.elasticsearch.xpack.security.transport.filter;
 
 
 import io.netty.handler.ipfilter.IpFilterRuleType;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -78,10 +77,9 @@ public class IPFilter {
     public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting(setting("http.filter.deny"),
             HTTP_FILTER_DENY_FALLBACK, Function.identity(), Property.Dynamic, Property.NodeScope);
 
-    public static final Map<String, Object> DISABLED_USAGE_STATS = new MapBuilder<String, Object>()
-            .put("http", false)
-            .put("transport", false)
-            .immutableMap();
+    public static final Map<String, Object> DISABLED_USAGE_STATS = Map.of(
+            "http", false,
+            "transport", false);
 
     public static final SecurityIpFilterRule DEFAULT_PROFILE_ACCEPT_ALL = new SecurityIpFilterRule(true, "default:accept_all") {
 

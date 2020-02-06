@@ -31,6 +31,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -47,6 +48,7 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -82,7 +84,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
-        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
         aggBuilder.subAggregation(new AvgAggregationBuilder("the_avg").field(VALUE_FIELD));
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_avg"));
 
@@ -93,6 +95,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (Histogram.Bucket bucket : buckets) {
                 sum += ((InternalAvg) (bucket.getAggregations().get("the_avg"))).value();
                 assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalAvg) (bucket.getAggregations().get("the_avg")))));
             }
         });
     }
@@ -104,7 +107,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
-        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
         aggBuilder.subAggregation(new AvgAggregationBuilder("the_avg").field(VALUE_FIELD));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("the_deriv", "the_avg"));
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_deriv"));
@@ -116,12 +119,36 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < buckets.size(); i++) {
                 if (i == 0) {
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(0.0));
+                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
+                        .getAggregations().get("cusum")))));
                 } else {
                     sum += 1.0;
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(sum));
+                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
+                        .getAggregations().get("cusum")))));
                 }
             }
         });
+    }
+
+    public void testCount() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
+        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "_count"));
+
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertEquals(10, ((Histogram)histogram).getBuckets().size());
+            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            double sum = 1.0;
+            for (Histogram.Bucket bucket : buckets) {
+                assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (bucket.getAggregations().get("cusum")))));
+                sum += 1.0;
+            }
+        });
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testDocCount() throws IOException {
@@ -340,6 +367,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(dateTime).getMillis();
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
 }

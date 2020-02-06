@@ -1,14 +1,52 @@
 [[cat-alias]]
-== cat aliases
+=== cat aliases API
+++++
+<titleabbrev>cat aliases</titleabbrev>
+++++
 
-`aliases` shows information about currently configured aliases to indices
-including filter and routing infos.
+Returns information about currently configured aliases to indices, including
+filter and routing information.
+
+
+[[cat-alias-api-request]]
+==== {api-request-title}
+
+`GET /_cat/aliases/<alias>`
+
+`GET /_cat/aliases`
+
+[[cat-alias-api-path-params]]
+==== {api-path-parms-title}
+
+`<alias>`::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias]
+
+
+[[cat-alias-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-alias-api-example]]
+==== {api-examples-title}
 
 ////
 Hidden setup for example:
-[source,js]
+[source,console,id=cat-aliases-example]
 --------------------------------------------------
-PUT test1?include_type_name=true
+PUT test1
 {
   "aliases": {
     "alias1": {},
@@ -29,29 +67,27 @@ PUT test1?include_type_name=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/aliases?v
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-Might respond with:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-alias  index filter routing.index routing.search
-alias1 test1 -      -            -
-alias2 test1 *      -            -
-alias3 test1 -      1            1
-alias4 test1 -      2            1,2
+alias  index filter routing.index routing.search is_write_index
+alias1 test1 -      -            -              -
+alias2 test1 *      -            -              -
+alias3 test1 -      1            1              -
+alias4 test1 -      2            1,2            -
 --------------------------------------------------
-// TESTRESPONSE[s/[*]/[*]/ _cat]
+// TESTRESPONSE[s/[*]/[*]/ non_json]
 
-The output shows that `alias2` has configured a filter, and specific routing
+This response shows that `alias2` has configured a filter, and specific routing
 configurations in `alias3` and `alias4`.
 
 If you only want to get information about specific aliases, you can specify 

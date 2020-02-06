@@ -19,14 +19,11 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -46,21 +43,12 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestCountAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in count requests is deprecated.";
 
-    public RestCountAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestCountAction(RestController controller) {
         controller.registerHandler(POST, "/_count", this);
         controller.registerHandler(GET, "/_count", this);
         controller.registerHandler(POST, "/{index}/_count", this);
         controller.registerHandler(GET, "/{index}/_count", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(POST, "/{index}/{type}/_count", this);
-        controller.registerHandler(GET, "/{index}/{type}/_count", this);
     }
 
     @Override
@@ -72,7 +60,7 @@ public class RestCountAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser == null) {
@@ -88,11 +76,6 @@ public class RestCountAction extends BaseRestHandler {
         float minScore = request.paramAsFloat("min_score", -1f);
         if (minScore != -1f) {
             searchSourceBuilder.minScore(minScore);
-        }
-
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("count_with_types", TYPES_DEPRECATION_MESSAGE);
-            countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
 
         countRequest.preference(request.param("preference"));

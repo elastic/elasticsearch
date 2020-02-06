@@ -19,18 +19,27 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -41,11 +50,15 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.internal.ScrollContext;
@@ -112,8 +125,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                         this.collector = hitCountCollector;
                         this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
                     } else {
-                        this.collector = new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
-                        this.hitCountSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
+                        EarlyTerminatingCollector col =
+                            new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
+                        this.collector = col;
+                        this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(),
+                            col.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO);
                     }
                 } else {
                     this.collector = new EarlyTerminatingCollector(hitCountCollector, 0, false);
@@ -122,6 +138,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             }
         }
 
+        @Override
         Collector create(Collector in) {
             assert in == null;
             return collector;
@@ -157,7 +174,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
             this.topDocsCollector = collapseContext.createTopDocs(sort, numHits);
 
-            MaxScoreCollector maxScoreCollector = null;
+            MaxScoreCollector maxScoreCollector;
             if (trackMaxScore) {
                 maxScoreCollector = new MaxScoreCollector();
                 maxScoreSupplier = maxScoreCollector::getMaxScore;
@@ -219,7 +236,15 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             this.sortAndFormats = sortAndFormats;
 
             final TopDocsCollector<?> topDocsCollector;
-            if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+
+            if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0]))
+                    && hasInfMaxScore(query)) {
+                // disable max score optimization since we have a mandatory clause
+                // that doesn't track the maximum score
+                topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, Integer.MAX_VALUE);
+                topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
+                totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
+            } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 // don't compute hit counts via the collector
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1);
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
@@ -254,7 +279,9 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             } else {
                 maxScoreSupplier = () -> Float.NaN;
             }
+
             this.collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector);
+
         }
 
         @Override
@@ -354,6 +381,29 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 count += context.reader().docFreq(term);
             }
             return count;
+        } else if (query.getClass() == DocValuesFieldExistsQuery.class && reader.hasDeletions() == false) {
+            final String field = ((DocValuesFieldExistsQuery) query).getField();
+            int count = 0;
+            for (LeafReaderContext context : reader.leaves()) {
+                FieldInfos fieldInfos = context.reader().getFieldInfos();
+                FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+                if (fieldInfo != null) {
+                    if (fieldInfo.getPointIndexDimensionCount() > 0) {
+                        PointValues points = context.reader().getPointValues(field);
+                        if (points != null) {
+                            count += points.getDocCount();
+                        }
+                    } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
+                        Terms terms = context.reader().terms(field);
+                        if (terms != null) {
+                            count += terms.getDocCount();
+                        }
+                    } else {
+                        return -1; // no shortcut possible for fields that are not indexed
+                    }
+                }
+            }
+            return count;
         } else {
             return -1;
         }
@@ -364,8 +414,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
      * @param hasFilterCollector True if the collector chain contains at least one collector that can filters document.
      */
     static TopDocsCollectorContext createTopDocsCollectorContext(SearchContext searchContext,
-                                                                 IndexReader reader,
                                                                  boolean hasFilterCollector) throws IOException {
+        final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.query();
         // top collectors don't like a size of 0
         final int totalNumDocs = Math.max(1, reader.numDocs());
@@ -402,6 +452,47 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     return rescore;
                 }
             };
+        }
+    }
+
+    /**
+     * Return true if the provided query contains a mandatory clauses (MUST)
+     * that doesn't track the maximum scores per block
+     */
+    static boolean hasInfMaxScore(Query query) {
+        MaxScoreQueryVisitor visitor = new MaxScoreQueryVisitor();
+        query.visit(visitor);
+        return visitor.hasInfMaxScore;
+    }
+
+    private static class MaxScoreQueryVisitor extends QueryVisitor {
+        private boolean hasInfMaxScore;
+
+        @Override
+        public void visitLeaf(Query query) {
+            checkMaxScoreInfo(query);
+        }
+
+        @Override
+        public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+            if (occur != BooleanClause.Occur.MUST) {
+                // boolean queries can skip documents even if they have some should
+                // clauses that don't track maximum scores
+                return QueryVisitor.EMPTY_VISITOR;
+            }
+            checkMaxScoreInfo(parent);
+            return this;
+        }
+
+        void checkMaxScoreInfo(Query query) {
+            if (query instanceof FunctionScoreQuery
+                    || query instanceof ScriptScoreQuery
+                    || query instanceof SpanQuery) {
+                hasInfMaxScore = true;
+            } else if (query instanceof ESToParentBlockJoinQuery) {
+                ESToParentBlockJoinQuery q = (ESToParentBlockJoinQuery) query;
+                hasInfMaxScore |= (q.getScoreMode() != org.apache.lucene.search.join.ScoreMode.None);
+            }
         }
     }
 }

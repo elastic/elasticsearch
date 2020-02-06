@@ -46,7 +46,7 @@ public class AvgBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         return new AvgBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
     }
 
@@ -62,16 +62,6 @@ public class AvgBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
             return new AvgBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };
-
-    @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<AvgBucketPipelineAggregationBuilder> other) {
-        return true;
-    }
 
     @Override
     public String getWriteableName() {

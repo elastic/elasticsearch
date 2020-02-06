@@ -36,7 +36,7 @@ public class PreBuiltCacheFactory {
      * ELASTICSEARCH     Exactly one version per elasticsearch version is stored. Useful if you change an analyzer between elasticsearch
      *                   releases, when the lucene version does not change
      */
-    public enum CachingStrategy { ONE, LUCENE, ELASTICSEARCH };
+    public enum CachingStrategy { ONE, LUCENE, ELASTICSEARCH }
 
     public interface PreBuiltCache<T> {
 
@@ -81,7 +81,7 @@ public class PreBuiltCacheFactory {
 
         @Override
         public Collection<T> values() {
-            return Collections.singleton(model);
+            return model == null ? Collections.emptySet() : Collections.singleton(model);
         }
     }
 

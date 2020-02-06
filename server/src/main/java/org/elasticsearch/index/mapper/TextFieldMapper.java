@@ -26,12 +26,16 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.shingle.FixedShingleFilter;
+import org.apache.lucene.analysis.tokenattributes.BytesTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.XIntervals;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -40,14 +44,23 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -60,10 +73,12 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.IntPredicate;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
@@ -98,7 +113,8 @@ public class TextFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, TextFieldMapper> {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
-        private PrefixFieldType prefixFieldType;
+        private int minPrefixChars = -1;
+        private int maxPrefixChars = -1;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -149,6 +165,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public Builder indexPrefixes(int minChars, int maxChars) {
+
             if (minChars > maxChars) {
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
             }
@@ -158,8 +175,8 @@ public class TextFieldMapper extends FieldMapper {
             if (maxChars >= 20) {
                 throw new IllegalArgumentException("max_chars [" + maxChars + "] must be less than 20");
             }
-            this.prefixFieldType = new PrefixFieldType(name(), name() + "._index_prefix", minChars, maxChars);
-            fieldType().setPrefixFieldType(this.prefixFieldType);
+            this.minPrefixChars = minChars;
+            this.maxPrefixChars = maxChars;
             return this;
         }
 
@@ -176,21 +193,28 @@ public class TextFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
             PrefixFieldMapper prefixMapper = null;
-            if (prefixFieldType != null) {
+            if (minPrefixChars != -1) {
+                /**
+                 * Mappings before v7.2.1 use {@link Builder#name} instead of {@link Builder#fullName}
+                 * to build prefix field names so we preserve the name that was used at creation time
+                 * even if it is different from the expected one (in case the field is nested under an object
+                 * or a multi-field). This way search will continue to work on old indices and new indices
+                 * will use the expected full name.
+                 **/
+                String fullName = context.indexCreatedVersion().before(Version.V_7_2_1) ? name() : buildFullName(context);
+                PrefixFieldType prefixFieldType =
+                    new PrefixFieldType(fullName, fullName + "._index_prefix", minPrefixChars, maxPrefixChars);
+                fieldType().setPrefixFieldType(prefixFieldType);
                 if (fieldType().isSearchable() == false) {
                     throw new IllegalArgumentException("Cannot set index_prefixes on unindexed field [" + name() + "]");
                 }
                 // Copy the index options of the main field to allow phrase queries on
                 // the prefix field.
-                if (context.indexCreatedVersion().onOrAfter(Version.V_6_4_0)) {
-                    if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
-                        // frequencies are not needed because prefix queries always use a constant score
-                        prefixFieldType.setIndexOptions(IndexOptions.DOCS);
-                    } else {
-                        prefixFieldType.setIndexOptions(fieldType.indexOptions());
-                    }
-                } else if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                    prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+                if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
+                    // frequencies are not needed because prefix queries always use a constant score
+                    prefixFieldType.setIndexOptions(IndexOptions.DOCS);
+                } else {
+                    prefixFieldType.setIndexOptions(fieldType.indexOptions());
                 }
                 if (fieldType.storeTermVectorOffsets()) {
                     prefixFieldType.setStoreTermVectorOffsets(true);
@@ -397,6 +421,17 @@ public class TextFieldMapper extends FieldMapper {
                 .build();
         }
 
+        public IntervalsSource intervals(BytesRef term) {
+            if (term.length > maxChars) {
+                return XIntervals.prefix(term);
+            }
+            if (term.length >= minChars) {
+                return Intervals.fixField(name(), Intervals.term(term));
+            }
+            String wildcardTerm = term.utf8ToString() + "?".repeat(Math.max(0, minChars - term.length));
+            return Intervals.or(Intervals.fixField(name(), XIntervals.wildcard(new BytesRef(wildcardTerm))), Intervals.term(term));
+        }
+
         @Override
         public PrefixFieldType clone() {
             return new PrefixFieldType(parentField, name(), minChars, maxChars);
@@ -476,7 +511,7 @@ public class TextFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class TextFieldType extends StringFieldType {
+    public static class TextFieldType extends StringFieldType {
 
         private boolean fielddata;
         private double fielddataMinFrequency;
@@ -599,6 +634,23 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+            failIfNotIndexed();
+            if (prefixFieldType != null
+                    && value.length() >= prefixFieldType.minChars
+                    && value.length() <= prefixFieldType.maxChars
+                    && prefixFieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+
+                return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), indexedValueForSearch(value))), name());
+            } else {
+                SpanMultiTermQueryWrapper<?> spanMulti =
+                    new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
+                spanMulti.setRewriteMethod(method);
+                return spanMulti;
+            }
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             if (omitNorms()) {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
@@ -608,18 +660,32 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
+        public IntervalsSource intervals(String text, int maxGaps, boolean ordered,
+                                         NamedAnalyzer analyzer, boolean prefix) throws IOException {
             if (indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                throw new IllegalArgumentException("Cannot create intervals against field [" + name() + "] with no positions indexed");
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+            }
+            if (analyzer == null) {
+                analyzer = searchAnalyzer();
+            }
+            if (prefix) {
+                BytesRef normalizedTerm = analyzer.normalize(name(), text);
+                if (prefixFieldType != null) {
+                    return prefixFieldType.intervals(normalizedTerm);
+                }
+                return XIntervals.prefix(normalizedTerm);
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
             return builder.analyzeText(text, maxGaps, ordered);
         }
 
         @Override
-        public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
-
-            if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
+            String field = name();
+            // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
+            // or if the incoming token stream is the output of a token graph due to
+            // https://issues.apache.org/jira/browse/LUCENE-8916
+            if (indexPhrases && slop == 0 && hasGaps(stream) == false && stream.hasAttribute(BytesTermAttribute.class) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
@@ -632,6 +698,9 @@ public class TextFieldMapper extends FieldMapper {
 
             stream.reset();
             while (stream.incrementToken()) {
+                if (termAtt.getBytesRef() == null) {
+                    throw new IllegalStateException("Null term while building phrase query");
+                }
                 if (enablePosIncrements) {
                     position += posIncrAtt.getPositionIncrement();
                 }
@@ -645,54 +714,28 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-
-            if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+            String field = name();
+            if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
-
-            MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
-            mpqb.setSlop(slop);
-
-            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-
-            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
-            int position = -1;
-
-            List<Term> multiTerms = new ArrayList<>();
-            stream.reset();
-            while (stream.incrementToken()) {
-                int positionIncrement = posIncrAtt.getPositionIncrement();
-
-                if (positionIncrement > 0 && multiTerms.size() > 0) {
-                    if (enablePositionIncrements) {
-                        mpqb.add(multiTerms.toArray(new Term[0]), position);
-                    } else {
-                        mpqb.add(multiTerms.toArray(new Term[0]));
-                    }
-                    multiTerms.clear();
-                }
-                position += positionIncrement;
-                multiTerms.add(new Term(field, termAtt.getBytesRef()));
-            }
-
-            if (enablePositionIncrements) {
-                mpqb.add(multiTerms.toArray(new Term[0]), position);
-            } else {
-                mpqb.add(multiTerms.toArray(new Term[0]));
-            }
-            return mpqb.build();
+            return createPhraseQuery(stream, field, slop, enablePositionIncrements);
         }
 
-        private static CachingTokenFilter cache(TokenStream in) {
-            if (in instanceof CachingTokenFilter) {
-                return (CachingTokenFilter) in;
-            }
-            return new CachingTokenFilter(in);
+        @Override
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+            return analyzePhrasePrefix(stream, slop, maxExpansions);
         }
 
-        private static boolean hasGaps(CachingTokenFilter stream) throws IOException {
+        private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions) throws IOException {
+            String prefixField = prefixFieldType == null || slop > 0 ? null : prefixFieldType.name();
+            IntPredicate usePrefix = (len) -> len >= prefixFieldType.minChars && len <= prefixFieldType.maxChars;
+            return createPhrasePrefixQuery(stream, name(), slop, maxExpansions, prefixField, usePrefix);
+        }
+
+        public static boolean hasGaps(TokenStream stream) throws IOException {
+            assert stream instanceof CachingTokenFilter;
             PositionIncrementAttribute posIncAtt = stream.getAttribute(PositionIncrementAttribute.class);
             stream.reset();
             while (stream.incrementToken()) {
@@ -812,17 +855,32 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        TextFieldMapper mapper = (TextFieldMapper) super.updateFieldType(fullNameToFieldType);
+        if (mapper.prefixFieldMapper != null) {
+            mapper.prefixFieldMapper = (PrefixFieldMapper) mapper.prefixFieldMapper.updateFieldType(fullNameToFieldType);
+        }
+        if (mapper.phraseFieldMapper != null) {
+            mapper.phraseFieldMapper = (PhraseFieldMapper) mapper.phraseFieldMapper.updateFieldType(fullNameToFieldType);
+        }
+        return mapper;
+    }
+
+    @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
         TextFieldMapper mw = (TextFieldMapper) mergeWith;
+
         if (this.prefixFieldMapper != null && mw.prefixFieldMapper != null) {
             this.prefixFieldMapper = (PrefixFieldMapper) this.prefixFieldMapper.merge(mw.prefixFieldMapper);
-        }
-        else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
+        } else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
             throw new IllegalArgumentException("mapper [" + name() + "] has different index_prefix settings, current ["
                 + this.prefixFieldMapper + "], merged [" + mw.prefixFieldMapper + "]");
         }
-        else if (this.fieldType().indexPhrases != mw.fieldType().indexPhrases) {
+
+        if (this.phraseFieldMapper != null && mw.phraseFieldMapper != null) {
+            this.phraseFieldMapper = (PhraseFieldMapper) this.phraseFieldMapper.merge(mw.phraseFieldMapper);
+        } else if (this.fieldType().indexPhrases != mw.fieldType().indexPhrases) {
             throw new IllegalArgumentException("mapper [" + name() + "] has different index_phrases settings, current ["
                 + this.fieldType().indexPhrases + "], merged [" + mw.fieldType().indexPhrases + "]");
         }
@@ -869,5 +927,121 @@ public class TextFieldMapper extends FieldMapper {
         if (fieldType().indexPhrases) {
             builder.field("index_phrases", fieldType().indexPhrases);
         }
+    }
+
+    public static Query createPhraseQuery(TokenStream stream, String field, int slop, boolean enablePositionIncrements) throws IOException {
+        MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
+        mpqb.setSlop(slop);
+
+        TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+
+        PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+        int position = -1;
+
+        List<Term> multiTerms = new ArrayList<>();
+        stream.reset();
+        while (stream.incrementToken()) {
+            int positionIncrement = posIncrAtt.getPositionIncrement();
+
+            if (positionIncrement > 0 && multiTerms.size() > 0) {
+                if (enablePositionIncrements) {
+                    mpqb.add(multiTerms.toArray(new Term[0]), position);
+                } else {
+                    mpqb.add(multiTerms.toArray(new Term[0]));
+                }
+                multiTerms.clear();
+            }
+            position += positionIncrement;
+            multiTerms.add(new Term(field, termAtt.getBytesRef()));
+        }
+
+        if (enablePositionIncrements) {
+            mpqb.add(multiTerms.toArray(new Term[0]), position);
+        } else {
+            mpqb.add(multiTerms.toArray(new Term[0]));
+        }
+        return mpqb.build();
+    }
+
+    public static Query createPhrasePrefixQuery(TokenStream stream, String field, int slop, int maxExpansions,
+                                                String prefixField, IntPredicate usePrefixField) throws IOException {
+        MultiPhrasePrefixQuery builder = new MultiPhrasePrefixQuery(field);
+        builder.setSlop(slop);
+        builder.setMaxExpansions(maxExpansions);
+
+        List<Term> currentTerms = new ArrayList<>();
+
+        TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+        PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+
+        stream.reset();
+        int position = -1;
+        while (stream.incrementToken()) {
+            if (posIncrAtt.getPositionIncrement() != 0) {
+                if (currentTerms.isEmpty() == false) {
+                    builder.add(currentTerms.toArray(new Term[0]), position);
+                }
+                position += posIncrAtt.getPositionIncrement();
+                currentTerms.clear();
+            }
+            currentTerms.add(new Term(field, termAtt.getBytesRef()));
+        }
+        builder.add(currentTerms.toArray(new Term[0]), position);
+        if (prefixField == null) {
+            return builder;
+        }
+
+        int lastPos = builder.getTerms().length - 1;
+        final Term[][] terms = builder.getTerms();
+        final int[] positions = builder.getPositions();
+        for (Term term : terms[lastPos]) {
+            String value = term.text();
+            if (usePrefixField.test(value.length()) == false) {
+                return builder;
+            }
+        }
+
+        if (terms.length == 1) {
+            Term[] newTerms = Arrays.stream(terms[0])
+                .map(term -> new Term(prefixField, term.bytes()))
+                .toArray(Term[]::new);
+            return new SynonymQuery(newTerms);
+        }
+
+        SpanNearQuery.Builder spanQuery = new SpanNearQuery.Builder(field, true);
+        spanQuery.setSlop(slop);
+        int previousPos = -1;
+        for (int i = 0; i < terms.length; i++) {
+            Term[] posTerms = terms[i];
+            int posInc = positions[i] - previousPos;
+            previousPos = positions[i];
+            if (posInc > 1) {
+                spanQuery.addGap(posInc - 1);
+            }
+            if (i == lastPos) {
+                if (posTerms.length == 1) {
+                    FieldMaskingSpanQuery fieldMask =
+                        new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixField, posTerms[0].bytes())), field);
+                    spanQuery.addClause(fieldMask);
+                } else {
+                    SpanQuery[] queries = Arrays.stream(posTerms)
+                        .map(term -> new FieldMaskingSpanQuery(
+                            new SpanTermQuery(new Term(prefixField, term.bytes())), field)
+                        )
+                        .toArray(SpanQuery[]::new);
+                    spanQuery.addClause(new SpanOrQuery(queries));
+                }
+            } else {
+                if (posTerms.length == 1) {
+                    spanQuery.addClause(new SpanTermQuery(posTerms[0]));
+                } else {
+                    SpanTermQuery[] queries = Arrays.stream(posTerms)
+                        .map(SpanTermQuery::new)
+                        .toArray(SpanTermQuery[]::new);
+                    spanQuery.addClause(new SpanOrQuery(queries));
+                }
+            }
+        }
+        return spanQuery.build();
     }
 }

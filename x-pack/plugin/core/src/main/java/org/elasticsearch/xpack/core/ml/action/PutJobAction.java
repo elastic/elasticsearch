@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -25,18 +24,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class PutJobAction extends Action<PutJobAction.Response> {
+public class PutJobAction extends ActionType<PutJobAction.Response> {
 
     public static final PutJobAction INSTANCE = new PutJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/put";
 
     private PutJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -59,6 +53,10 @@ public class PutJobAction extends Action<PutJobAction.Response> {
         public Request(Job.Builder jobBuilder) {
             // Validate the jobBuilder immediately so that errors can be detected prior to transportation.
             jobBuilder.validateInputFields();
+            // Validate that detector configs are unique.
+            // This validation logically belongs to validateInputFields call but we perform it only for PUT action to avoid BWC issues which
+            // would occur when parsing an old job config that already had duplicate detectors.
+            jobBuilder.validateDetectorsAreUnique();
 
             // Some fields cannot be set at create time
             List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
@@ -73,6 +71,11 @@ public class PutJobAction extends Action<PutJobAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobBuilder = new Job.Builder(in);
+        }
+
         public Job.Builder getJobBuilder() {
             return jobBuilder;
         }
@@ -80,12 +83,6 @@ public class PutJobAction extends Action<PutJobAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobBuilder = new Job.Builder(in);
         }
 
         @Override
@@ -128,13 +125,15 @@ public class PutJobAction extends Action<PutJobAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Job job;
+        private final Job job;
 
         public Response(Job job) {
             this.job = job;
         }
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            job = new Job(in);
         }
 
         public Job getResponse() {
@@ -142,22 +141,7 @@ public class PutJobAction extends Action<PutJobAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
-            job = new Job(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             job.writeTo(out);
         }
 

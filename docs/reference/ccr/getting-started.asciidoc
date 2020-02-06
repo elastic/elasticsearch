@@ -1,9 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-getting-started]]
-== Getting started with {ccr}
-
-beta[]
+=== Getting started with {ccr}
 
 This getting-started guide for {ccr} shows you how to:
 
@@ -14,15 +12,15 @@ This getting-started guide for {ccr} shows you how to:
   a leader index
 * <<ccr-getting-started-auto-follow,Automatically create follower indices>>
 
-[float]
+
 [[ccr-getting-started-before-you-begin]]
-=== Before you begin
+==== Before you begin
 . {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[Install {es}]
   on your local and remote clusters.
 
 . Obtain a license that includes the {ccr} features. See
   https://www.elastic.co/subscriptions[subscriptions] and
-  <<license-management>>.
+  {stack-ov}/license-management.html[License-management].
 
 . If the Elastic {security-features} are enabled in your local and remote
   clusters, you need a user that has appropriate authority to perform the steps
@@ -83,16 +81,16 @@ cluster update settings API, you will also need a user with the `all` cluster
 privilege.
 --
 
-[float]
+
 [[ccr-getting-started-remote-cluster]]
-=== Connecting to a remote cluster
+==== Connecting to a remote cluster
 
 The {ccr} features require that you
 {ref}/modules-remote-clusters.html[connect your local cluster to a remote
 cluster]. In this tutorial, we will connect our local cluster to a remote
 cluster with the cluster alias `leader`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -109,7 +107,6 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 <1> Specifies the hostname and transport port of a seed node in the remote
@@ -118,17 +115,16 @@ PUT /_cluster/settings
 You can verify that the local cluster is successfully connected to the remote
 cluster.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_remote/info
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API will respond by showing that the local cluster is connected to the
 remote cluster.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "leader" : {
@@ -139,90 +135,74 @@ remote cluster.
     "num_nodes_connected" : 1, <2>
     "max_connections_per_cluster" : 3,
     "initial_connect_timeout" : "30s",
-    "skip_unavailable" : false
+    "skip_unavailable" : false,
+    "mode" : "sniff"
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
-// TEST[s/127.0.0.1:9300/$body.leader.seeds.0/]
+// TESTRESPONSE[s/127.0.0.1:9300/$body.leader.seeds.0/]
 // TEST[s/"connected" : true/"connected" : $body.leader.connected/]
 // TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]
 <1> This shows the local cluster is connected to the remote cluster with cluster
     alias `leader`
 <2> This shows the number of nodes in the remote cluster the local cluster is
     connected to.
-    
+
 Alternatively, you can manage remote clusters on the
 *Management / Elasticsearch / Remote Clusters* page in {kib}:
 
 [role="screenshot"]
-image::ml/images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
+image::images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
 
 
-[float]
+
 [[ccr-getting-started-leader-index]]
-=== Creating a leader index
-
-Leader indices require a special index setting to ensure that the operations
-that need to be replicated are available when the follower requests them from
-the leader. This setting is used to control how many soft deletes are retained.
-A _soft delete_ occurs whenever a document is deleted or updated. Soft deletes
-can be enabled only on new indices created on or after {es} 6.5.0, and enabled
-by default on new indices created on or after {es} 7.0.0.
+==== Creating a leader index
 
 In the following example, we will create a leader index in the remote cluster:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /server-metrics?include_type_name=true
+PUT /server-metrics
 {
   "settings" : {
     "index" : {
       "number_of_shards" : 1,
-      "number_of_replicas" : 0,
-      "soft_deletes" : {
-        "retention" : {
-          "operations" : 1024 <1>
-        }
-      }
+      "number_of_replicas" : 0
     }
   },
   "mappings" : {
-    "metric" : {
-      "properties" : {
-        "@timestamp" : {
-          "type" : "date"
-        },
-        "accept" : {
-          "type" : "long"
-        },
-        "deny" : {
-          "type" : "long"
-        },
-        "host" : {
-          "type" : "keyword"
-        },
-        "response" : {
-          "type" : "float"
-        },
-        "service" : {
-          "type" : "keyword"
-        },
-        "total" : {
-          "type" : "long"
-        }
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "accept" : {
+        "type" : "long"
+      },
+      "deny" : {
+        "type" : "long"
+      },
+      "host" : {
+        "type" : "keyword"
+      },
+      "response" : {
+        "type" : "float"
+      },
+      "service" : {
+        "type" : "keyword"
+      },
+      "total" : {
+        "type" : "long"
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
-<1> Sets that up to 1024 soft deletes will be retained.
 
-[float]
+
 [[ccr-getting-started-follower-index]]
-=== Creating a follower index
+==== Creating a follower index
 
 Follower indices are created with the {ref}/ccr-put-follow.html[create follower
 API]. When you create a follower index, you must reference the
@@ -230,20 +210,19 @@ API]. When you create a follower index, you must reference the
 <<ccr-getting-started-leader-index,leader index>> that you created in the remote
 cluster.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /server-metrics-copy/_ccr/follow
+PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "leader",
   "leader_index" : "server-metrics"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "follow_index_created" : true,
@@ -251,9 +230,13 @@ PUT /server-metrics-copy/_ccr/follow
   "index_following_started" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
+
+The follower index is initialized using the <<remote-recovery, remote recovery>>
+process. The remote recovery process transfers the existing Lucene segment files
+from the leader to the follower. When the remote recovery process is complete,
+the index following begins.
 
 Now when you index documents into your leader index, you will see these
 documents replicated in the follower index. You can
@@ -262,7 +245,7 @@ inspect the status of replication using the
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /server-metrics-copy/_ccr/pause_follow
 
@@ -270,14 +253,13 @@ POST /server-metrics-copy/_close
 
 POST /server-metrics-copy/_ccr/unfollow
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////
 
-[float]
+
 [[ccr-getting-started-auto-follow]]
-=== Automatically create follower indices
+==== Automatically create follower indices
 
 The <<ccr-auto-follow,auto-follow>> feature in {ccr} helps for time series use
 cases where you want to follow new indices that are periodically created in the
@@ -290,7 +272,7 @@ indices you want to automatically follow.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_ccr/auto_follow/beats
 {
@@ -303,7 +285,6 @@ PUT /_ccr/auto_follow/beats
   "follow_index_pattern" : "{{leader_index}}-copy" <3>
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 <1> Automatically follow new {metricbeat} indices.
 <2> Automatically follow new {packetbeat} indices.
@@ -312,23 +293,21 @@ PUT /_ccr/auto_follow/beats
 
 //////////////////////////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ccr/auto_follow/beats
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////
@@ -337,4 +316,4 @@ Alternatively, you can manage auto-follow patterns on the
 *Management / Elasticsearch / Cross Cluster Replication* page in {kib}:
 
 [role="screenshot"]
-image::ml/images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]
+image::images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]

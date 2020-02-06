@@ -27,10 +27,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -46,6 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
@@ -90,12 +93,12 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         public static final Setting.AffixSetting<String> DUMMY_ACCOUNT_USER = Setting.affixKeySetting("index.acc.", "user",
             k -> Setting.simpleString(k, Setting.Property.IndexScope, Setting.Property.Dynamic));
         public static final Setting<String> DUMMY_ACCOUNT_PW = Setting.affixKeySetting("index.acc.", "pw",
-            k -> Setting.simpleString(k, Setting.Property.IndexScope, Setting.Property.Dynamic), DUMMY_ACCOUNT_USER);
+            k -> Setting.simpleString(k, Setting.Property.IndexScope, Setting.Property.Dynamic), () -> DUMMY_ACCOUNT_USER);
 
         public static final Setting.AffixSetting<String> DUMMY_ACCOUNT_USER_CLUSTER = Setting.affixKeySetting("cluster.acc.", "user",
             k -> Setting.simpleString(k, Setting.Property.NodeScope, Setting.Property.Dynamic));
         public static final Setting<String> DUMMY_ACCOUNT_PW_CLUSTER = Setting.affixKeySetting("cluster.acc.", "pw",
-            k -> Setting.simpleString(k, Setting.Property.NodeScope, Setting.Property.Dynamic), DUMMY_ACCOUNT_USER_CLUSTER);
+            k -> Setting.simpleString(k, Setting.Property.NodeScope, Setting.Property.Dynamic), () -> DUMMY_ACCOUNT_USER_CLUSTER);
 
         @Override
         public void onIndexModule(IndexModule indexModule) {
@@ -123,6 +126,16 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(FINAL_SETTING);
         }
+    }
+
+    /**
+     * Needed by {@link UpdateSettingsIT#testEngineGCDeletesSetting()}
+     */
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put("thread_pool.estimated_time_interval", 0)
+            .build();
     }
 
     public void testUpdateDependentClusterSettings() {
@@ -434,20 +447,26 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test", "index.final"), nullValue());
     }
 
-    public void testEngineGCDeletesSetting() throws InterruptedException {
+    public void testEngineGCDeletesSetting() throws Exception {
         createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource("f", 1).get(); // set version to 1
-        client().prepareDelete("test", "type", "1").get(); // sets version to 2
-        // delete is still in cache this should work & set version to 3
-        client().prepareIndex("test", "type", "1").setSource("f", 2).setVersion(2).get();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)).get();
+        client().prepareIndex("test").setId("1").setSource("f", 1).setVersionType(VersionType.EXTERNAL).setVersion(1).get();
+        client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(2).get();
+        // delete is still in cache this should fail
+        assertThrows(client().prepareIndex("test").setId("1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1),
+            VersionConflictEngineException.class);
 
-        client().prepareDelete("test", "type", "1").get(); // sets version to 4
-        Thread.sleep(300); // wait for cache time to change TODO: this needs to be solved better. To be discussed.
-        // delete is should not be in cache
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3)
-            .setVersion(4), VersionConflictEngineException.class);
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)));
 
+        client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(4).get();
+
+        // Make sure the time has advanced for InternalEngine#resolveDocVersion()
+        for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+            long startTime = threadPool.relativeTimeInMillis();
+            assertBusy(() -> assertThat(threadPool.relativeTimeInMillis(), greaterThan(startTime)));
+        }
+
+        // delete should not be in cache
+        client().prepareIndex("test").setId("1").setSource("f", 2).setVersionType(VersionType.EXTERNAL).setVersion(1);
     }
 
     public void testUpdateSettingsWithBlocks() {

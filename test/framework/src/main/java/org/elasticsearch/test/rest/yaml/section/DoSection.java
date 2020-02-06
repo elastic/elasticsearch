@@ -292,21 +292,8 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = matcher.group(1);
-                // noinspection StatementWithEmptyBody
-                if (masterVersion.before(Version.V_7_0_0)
-                        && message.equals("the default number of shards will change from [5] to [1] in 7.0.0; "
-                        + "if you wish to continue using the default of [5] shards, "
-                        + "you must manage this on the create index request or with an index template")) {
-                    /*
-                     * This warning header will come back in the vast majority of our tests that create an index when running against an
-                     * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
-                     */
-                } else // noinspection StatementWithEmptyBody
-                    if (message.startsWith("[types removal]")) {
-                    /*
-                     * We skip warnings related to types deprecation so that we can continue to run the many
-                     * mixed-version tests that used typed APIs.
-                     */
+                if (message.startsWith("[_data_frame/transforms/] is deprecated")) {
+                    // We skip warnings related to the transform rename so that we can continue to run the many mixed-version tests.
                 } else if (expected.remove(message) == false) {
                     unexpected.add(header);
                 }
@@ -435,7 +422,7 @@ public class DoSection implements ExecutableSection {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-        Version[] range = SkipSection.parseVersionRange(parser.text());
+        List<VersionRange> skipVersionRanges = SkipSection.parseVersionRanges(parser.text());
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {
@@ -446,7 +433,8 @@ public class DoSection implements ExecutableSection {
                                 + node);
                     }
                     Version version = Version.fromString(node.getVersion());
-                    if (false == (version.onOrAfter(range[0]) && version.onOrBefore(range[1]))) {
+                    boolean skip = skipVersionRanges.stream().anyMatch(v -> v.contains(version));
+                    if (false == skip) {
                         itr.remove();
                     }
                 }
@@ -454,7 +442,7 @@ public class DoSection implements ExecutableSection {
 
             @Override
             public String toString() {
-                return "version between [" + range[0] + "] and [" + range[1] + "]";
+                return "version ranges "+skipVersionRanges;
             }
         };
     }

@@ -21,11 +21,11 @@ been made and current in-progress work. We’ve also listed some historical
 improvements throughout this page to provide the full context.
 
 If you’re interested in more on how we approach ensuring resiliency in
-Elasticsearch, you may be interested in Igor Motov’s recent talk
-http://www.elastic.co/videos/improving-elasticsearch-resiliency[Improving Elasticsearch Resiliency].
+Elasticsearch, you may be interested in Igor Motov’s talk
+https://www.elastic.co/videos/improving-elasticsearch-resiliency[Improving Elasticsearch Resiliency].
 
 You may also be interested in our blog post
-http://www.elastic.co/blog/resiliency-elasticsearch[Resiliency in Elasticsearch],
+https://www.elastic.co/blog/resiliency-elasticsearch[Resiliency in Elasticsearch],
 which details our thought processes when addressing resiliency in both
 Elasticsearch and the work our developers do upstream in Apache Lucene.
 
@@ -103,20 +103,6 @@ space.  The following issues have been identified:
 Other safeguards are tracked in the meta-issue {GIT}11511[#11511].
 
 [float]
-=== The _version field may not uniquely identify document content during a network partition (STATUS: ONGOING)
-
-When a primary has been partitioned away from the cluster there is a short period of time until it detects this. During that time it will continue
-indexing writes locally, thereby updating document versions. When it tries to replicate the operation, however, it will discover that it is
-partitioned away. It won't acknowledge the write and will wait until the partition is resolved to negotiate with the master on how to proceed.
-The master will decide to either fail any replicas which failed to index the operations on the primary or tell the primary that it has to
-step down because a new primary has been chosen in the meantime. Since the old primary has already written documents, clients may already have read from
-the old primary before it shuts itself down. The version numbers of these reads may not be unique if the new primary has already accepted
-writes for the same document (see {GIT}19269[#19269]).
-
-We are currently implementing Sequence numbers {GIT}10708[#10708] which better track primary changes. Sequence numbers thus provide a basis
-for uniquely identifying writes even in the presence of network partitions and will replace `_version` in operations that require this.
-
-[float]
 === Relocating shards omitted by reporting infrastructure (STATUS: ONGOING)
 
 Indices stats and indices segments requests reach out to all nodes that have shards of that index. Shards that have relocated from a node
@@ -136,23 +122,48 @@ We have ported the known scenarios in the Jepsen blogs that check loss of acknow
 The new tests are run continuously in our testing farm and are passing. We are also working on running Jepsen independently to verify
 that no failures are found.
 
-[float]
-=== Replicas can fall out of sync when a primary shard fails (STATUS: ONGOING)
-
-When a primary shard fails, a replica shard will be promoted to be the
-primary shard. If there is more than one replica shard, it is possible
-for the remaining replicas to be out of sync with the new primary
-shard. This is caused by operations that were in-flight when the primary
-shard failed and may not have been processed on all replica
-shards. Currently, the discrepancies are not repaired on primary
-promotion but instead would be repaired if replica shards are relocated
-(e.g., from hot to cold nodes); this does mean that the length of time
-which replicas can be out of sync with the primary shard is
-unbounded. Sequence numbers {GIT}10708[#10708] will provide a mechanism
-for syncing the remaining replicas with the newly-promoted primary
-shard.
-
 == Completed
+
+[float]
+=== Documents indexed during a network partition cannot be uniquely identified (STATUS: DONE, v7.0.0)
+
+When a primary has been partitioned away from the cluster there is a short
+period of time until it detects this. During that time it will continue
+indexing writes locally, thereby updating document versions. When it tries
+to replicate the operation, however, it will discover that it is partitioned
+away. It won't acknowledge the write and will wait until the partition is
+resolved to negotiate with the master on how to proceed. The master will
+decide to either fail any replicas which failed to index the operations on
+the primary or tell the primary that it has to step down because a new primary
+has been chosen in the meantime. Since the old primary has already written
+documents, clients may already have read from the old primary before it shuts
+itself down. The `_version` field of these reads may not uniquely identify the
+document's version if the new primary has already accepted writes for the same
+document (see {GIT}19269[#19269]).
+
+The Sequence numbers infrastructure {GIT}10708[#10708] has introduced more
+precise ways for tracking primary changes. This new infrastructure therefore
+provides a way for uniquely identifying documents using their primary term
+and sequence number fields, even in the presence of network partitions, and
+has been used to replace the `_version` field in operations that require
+uniquely identifying the document, such as optimistic concurrency control.
+
+[float]
+=== Replicas can fall out of sync when a primary shard fails (STATUS: DONE, v7.0.0)
+
+When a primary shard fails, a replica shard will be promoted to be the primary
+shard. If there is more than one replica shard, it is possible for the
+remaining replicas to be out of sync with the new primary shard. This is caused
+by operations that were in-flight when the primary shard failed and may not
+have been processed on all replica shards. These discrepancies are not
+repaired on primary promotion but instead delayed until replica shards are
+relocated (e.g., from hot to cold nodes); this means that the length of time
+in which replicas can be out of sync with the primary shard is unbounded.
+
+Sequence numbers {GIT}10708[#10708] provide a mechanism for identifying
+the discrepancies between shard copies at the document level, which allows
+to efficiently sync up the remaining replicas with the newly-promoted primary
+shard.
 
 [float]
 === Repeated network partitions can cause cluster state updates to be lost (STATUS: DONE, v7.0.0)
@@ -279,24 +290,22 @@ shard will be allocated upon reopening the index.
 [float]
 === Use two phase commit for Cluster State publishing (STATUS: DONE, v5.0.0)
 
-A master node in Elasticsearch continuously https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#fault-detection[monitors the cluster nodes]
+A master node in Elasticsearch continuously https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-fault-detection.html[monitors the cluster nodes]
 and removes any node from the cluster that doesn't respond to its pings in a timely
-fashion. If the master is left with fewer nodes than the `discovery.zen.minimum_master_nodes`
-settings, it will step down and a new master election will start.
+fashion. If the master is left with too few nodes, it will step down and a new master election will start.
 
 When a network partition causes a master node to lose many followers, there is a short window
 in time until the node loss is detected and the master steps down. During that window, the
 master may erroneously accept and acknowledge cluster state changes. To avoid this, we introduce
 a new phase to cluster state publishing where the proposed cluster state is sent to all nodes
-but is not yet committed. Only once enough nodes (`discovery.zen.minimum_master_nodes`) actively acknowledge
+but is not yet committed. Only once enough nodes actively acknowledge
 the change, it is committed and commit messages are sent to the nodes. See {GIT}13062[#13062].
 
 [float]
 === Wait on incoming joins before electing local node as master (STATUS: DONE, v2.0.0)
 
 During master election each node pings in order to discover other nodes and validate the liveness of existing
-nodes. Based on this information the node either discovers an existing master or, if enough nodes are found
-(see https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#master-election[`discovery.zen.minimum_master_nodes`]) a new master will be elected. Currently, the node that is
+nodes. Based on this information the node either discovers an existing master or, if enough nodes are found a new master will be elected. Currently, the node that is
 elected as master will update the cluster state to indicate the result of the election. Other nodes will submit
 a join request to the newly elected master node. Instead of immediately processing the election result, the elected master
 node should wait for the incoming joins from other nodes, thus validating that the result of the election is properly applied. As soon as enough

@@ -28,6 +28,8 @@ On Linux systems, you can disable swap temporarily by running:
 sudo swapoff -a
 --------------
 
+This doesn't require a restart of Elasticsearch.
+
 To disable it permanently, you will need to edit the `/etc/fstab` file and
 comment out any lines that contain the word `swap`.
 
@@ -65,11 +67,10 @@ After starting Elasticsearch, you can see whether this setting was applied
 successfully by checking the value of `mlockall` in the output from this
 request:
 
-[source,js]
+[source,console]
 --------------
 GET _nodes?filter_path=**.mlockall
 --------------
-// CONSOLE
 
 If you see that `mlockall` is `false`, then it means that the `mlockall`
 request has failed.  You will also see a line with more information in the logs

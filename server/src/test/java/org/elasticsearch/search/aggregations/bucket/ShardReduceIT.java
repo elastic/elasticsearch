@@ -20,11 +20,11 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -39,6 +39,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHist
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.geotileGrid;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.ipRange;
@@ -60,11 +61,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardReduceIT extends ESIntegTestCase {
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
-        return client().prepareIndex("idx", "type").setSource(jsonBuilder()
+        return client().prepareIndex("idx").setSource(jsonBuilder()
                 .startObject()
                 .field("value", value)
                 .field("ip", "10.0.0." + value)
-                .field("location", GeoHashUtils.stringEncode(5, 52, GeoHashUtils.PRECISION))
+                .field("location", Geohash.stringEncode(5, 52, Geohash.PRECISION))
                 .field("date", date)
                 .field("term-l", 1)
                 .field("term-d", 1.5)
@@ -78,7 +79,7 @@ public class ShardReduceIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested", "ip", "type=ip",
+                .setMapping("nested", "type=nested", "ip", "type=ip",
                         "location", "type=geo_point", "term-s", "type=keyword"));
 
         indexRandom(true,
@@ -301,7 +302,22 @@ public class ShardReduceIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        GeoHashGrid grid = response.getAggregations().get("grid");
+        GeoGrid grid = response.getAggregations().get("grid");
+        Histogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(4));
+    }
+
+    public void testGeoTileGrid() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(geotileGrid("grid").field("location")
+                        .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
+                                .minDocCount(0)))
+                .get();
+
+        assertSearchResponse(response);
+
+        GeoGrid grid = response.getAggregations().get("grid");
         Histogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(4));
     }

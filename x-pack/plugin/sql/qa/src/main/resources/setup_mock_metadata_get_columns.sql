@@ -23,17 +23,17 @@ CREATE TABLE mock (
   IS_AUTOINCREMENT VARCHAR,
   IS_GENERATEDCOLUMN VARCHAR
 ) AS
-SELECT null, 'test1', 'name', 12, 'TEXT', 0, 2147483647, null, null,
+SELECT null, 'test1', 'name', 12, 'TEXT', 2147483647, 2147483647, null, null,
   1, -- columnNullable
   null, null, 12, 0, 2147483647, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT null, 'test1', 'name.keyword', 12, 'KEYWORD', 0, 2147483647, null, null,
+SELECT null, 'test1', 'name.keyword', 12, 'KEYWORD', 32766, 2147483647, null, null,
   1, -- columnNullable
-  null, null, 12, 0, 2147483647, 1, 'YES', null, null, null, null, 'NO', 'NO'
+  null, null, 12, 0, 2147483647, 2, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT null, 'test2', 'date', 93, 'DATE', 24, 8, null, null,
+SELECT null, 'test2', 'date', 93, 'DATETIME', 29, 8, null, null,
   1, -- columnNullable
   null, null, 9, 3, null, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL

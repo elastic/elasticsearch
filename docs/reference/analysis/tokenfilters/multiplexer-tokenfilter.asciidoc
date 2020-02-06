@@ -1,5 +1,8 @@
 [[analysis-multiplexer-tokenfilter]]
-=== Multiplexer Token Filter
+=== Multiplexer token filter
+++++
+<titleabbrev>Multiplexer</titleabbrev>
+++++
 
 A token filter of type `multiplexer` will emit multiple tokens at the same position,
 each version of the token having been run through a different filter.  Identical
@@ -29,9 +32,9 @@ preserve_original:: if `true` (the default) then emit the original token in
 
 You can set it up like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /multiplexer_example?include_type_name=true
+PUT /multiplexer_example
 {
     "settings" : {
         "analysis" : {
@@ -51,11 +54,10 @@ PUT /multiplexer_example?include_type_name=true
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 And test it like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /multiplexer_example/_analyze
 {
@@ -63,12 +65,11 @@ POST /multiplexer_example/_analyze
   "text" : "Going HOME"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And it'd respond:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -110,15 +111,13 @@ And it'd respond:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 <1> The stemmer has also emitted a token `home` at position 1, but because it is a
 duplicate of this token it has been removed from the token stream
 
 NOTE: The synonym and synonym_graph filters use their preceding analysis chain to
-parse and analyse their synonym lists, and ignore any token filters in the chain
-that produce multiple tokens at the same position.  This means that any filters
-within the multiplexer will be ignored for the purpose of synonyms.  If you want to
-use filters contained within the multiplexer for parsing synonyms (for example, to
-apply stemming to the synonym lists), then you should append the synonym filter
-to the relevant multiplexer filter list.
+parse and analyse their synonym lists, and will throw an exception if that chain
+contains token filters that produce multiple tokens at the same position.
+If you want to apply synonyms to a token stream containing a multiplexer, then you
+should append the synonym filter to each relevant multiplexer filter list, rather than
+placing it after the multiplexer in the main token chain definition.

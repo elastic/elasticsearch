@@ -1,0 +1,18 @@
+{
+  "license.delete":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-license.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license",
+          "methods":[
+            "DELETE"
+          ]
+        }
+      ]
+    }
+  }
+}

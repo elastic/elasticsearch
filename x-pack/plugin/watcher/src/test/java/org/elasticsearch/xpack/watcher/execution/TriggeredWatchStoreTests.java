@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -67,10 +67,10 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.WatchTests;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -83,7 +83,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -129,7 +128,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
+        BulkProcessor bulkProcessor = BulkProcessor.
+            builder(client::bulk, listener).setConcurrentRequests(0).setBulkActions(1).build();
         triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
     }
 
@@ -214,9 +214,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
         BytesArray source = new BytesArray("{}");
-        SearchHit hit = new SearchHit(0, "first_foo", new Text(TriggeredWatchStoreField.DOC_TYPE), null);
+        SearchHit hit = new SearchHit(0, "first_foo", null);
         hit.version(1L);
-        hit.shard(new SearchShardTarget("_node_id", index, 0, null));
+        hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null, OriginalIndices.NONE));
         hit.sourceRef(source);
         SearchHits hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         when(searchResponse1.getHits()).thenReturn(hits);
@@ -228,9 +228,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new SearchHit(0, "second_foo", new Text(TriggeredWatchStoreField.DOC_TYPE), null);
+        hit = new SearchHit(0, "second_foo", null);
         hit.version(1L);
-        hit.shard(new SearchShardTarget("_node_id", index, 0, null));
+        hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null, OriginalIndices.NONE));
         hit.sourceRef(source);
         hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponse searchResponse2 = new SearchResponse(
@@ -261,7 +261,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(), any());
 
         assertThat(TriggeredWatchStore.validate(cs), is(true));
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(now, now);
 
         Watch watch1 = mock(Watch.class);
@@ -392,8 +392,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         WatcherSearchTemplateService searchTemplateService = mock(WatcherSearchTemplateService.class);
 
         Watch watch = WatcherTestUtils.createTestWatch("fired_test", client, httpClient, emailService, searchTemplateService, logger);
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(DateTimeZone.UTC), DateTime.now(DateTimeZone.UTC));
-        Wid wid = new Wid("_record", DateTime.now(DateTimeZone.UTC));
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), ZonedDateTime.now(ZoneOffset.UTC),
+            ZonedDateTime.now(ZoneOffset.UTC));
+        Wid wid = new Wid("_record", ZonedDateTime.now(ZoneOffset.UTC));
         TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         triggeredWatch.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -412,7 +413,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     }
 
     public void testPutTriggeredWatches() throws Exception {
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         int numberOfTriggeredWatches = randomIntBetween(1, 100);
 
         List<TriggeredWatch> triggeredWatches = new ArrayList<>(numberOfTriggeredWatches);
@@ -429,7 +430,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             for (int i = 0; i < size; i++) {
                 DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
                 ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
-                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.type(), writeRequest.id(), 1, 1, 1, true);
+                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.id(), 1, 1, 1, true);
                 bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
             }
 
@@ -444,7 +445,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     }
 
     public void testDeleteTriggeredWatches() throws Exception {
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         doAnswer(invocation -> {
             BulkRequest bulkRequest = (BulkRequest) invocation.getArguments()[0];
@@ -455,7 +456,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             for (int i = 0; i < size; i++) {
                 DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
                 ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
-                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.type(), writeRequest.id(), 1, 1, 1, true);
+                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.id(), 1, 1, 1, true);
                 bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
             }
 

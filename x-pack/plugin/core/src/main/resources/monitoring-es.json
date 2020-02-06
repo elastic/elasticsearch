@@ -84,6 +84,19 @@
                           "type": "long"
                         }
                       }
+                    },
+                    "bulk": {
+                      "properties": {
+                        "total": {
+                          "type": "long"
+                        },
+                        "total_time_in_millis": {
+                          "type": "long"
+                        },
+                        "total_size_in_bytes": {
+                          "type": "long"
+                        }
+                      }
                     }
                   }
                 },
@@ -112,6 +125,19 @@
                           "type": "long"
                         },
                         "query_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "bulk": {
+                      "properties": {
+                        "total": {
+                          "type": "long"
+                        },
+                        "total_time_in_millis": {
+                          "type": "long"
+                        },
+                        "total_size_in_bytes": {
                           "type": "long"
                         }
                       }
@@ -258,6 +284,19 @@
                       "type": "long"
                     }
                   }
+                },
+                "bulk": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    },
+                    "total_time_in_millis": {
+                      "type": "long"
+                    },
+                    "total_size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
                 }
               }
             },
@@ -389,6 +428,19 @@
                 "refresh": {
                   "properties": {
                     "total_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "bulk": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    },
+                    "total_time_in_millis": {
+                      "type": "long"
+                    },
+                    "total_size_in_bytes": {
                       "type": "long"
                     }
                   }
@@ -557,6 +609,19 @@
                 "store": {
                   "properties": {
                     "size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "bulk": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    },
+                    "total_time_in_millis": {
+                      "type": "long"
+                    },
+                    "total_size_in_bytes": {
                       "type": "long"
                     }
                   }

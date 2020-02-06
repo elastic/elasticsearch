@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -242,6 +243,10 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
         table.addCell("suggest.total", "alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
 
+        table.addCell("bulk.total", "alias:bto,bulkTotal;default:false;text-align:right;desc:number of bulk shard ops");
+        table.addCell("bulk.total_time", "alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
+        table.addCell("bulk.total_size_in_bytes", "alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
+
         table.endHeaders();
         return table;
     }
@@ -415,6 +420,11 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCount());
+
+            BulkStats bulkStats = indicesStats == null ? null : indicesStats.getBulk();
+            table.addCell(bulkStats == null ? null : bulkStats.getTotal());
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalTime());
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalSizeInBytes());
 
             table.endRow();
         }

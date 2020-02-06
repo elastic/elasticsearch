@@ -32,11 +32,16 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -726,7 +731,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
                 Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion, Flag.Segments,
-                Flag.Translog, Flag.RequestCache, Flag.Recovery};
+                Flag.Translog, Flag.RequestCache, Flag.Recovery, Flag.Bulk};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -902,6 +907,9 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Recovery:
                 builder.setRecovery(set);
                 break;
+            case Bulk:
+                builder.setBulk(set);
+                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -942,6 +950,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getRequestCache() != null;
             case Recovery:
                 return response.getRecoveryStats() != null;
+            case Bulk:
+                return response.getBulk() != null;
             default:
                 fail("new flag? " + flag);
                 return false;
@@ -1065,6 +1075,33 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getCacheSize(), equalTo(0L));
         assertThat(response.getTotal().queryCache.getMemorySizeInBytes(), equalTo(0L));
+    }
+
+    public void testBulkStats() throws Exception {
+        final String index = "test";
+        assertAcked(prepareCreate(index).setSettings(settingsBuilder().put("index.number_of_shards", 2)
+            .put("index.number_of_replicas", 1)));
+        ensureGreen();
+        final BulkRequest request1 = new BulkRequest();
+        for (int i = 0; i < 500; ++i) {
+            request1.add(new IndexRequest(index).source(Collections.singletonMap("key", "value" + i)))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        }
+        BulkResponse bulkResponse = client().bulk(request1).get();
+        assertThat(bulkResponse.hasFailures(), equalTo(false));
+        assertThat(bulkResponse.getItems().length, equalTo(500));
+        for (BulkItemResponse bulkItemResponse : bulkResponse) {
+            assertThat(bulkItemResponse.getIndex(), equalTo(index));
+        }
+        IndicesStatsResponse stats = client().admin().indices().prepareStats(index).setBulk(true).get();
+
+        assertThat(stats.getTotal().bulk.getTotal(), equalTo(4L));
+        assertThat(stats.getTotal().bulk.getTotalTimeInMillis(), greaterThan(0L));
+        assertThat(stats.getTotal().bulk.getTotalSizeInBytes(), greaterThan(0L));
+
+        assertThat(stats.getPrimaries().bulk.getTotal(), equalTo(2L));
+        assertThat(stats.getPrimaries().bulk.getTotalTimeInMillis(), greaterThan(0L));
+        assertThat(stats.getPrimaries().bulk.getTotalSizeInBytes(), greaterThan(0L));
     }
 
     /**

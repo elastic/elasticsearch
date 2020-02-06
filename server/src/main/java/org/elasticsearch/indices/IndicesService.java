@@ -35,6 +35,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -392,6 +393,9 @@ public class IndicesService extends AbstractLifecycleComponent
                     break;
                 case Flush:
                     commonStats.flush.add(oldShardsStats.flushStats);
+                    break;
+                case Bulk:
+                    commonStats.bulk.add(oldShardsStats.bulkStats);
                     break;
             }
         }
@@ -769,6 +773,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final RefreshStats refreshStats = new RefreshStats();
         final FlushStats flushStats = new FlushStats();
         final RecoveryStats recoveryStats = new RecoveryStats();
+        final BulkStats bulkStats = new BulkStats();
 
         @Override
         public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
@@ -781,6 +786,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 refreshStats.addTotals(indexShard.refreshStats());
                 flushStats.addTotals(indexShard.flushStats());
                 recoveryStats.addTotals(indexShard.recoveryStats());
+                bulkStats.addTotals(indexShard.bulkStats());
             }
         }
 

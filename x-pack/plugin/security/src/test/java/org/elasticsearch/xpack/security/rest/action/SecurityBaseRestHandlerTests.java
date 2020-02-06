@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -18,7 +17,6 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.mock;
@@ -44,8 +42,8 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
 
             @Override

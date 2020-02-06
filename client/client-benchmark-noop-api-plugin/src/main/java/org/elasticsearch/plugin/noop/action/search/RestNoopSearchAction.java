@@ -20,15 +20,11 @@ package org.elasticsearch.plugin.noop.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -38,11 +34,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestNoopSearchAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_noop_search", unmodifiableList(asList(GET, POST)))
-            .put("/{index}/_noop_search", unmodifiableList(asList(GET, POST)))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_noop_search", GET),
+            new Route("/_noop_search", POST),
+            new Route("/{index}/_noop_search", GET),
+            new Route("/{index}/_noop_search", POST)));
     }
 
     @Override

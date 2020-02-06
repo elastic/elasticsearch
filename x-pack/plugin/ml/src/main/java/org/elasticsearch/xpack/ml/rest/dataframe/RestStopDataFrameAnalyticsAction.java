@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.rest.dataframe;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -16,19 +15,17 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestStopDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap(
-            MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stop",
-            singletonList(POST));
+    public List<Route> handledRoutes() {
+        return singletonList(
+            new Route(MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stop",
+                POST));
     }
 
     @Override

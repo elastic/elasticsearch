@@ -28,23 +28,20 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
-import static java.util.Collections.singletonList;
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -55,11 +52,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestCatRecoveryAction extends AbstractCatAction {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_cat/recovery", singletonList(GET))
-            .put("/_cat/recovery/{index}", singletonList(GET))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_cat/recovery", GET),
+            new Route("/_cat/recovery/{index}", GET)));
     }
 
     @Override

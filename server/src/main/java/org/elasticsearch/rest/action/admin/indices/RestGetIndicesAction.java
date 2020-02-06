@@ -27,16 +27,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -47,8 +44,10 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetIndicesAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/{index}", unmodifiableList(asList(GET, HEAD)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/{index}", GET),
+            new Route("/{index}", HEAD)));
     }
 
     @Override

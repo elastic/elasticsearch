@@ -26,22 +26,18 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -54,11 +50,12 @@ public class RestSyncedFlushAction extends BaseRestHandler {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_flush/synced", unmodifiableList(asList(GET, POST)))
-            .put("/{index}/_flush/synced", unmodifiableList(asList(GET, POST)))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_flush/synced", GET),
+            new Route("/_flush/synced", POST),
+            new Route("/{index}/_flush/synced", GET),
+            new Route("/{index}/_flush/synced", POST)));
     }
 
     @Override

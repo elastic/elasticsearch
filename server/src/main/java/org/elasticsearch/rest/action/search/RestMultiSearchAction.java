@@ -26,7 +26,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -43,7 +41,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
@@ -69,11 +66,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_msearch", unmodifiableList(asList(GET, POST)))
-            .put("/{index}/_msearch", unmodifiableList(asList(GET, POST)))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_msearch", GET),
+            new Route("/_msearch", POST),
+            new Route("/{index}/_msearch", GET),
+            new Route("/{index}/_msearch", POST)));
     }
 
     @Override

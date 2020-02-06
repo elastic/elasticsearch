@@ -27,18 +27,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -46,8 +43,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestIndexAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/{index}/_doc/{id}", unmodifiableList(asList(POST, PUT)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/{index}/_doc/{id}", POST),
+            new Route("/{index}/_doc/{id}", PUT)));
     }
 
     @Override
@@ -63,8 +62,10 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
-        public Map<String, List<Method>> handledMethodsAndPaths() {
-            return singletonMap("/{index}/_create/{id}", unmodifiableList(asList(POST, PUT)));
+        public List<Route> handledRoutes() {
+            return unmodifiableList(asList(
+                new Route("/{index}/_create/{id}", POST),
+                new Route("/{index}/_create/{id}", PUT)));
         }
 
         @Override
@@ -95,8 +96,8 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
-        public Map<String, List<Method>> handledMethodsAndPaths() {
-            return singletonMap("/{index}/_doc", singletonList(POST));
+        public List<Route> handledRoutes() {
+            return singletonList(new Route("/{index}/_doc", POST));
         }
 
         @Override

@@ -22,22 +22,19 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.singletonList;
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesInfoAction extends BaseRestHandler {
@@ -60,15 +57,14 @@ public class RestNodesInfoAction extends BaseRestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_nodes", singletonList(GET))
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_nodes", GET),
             // this endpoint is used for metrics, not for node IDs, like /_nodes/fs
-            .put("/_nodes/{nodeId}", singletonList(GET))
-            .put("/_nodes/{nodeId}/{metrics}", singletonList(GET))
+            new Route("/_nodes/{nodeId}", GET),
+            new Route("/_nodes/{nodeId}/{metrics}", GET),
             // added this endpoint to be aligned with stats
-            .put("/_nodes/{nodeId}/info/{metrics}", singletonList(GET))
-            .map());
+            new Route("/_nodes/{nodeId}/info/{metrics}", GET)));
     }
 
     @Override

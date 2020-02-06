@@ -8,23 +8,20 @@ package org.elasticsearch.xpack.ccr.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.Request;
 
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.INSTANCE;
 
 public class RestResumeAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/_ccr/auto_follow/{name}/resume", singletonList(POST));
+    public List<Route> handledRoutes() {
+        return singletonList(new Route("/_ccr/auto_follow/{name}/resume", POST));
     }
 
     @Override

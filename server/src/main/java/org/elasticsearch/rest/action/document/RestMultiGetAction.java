@@ -22,19 +22,15 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -50,11 +46,12 @@ public class RestMultiGetAction extends BaseRestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_mget", unmodifiableList(asList(GET, POST)))
-            .put("/{index}/_mget", unmodifiableList(asList(GET, POST)))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_mget", GET),
+            new Route("/_mget", POST),
+            new Route("/{index}/_mget", GET),
+            new Route("/{index}/_mget", POST)));
     }
 
     @Override

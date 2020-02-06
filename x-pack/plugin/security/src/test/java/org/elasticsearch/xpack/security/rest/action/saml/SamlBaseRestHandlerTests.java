@@ -12,7 +12,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -20,7 +19,6 @@ import org.hamcrest.Matchers;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
@@ -56,8 +54,8 @@ public class SamlBaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
 
             @Override

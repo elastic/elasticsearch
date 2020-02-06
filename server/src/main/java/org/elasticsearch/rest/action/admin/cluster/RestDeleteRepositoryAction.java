@@ -21,16 +21,12 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.Requests.deleteRepositoryRequest;
@@ -42,10 +38,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_snapshot/{repository}", singletonList(DELETE))
-            .map());
+    public List<Route> handledRoutes() {
+        return singletonList(new Route("/_snapshot/{repository}", DELETE));
     }
 
     @Override

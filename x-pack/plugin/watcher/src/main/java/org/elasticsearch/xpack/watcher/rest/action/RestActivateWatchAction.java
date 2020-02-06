@@ -11,7 +11,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -22,10 +21,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -36,8 +33,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestActivateWatchAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/_watcher/watch/{id}/_activate", unmodifiableList(asList(POST, PUT)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_watcher/watch/{id}/_activate", POST),
+            new Route("/_watcher/watch/{id}/_activate", PUT)));
     }
 
     @Override
@@ -63,8 +62,10 @@ public class RestActivateWatchAction extends BaseRestHandler {
     public static class DeactivateRestHandler extends BaseRestHandler {
 
         @Override
-        public Map<String, List<Method>> handledMethodsAndPaths() {
-            return singletonMap("/_watcher/watch/{id}/_deactivate", unmodifiableList(asList(POST, PUT)));
+        public List<Route> handledRoutes() {
+            return unmodifiableList(asList(
+                new Route("/_watcher/watch/{id}/_deactivate", POST),
+                new Route("/_watcher/watch/{id}/_deactivate", PUT)));
         }
 
         @Override

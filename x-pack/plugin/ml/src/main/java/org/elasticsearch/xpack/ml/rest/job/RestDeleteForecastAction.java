@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -20,10 +19,8 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteForecastAction extends BaseRestHandler {
@@ -32,16 +29,16 @@ public class RestDeleteForecastAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestDeleteForecastAction.class));
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap(MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast/",
-            singletonList(DELETE));
+    public List<Route> handledRoutes() {
+        return singletonList(
+            new Route(MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast/", DELETE));
     }
 
     @Override
-    public List<ReplacedRestApi> replacedMethodsAndPaths() {
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return singletonList(
-            new ReplacedRestApi(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
+            new ReplacedRoute(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
                 "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}",
                 DELETE, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
                 "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}", deprecationLogger)

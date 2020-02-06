@@ -26,7 +26,6 @@ import org.elasticsearch.rest.RestRequest.Method;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Handler for REST requests
@@ -67,18 +66,18 @@ public interface RestHandler {
     }
 
     /**
-     * The map of {@code path} to {@code methods} that this RestHandler is responsible for handling.
+     * The list of {@link Route}s that this RestHandler is responsible for handling.
      */
-    default Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.emptyMap();
+    default List<Route> handledRoutes() {
+        return Collections.emptyList();
     }
 
     /**
      * A list of APIs handled by this RestHandler that are deprecated and do not have a direct
      * replacement. If changing the {@code path} or {@code method} of the API,
-     * use {@link #replacedMethodsAndPaths()}.
+     * use {@link #replacedRoutes()}.
      */
-    default List<DeprecatedRestApi> deprecatedHandledMethodsAndPaths() {
+    default List<DeprecatedRoute> deprecatedRoutes() {
         return Collections.emptyList();
     }
 
@@ -87,37 +86,45 @@ public interface RestHandler {
      * {@code method} changed. The pre-existing {@code path} and {@code method} will be registered
      * as deprecated alongside the updated {@code path} and {@code method}.
      */
-    default List<ReplacedRestApi> replacedMethodsAndPaths() {
+    default List<ReplacedRoute> replacedRoutes() {
         return Collections.emptyList();
     }
 
-    /**
-     * Represents an API that has been deprecated and is slated for removal.
-     */
-    class DeprecatedRestApi {
+    class Route {
 
         private final String path;
-        private final String deprecationMessage;
-        private final List<Method> methods;
-        private final DeprecationLogger logger;
+        private final Method method;
 
-        public DeprecatedRestApi(String path, List<Method> methods, String deprecationMessage, DeprecationLogger logger) {
+        public Route(String path, Method method) {
             this.path = path;
-            this.methods = methods;
-            this.deprecationMessage = deprecationMessage;
-            this.logger = logger;
+            this.method = method;
         }
 
         public String getPath() {
             return path;
         }
 
-        public String getDeprecationMessage() {
-            return deprecationMessage;
+        public Method getMethod() {
+            return method;
+        }
+    }
+
+    /**
+     * Represents an API that has been deprecated and is slated for removal.
+     */
+    class DeprecatedRoute extends Route {
+
+        private final String deprecationMessage;
+        private final DeprecationLogger logger;
+
+        public DeprecatedRoute(String path, Method method, String deprecationMessage, DeprecationLogger logger) {
+            super(path, method);
+            this.deprecationMessage = deprecationMessage;
+            this.logger = logger;
         }
 
-        public List<Method> getMethods() {
-            return methods;
+        public String getDeprecationMessage() {
+            return deprecationMessage;
         }
 
         public DeprecationLogger getLogger() {
@@ -129,32 +136,21 @@ public interface RestHandler {
      * Represents an API that has had its {@code path} or {@code method} changed. Holds both the
      * new and previous {@code path} and {@code method} combination.
      */
-    class ReplacedRestApi {
+    class ReplacedRoute extends Route {
 
-        private final String path;
         private final String deprecatedPath;
-        private final Method method;
         private final Method deprecatedMethod;
         private final DeprecationLogger logger;
 
-        public ReplacedRestApi(Method method, String path, Method deprecatedMethod, String deprecatedPath, DeprecationLogger logger) {
-            this.method = method;
-            this.path = path;
+        public ReplacedRoute(Method method, String path, Method deprecatedMethod, String deprecatedPath, DeprecationLogger logger) {
+            super(path, method);
             this.deprecatedMethod = deprecatedMethod;
             this.deprecatedPath = deprecatedPath;
             this.logger = logger;
         }
 
-        public String getPath() {
-            return path;
-        }
-
         public String getDeprecatedPath() {
             return deprecatedPath;
-        }
-
-        public Method getMethod() {
-            return method;
         }
 
         public Method getDeprecatedMethod() {

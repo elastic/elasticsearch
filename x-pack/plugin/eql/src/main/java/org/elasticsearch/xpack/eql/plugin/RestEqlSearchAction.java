@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -23,10 +22,8 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -35,8 +32,10 @@ public class RestEqlSearchAction extends BaseRestHandler {
     private static final String SEARCH_PATH = "/{index}/_eql/search";
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap(SEARCH_PATH, unmodifiableList(asList(GET, POST)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route(SEARCH_PATH, GET),
+            new Route(SEARCH_PATH, POST)));
     }
 
     @Override

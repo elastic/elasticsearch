@@ -10,7 +10,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -28,15 +26,15 @@ public class RestSetUpgradeModeAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestSetUpgradeModeAction.class));
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.emptyMap();
+    public List<Route> handledRoutes() {
+        return Collections.emptyList();
     }
 
     @Override
-    public List<ReplacedRestApi> replacedMethodsAndPaths() {
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRestApi(POST, MachineLearning.BASE_PATH + "set_upgrade_mode",
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "set_upgrade_mode",
                 POST, MachineLearning.PRE_V7_BASE_PATH + "set_upgrade_mode",
                 deprecationLogger)
         );

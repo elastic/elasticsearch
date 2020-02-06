@@ -25,17 +25,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -46,8 +43,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestExplainAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/{index}/_explain/{id}", unmodifiableList(asList(GET, POST)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/{index}/_explain/{id}", GET),
+            new Route("/{index}/_explain/{id}", POST)));
     }
 
     @Override

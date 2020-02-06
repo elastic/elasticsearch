@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -46,18 +45,18 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.emptyMap();
+    public List<Route> handledRoutes() {
+        return Collections.emptyList();
     }
 
     @Override
-    public List<ReplacedRestApi> replacedMethodsAndPaths() {
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRestApi(GET, "/_security/privilege/", GET, "/_xpack/security/privilege/", deprecationLogger),
-            new ReplacedRestApi(GET, "/_security/privilege/{application}",
+            new ReplacedRoute(GET, "/_security/privilege/", GET, "/_xpack/security/privilege/", deprecationLogger),
+            new ReplacedRoute(GET, "/_security/privilege/{application}",
                 GET, "/_xpack/security/privilege/{application}", deprecationLogger),
-            new ReplacedRestApi(GET, "/_security/privilege/{application}/{privilege}",
+            new ReplacedRoute(GET, "/_security/privilege/{application}/{privilege}",
                 GET, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger)
         ));
     }

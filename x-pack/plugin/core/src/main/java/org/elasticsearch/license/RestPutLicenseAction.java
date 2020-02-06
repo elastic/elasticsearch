@@ -9,15 +9,12 @@ package org.elasticsearch.license;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -27,9 +24,11 @@ public class RestPutLicenseAction extends BaseRestHandler {
     RestPutLicenseAction() {}
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
+    public List<Route> handledRoutes() {
         // TODO: remove POST endpoint?
-        return singletonMap("/_license", unmodifiableList(asList(POST, PUT)));
+        return unmodifiableList(asList(
+            new Route("/_license", POST),
+            new Route("/_license", PUT)));
     }
 
     @Override

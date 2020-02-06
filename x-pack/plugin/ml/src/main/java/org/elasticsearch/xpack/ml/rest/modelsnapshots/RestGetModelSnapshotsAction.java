@@ -11,7 +11,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -23,7 +22,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -44,30 +42,30 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestGetModelSnapshotsAction.class));
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.emptyMap();
+    public List<Route> handledRoutes() {
+        return Collections.emptyList();
     }
 
     @Override
-    public List<ReplacedRestApi> replacedMethodsAndPaths() {
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRestApi(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}",
                 deprecationLogger),
-            new ReplacedRestApi(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}",
                 POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}",
                 deprecationLogger),
-            new ReplacedRestApi(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots",
                 deprecationLogger),
-            new ReplacedRestApi(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots",
                 POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots",

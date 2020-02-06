@@ -16,7 +16,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -51,15 +49,15 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.emptyMap();
+    public List<Route> handledRoutes() {
+        return Collections.emptyList();
     }
 
     @Override
-    public List<ReplacedRestApi> replacedMethodsAndPaths() {
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRestApi(GET, "/_security/user/_privileges", GET, "/_xpack/security/user/_privileges", deprecationLogger)
+            new ReplacedRoute(GET, "/_security/user/_privileges", GET, "/_xpack/security/user/_privileges", deprecationLogger)
         );
     }
 

@@ -10,17 +10,14 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersRequest;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -28,8 +25,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestReloadAnalyzersAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/{index}/_reload_search_analyzers", unmodifiableList(asList(GET, POST)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/{index}/_reload_search_analyzers", GET),
+            new Route("/{index}/_reload_search_analyzers", POST)));
     }
 
     @Override

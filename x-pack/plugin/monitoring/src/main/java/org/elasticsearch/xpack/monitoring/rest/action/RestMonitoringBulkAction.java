@@ -13,7 +13,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
@@ -27,7 +26,6 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -50,8 +48,10 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
         MonitoredSystem.BEATS, ALL_VERSIONS);
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/_monitoring/bulk", unmodifiableList(asList(POST, PUT)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_monitoring/bulk", POST),
+            new Route("/_monitoring/bulk", PUT)));
     }
 
     @Override

@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -23,10 +22,8 @@ import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -39,8 +36,8 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/_security/api_key", singletonList(GET));
+    public List<Route> handledRoutes() {
+        return singletonList(new Route("/_security/api_key", GET));
     }
 
     @Override

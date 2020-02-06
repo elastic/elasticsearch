@@ -19,7 +19,6 @@ import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -29,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -61,8 +59,10 @@ public class RestGraphAction extends BaseRestHandler {
     public static final ParseField TERM_FIELD = new ParseField("term");
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/{index}/_graph/explore", unmodifiableList(asList(GET, POST)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/{index}/_graph/explore", GET),
+            new Route("/{index}/_graph/explore", POST)));
     }
 
     @Override

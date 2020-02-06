@@ -11,7 +11,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActio
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -31,14 +29,14 @@ public class RestDeleteTransformActionDeprecated extends BaseRestHandler {
             LogManager.getLogger(RestDeleteTransformActionDeprecated.class));
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.emptyMap();
+    public List<Route> handledRoutes() {
+        return Collections.emptyList();
     }
 
     @Override
-    public List<DeprecatedRestApi> deprecatedHandledMethodsAndPaths() {
-        return singletonList(new DeprecatedRestApi(TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED,
-            singletonList(DELETE), TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger));
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return singletonList(new DeprecatedRoute(TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED,
+            DELETE, TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger));
     }
 
     @Override

@@ -22,15 +22,12 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
 
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -41,8 +38,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class ExampleCatAction extends AbstractCatAction {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/_cat/example", unmodifiableList(asList(GET, POST)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_cat/example", GET),
+            new Route("/_cat/example", POST)));
     }
 
     @Override

@@ -7,31 +7,27 @@
 package org.elasticsearch.xpack.transform.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-import static java.util.Collections.singletonList;
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
 public class RestGetTransformStatsAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put(TransformField.REST_BASE_PATH_TRANSFORMS + "_stats", singletonList(GET))
-            .put(TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stats", singletonList(GET))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route(TransformField.REST_BASE_PATH_TRANSFORMS + "_stats", GET),
+            new Route(TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stats", GET)));
     }
 
     @Override

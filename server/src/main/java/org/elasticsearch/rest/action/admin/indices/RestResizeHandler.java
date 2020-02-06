@@ -25,15 +25,12 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -62,8 +59,10 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public static class RestShrinkIndexAction extends RestResizeHandler {
 
         @Override
-        public Map<String, List<Method>> handledMethodsAndPaths() {
-            return singletonMap("/{index}/_shrink/{target}", unmodifiableList(asList(PUT, POST)));
+        public List<Route> handledRoutes() {
+            return unmodifiableList(asList(
+                new Route("/{index}/_shrink/{target}", POST),
+                new Route("/{index}/_shrink/{target}", PUT)));
         }
 
         @Override
@@ -81,8 +80,10 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public static class RestSplitIndexAction extends RestResizeHandler {
 
         @Override
-        public Map<String, List<Method>> handledMethodsAndPaths() {
-            return singletonMap("/{index}/_split/{target}", unmodifiableList(asList(PUT, POST)));
+        public List<Route> handledRoutes() {
+            return unmodifiableList(asList(
+                new Route("/{index}/_split/{target}", POST),
+                new Route("/{index}/_split/{target}", PUT)));
         }
 
         @Override
@@ -100,8 +101,10 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public static class RestCloneIndexAction extends RestResizeHandler {
 
         @Override
-        public Map<String, List<Method>> handledMethodsAndPaths() {
-            return singletonMap("/{index}/_clone/{target}", unmodifiableList(asList(PUT, POST)));
+        public List<Route> handledRoutes() {
+            return unmodifiableList(asList(
+                new Route("/{index}/_clone/{target}", POST),
+                new Route("/{index}/_clone/{target}", PUT)));
         }
 
         @Override

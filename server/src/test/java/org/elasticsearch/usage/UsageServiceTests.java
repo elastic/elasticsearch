@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -104,8 +103,8 @@ public class UsageServiceTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, List<Method>> handledMethodsAndPaths() {
-            return Collections.emptyMap();
+        public List<Route> handledRoutes() {
+            return Collections.emptyList();
         }
 
         @Override

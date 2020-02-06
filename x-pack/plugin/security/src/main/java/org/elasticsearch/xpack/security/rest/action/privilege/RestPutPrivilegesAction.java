@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -44,16 +43,16 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.emptyMap();
+    public List<Route> handledRoutes() {
+        return Collections.emptyList();
     }
 
     @Override
-    public List<ReplacedRestApi> replacedMethodsAndPaths() {
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRestApi(PUT, "/_security/privilege/", PUT, "/_xpack/security/privilege/", deprecationLogger),
-            new ReplacedRestApi(POST, "/_security/privilege/", POST, "/_xpack/security/privilege/", deprecationLogger)
+            new ReplacedRoute(PUT, "/_security/privilege/", PUT, "/_xpack/security/privilege/", deprecationLogger),
+            new ReplacedRoute(POST, "/_security/privilege/", POST, "/_xpack/security/privilege/", deprecationLogger)
         ));
     }
 

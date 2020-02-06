@@ -159,13 +159,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Registers a REST handler with the controller. The REST handler declares the {@code method}
      * and {@code path} combinations.
      */
-    public void registerHandler(RestHandler restHandler) {
-        restHandler.handledMethodsAndPaths().forEach((path, methods) ->
-            methods.forEach(method -> registerHandler(method, path, restHandler)));
-        restHandler.deprecatedHandledMethodsAndPaths().forEach(api -> api.getMethods().forEach(method ->
-            registerAsDeprecatedHandler(method, api.getPath(), restHandler, api.getDeprecationMessage(), api.getLogger())));
-        restHandler.replacedMethodsAndPaths().forEach(api -> registerWithDeprecatedHandler(api.getMethod(), api.getPath(), restHandler,
-            api.getDeprecatedMethod(), api.getDeprecatedPath(), api.getLogger()));
+    public void registerHandler(final RestHandler restHandler) {
+        restHandler.handledRoutes().forEach(route -> registerHandler(route.getMethod(), route.getPath(), restHandler));
+        restHandler.deprecatedRoutes().forEach(route ->
+            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage(), route.getLogger()));
+        restHandler.replacedRoutes().forEach(route -> registerWithDeprecatedHandler(route.getMethod(), route.getPath(),
+            restHandler, route.getDeprecatedMethod(), route.getDeprecatedPath(), route.getLogger()));
     }
 
     @Override

@@ -7,12 +7,10 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -22,9 +20,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -37,11 +33,12 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestAckWatchAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_watcher/watch/{id}/_ack", unmodifiableList(asList(POST, PUT)))
-            .put("/_watcher/watch/{id}/_ack/{actions}", unmodifiableList(asList(POST, PUT)))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_watcher/watch/{id}/_ack", POST),
+            new Route("/_watcher/watch/{id}/_ack", PUT),
+            new Route("/_watcher/watch/{id}/_ack/{actions}", POST),
+            new Route("/_watcher/watch/{id}/_ack/{actions}", PUT)));
     }
 
     @Override

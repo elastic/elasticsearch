@@ -24,10 +24,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
@@ -40,22 +38,22 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import static java.util.Collections.singletonList;
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Map.entry;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_nodes/stats", singletonList(GET))
-            .put("/_nodes/{nodeId}/stats", singletonList(GET))
-            .put("/_nodes/stats/{metric}", singletonList(GET))
-            .put("/_nodes/{nodeId}/stats/{metric}", singletonList(GET))
-            .put("/_nodes/stats/{metric}/{index_metric}", singletonList(GET))
-            .put("/_nodes/{nodeId}/stats/{metric}/{index_metric}", singletonList(GET))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_nodes/stats", GET),
+            new Route("/_nodes/{nodeId}/stats", GET),
+            new Route("/_nodes/stats/{metric}", GET),
+            new Route("/_nodes/{nodeId}/stats/{metric}", GET),
+            new Route("/_nodes/stats/{metric}/{index_metric}", GET),
+            new Route("/_nodes/{nodeId}/stats/{metric}/{index_metric}", GET)));
     }
 
     static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(

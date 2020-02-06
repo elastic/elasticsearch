@@ -27,7 +27,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
 import java.io.IOException;
@@ -36,7 +35,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -74,7 +72,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * {@inheritDoc}
      */
     @Override
-    public abstract Map<String, List<Method>> handledMethodsAndPaths();
+    public abstract List<Route> handledRoutes();
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {

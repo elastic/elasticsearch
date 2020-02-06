@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -42,8 +41,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/{index}", singletonList(PUT));
+    public List<Route> handledRoutes() {
+        return singletonList(new Route("/{index}", PUT));
     }
 
     @Override

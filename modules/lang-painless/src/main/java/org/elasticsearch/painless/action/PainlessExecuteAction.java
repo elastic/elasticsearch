@@ -69,7 +69,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.ScoreScript;
@@ -86,7 +85,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -569,8 +567,10 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
     public static class RestAction extends BaseRestHandler {
 
         @Override
-        public Map<String, List<Method>> handledMethodsAndPaths() {
-            return singletonMap("/_scripts/painless/_execute", unmodifiableList(asList(GET, POST)));
+        public List<Route> handledRoutes() {
+            return unmodifiableList(asList(
+                new Route("/_scripts/painless/_execute", GET),
+                new Route("/_scripts/painless/_execute", POST)));
         }
 
         @Override

@@ -21,18 +21,15 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.tasks.TaskId;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
@@ -44,12 +41,11 @@ public class RestRethrottleAction extends BaseRestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_update_by_query/{taskId}/_rethrottle", singletonList(POST))
-            .put("/_delete_by_query/{taskId}/_rethrottle", singletonList(POST))
-            .put("/_reindex/{taskId}/_rethrottle", singletonList(POST))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_update_by_query/{taskId}/_rethrottle", POST),
+            new Route("/_delete_by_query/{taskId}/_rethrottle", POST),
+            new Route("/_reindex/{taskId}/_rethrottle", POST)));
     }
 
     @Override

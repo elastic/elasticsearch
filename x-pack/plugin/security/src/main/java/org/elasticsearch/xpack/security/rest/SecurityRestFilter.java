@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -94,18 +93,18 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return restHandler.handledMethodsAndPaths();
+    public List<Route> handledRoutes() {
+        return restHandler.handledRoutes();
     }
 
     @Override
-    public List<DeprecatedRestApi> deprecatedHandledMethodsAndPaths() {
-        return restHandler.deprecatedHandledMethodsAndPaths();
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return restHandler.deprecatedRoutes();
     }
 
     @Override
-    public List<ReplacedRestApi> replacedMethodsAndPaths() {
-        return restHandler.replacedMethodsAndPaths();
+    public List<ReplacedRoute> replacedRoutes() {
+        return restHandler.replacedRoutes();
     }
 
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {

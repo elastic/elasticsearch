@@ -10,14 +10,12 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -33,7 +31,6 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
@@ -52,11 +49,12 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
             WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName());
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_watcher/watch/{id}/_execute", unmodifiableList(asList(POST, PUT)))
-            .put("/_watcher/watch/_execute", unmodifiableList(asList(POST, PUT)))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_watcher/watch/{id}/_execute", POST),
+            new Route("/_watcher/watch/{id}/_execute", PUT),
+            new Route("/_watcher/watch/_execute", POST),
+            new Route("/_watcher/watch/_execute", PUT)));
     }
 
     @Override

@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -35,7 +34,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -60,8 +58,8 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
         };
 
@@ -91,8 +89,8 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
         };
 
@@ -132,8 +130,8 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
         };
 
@@ -180,8 +178,8 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
         };
 
@@ -208,8 +206,8 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
         };
 
@@ -248,8 +246,8 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
         };
 
@@ -283,8 +281,8 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
         };
 
@@ -312,8 +310,8 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
         };
 
@@ -337,8 +335,8 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.emptyMap();
+            public List<Route> handledRoutes() {
+                return Collections.emptyList();
             }
         };
 

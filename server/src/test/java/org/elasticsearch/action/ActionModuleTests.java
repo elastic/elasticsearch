@@ -47,9 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -121,8 +119,8 @@ public class ActionModuleTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<String, List<Method>> handledMethodsAndPaths() {
-                    return Collections.singletonMap("/", singletonList(Method.GET));
+                public List<Route> handledRoutes() {
+                    return singletonList(new Route("/", Method.GET));
                 }
             }));
         assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
@@ -154,8 +152,8 @@ public class ActionModuleTests extends ESTestCase {
     public void testPluginCanRegisterRestHandler() {
         class FakeHandler implements RestHandler {
             @Override
-            public Map<String, List<Method>> handledMethodsAndPaths() {
-                return Collections.singletonMap("/_dummy", singletonList(Method.GET));
+            public List<Route> handledRoutes() {
+                return singletonList(new Route("/_dummy", Method.GET));
             }
 
             @Override
@@ -187,8 +185,8 @@ public class ActionModuleTests extends ESTestCase {
                     }
 
                     @Override
-                    public Map<String, List<Method>> handledMethodsAndPaths() {
-                        return Collections.singletonMap("/_dummy", singletonList(Method.GET));
+                    public List<Route> handledRoutes() {
+                        return singletonList(new Route("/_dummy", Method.GET));
                     }
                 }));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));

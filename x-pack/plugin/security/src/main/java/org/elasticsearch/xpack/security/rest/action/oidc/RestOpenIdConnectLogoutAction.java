@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -24,10 +23,8 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResp
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
@@ -49,8 +46,8 @@ public class RestOpenIdConnectLogoutAction extends OpenIdConnectBaseRestHandler 
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/_security/oidc/logout", singletonList(POST));
+    public List<Route> handledRoutes() {
+        return singletonList(new Route("/_security/oidc/logout", POST));
     }
 
     @Override

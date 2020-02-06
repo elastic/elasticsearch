@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -75,9 +74,9 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     }
 
     @Override
-    public List<DeprecatedRestApi> deprecatedHandledMethodsAndPaths() {
+    public List<DeprecatedRoute> deprecatedRoutes() {
         return singletonList(
-            new DeprecatedRestApi("/_test_cluster/deprecated_settings", singletonList(GET), DEPRECATED_ENDPOINT, deprecationLogger));
+            new DeprecatedRoute("/_test_cluster/deprecated_settings", GET, DEPRECATED_ENDPOINT, deprecationLogger));
     }
 
     @Override
@@ -86,8 +85,8 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     }
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.emptyMap();
+    public List<Route> handledRoutes() {
+        return Collections.emptyList();
     }
 
     @SuppressWarnings("unchecked") // List<String> casts

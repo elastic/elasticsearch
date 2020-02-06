@@ -21,18 +21,14 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -42,11 +38,12 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
-            .put("/_scripts/{id}", unmodifiableList(asList(PUT, POST)))
-            .put("/_scripts/{id}/{context}", unmodifiableList(asList(PUT, POST)))
-            .map());
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_scripts/{id}", POST),
+            new Route("/_scripts/{id}", PUT),
+            new Route("/_scripts/{id}/{context}", POST),
+            new Route("/_scripts/{id}/{context}", PUT)));
     }
 
     @Override

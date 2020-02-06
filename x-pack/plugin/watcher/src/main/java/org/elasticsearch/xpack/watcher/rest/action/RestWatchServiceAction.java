@@ -9,14 +9,11 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -24,8 +21,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestWatchServiceAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.singletonMap("/_watcher/_start", singletonList(POST));
+    public List<Route> handledRoutes() {
+        return singletonList(new Route("/_watcher/_start", POST));
     }
 
     @Override
@@ -42,8 +39,8 @@ public class RestWatchServiceAction extends BaseRestHandler {
     public static class StopRestHandler extends BaseRestHandler {
 
         @Override
-        public Map<String, List<Method>> handledMethodsAndPaths() {
-            return Collections.singletonMap("/_watcher/_stop", singletonList(POST));
+        public List<Route> handledRoutes() {
+            return singletonList(new Route("/_watcher/_stop", POST));
         }
 
         @Override

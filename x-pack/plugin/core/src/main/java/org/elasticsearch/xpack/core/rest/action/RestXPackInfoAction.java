@@ -9,17 +9,14 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.XPackInfoRequestBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -27,8 +24,10 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestXPackInfoAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/_xpack", unmodifiableList(asList(GET, HEAD)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_xpack", GET),
+            new Route("/_xpack", HEAD)));
     }
 
     @Override

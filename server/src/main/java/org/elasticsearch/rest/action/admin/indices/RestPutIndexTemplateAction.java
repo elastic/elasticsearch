@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -33,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -41,8 +39,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/_template/{name}", unmodifiableList(asList(PUT, POST)));
+    public List<Route> handledRoutes() {
+        return unmodifiableList(asList(
+            new Route("/_template/{name}", POST),
+            new Route("/_template/{name}", PUT)));
     }
 
     @Override

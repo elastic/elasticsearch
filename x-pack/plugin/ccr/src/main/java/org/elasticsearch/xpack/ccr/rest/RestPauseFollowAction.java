@@ -8,14 +8,11 @@ package org.elasticsearch.xpack.ccr.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.Request;
@@ -23,8 +20,8 @@ import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.Request;
 public class RestPauseFollowAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/{index}/_ccr/pause_follow", singletonList(POST));
+    public List<Route> handledRoutes() {
+        return singletonList(new Route("/{index}/_ccr/pause_follow", POST));
     }
 
     @Override

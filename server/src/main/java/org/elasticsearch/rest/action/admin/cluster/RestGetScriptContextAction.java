@@ -24,13 +24,10 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextRequ
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -38,8 +35,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetScriptContextAction extends BaseRestHandler {
 
     @Override
-    public Map<String, List<Method>> handledMethodsAndPaths() {
-        return Collections.unmodifiableMap(Collections.singletonMap("/_script_context", singletonList(GET)));
+    public List<Route> handledRoutes() {
+        return singletonList(new Route("/_script_context", GET));
     }
 
     @Override public String getName() {

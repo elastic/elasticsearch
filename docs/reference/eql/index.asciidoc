@@ -31,6 +31,8 @@ Consider using EQL if you:
 
 * <<eql-requirements>>
 * <<eql-syntax>>
+* <<eql-limitations>>
 
 include::requirements.asciidoc[]
 include::syntax.asciidoc[]
+include::limitations.asciidoc[]

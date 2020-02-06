@@ -105,8 +105,7 @@ public class GeoGridTilerTests extends ESTestCase {
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, precision, GEOTILE);
         int recursiveCount;
         {
-            recursiveCount = GEOTILE.setValuesByRasterization(0, 0, 0, recursiveValues, 0,
-                                                              precision, value, value.boundingBox());
+            recursiveCount = GEOTILE.setValuesByRasterization(0, 0, 0, recursiveValues, 0, precision, value);
         }
         GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, precision, GEOTILE);
         int bruteForceCount;
@@ -136,7 +135,7 @@ public class GeoGridTilerTests extends ESTestCase {
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, precision, GEOHASH);
         int recursiveCount;
         {
-            recursiveCount = GEOHASH.setValuesByRasterization("", recursiveValues, 0, precision, value, value.boundingBox());
+            recursiveCount = GEOHASH.setValuesByRasterization("", recursiveValues, 0, precision, value);
         }
         GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, precision, GEOHASH);
         int bruteForceCount;

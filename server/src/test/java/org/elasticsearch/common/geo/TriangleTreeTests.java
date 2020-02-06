@@ -108,16 +108,16 @@ public class TriangleTreeTests extends ESTestCase {
             assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeY(encodedCentroidY), reader.getCentroidY(), 0.0000001);
 
             // box-query touches bottom-left corner
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX),
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX),
                 minY - randomIntBetween(1, 90 + minY), minX, minY));
             // box-query touches bottom-right corner
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(maxX, minY - randomIntBetween(1, 90 + minY),
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(maxX, minY - randomIntBetween(1, 90 + minY),
                 maxX + randomIntBetween(1, 180 - maxX), minY));
             // box-query touches top-right corner
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(maxX, maxY, maxX + randomIntBetween(1, 180 - maxX),
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(maxX, maxY, maxX + randomIntBetween(1, 180 - maxX),
                 maxY + randomIntBetween(1, 90 - maxY)));
             // box-query touches top-left corner
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX), maxY, minX,
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX), maxY, minX,
                 maxY + randomIntBetween(1, 90 - maxY)));
             // box-query fully-enclosed inside rectangle
             assertRelation(GeoRelation.QUERY_INSIDE, reader, getExtentFromBox(3 * (minX + maxX) / 4, 3 * (minY + maxY) / 4,
@@ -264,6 +264,7 @@ public class TriangleTreeTests extends ESTestCase {
             // extent that intersects edges
             assertRelation(GeoRelation.QUERY_CROSSES, reader, bufferedExtentFromGeoPoint(line.getX(0), line.getY(0), extentSize));
 
+            // TODO(talevy): resolve definition. when line is on a specific edge it is not considered crossing due to latest changes
             // extent that fully encloses a line in the MultiLine
             Extent lineExtent = triangleTreeReader(line, GeoShapeCoordinateEncoder.INSTANCE).getExtent();
             assertRelation(GeoRelation.QUERY_CROSSES, reader, lineExtent);

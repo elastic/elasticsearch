@@ -77,7 +77,7 @@ public interface GeoGridTiler {
             } else if (count <= precision) {
                 return setValuesByBruteForceScan(values, geoValue, precision, bounds);
             } else {
-                return setValuesByRasterization("", values, 0, precision, geoValue, bounds);
+                return setValuesByRasterization("", values, 0, precision, geoValue);
             }
         }
 
@@ -107,15 +107,10 @@ public interface GeoGridTiler {
         }
 
         protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex,
-                                               int targetPrecision, MultiGeoValues.GeoValue geoValue,
-                                               MultiGeoValues.BoundingBox shapeBounds) {
+                                               int targetPrecision, MultiGeoValues.GeoValue geoValue) {
             String[] hashes = Geohash.getSubGeohashes(hash);
             for (int i = 0; i < hashes.length; i++) {
                 Rectangle rectangle = Geohash.toBoundingBox(hashes[i]);
-                if (shapeBounds.minX() == rectangle.getMaxX() ||
-                    shapeBounds.maxY() == rectangle.getMinY()) {
-                    continue;
-                }
                 GeoRelation relation = geoValue.relate(rectangle);
                 if (relation == GeoRelation.QUERY_CROSSES) {
                     if (hashes[i].length() == targetPrecision) {
@@ -123,7 +118,7 @@ public interface GeoGridTiler {
                         values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
                     } else {
                         valuesIndex =
-                            setValuesByRasterization(hashes[i], values, valuesIndex, targetPrecision, geoValue, shapeBounds);
+                            setValuesByRasterization(hashes[i], values, valuesIndex, targetPrecision, geoValue);
                     }
                 } else if (relation == GeoRelation.QUERY_INSIDE) {
                     if (hashes[i].length() == targetPrecision) {
@@ -204,7 +199,7 @@ public interface GeoGridTiler {
             } else if (count <= precision) {
                 return setValuesByBruteForceScan(values, geoValue, precision, minXTile, minYTile, maxXTile, maxYTile);
             } else {
-                return setValuesByRasterization(0, 0, 0, values, 0, precision, geoValue, bounds);
+                return setValuesByRasterization(0, 0, 0, values, 0, precision, geoValue);
             }
         }
 
@@ -231,19 +226,13 @@ public interface GeoGridTiler {
         }
 
         protected int setValuesByRasterization(int xTile, int yTile, int zTile, GeoShapeCellValues values,
-                                               int valuesIndex, int targetPrecision, MultiGeoValues.GeoValue geoValue,
-                                               MultiGeoValues.BoundingBox shapeBounds) {
+                                               int valuesIndex, int targetPrecision, MultiGeoValues.GeoValue geoValue) {
             zTile++;
             for (int i = 0; i < 2; i++) {
                 for (int j = 0; j < 2; j++) {
                     int nextX = 2 * xTile + i;
                     int nextY = 2 * yTile + j;
                     Rectangle rectangle = GeoTileUtils.toBoundingBox(nextX, nextY, zTile);
-                    // TODO: this looks hacky, maybe the relate method should handle it?
-                    if (shapeBounds.minX() == rectangle.getMaxX() ||
-                        shapeBounds.maxY() == rectangle.getMinY()) {
-                        continue;
-                    }
                     GeoRelation relation = geoValue.relate(rectangle);
                     if (GeoRelation.QUERY_INSIDE == relation) {
                         if (zTile == targetPrecision) {
@@ -258,8 +247,7 @@ public interface GeoGridTiler {
                             values.resizeCell(valuesIndex + 1);
                             values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                         } else {
-                            valuesIndex = setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex,
-                                targetPrecision, geoValue, shapeBounds);
+                            valuesIndex = setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex, targetPrecision, geoValue);
                         }
                     }
                 }

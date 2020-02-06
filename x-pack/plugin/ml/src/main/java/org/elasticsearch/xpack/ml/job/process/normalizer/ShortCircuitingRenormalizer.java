@@ -46,7 +46,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
 
     @Override
     public void renormalize(Quantiles quantiles) {
-        if (!isEnabled() || scoresUpdater.isShutdown()) {
+        if (!isEnabled()) {
             return;
         }
 

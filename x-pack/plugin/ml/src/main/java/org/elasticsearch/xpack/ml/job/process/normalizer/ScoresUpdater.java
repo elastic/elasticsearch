@@ -60,10 +60,6 @@ public class ScoresUpdater {
         normalizationWindow = getNormalizationWindowOrDefault(job);
     }
 
-    public boolean isShutdown() {
-        return shutdown;
-    }
-
     /**
      * Tell the scores updater to shut down ASAP.
      */

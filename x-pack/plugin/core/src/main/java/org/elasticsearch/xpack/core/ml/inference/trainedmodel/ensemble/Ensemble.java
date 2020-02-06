@@ -321,7 +321,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     public static class Builder {
-        private List<String> featureNames ;
+        private List<String> featureNames;
         private List<TrainedModel> trainedModels;
         private OutputAggregator outputAggregator = new WeightedSum();
         private TargetType targetType = TargetType.REGRESSION;

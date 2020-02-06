@@ -203,6 +203,7 @@ curl -X<VERB> '<PROTOCOL>://<HOST>:<PORT>/<PATH>?<QUERY_STRING>' -d '<BODY>'
 // NOTCONSOLE
 
 This example uses the following variables:
+
 `<VERB>`:: The appropriate HTTP method or verb. For example, `GET`, `POST`,
 `PUT`, `HEAD`, or `DELETE`.
 `<PROTOCOL>`:: Either `http` or `https`. Use the latter if you have an HTTPS

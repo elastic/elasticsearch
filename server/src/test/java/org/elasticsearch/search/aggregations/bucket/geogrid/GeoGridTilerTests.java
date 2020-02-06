@@ -20,13 +20,14 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoRelation;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
+import org.elasticsearch.common.geo.GeoTestUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPolygon;
@@ -102,7 +103,7 @@ public class GeoGridTilerTests extends ESTestCase {
 
     // tests that bounding boxes of shapes crossing the dateline are correctly wrapped
     public void testGeoTileSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 1000; i++) {
             int precision = randomIntBetween(0, 4);
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
             Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
@@ -121,12 +122,12 @@ public class GeoGridTilerTests extends ESTestCase {
             int expected = numTiles(value, precision, null);
 
             // TODO(talevy): remove once tests pass
-//            System.out.println(GeoTestUtils.toGeoJsonString(
-//                new GeometryCollection<>(List.of(
-//                    geometry,
-//                    boxToGeo(resolveGeoBoundingBox(value.boundingBox())),
-//                    valuesToGeo(unboundedCellValues.getValues(), numTiles)
-//                ))));
+            System.out.println(GeoTestUtils.toGeoJsonString(
+                new GeometryCollection<>(List.of(
+                    geometry,
+                    //boxToGeo(resolveGeoBoundingBox(value.boundingBox())),
+                    valuesToGeo(unboundedCellValues.getValues(), numTiles)
+                ))));
 
             assertThat(numTiles, equalTo(expected));
         }
@@ -134,7 +135,7 @@ public class GeoGridTilerTests extends ESTestCase {
 
     // tests that bounding boxes of shapes crossing the dateline are correctly wrapped
     public void testGeoTileSetValuesBoundingBoxes_BoundedGeoShapeCellValues() throws Exception {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 1; i++) {
             int precision = randomIntBetween(0, 4);
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
             Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
@@ -156,32 +157,7 @@ public class GeoGridTilerTests extends ESTestCase {
             int numTiles = BOUNDED_INSTANCE.setValues(boundedCellValues, value, precision);
             int expected = numTiles(value, precision, geoBoundingBox);
 
-            // TODO(talevy): remove once tests pass
-//            System.out.println(GeoTestUtils.toGeoJsonString(
-//                new GeometryCollection<>(List.of(
-//                    geometry,
-//                    boxToGeo(resolveGeoBoundingBox(value.boundingBox())),
-//                    boxToGeo(geoBoundingBox),
-//                    valuesToGeo(boundedCellValues.getValues(), numTiles)
-//                ))));
-
             assertThat(numTiles, equalTo(expected));
-
-        }
-    }
-    private GeoBoundingBox resolveGeoBoundingBox(MultiGeoValues.BoundingBox box) {
-        if (Double.isInfinite(box.posLeft)) {
-            return new GeoBoundingBox(new GeoPoint(box.top, box.negLeft), new GeoPoint(box.bottom, box.negRight));
-        } else if (Double.isInfinite(box.negLeft)) {
-            return new GeoBoundingBox(new GeoPoint(box.top, box.posLeft), new GeoPoint(box.bottom, box.posRight));
-        } else {
-            double unwrappedWidth = box.posRight - box.negLeft;
-            double wrappedWidth = (180 - box.posLeft) - (-180 - box.negRight);
-            if (unwrappedWidth <= wrappedWidth) {
-                return new GeoBoundingBox(new GeoPoint(box.top, box.negLeft), new GeoPoint(box.bottom, box.posRight));
-            } else {
-                return new GeoBoundingBox(new GeoPoint(box.top, box.posLeft), new GeoPoint(box.bottom, box.negRight));
-            }
         }
     }
 
@@ -284,7 +260,7 @@ public class GeoGridTilerTests extends ESTestCase {
             || (crossesDateline && boundsWestLeft <= tile.getMaxX() && boundsWestRight >= tile.getMinX())));
     }
 
-    private int numTiles(MultiGeoValues.GeoValue geoValue, int precision, GeoBoundingBox geoBox) {
+    private int numTiles(MultiGeoValues.GeoValue geoValue, int precision, GeoBoundingBox geoBox) throws Exception {
         MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
         int count = 0;
 
@@ -304,7 +280,9 @@ public class GeoGridTilerTests extends ESTestCase {
 
             for (int x = minXTileNeg; x <= maxXTileNeg; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
-                    if (tileIntersectsBounds(x, y, precision, geoBox)) {
+                    Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);
+                    if (tileIntersectsBounds(x, y, precision, geoBox)
+                            && geoValue.relate(r.getMinX(), r.getMinY(), r.getMaxX(), r.getMaxY()) != GeoRelation.QUERY_DISJOINT) {
                         count += 1;
                     }
                 }
@@ -312,11 +290,17 @@ public class GeoGridTilerTests extends ESTestCase {
 
             // box two
             int minXTilePos = GeoTileUtils.getXTile(bounds.posLeft, (long) tiles);
+            if (minXTilePos > maxXTileNeg + 1) {
+                minXTilePos -= 1;
+            }
+
             int maxXTilePos = GeoTileUtils.getXTile(bounds.posRight, (long) tiles);
 
             for (int x = minXTilePos; x <= maxXTilePos; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
-                    if (tileIntersectsBounds(x, y, precision, geoBox)) {
+                    Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);
+                    if (tileIntersectsBounds(x, y, precision, geoBox)
+                            && geoValue.relate(r.getMinX(), r.getMinY(), r.getMaxX(), r.getMaxY()) != GeoRelation.QUERY_DISJOINT) {
                         count += 1;
                     }
                 }

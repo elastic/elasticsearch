@@ -119,7 +119,9 @@ public class TriangleTreeReader {
         int thisMinX = extent.minX();
         int thisMaxY = extent.maxY();
         int thisMinY = extent.minY();
-        if ((thisMinX > maxX || thisMaxX < minX || thisMinY > maxY || thisMaxY < minY)) {
+
+        // check north and east boundaries
+        if ((thisMinX >= maxX || thisMaxX < minX || thisMinY > maxY || thisMaxY <= minY)) {
             // shapes are disjoint
             return GeoRelation.QUERY_DISJOINT;
         }
@@ -311,10 +313,6 @@ public class TriangleTreeReader {
          * Checks if the rectangle intersects the provided triangle
          **/
         private GeoRelation relateTriangle(int aX, int aY, boolean ab, int bX, int bY, boolean bc, int cX, int cY, boolean ca) {
-            // 1. query contains any triangle points
-            if (contains(aX, aY) || contains(bX, bY) || contains(cX, cY)) {
-                return GeoRelation.QUERY_CROSSES;
-            }
 
             // compute bounding box of triangle
             int tMinX = StrictMath.min(StrictMath.min(aX, bX), cX);
@@ -322,9 +320,14 @@ public class TriangleTreeReader {
             int tMinY = StrictMath.min(StrictMath.min(aY, bY), cY);
             int tMaxY = StrictMath.max(StrictMath.max(aY, bY), cY);
 
-            // 2. check bounding boxes are disjoint
-            if (tMaxX < minX || tMinX > maxX || tMinY > maxY || tMaxY < minY) {
+            // 1. check bounding boxes are disjoint
+            if (tMaxX <= minX || tMinX > maxX || tMinY > maxY || tMaxY <= minY) {
                 return GeoRelation.QUERY_DISJOINT;
+            }
+
+            // 2. query contains any triangle points
+            if (contains(aX, aY) || contains(bX, bY) || contains(cX, cY)) {
+                return GeoRelation.QUERY_CROSSES;
             }
 
             boolean within = false;

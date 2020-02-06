@@ -258,6 +258,11 @@ public final class GeoTileUtils {
         return zxyToGeoPoint(hashAsInts[0], hashAsInts[1], hashAsInts[2]);
     }
 
+    static Rectangle toBoundingBox(long hash) {
+        int[] hashAsInts = parseHash(hash);
+        return toBoundingBox(hashAsInts[1], hashAsInts[2], hashAsInts[0]);
+    }
+
     static Rectangle toBoundingBox(int xTile, int yTile, int precision) {
         final double tiles = validateZXY(precision, xTile, yTile);
         final double minN = Math.PI - (2.0 * Math.PI * (yTile + 1)) / tiles;

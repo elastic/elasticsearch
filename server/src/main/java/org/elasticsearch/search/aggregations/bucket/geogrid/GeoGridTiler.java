@@ -69,9 +69,15 @@ public interface GeoGridTiler <G extends MultiGeoValues.GeoValue> {
             long count = (numLonCells + 1) * (numLatCells + 1);
             if (count == 1) {
                 String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
-                values.resizeCell(1);
-                values.add(0, Geohash.longEncode(hash));
-                return 1;
+                Rectangle rectangle = Geohash.toBoundingBox(hash);
+                GeoRelation relation = geoValue.relate(rectangle.getMinX(), rectangle.getMinY(),
+                    rectangle.getMaxX(), rectangle.getMaxY());
+                if (relation != GeoRelation.QUERY_DISJOINT) {
+                    values.resizeCell(1);
+                    values.add(0, Geohash.longEncode(hash));
+                    return 1;
+                }
+                return 0;
             } else if (count <= precision) {
                 return setValuesByBruteForceScan(values, geoValue, precision, bounds);
             } else {
@@ -194,9 +200,15 @@ public interface GeoGridTiler <G extends MultiGeoValues.GeoValue> {
             int maxYTile = GeoTileUtils.getYTile(bounds.minY(), (long) tiles);
             int count = (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
             if (count == 1) {
-                values.resizeCell(1);
-                values.add(0, GeoTileUtils.longEncodeTiles(precision, minXTile, minYTile));
-                return 1;
+                Rectangle rectangle = GeoTileUtils.toBoundingBox(minXTile, minYTile, precision);
+                GeoRelation relation = geoValue.relate(rectangle.getMinX(), rectangle.getMinY(),
+                    rectangle.getMaxX(), rectangle.getMaxY());
+                if (relation != GeoRelation.QUERY_DISJOINT) {
+                    values.resizeCell(1);
+                    values.add(0, GeoTileUtils.longEncodeTiles(precision, minXTile, minYTile));
+                    return 1;
+                }
+                return 0;
             } else if (count <= precision) {
                 return setValuesByBruteForceScan(values, geoValue, precision, minXTile, minYTile, maxXTile, maxYTile);
             } else {
@@ -236,13 +248,6 @@ public interface GeoGridTiler <G extends MultiGeoValues.GeoValue> {
                     int nextX = 2 * xTile + i;
                     int nextY = 2 * yTile + j;
                     Rectangle rectangle = GeoTileUtils.toBoundingBox(nextX, nextY, zTile);
-
-                    // TODO(talevy): modify TriangleTreeReader#relate to exclude these intersections
-                    // used to filter out tiles that intersect on an outer edge and should not be included in the tiling
-                    if (shapeBounds.minX() == rectangle.getMaxX() || shapeBounds.maxY() == rectangle.getMinY()) {
-                        continue;
-                    }
-
                     GeoRelation relation = geoValue.relate(rectangle.getMinX(), rectangle.getMinY(),
                         rectangle.getMaxX(), rectangle.getMaxY());
                     if (GeoRelation.QUERY_INSIDE == relation) {

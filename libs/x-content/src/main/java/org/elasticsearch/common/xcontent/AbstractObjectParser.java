@@ -146,6 +146,12 @@ public abstract class AbstractObjectParser<Value, Context>
         declareField(consumer, (p, c) -> objectParser.parse(p, c), field, ValueType.OBJECT);
     }
 
+    public <T> void declareObjectOrNull(BiConsumer<Value, T> consumer, ContextParser<Context, T> objectParser, ParseField field) {
+        declareField(consumer, (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : objectParser.parse(p, c),
+                field, ValueType.OBJECT_OR_NULL);
+        // NOCOMMIT test
+    }
+
     public void declareFloat(BiConsumer<Value, Float> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.floatValue(), field, ValueType.FLOAT);
@@ -156,15 +162,31 @@ public abstract class AbstractObjectParser<Value, Context>
         declareField(consumer, p -> p.doubleValue(), field, ValueType.DOUBLE);
     }
 
+    /**
+     * Declare a double field that supports null. If the field is null this will call the consumer with {@code nullValue}. 
+     */
+    public void declareDoubleOrNull(BiConsumer<Value, Double> consumer, double nullValue, ParseField field) {
+        declareField(consumer, p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : p.doubleValue(),
+                field, ValueType.DOUBLE_OR_NULL);
+        // NOCOMMIT test
+    }
+
     public void declareLong(BiConsumer<Value, Long> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.longValue(), field, ValueType.LONG);
     }
 
     public void declareInt(BiConsumer<Value, Integer> consumer, ParseField field) {
-     // Using a method reference here angers some compilers
+        // Using a method reference here angers some compilers
         declareField(consumer, p -> p.intValue(), field, ValueType.INT);
     }
+
+    public void declareIntOrNull(BiConsumer<Value, Integer> consumer, int nullValue, ParseField field) {
+        declareField(consumer, p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : p.intValue(),
+                field, ValueType.INT_OR_NULL);
+        // NOCOMMIT test
+    }
+
 
     public void declareString(BiConsumer<Value, String> consumer, ParseField field) {
         declareField(consumer, XContentParser::text, field, ValueType.STRING);

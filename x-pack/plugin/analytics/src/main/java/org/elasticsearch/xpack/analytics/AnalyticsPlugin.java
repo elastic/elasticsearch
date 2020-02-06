@@ -64,7 +64,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
-                StringStatsAggregationBuilder::parse).addResultReader(InternalStringStats::new),
+                StringStatsAggregationBuilder.PARSER).addResultReader(InternalStringStats::new)
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,

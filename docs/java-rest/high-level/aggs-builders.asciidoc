@@ -26,6 +26,7 @@ This page lists all the available aggregations with their corresponding `Aggrega
 | {ref}/search-aggregations-metrics-sum-aggregation.html[Sum]                                        | {agg-ref}/metrics/sum/SumAggregationBuilder.html[SumAggregationBuilder]                                 | {agg-ref}/AggregationBuilders.html#sum-java.lang.String-[AggregationBuilders.sum()]
 | {ref}/search-aggregations-metrics-top-hits-aggregation.html[Top hits]                              | {agg-ref}/metrics/tophits/TopHitsAggregationBuilder.html[TopHitsAggregationBuilder]                     | {agg-ref}/AggregationBuilders.html#topHits-java.lang.String-[AggregationBuilders.topHits()]
 | {ref}/search-aggregations-metrics-valuecount-aggregation.html[Value Count]                         | {agg-ref}/metrics/valuecount/ValueCountAggregationBuilder.html[ValueCountAggregationBuilder]            | {agg-ref}/AggregationBuilders.html#count-java.lang.String-[AggregationBuilders.count()]
+| {ref}/search-aggregations-metrics-string-stats-aggregation.html[String Stats]                      | {javadoc-client}/analytics/StringStatsAggregationBuilder.html[StringStatsAggregationBuilder]            | None
 |======
 
 ==== Bucket Aggregations

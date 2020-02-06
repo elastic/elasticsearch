@@ -139,7 +139,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
             return randomMetadataName;
         };
         // the salted password hash for this encrypted repository password, on the local node (this is constant)
-        this.repositoryPasswordSaltedHash = computeSaltedPBKDF2Hash(SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO), password);
+        this.repositoryPasswordSaltedHash = computeSaltedPBKDF2Hash(SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO),
+                password);
         // used to verify that the salted password hash in the snapshot metadata matches up with the repository password on the local node
         this.passwordHashVerifier = new HashVerifier(password);
     }

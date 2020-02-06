@@ -6,28 +6,15 @@
 
 package org.elasticsearch.repositories.encrypted;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-
 
 /**
  * Holds the necessary, and sufficient, metadata required to decrypt the associated encrypted blob.

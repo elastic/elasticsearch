@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -57,6 +58,8 @@ public class RestRequest implements ToXContent.Params {
 
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
+
+    private static final AtomicLong requestIdGenerator = new AtomicLong();
 
     private final NamedXContentRegistry xContentRegistry;
     private final Map<String, String> params;
@@ -70,12 +73,19 @@ public class RestRequest implements ToXContent.Params {
 
     private boolean contentConsumed = false;
 
+    private final long requestId;
+
     public boolean isContentConsumed() {
         return contentConsumed;
     }
 
     protected RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                           Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel) {
+        this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
+    }
+
+    private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
+                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
         final XContentType xContentType;
         try {
             xContentType = parseContentType(headers.get("Content-Type"));
@@ -91,11 +101,12 @@ public class RestRequest implements ToXContent.Params {
         this.params = params;
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
+        this.requestId = requestId;
     }
 
     protected RestRequest(RestRequest restRequest) {
         this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
-            restRequest.getHttpRequest(), restRequest.getHttpChannel());
+            restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getRequestId());
     }
 
     /**
@@ -120,7 +131,8 @@ public class RestRequest implements ToXContent.Params {
     public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
         String path = path(httpRequest.uri());
-        return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel);
+        return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
+            requestIdGenerator.incrementAndGet());
     }
 
     private static Map<String, String> params(final String uri) {
@@ -157,7 +169,8 @@ public class RestRequest implements ToXContent.Params {
     public static RestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
                                                        HttpChannel httpChannel) {
         Map<String, String> params = Collections.emptyMap();
-        return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
+        return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
+            requestIdGenerator.incrementAndGet());
     }
 
     public enum Method {
@@ -248,6 +261,10 @@ public class RestRequest implements ToXContent.Params {
      */
     public final Map<String, List<String>> getHeaders() {
         return headers;
+    }
+
+    public final long getRequestId() {
+        return requestId;
     }
 
     /**

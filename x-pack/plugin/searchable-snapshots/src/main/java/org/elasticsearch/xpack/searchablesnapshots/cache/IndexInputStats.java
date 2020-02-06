@@ -23,6 +23,7 @@ public class IndexInputStats {
     static final ByteSizeValue SEEKING_THRESHOLD = new ByteSizeValue(8, ByteSizeUnit.MB);
 
     private final long fileLength;
+    private final long seekingThreshold;
 
     private final LongAdder opened = new LongAdder();
     private final LongAdder inner = new LongAdder();
@@ -43,7 +44,13 @@ public class IndexInputStats {
     private final Counter cachedBytesWritten = new Counter();
 
     public IndexInputStats(long fileLength) {
+        this(fileLength, SEEKING_THRESHOLD.getBytes());
+    }
+
+    // pkg-private for testing
+    IndexInputStats(long fileLength, long seekingThreshold) {
         this.fileLength = fileLength;
+        this.seekingThreshold = seekingThreshold;
     }
 
     public void incrementOpenCount() {
@@ -96,64 +103,64 @@ public class IndexInputStats {
         }
     }
 
-    long getFileLength() {
+    public long getFileLength() {
         return fileLength;
     }
 
-    LongAdder getOpened() {
+    public LongAdder getOpened() {
         return opened;
     }
 
-    LongAdder getInnerOpened() {
+    public LongAdder getInnerOpened() {
         return inner;
     }
 
-    LongAdder getClosed() {
+    public LongAdder getClosed() {
         return closed;
     }
 
-    Counter getForwardSmallSeeks() {
+    public Counter getForwardSmallSeeks() {
         return forwardSmallSeeks;
     }
 
-    Counter getBackwardSmallSeeks() {
+    public Counter getBackwardSmallSeeks() {
         return backwardSmallSeeks;
     }
 
-    Counter getForwardLargeSeeks() {
+    public Counter getForwardLargeSeeks() {
         return forwardLargeSeeks;
     }
 
-    Counter getBackwardLargeSeeks() {
+    public Counter getBackwardLargeSeeks() {
         return backwardLargeSeeks;
     }
 
-    Counter getContiguousReads() {
+    public Counter getContiguousReads() {
         return contiguousReads;
     }
 
-    Counter getNonContiguousReads() {
+    public Counter getNonContiguousReads() {
         return nonContiguousReads;
     }
 
-    Counter getDirectBytesRead() {
+    public Counter getDirectBytesRead() {
         return directBytesRead;
     }
 
-    Counter getCachedBytesRead() {
+    public Counter getCachedBytesRead() {
         return cachedBytesRead;
     }
 
-    Counter getCachedBytesWritten() {
+    public Counter getCachedBytesWritten() {
         return cachedBytesWritten;
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
-    boolean isLargeSeek(long delta) {
-        return delta != Long.MIN_VALUE && Math.abs(delta) > SEEKING_THRESHOLD.getBytes();
+    private boolean isLargeSeek(long delta) {
+        return delta != Long.MIN_VALUE && Math.abs(delta) > seekingThreshold;
     }
 
-    static class Counter {
+    public static class Counter {
 
         private final LongAdder count = new LongAdder();
         private final LongAdder total = new LongAdder();
@@ -167,15 +174,15 @@ public class IndexInputStats {
             max.updateAndGet(prev -> Math.max(prev, value));
         }
 
-        long count() {
+        public long count() {
             return count.sum();
         }
 
-        long total() {
+        public long total() {
             return total.sum();
         }
 
-        long min() {
+        public long min() {
             final long value = min.get();
             if (value == Long.MAX_VALUE) {
                 return 0L;
@@ -183,7 +190,7 @@ public class IndexInputStats {
             return value;
         }
 
-        long max() {
+        public long max() {
             final long value = max.get();
             if (value == Long.MIN_VALUE) {
                 return 0L;

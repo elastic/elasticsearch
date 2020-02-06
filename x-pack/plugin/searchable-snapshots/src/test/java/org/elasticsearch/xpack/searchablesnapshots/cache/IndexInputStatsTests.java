@@ -44,7 +44,8 @@ public class IndexInputStatsTests extends ESTestCase {
 
     public void testSeeks() {
         final long fileLength = randomLongBetween(1L, 1_000L);
-        final IndexInputStats inputStats = new IndexInputStats(fileLength);
+        final long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileLength) : SEEKING_THRESHOLD.getBytes();
+        final IndexInputStats inputStats = new IndexInputStats(fileLength, seekingThreshold);
 
         assertCounter(inputStats.getForwardSmallSeeks(), 0L, 0L, 0L, 0L);
         assertCounter(inputStats.getForwardLargeSeeks(), 0L, 0L, 0L, 0L);
@@ -63,10 +64,10 @@ public class IndexInputStatsTests extends ESTestCase {
 
             final long delta = seekToPosition - currentPosition;
             if (delta > 0) {
-                IndexInputStats.Counter forwardCounter = (delta <= SEEKING_THRESHOLD.getBytes()) ? fwSmallSeeks : fwLargeSeeks;
+                IndexInputStats.Counter forwardCounter = (delta <= seekingThreshold) ? fwSmallSeeks : fwLargeSeeks;
                 forwardCounter.add(delta);
             } else if (delta < 0) {
-                IndexInputStats.Counter backwardCounter = (delta >= -1 * SEEKING_THRESHOLD.getBytes()) ? bwSmallSeeks : bwLargeSeeks;
+                IndexInputStats.Counter backwardCounter = (delta >= -1 * seekingThreshold) ? bwSmallSeeks : bwLargeSeeks;
                 backwardCounter.add(delta);
             }
         }

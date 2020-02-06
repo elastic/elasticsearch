@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -132,7 +133,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
         this.encryptionNonceGenerator = () -> secureRandom.nextInt();
         // the metadata used to decrypt the encrypted blob resides in a different blob, one for every encrypted blob,
         // which has a sufficiently long random name, enough to make it effectively unique in any given practical blob container
-        final Random random = new Random();
+        final Random random = Randomness.get();
         this.metadataIdentifierGenerator = () -> {
             byte[] randomMetadataName = new byte[METADATA_UID_LENGTH_IN_BYTES];
             random.nextBytes(randomMetadataName);

@@ -825,6 +825,19 @@ public class ObjectParserTests extends ESTestCase {
                 this.d = value;
             }
         }
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"unrelated\": \"123\"}");
+        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
+        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
+        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
+        objectParser.declareLong(TestStruct::setC, new ParseField("c"));
+        objectParser.declareLong(TestStruct::setD, new ParseField("d"));
+        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+        objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
+        assertThat(e.getMessage(), equalTo("Required one of fields [a, b], but none were specified. " +
+            "Required one of fields [c, d], but none were specified. "));
     }
 
     @Override

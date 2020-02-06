@@ -110,7 +110,7 @@ integTestCluster {
         return tmpFile.exists()
     }
 }
-
+testingConventions.enabled = false
 unitTest {
     //Muted, see https://github.com/elastic/elasticsearch/issues/49109
     enabled = false

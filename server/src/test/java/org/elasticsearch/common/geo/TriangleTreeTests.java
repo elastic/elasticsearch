@@ -328,7 +328,7 @@ public class TriangleTreeTests extends ESTestCase {
 
         Extent bufferBounds = bufferedExtentFromGeoPoint(p.getX(), p.getY(), extentSize);
         GeoRelation relation = triangleTreeReader(g, GeoShapeCoordinateEncoder.INSTANCE)
-            .relate(bufferBounds.minX(), bufferBounds.minY(), bufferBounds.maxX(), bufferBounds.maxY());
+            .relateTile(bufferBounds.minX(), bufferBounds.minY(), bufferBounds.maxX(), bufferBounds.maxY());
         return relation == GeoRelation.QUERY_CROSSES || relation == GeoRelation.QUERY_INSIDE;
     }
 

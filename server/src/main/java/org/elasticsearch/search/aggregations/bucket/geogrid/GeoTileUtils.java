@@ -43,7 +43,13 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  */
 public final class GeoTileUtils {
 
+    /**
+     * The geo-tile map is clipped at 85.05112878 to 90 and -85.05112878 to -90
+     */
+    public static final double LATITUDE_MASK = 85.05112878;
+
     private static final double PI_DIV_2 = Math.PI / 2;
+
 
     private GeoTileUtils() {}
 

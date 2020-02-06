@@ -59,6 +59,11 @@ public interface GeoGridTiler {
 
         @Override
         public int setValues(GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
+            if (precision == 1) {
+                values.resizeCell(1);
+                values.add(0, Geohash.longEncode(0, 0, 0));
+            }
+
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             assert bounds.minX() <= bounds.maxX();
             long numLonCells = (long) ((bounds.maxX() - bounds.minX()) / Geohash.lonWidthInDegrees(precision));
@@ -83,7 +88,8 @@ public interface GeoGridTiler {
             int idx = 0;
             String min = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
             String max = Geohash.stringEncode(bounds.maxX(), bounds.maxY(), precision);
-            double minY = Geohash.decodeLatitude(min);
+            String minNeighborBelow = Geohash.getNeighbor(min, precision, 0, -1);
+            double minY = Geohash.decodeLatitude((minNeighborBelow == null) ? min : minNeighborBelow);
             double minX = Geohash.decodeLongitude(min);
             double maxY = Geohash.decodeLatitude(max);
             double maxX = Geohash.decodeLongitude(max);
@@ -156,10 +162,35 @@ public interface GeoGridTiler {
             return GeoTileUtils.longEncode(x, y, precision);
         }
 
+        /**
+         * Sets the values of the long[] underlying {@link GeoShapeCellValues}.
+         *
+         * If the shape resides between <code>GeoTileUtils.LATITUDE_MASK</code> and 90 degree latitudes, then
+         * the shape is not accounted for since geo-tiles are only defined within those bounds.
+         *
+         * @param values     the bucket values
+         * @param geoValue   the input shape
+         * @param precision  the tile zoom-level
+         *
+         * @return the number of tiles set by the shape
+         */
         @Override
         public int setValues(GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             assert bounds.minX() <= bounds.maxX();
+
+            // geo tiles are not defined at the extreme latitudes due to them
+            // tiling the world as a square.
+            if ((bounds.top > GeoTileUtils.LATITUDE_MASK && bounds.bottom > GeoTileUtils.LATITUDE_MASK)
+                    || (bounds.top < -GeoTileUtils.LATITUDE_MASK && bounds.bottom < -GeoTileUtils.LATITUDE_MASK)) {
+                return 0;
+            }
+
+            if (precision == 0) {
+                values.resizeCell(1);
+                values.add(0, GeoTileUtils.longEncodeTiles(0, 0, 0));
+            }
+
             final double tiles = 1 << precision;
             int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
             int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);

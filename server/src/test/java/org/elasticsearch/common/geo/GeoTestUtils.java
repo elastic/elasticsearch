@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoTestUtils {
 
     public static void assertRelation(GeoRelation expectedRelation, TriangleTreeReader reader, Extent extent) throws IOException {
-        GeoRelation actualRelation = reader.relate(extent.minX(), extent.minY(), extent.maxX(), extent.maxY());
+        GeoRelation actualRelation = reader.relateTile(extent.minX(), extent.minY(), extent.maxX(), extent.maxY());
         assertThat(actualRelation, equalTo(expectedRelation));
     }
 

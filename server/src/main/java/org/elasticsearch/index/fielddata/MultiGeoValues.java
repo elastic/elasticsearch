@@ -169,7 +169,7 @@ public abstract class MultiGeoValues {
             int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
             int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
             int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
-            return reader.relate(minX, minY, maxX, maxY);
+            return reader.relateTile(minX, minY, maxX, maxY);
         }
 
         @Override

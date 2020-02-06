@@ -69,8 +69,9 @@ final class JvmOptionsParser {
         final Path jvmOptionsDirectory = Paths.get(args[0], "jvm.options.d");
 
         if (Files.isDirectory(jvmOptionsDirectory)) {
-            try (DirectoryStream<Path> jvmOptionsDirectoryStream =
-                     Files.newDirectoryStream(Paths.get(args[0], "jvm.options.d"), "*.options")) {
+            try (
+                DirectoryStream<Path> jvmOptionsDirectoryStream = Files.newDirectoryStream(Paths.get(args[0], "jvm.options.d"), "*.options")
+            ) {
                 // collect the matching JVM options files after sorting them by Path::compareTo
                 StreamSupport.stream(jvmOptionsDirectoryStream.spliterator(), false).sorted().forEach(jvmOptionsFiles::add);
             }

@@ -547,7 +547,7 @@ public class XPackLicenseState {
     }
 
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
-        return isPlatinumPlusOrTrialOperationMode(operationMode);
+        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
     }
 
     /**
@@ -565,7 +565,7 @@ public class XPackLicenseState {
     }
 
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
-        return isPlatinumPlusOrTrialOperationMode(operationMode);
+        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
     }
 
     /**
@@ -784,11 +784,15 @@ public class XPackLicenseState {
     }
 
     public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
-        return isPlatinumPlusOrTrialOperationMode(operationMode);
+        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
     }
 
-    public static boolean isPlatinumPlusOrTrialOperationMode(final OperationMode operationMode) {
-        return operationMode == OperationMode.PLATINUM || operationMode == OperationMode.ENTERPRISE || operationMode == OperationMode.TRIAL;
+    public static boolean isAllowedByOperationMode(
+        final OperationMode operationMode, final OperationMode minimumMode, final boolean allowTrial) {
+        if (allowTrial && OperationMode.TRIAL == operationMode) {
+            return true;
+        }
+        return operationMode.compareTo(minimumMode) >= 0;
     }
 
     /**
@@ -826,9 +830,7 @@ public class XPackLicenseState {
         if (needActive && false == localStatus.active) {
             return false;
         }
-        if (allowTrial && OperationMode.TRIAL == localStatus.mode) {
-            return true;
-        }
-        return localStatus.mode.compareTo(minimumMode) >= 0;
+        return isAllowedByOperationMode(localStatus.mode, minimumMode, allowTrial);
     }
+
 }

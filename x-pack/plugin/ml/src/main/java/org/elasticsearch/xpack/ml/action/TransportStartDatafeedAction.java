@@ -342,7 +342,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 RemoteClusterLicenseChecker.buildErrorMessage(
                         "ml",
                         licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isLicensePlatinumPlusOrTrial));
+                        RemoteClusterLicenseChecker::isAllowedByLicenseInfo));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 

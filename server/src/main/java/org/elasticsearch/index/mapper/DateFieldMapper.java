@@ -440,6 +440,12 @@ public final class DateFieldMapper extends FieldMapper {
                 }
             }
 
+            return isFieldWithinQuery(reader, fromInclusive, toInclusive, context);
+        }
+
+        @Override
+        public Relation isFieldWithinQuery(IndexReader reader, long fromInclusive, long toInclusive, QueryRewriteContext context)
+                throws IOException {
             // This check needs to be done after fromInclusive and toInclusive
             // are resolved so we can throw an exception if they are invalid
             // even if there are no points in the shard

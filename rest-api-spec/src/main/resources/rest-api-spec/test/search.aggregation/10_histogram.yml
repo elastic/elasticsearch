@@ -349,3 +349,33 @@ setup:
   - match: { aggregations.histo.buckets.1.doc_count: 2 }
   - match: { aggregations.histo.buckets.2.key_as_string: "2016-02-02T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.2.doc_count: 1 }
+
+---
+"date_histogram with pre-epoch daylight savings time transition":
+  - skip:
+      version: " - 7.99.99"
+      reason:  bug fixed in 8.0.0. will be backported to 7.6.1
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+            - '{"index": {}}'
+            - '{"date": "2016-01-01"}'
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: date
+                fixed_interval: 1ms
+                time_zone: America/Phoenix
+
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.histo.buckets: 1 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2015-12-31T17:00:00.000-07:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }

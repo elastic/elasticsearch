@@ -89,6 +89,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         ft.setName("my_date");
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
                 randomBoolean(), randomBoolean(), null, null, context));
+        assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, parse("2015-10-12"), parse("2016-04-03"), context));
     }
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader,
@@ -119,31 +120,43 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        long instant1 =
-            DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2015-10-12")).toInstant().toEpochMilli();
-        long instant2 =
-            DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2016-04-03")).toInstant().toEpochMilli();
         Document doc = new Document();
-        LongPoint field = new LongPoint("my_date", instant1);
+        LongPoint field = new LongPoint("my_date", parse("2015-10-12"));
         doc.add(field);
         w.addDocument(doc);
-        field.setLongValue(instant2);
+        field.setLongValue(parse("2016-04-03"));
         w.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(w);
         DateFieldType ft = new DateFieldType();
         ft.setName("my_date");
+
+        // Test the parsing version of isFieldWithinQuery which is mostly used by range queries
         DateMathParser alternateFormat = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
         doTestIsFieldWithinQuery(ft, reader, null, null);
         doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, alternateFormat);
 
+        // Test the "direct from long" version of isfieldWithinQuery which is used to optimize time zones
+        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2015-10-09"), parse("2016-01-02"), context));
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2016-01-02"), parse("2016-06-20"), context));
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2016-01-02"), parse("2016-02-12"), context));
+        assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, parse("2014-01-02"), parse("2015-02-12"), context));
+        assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, parse("2016-05-11"), parse("2016-08-30"), context));
+        assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, parse("2015-09-25"), parse("2016-05-29"), context));
+        assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, parse("2015-10-12"), parse("2016-04-03"), context));
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2015-10-12") + 1, parse("2016-04-03") - 1, context));
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2015-10-12") + 1, parse("2016-04-03"), context));
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2015-10-12"), parse("2016-04-03") - 1, context));
+
+
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType();
         ft2.setName("my_date2");
 
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
+        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, parse("2015-10-09"), parse("2016-01-02"), context));
         IOUtils.close(reader, w, dir);
     }
 
@@ -250,5 +263,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         reader.close();
         w.close();
         dir.close();
+    }
+
+    private long parse(String str) {
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(str)).toInstant().toEpochMilli();
     }
 }

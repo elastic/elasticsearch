@@ -419,10 +419,27 @@ public abstract class MappedFieldType extends FieldType {
      *  {@link Relation#INTERSECTS}, which is always fine to return when there is
      *  no way to check whether values are actually within bounds. */
     public Relation isFieldWithinQuery(
-        IndexReader reader,
-        Object from, Object to,
-        boolean includeLower, boolean includeUpper,
-        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+            IndexReader reader,
+            Object from, Object to,
+            boolean includeLower, boolean includeUpper,
+            ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+        return Relation.INTERSECTS;
+    }
+
+    /**
+     * Return whether all values of the given {@link IndexReader} are within the range,
+     * outside the range or cross the range. The default implementation returns
+     * {@link Relation#INTERSECTS}, which is always fine to return when there is
+     * no way to check whether values are actually within bounds.
+     *
+     * Use this instead of
+     * {@link #isFieldWithinQuery(IndexReader, Object, Object, boolean, boolean, ZoneId, DateMathParser, QueryRewriteContext)}
+     * when you *know* the {@code fromInclusive} and {@code toInclusive} are always
+     * floats.
+     */
+    public Relation isFieldWithinQuery(
+            IndexReader reader,
+            long fromInclusive, long toInclusive, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 

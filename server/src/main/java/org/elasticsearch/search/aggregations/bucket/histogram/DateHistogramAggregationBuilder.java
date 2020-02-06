@@ -474,8 +474,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                     // rounding rounds down, so 'nextTransition' is a good upper bound
                     final long high = nextTransition;
 
-                    if (ft.isFieldWithinQuery(reader, low, high, true, false, ZoneOffset.UTC, EPOCH_MILLIS_PARSER,
-                            context) == Relation.WITHIN) {
+                    if (ft.isFieldWithinQuery(reader, low, high - 1, context) == Relation.WITHIN) {
                         // All values in this reader have the same offset despite daylight saving times.
                         // This is very common for location-based timezones such as Europe/Paris in
                         // combination with time-based indices.

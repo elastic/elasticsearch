@@ -435,7 +435,7 @@ public abstract class MappedFieldType extends FieldType {
      * Use this instead of
      * {@link #isFieldWithinQuery(IndexReader, Object, Object, boolean, boolean, ZoneId, DateMathParser, QueryRewriteContext)}
      * when you *know* the {@code fromInclusive} and {@code toInclusive} are always
-     * floats.
+     * longs.
      */
     public Relation isFieldWithinQuery(
             IndexReader reader,

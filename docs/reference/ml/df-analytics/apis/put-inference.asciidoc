@@ -150,7 +150,7 @@ See <<ml-put-inference-preprocessor-example>> for more details.
 The definition for a binary decision tree.
 
 `tree`.`feature_names`:::
-(Required, string) 
+(Optional, string)
 Features expected by the tree, in their expected order.
 
 `tree`.`tree_structure`:::

@@ -319,7 +319,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     public static class Builder {
-        private List<String> featureNames;
+        private List<String> featureNames ;
         private List<TrainedModel> trainedModels;
         private OutputAggregator outputAggregator = new WeightedSum();
         private TargetType targetType = TargetType.REGRESSION;
@@ -327,8 +327,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         private double[] classificationWeights;
         private boolean modelsAreOrdered;
 
-        private Builder (boolean modelsAreOrdered) {
+        private Builder(boolean modelsAreOrdered) {
             this.modelsAreOrdered = modelsAreOrdered;
+            this.featureNames = Collections.emptyList();
         }
 
         private static Builder builderForParser() {

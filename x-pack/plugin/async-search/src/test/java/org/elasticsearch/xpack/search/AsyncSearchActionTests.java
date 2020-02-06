@@ -21,9 +21,12 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -52,10 +55,12 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", numShards).build());
         numKeywords = randomIntBetween(1, 100);
         keywordFreqs = new HashMap<>();
-        String[] keywords = new String[numKeywords];
+        Set<String> keywordSet = new HashSet<>();
         for (int i = 0; i < numKeywords; i++) {
-            keywords[i] = randomAlphaOfLengthBetween(10, 20);
+            keywordSet.add(randomAlphaOfLengthBetween(10, 20));
         }
+        numKeywords = keywordSet.size();
+        String[] keywords = keywordSet.toArray(String[]::new);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             float metric = randomFloat();
@@ -123,9 +128,8 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
     public void testTermsAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
-        int termsSize = randomIntBetween(1, numKeywords);
         SearchSourceBuilder source = new SearchSourceBuilder()
-            .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(termsSize).shardSize(termsSize*2));
+            .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(numKeywords));
         try (SearchResponseIterator it =
                  assertBlockingIterator(indexName, source, numFailures, step)) {
             AsyncSearchResponse response = it.next();
@@ -137,7 +141,7 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
                     assertNotNull(response.getSearchResponse().getAggregations().get("terms"));
                     StringTerms terms = response.getSearchResponse().getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), greaterThanOrEqualTo(0));
-                    assertThat(terms.getBuckets().size(), lessThanOrEqualTo(termsSize));
+                    assertThat(terms.getBuckets().size(), lessThanOrEqualTo(numKeywords));
                     for (InternalTerms.Bucket bucket : terms.getBuckets()) {
                         long count = keywordFreqs.getOrDefault(bucket.getKeyAsString(), new AtomicInteger(0)).get();
                         assertThat(bucket.getDocCount(), lessThanOrEqualTo(count));
@@ -152,7 +156,7 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
                 assertNotNull(response.getSearchResponse().getAggregations().get("terms"));
                 StringTerms terms = response.getSearchResponse().getAggregations().get("terms");
                 assertThat(terms.getBuckets().size(), greaterThanOrEqualTo(0));
-                assertThat(terms.getBuckets().size(), lessThanOrEqualTo(termsSize));
+                assertThat(terms.getBuckets().size(), lessThanOrEqualTo(numKeywords));
                 for (InternalTerms.Bucket bucket : terms.getBuckets()) {
                     long count = keywordFreqs.getOrDefault(bucket.getKeyAsString(), new AtomicInteger(0)).get();
                     if (numFailures > 0) {

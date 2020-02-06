@@ -45,6 +45,7 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.
@@ -70,14 +71,9 @@ final class JvmOptionsParser {
         if (Files.isDirectory(jvmOptionsDirectory)) {
             try (DirectoryStream<Path> jvmOptionsDirectoryStream =
                      Files.newDirectoryStream(Paths.get(args[0], "jvm.options.d"), "*.options")) {
-                final List<Path> jvmOptionsDirectoryFiles = new ArrayList<>();
-                for (final Path jvmOptionsDirectoryFile : jvmOptionsDirectoryStream) {
-                    jvmOptionsDirectoryFiles.add(jvmOptionsDirectoryFile);
-                }
-                jvmOptionsDirectoryFiles.sort(Path::compareTo);
-                jvmOptionsFiles.addAll(jvmOptionsDirectoryFiles);
+                // collect the matching JVM options files after sorting them by Path::compareTo
+                StreamSupport.stream(jvmOptionsDirectoryStream.spliterator(), false).sorted().forEach(jvmOptionsFiles::add);
             }
-
         }
 
         final List<String> jvmOptions = new ArrayList<>();

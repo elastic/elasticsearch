@@ -82,6 +82,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
         return new SecureString("test123".toCharArray());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51989")
     public void testDifferentCombinationsOfIndices() throws Exception {
         Client client = internalCluster().transportClient();
 

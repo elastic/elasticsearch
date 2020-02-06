@@ -299,8 +299,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("Joining queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
+            throw new ElasticsearchException("[joining] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());

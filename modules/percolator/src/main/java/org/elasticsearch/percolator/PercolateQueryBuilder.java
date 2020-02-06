@@ -494,8 +494,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("Percolate queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
+            throw new ElasticsearchException("[percolate] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
         // Call nowInMillis() so that this query becomes un-cacheable since we

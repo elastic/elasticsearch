@@ -365,7 +365,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
-        assertEquals("Joining queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+        assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 e.getMessage());
     }
 }

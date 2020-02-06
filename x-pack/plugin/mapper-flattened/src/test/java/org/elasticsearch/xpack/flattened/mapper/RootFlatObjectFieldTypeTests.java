@@ -85,7 +85,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.fuzzyQuery("value", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1,
                         randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Fuzzy queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+        assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }
 
@@ -105,8 +105,8 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.rangeQuery("lower", "upper", true, true, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Range queries on text or keyword fields cannot be executed when 'search.allow_expensive_queries' " +
-                "is set to false", ee.getMessage());
+        assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
+                "'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testRegexpQuery() {
@@ -119,7 +119,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.regexpQuery("val.*", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Regexp queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+        assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }
 
@@ -132,7 +132,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Wildcard queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+        assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }
 }

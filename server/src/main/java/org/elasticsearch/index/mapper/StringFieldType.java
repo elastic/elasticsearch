@@ -67,8 +67,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
             boolean transpositions, QueryShardContext context) {
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("Fuzzy queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
+            throw new ElasticsearchException("[fuzzy] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();
         return new FuzzyQuery(new Term(name(), indexedValueForSearch(value)),
@@ -78,9 +78,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("Prefix queries cannot be executed when '" +
+            throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
-                    "fields please enable [index_prefixes]");
+                    "fields please enable [index_prefixes].");
         }
         failIfNotIndexed();
         PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
@@ -98,8 +98,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
 
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("Wildcard queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
+            throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         Term term = MappedFieldType.extractTerm(termQuery);
 
@@ -112,8 +112,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
             MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("Regexp queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
+            throw new ElasticsearchException("[regexp] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();
         RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
@@ -126,8 +126,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("Range queries on text or keyword fields cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
+            throw new ElasticsearchException("[range] queries on [text] or [keyword] fields cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();
         return new TermRangeQuery(name(),

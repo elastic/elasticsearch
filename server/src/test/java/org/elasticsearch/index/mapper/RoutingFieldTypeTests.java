@@ -44,8 +44,8 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Prefix queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
-                "For optimised prefix queries on text fields please enable [index_prefixes]", ee.getMessage());
+        assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
+                "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
     }
 
     public void testRegexpQuery() {
@@ -58,7 +58,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.regexpQuery("foo?", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Regexp queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+        assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }
 
@@ -72,7 +72,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Wildcard queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+        assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }
 }

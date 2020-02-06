@@ -152,8 +152,8 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.rangeQuery("a", "b", true, true, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Range queries on text or keyword fields cannot be executed when 'search.allow_expensive_queries' " +
-                "is set to false", ee.getMessage());
+        assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
+                "'search.allow_expensive_queries' is set to false.", ee.getMessage());
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

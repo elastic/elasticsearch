@@ -156,7 +156,7 @@ teardown:
 
   ### Prefix
   - do:
-      catch: /Prefix queries cannot be executed when \'search.allow_expensive_queries\' is set to false. For optimised prefix queries on text fields please enable \[index_prefixes\]/
+      catch: /\[prefix\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false. For optimised prefix queries on text fields please enable \[index_prefixes\]./
       search:
         index: test
         body:
@@ -167,7 +167,7 @@ teardown:
 
   ### Fuzzy
   - do:
-      catch: /Fuzzy queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /\[fuzzy\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
       search:
         index: test
         body:
@@ -178,7 +178,7 @@ teardown:
 
   ### Regexp
   - do:
-      catch: /Regexp queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /\[regexp\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
       search:
         index: test
         body:
@@ -189,7 +189,7 @@ teardown:
 
   ### Wildcard
   - do:
-      catch: /Wildcard queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /\[wildcard\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
       search:
         index: test
         body:
@@ -200,7 +200,7 @@ teardown:
 
   ### Range on text
   - do:
-      catch: /Range queries on text or keyword fields cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /\[range\] queries on \[text\] or \[keyword\] fields cannot be executed when \'search.allow_expensive_queries\' is set to false./
       search:
         index: test
         body:
@@ -211,7 +211,7 @@ teardown:
 
   ### Range on keyword
   - do:
-      catch: /Range queries on text or keyword fields cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /\[range\] queries on \[text\] or \[keyword\] fields cannot be executed when \'search.allow_expensive_queries\' is set to false./
       search:
         index: test
         body:
@@ -222,7 +222,7 @@ teardown:
 
   ### Nested
   - do:
-      catch: /Joining queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /\[joining\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
       search:
         index: test
         body:

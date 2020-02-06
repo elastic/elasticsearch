@@ -338,16 +338,37 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testConsumer() {
+        consumerTestCase(0);
+    }
+
+    public void testConsumerWithEmptyResponse() {
+        consumerTestCase(randomIntBetween(1, 5));
+    }
+
+    private void consumerTestCase(int numEmptyResponses) {
+        int numShards = 3 + numEmptyResponses;
         int bufferSize = randomIntBetween(2, 3);
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(NOOP, request, 3);
-        assertEquals(0, reductions.size());
+        ArraySearchPhaseResults<SearchPhaseResult> consumer =
+            searchPhaseController.newSearchPhaseResults(NOOP, request, 3+numEmptyResponses);
+        if (numEmptyResponses == 0) {
+            assertEquals(0, reductions.size());
+        }
+        if (numEmptyResponses > 0) {
+            QuerySearchResult empty = QuerySearchResult.nullInstance();
+            int shardId = 2 + numEmptyResponses;
+            empty.setShardIndex(2+numEmptyResponses);
+            empty.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null, OriginalIndices.NONE));
+            consumer.consumeResult(empty);
+            numEmptyResponses --;
+        }
+
         QuerySearchResult result = new QuerySearchResult(0, new SearchShardTarget("node", new ShardId("a", "b", 0),
             null, OriginalIndices.NONE));
         result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-                new DocValueFormat[0]);
+            new DocValueFormat[0]);
         InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", 1.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
@@ -356,7 +377,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         result = new QuerySearchResult(1, new SearchShardTarget("node", new ShardId("a", "b", 0), null, OriginalIndices.NONE));
         result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-                new DocValueFormat[0]);
+            new DocValueFormat[0]);
         aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", 3.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
@@ -365,20 +386,38 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         result = new QuerySearchResult(1, new SearchShardTarget("node", new ShardId("a", "b", 0), null, OriginalIndices.NONE));
         result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-                new DocValueFormat[0]);
+            new DocValueFormat[0]);
         aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", 2.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
         result.setShardIndex(1);
         consumer.consumeResult(result);
+
+        while (numEmptyResponses > 0) {
+            result = QuerySearchResult.nullInstance();
+            int shardId = 2 + numEmptyResponses;
+            result.setShardIndex(shardId);
+            result.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null, OriginalIndices.NONE));
+            consumer.consumeResult(result);
+            numEmptyResponses--;
+
+        }
+
         final int numTotalReducePhases;
-        if (bufferSize == 2) {
+        if (numShards > bufferSize) {
             assertThat(consumer, instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class));
-            assertEquals(1, ((SearchPhaseController.QueryPhaseResultConsumer)consumer).getNumReducePhases());
-            assertEquals(2, ((SearchPhaseController.QueryPhaseResultConsumer)consumer).getNumBuffered());
-            assertEquals(1, reductions.size());
-            assertEquals(false, reductions.get(0));
-            numTotalReducePhases = 2;
+            if (bufferSize == 2) {
+                assertEquals(1, ((SearchPhaseController.QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(2, ((SearchPhaseController.QueryPhaseResultConsumer) consumer).getNumBuffered());
+                assertEquals(1, reductions.size());
+                assertEquals(false, reductions.get(0));
+                numTotalReducePhases = 2;
+            } else {
+                assertEquals(0, ((SearchPhaseController.QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(3, ((SearchPhaseController.QueryPhaseResultConsumer) consumer).getNumBuffered());
+                assertEquals(0, reductions.size());
+                numTotalReducePhases = 1;
+            }
         } else {
             assertThat(consumer, not(instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class)));
             assertEquals(0, reductions.size());

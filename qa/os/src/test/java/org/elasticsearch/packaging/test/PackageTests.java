@@ -24,7 +24,6 @@ import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
-import org.hamcrest.CoreMatchers;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
@@ -307,7 +306,7 @@ public class PackageTests extends PackagingTestCase {
             startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, CoreMatchers.containsString("\"heap_init_in_bytes\":536870912"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
             stopElasticsearch();
         } finally {

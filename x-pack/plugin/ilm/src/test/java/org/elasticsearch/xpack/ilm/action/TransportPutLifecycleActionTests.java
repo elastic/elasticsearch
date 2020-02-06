@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.SegmentCountStep;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.UpdateRolloverLifecycleDateStep;
+import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
@@ -122,6 +123,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             "      }", "phase"),
             contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
+                new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
                 new Step.StepKey("phase", "rollover", UpdateRolloverLifecycleDateStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverAction.INDEXING_COMPLETE_STEP_NAME)));
 
@@ -143,12 +145,13 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 "      }", "phase"),
             contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
+                new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
                 new Step.StepKey("phase", "rollover", UpdateRolloverLifecycleDateStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverAction.INDEXING_COMPLETE_STEP_NAME),
                 new Step.StepKey("phase", "set_priority", SetPriorityAction.NAME)));
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("forcemerge", new ForceMergeAction(5));
+        actions.put("forcemerge", new ForceMergeAction(5, null));
         actions.put("freeze", new FreezeAction());
         actions.put("allocate", new AllocateAction(1, null, null, null));
         PhaseExecutionInfo pei = new PhaseExecutionInfo("policy", new Phase("wonky", TimeValue.ZERO, actions), 1, 1);

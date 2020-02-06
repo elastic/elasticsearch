@@ -645,7 +645,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
             if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
-            createIndex(index, settings.build());
+            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
             ensureGreen(index);
             indexDocs(index, 0, randomIntBetween(100, 200));
             flush(index, randomBoolean());

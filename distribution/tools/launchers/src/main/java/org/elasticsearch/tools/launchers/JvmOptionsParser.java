@@ -61,45 +61,45 @@ final class JvmOptionsParser {
         }
         final List<String> jvmOptions = new ArrayList<>();
         final SortedMap<Integer, String> invalidLines = new TreeMap<>();
-        try (InputStream is = Files.newInputStream(Paths.get(args[0]));
-             Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
-             BufferedReader br = new BufferedReader(reader)) {
-            parse(
-                    JavaVersion.majorVersion(JavaVersion.CURRENT),
-                    br,
-                    new JvmOptionConsumer() {
-                        @Override
-                        public void accept(final String jvmOption) {
-                            jvmOptions.add(jvmOption);
-                        }
-                    },
-                    new InvalidLineConsumer() {
-                        @Override
-                        public void accept(final int lineNumber, final String line) {
-                            invalidLines.put(lineNumber, line);
-                        }
-                    });
+        try (
+            InputStream is = Files.newInputStream(Paths.get(args[0]));
+            Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
+            BufferedReader br = new BufferedReader(reader)
+        ) {
+            parse(JavaVersion.majorVersion(JavaVersion.CURRENT), br, new JvmOptionConsumer() {
+                @Override
+                public void accept(final String jvmOption) {
+                    jvmOptions.add(jvmOption);
+                }
+            }, new InvalidLineConsumer() {
+                @Override
+                public void accept(final int lineNumber, final String line) {
+                    invalidLines.put(lineNumber, line);
+                }
+            });
         }
 
         if (invalidLines.isEmpty()) {
             // now append the JVM options from ES_JAVA_OPTS
             final String environmentJvmOptions = System.getenv("ES_JAVA_OPTS");
             if (environmentJvmOptions != null) {
-                jvmOptions.addAll(Arrays.stream(environmentJvmOptions.split("\\s+"))
+                jvmOptions.addAll(
+                    Arrays.stream(environmentJvmOptions.split("\\s+"))
                         .filter(Predicate.not(String::isBlank))
-                        .collect(Collectors.toUnmodifiableList()));
+                        .collect(Collectors.toUnmodifiableList())
+                );
             }
             final Map<String, String> substitutions = new HashMap<>();
             substitutions.put("ES_TMPDIR", System.getenv("ES_TMPDIR"));
-            if (null != System.getenv("ES_PATH_CONF")){
+            if (null != System.getenv("ES_PATH_CONF")) {
                 substitutions.put("ES_PATH_CONF", System.getenv("ES_PATH_CONF"));
             }
-            final List<String> substitutedJvmOptions =
-                substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
+            final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
             final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
-            final List<String> finalJvmOptions =
-                new ArrayList<>(systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size());
+            final List<String> finalJvmOptions = new ArrayList<>(
+                systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size()
+            );
             finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
             finalJvmOptions.addAll(substitutedJvmOptions);
             finalJvmOptions.addAll(ergonomicJvmOptions);
@@ -108,21 +108,23 @@ final class JvmOptionsParser {
             Launchers.exit(0);
         } else {
             final String errorMessage = String.format(
-                    Locale.ROOT,
-                    "encountered [%d] error%s parsing [%s]",
-                    invalidLines.size(),
-                    invalidLines.size() == 1 ? "" : "s",
-                    args[0]);
+                Locale.ROOT,
+                "encountered [%d] error%s parsing [%s]",
+                invalidLines.size(),
+                invalidLines.size() == 1 ? "" : "s",
+                args[0]
+            );
             Launchers.errPrintln(errorMessage);
             int count = 0;
             for (final Map.Entry<Integer, String> entry : invalidLines.entrySet()) {
                 count++;
                 final String message = String.format(
-                        Locale.ROOT,
-                        "[%d]: encountered improperly formatted JVM option line [%s] on line number [%d]",
-                        count,
-                        entry.getValue(),
-                        entry.getKey());
+                    Locale.ROOT,
+                    "[%d]: encountered improperly formatted JVM option line [%s] on line number [%d]",
+                    count,
+                    entry.getValue(),
+                    entry.getKey()
+                );
                 Launchers.errPrintln(message);
             }
             Launchers.exit(1);
@@ -130,21 +132,19 @@ final class JvmOptionsParser {
     }
 
     static List<String> substitutePlaceholders(final List<String> jvmOptions, final Map<String, String> substitutions) {
-        final Map<String, String> placeholderSubstitutions =
-            substitutions.entrySet().stream().collect(Collectors.toMap(e -> "${" + e.getKey() + "}", Map.Entry::getValue));
-        return jvmOptions.stream()
-            .map(
-                jvmOption -> {
-                    String actualJvmOption = jvmOption;
-                    int start = jvmOption.indexOf("${");
-                    if (start >= 0 && jvmOption.indexOf('}', start) > 0) {
-                        for (final Map.Entry<String, String> placeholderSubstitution : placeholderSubstitutions.entrySet()) {
-                            actualJvmOption = actualJvmOption.replace(placeholderSubstitution.getKey(), placeholderSubstitution.getValue());
-                        }
-                    }
-                    return actualJvmOption;
-                })
-            .collect(Collectors.toList());
+        final Map<String, String> placeholderSubstitutions = substitutions.entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> "${" + e.getKey() + "}", Map.Entry::getValue));
+        return jvmOptions.stream().map(jvmOption -> {
+            String actualJvmOption = jvmOption;
+            int start = jvmOption.indexOf("${");
+            if (start >= 0 && jvmOption.indexOf('}', start) > 0) {
+                for (final Map.Entry<String, String> placeholderSubstitution : placeholderSubstitutions.entrySet()) {
+                    actualJvmOption = actualJvmOption.replace(placeholderSubstitution.getKey(), placeholderSubstitution.getValue());
+                }
+            }
+            return actualJvmOption;
+        }).collect(Collectors.toList());
     }
 
     /**
@@ -230,10 +230,11 @@ final class JvmOptionsParser {
      * @throws IOException if an I/O exception occurs reading from the buffered reader
      */
     static void parse(
-            final int javaMajorVersion,
-            final BufferedReader br,
-            final JvmOptionConsumer jvmOptionConsumer,
-            final InvalidLineConsumer invalidLineConsumer) throws IOException {
+        final int javaMajorVersion,
+        final BufferedReader br,
+        final JvmOptionConsumer jvmOptionConsumer,
+        final InvalidLineConsumer invalidLineConsumer
+    ) throws IOException {
         int lineNumber = 0;
         while (true) {
             final String line = br.readLine();

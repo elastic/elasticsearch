@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.yaml.snakeyaml.util.UriEncoder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertTrue((Boolean) ml.get("enabled"));
     }
 
-    public void testInvalidJob() throws Exception {
+    public void testInvalidJob() {
         // The job name is invalid because it contains a space
         String jobId = "invalid job";
         ResponseException e = expectThrows(ResponseException.class, () -> createFarequoteJob(jobId));
@@ -103,11 +104,15 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
     }
 
     public void testMiniFarequoteWithDatafeeder() throws Exception {
+        boolean datesHaveNanoSecondResolution = randomBoolean();
+        String dateMappingType = datesHaveNanoSecondResolution ? "date_nanos" : "date";
+        String dateFormat = datesHaveNanoSecondResolution ? "strict_date_optional_time_nanos" : "strict_date_optional_time";
+        String randomNanos = datesHaveNanoSecondResolution ? "," + randomIntBetween(100000000, 999999999) : "";
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
         createAirlineDataRequest.setJsonEntity("{"
                 + "  \"mappings\": {"
                 + "    \"properties\": {"
-                + "      \"time\": { \"type\":\"date\"},"
+                + "      \"time\": { \"type\":\"" + dateMappingType + "\", \"format\":\"" + dateFormat + "\"},"
                 + "      \"airline\": { \"type\":\"keyword\"},"
                 + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
@@ -115,10 +120,10 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                 + "}");
         client().performRequest(createAirlineDataRequest);
         Request airlineData1 = new Request("PUT", "/airline-data/_doc/1");
-        airlineData1.setJsonEntity("{\"time\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}");
+        airlineData1.setJsonEntity("{\"time\":\"2016-06-01T00:00:00" + randomNanos + "Z\",\"airline\":\"AAA\",\"responsetime\":135.22}");
         client().performRequest(airlineData1);
         Request airlineData2 = new Request("PUT", "/airline-data/_doc/2");
-        airlineData2.setJsonEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}");
+        airlineData2.setJsonEntity("{\"time\":\"2016-06-01T01:59:00" + randomNanos + "Z\",\"airline\":\"AAA\",\"responsetime\":541.76}");
         client().performRequest(airlineData2);
 
         // Ensure all data is searchable
@@ -147,7 +152,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                 assertEquals(2, dataCountsDoc.get("input_record_count"));
                 assertEquals(2, dataCountsDoc.get("processed_record_count"));
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
         });
 
@@ -233,7 +238,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(1000, responseBody2.get("bucket_count"));
 
         // unintuitive: should return the earliest record timestamp of this feed???
-        assertEquals(null, responseBody2.get("earliest_record_timestamp"));
+        assertNull(responseBody2.get("earliest_record_timestamp"));
         assertEquals(1407082000000L, responseBody2.get("latest_record_timestamp"));
 
         assertEquals(Collections.singletonMap("closed", true),

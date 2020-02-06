@@ -51,11 +51,9 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -285,19 +283,14 @@ public class MetaDataIndexTemplateService {
             templateBuilder.patterns(request.indexPatterns);
             templateBuilder.settings(request.settings);
 
-            Map<String, Map<String, Object>> mappingsForValidation = new HashMap<>();
-            for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
+            if (request.mappings != null) {
                 try {
-                    templateBuilder.putMapping(entry.getKey(), entry.getValue());
+                    templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
                 } catch (Exception e) {
-                    throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
+                    throw new MapperParsingException("Failed to parse mapping: {}", e, request.mappings);
                 }
-                mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
-            }
-            if (mappingsForValidation.isEmpty() == false) {
-                assert mappingsForValidation.size() == 1;
-                String type = mappingsForValidation.keySet().iterator().next();
-                dummyIndexService.mapperService().merge(type, mappingsForValidation.get(type), MergeReason.MAPPING_UPDATE);
+                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
+                    MapperService.parseMapping(xContentRegistry, request.mappings), MergeReason.MAPPING_UPDATE);
             }
 
         } finally {
@@ -390,7 +383,7 @@ public class MetaDataIndexTemplateService {
         Integer version;
         List<String> indexPatterns;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
-        Map<String, String> mappings = new HashMap<>();
+        String mappings = null;
         List<Alias> aliases = new ArrayList<>();
 
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
@@ -420,18 +413,13 @@ public class MetaDataIndexTemplateService {
             return this;
         }
 
-        public PutRequest mappings(Map<String, String> mappings) {
-            this.mappings.putAll(mappings);
+        public PutRequest mappings(String mappings) {
+            this.mappings = mappings;
             return this;
         }
 
         public PutRequest aliases(Set<Alias> aliases) {
             this.aliases.addAll(aliases);
-            return this;
-        }
-
-        public PutRequest putMapping(String mappingType, String mappingSource) {
-            mappings.put(mappingType, mappingSource);
             return this;
         }
 

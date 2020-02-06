@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.function.Score;
@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -348,9 +349,9 @@ public class QueryContainer {
          */
         if (fieldAttr.field().isAlias() == false) {
             while (actualField.parent() != null
-                    && actualField.parent().field().getDataType() != DataType.OBJECT
-                    && actualField.parent().field().getDataType() != DataType.NESTED
-                    && actualField.field().getDataType().isFromDocValuesOnly() == false) {
+                    && actualField.parent().field().getDataType() != DataTypes.OBJECT
+                    && actualField.parent().field().getDataType() != DataTypes.NESTED
+                    && SqlDataTypes.isFromDocValuesOnly(actualField.field().getDataType()) == false) {
                 actualField = actualField.parent();
             }
         }
@@ -365,7 +366,9 @@ public class QueryContainer {
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
-                attr.nestedParent().name(), name, attr.field().getDataType().format(), attr.field().getDataType().isFromDocValuesOnly());
+                attr.nestedParent().name(), name, 
+                SqlDataTypes.format(attr.field().getDataType()), 
+                SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
                 false, attr.parent().name());

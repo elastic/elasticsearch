@@ -32,6 +32,34 @@ SELECT dep.dep_name.keyword FROM test_emp GROUP BY languages;
 --------------------------------------------------
 
 [float]
+=== Scalar functions on nested fields are not allowed in `WHERE` and `ORDER BY` clauses
+{es-sql} doesn't support the usage of scalar functions on top of nested fields in `WHERE`
+and `ORDER BY` clauses with the exception of comparison and logical operators.
+
+For example:
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp WHERE LENGTH(dep.dep_name.keyword) > 5;
+--------------------------------------------------
+
+and
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp ORDER BY YEAR(dep.start_date);
+--------------------------------------------------
+
+are not supported but:
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp WHERE dep.start_date >= CAST('2020-01-01' AS DATE) OR dep.dep_end_date IS NULL;
+--------------------------------------------------
+
+is supported.
+
+[float]
 === Multi-nested fields
 
 {es-sql} doesn't support multi-nested documents, so a query cannot reference more than one nested field in an index.

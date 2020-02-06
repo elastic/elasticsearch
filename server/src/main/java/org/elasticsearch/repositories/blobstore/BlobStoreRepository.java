@@ -1487,7 +1487,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
-                              ActionListener<String> listener) {
+                              Map<String, Object> userMetadata, ActionListener<String> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
         try {

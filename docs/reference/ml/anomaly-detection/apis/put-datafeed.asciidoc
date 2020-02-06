@@ -26,7 +26,12 @@ cluster privileges to use this API. See
 [[ml-put-datafeed-desc]]
 ==== {api-description-title}
 
-You can associate only one {dfeed} to each {anomaly-job}.
+{ml-docs}/ml-dfeeds.html[{dfeeds-cap}] retrieve data from {es} for analysis by
+an {anomaly-job}. You can associate only one {dfeed} to each {anomaly-job}.
+
+The {dfeed} contains a query that runs at a defined interval (`frequency`). If
+you are concerned about delayed data, you can add a delay (`query_delay`) at
+each interval. See {ml-docs}/ml-delayed-data-detection.html[Handling delayed data].
 
 [IMPORTANT]
 ====
@@ -64,11 +69,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
 `frequency`::
 (Optional, <<time-units, time units>>)
 include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
-+
---
-To learn more about the relationship between time related settings, see 
-<<ml-put-datafeed-time-related-settings>>.
---
 
 `indices`::
 (Required, array)
@@ -89,11 +89,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=query]
 `query_delay`::
 (Optional, <<time-units, time units>>)
 include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
-+
---
-To learn more about the relationship between time related settings, see 
-<<ml-put-datafeed-time-related-settings>>.
---
 
 `script_fields`::
 (Optional, object)
@@ -102,20 +97,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
 `scroll_size`::
 (Optional, unsigned integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
-
-
-[[ml-put-datafeed-time-related-settings]]
-===== Interaction between time-related settings
-
-Time-related settings have the following relationships:
-
-* Queries run at `query_delay` after the end of 
-  each `frequency`.
-  
-* When `frequency` is shorter than `bucket_span` of the associated job, interim 
-  results for the last (partial) bucket are written, and then overwritten by the 
-  full bucket results eventually.
-
 
 [[ml-put-datafeed-example]]
 ==== {api-examples-title}

@@ -19,13 +19,14 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.FieldCardinalityConstraint;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
+import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
@@ -51,7 +52,7 @@ public class ExtractedFieldsDetector {
      * Fields to ignore. These are mostly internal meta fields.
      */
     private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", DataFrameAnalyticsIndex.ID_COPY);
+        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.ID_COPY);
 
     private final String[] index;
     private final DataFrameAnalyticsConfig config;
@@ -284,15 +285,8 @@ public class ExtractedFieldsDetector {
     }
 
     private void checkFieldsWithCardinalityLimit() {
-        for (Map.Entry<String, Long> entry : config.getAnalysis().getFieldCardinalityLimits().entrySet()) {
-            String fieldName = entry.getKey();
-            long limit = entry.getValue();
-            long cardinality = fieldCardinalities.get(fieldName);
-            if (cardinality > limit) {
-                throw ExceptionsHelper.badRequestException(
-                        "Field [{}] must have at most [{}] distinct values but there were at least [{}]",
-                        fieldName, limit, cardinality);
-            }
+        for (FieldCardinalityConstraint constraint : config.getAnalysis().getFieldCardinalityConstraints()) {
+            constraint.check(fieldCardinalities.get(constraint.getField()));
         }
     }
 

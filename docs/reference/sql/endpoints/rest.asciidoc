@@ -8,6 +8,7 @@
 * <<sql-pagination>>
 * <<sql-rest-filtering>>
 * <<sql-rest-columnar>>
+* <<sql-rest-params>>
 * <<sql-rest-fields>>
 
 [[sql-rest-overview]]
@@ -337,7 +338,7 @@ Which will like return the
 [[sql-rest-filtering]]
 === Filtering using {es} query DSL
 
-You can filter the results that SQL will run on using a standard
+One can filter the results that SQL will run on using a standard
 {es} query DSL by specifying the query in the filter
 parameter.
 
@@ -442,6 +443,36 @@ Which looks like:
 --------------------------------------------------
 // TESTRESPONSE[s/46ToAwFzQERYRjFaWEo1UVc1a1JtVjBZMmdCQUFBQUFBQUFBQUVXWjBaNlFXbzNOV0pVY21Wa1NUZDJhV2t3V2xwblp3PT3\/\/\/\/\/DwQBZgZhdXRob3IBBHRleHQAAAFmBG5hbWUBBHRleHQAAAFmCnBhZ2VfY291bnQBBGxvbmcBAAFmDHJlbGVhc2VfZGF0ZQEIZGF0ZXRpbWUBAAEP/$body.cursor/]
 
+[[sql-rest-params]]
+=== Passing parameters to a query
+
+Using values in a query condition, for example, or in a `HAVING` statement can be done "inline",
+by integrating the value in the query string itself:
+
+[source,console]
+--------------------------------------------------
+POST /_sql?format=txt
+{
+	"query": "SELECT YEAR(release_date) AS year FROM library WHERE page_count > 300 AND author = 'Frank Herbert' GROUP BY year HAVING COUNT(*) > 0"
+}
+--------------------------------------------------
+// TEST[setup:library]
+
+or it can be done by extracting the values in a separate list of parameters and using question mark placeholders (`?`) in the query string:
+
+[source,console]
+--------------------------------------------------
+POST /_sql?format=txt
+{
+	"query": "SELECT YEAR(release_date) AS year FROM library WHERE page_count > ? AND author = ? GROUP BY year HAVING COUNT(*) > ?",
+	"params": [300, "Frank Herbert", 0]
+}
+--------------------------------------------------
+// TEST[setup:library]
+
+[IMPORTANT]
+The recommended way of passing values to a query is with question mark placeholders, to avoid any attempts of hacking or SQL injection.
+
 [[sql-rest-fields]]
 === Supported REST parameters
 
@@ -494,6 +525,10 @@ More information available https://docs.oracle.com/javase/8/docs/api/java/time/Z
 |index_include_frozen
 |false
 |Whether to include <<frozen-indices, frozen-indices>> in the query execution or not (default).
+
+|params
+|none
+|Optional list of parameters to replace question mark (`?`) placeholders inside the query.
 
 |===
 

@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  */
 public class CompositeAggCursor implements Cursor {
 
-    private final Logger log = LogManager.getLogger(getClass());
+    private static final Logger log = LogManager.getLogger(CompositeAggCursor.class);
 
     public static final String NAME = "c";
 
@@ -167,6 +167,9 @@ public class CompositeAggCursor implements Cursor {
             ActionListener<Page> listener,
             Schema schema) {
         
+        if (log.isTraceEnabled()) {
+            Querier.logSearchResponse(response, log);
+        }
         // there are some results
         if (response.getAggregations().asList().isEmpty() == false) {
             // retry

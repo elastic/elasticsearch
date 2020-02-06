@@ -21,9 +21,8 @@ clients connect directly to {es}.
 
 . Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
 `xpack.security.authc.realms.pki` namespace.
-If you are configuring multiple realms, you should 
-explicitly set the `order` attribute. See <<ref-pki-settings>> for all of the 
-options you can set for a `pki` realm.
+You must explicitly set the `order` attribute. See <<ref-pki-settings>> for all
+of the options you can set for a `pki` realm.
 +
 --
 For example, the following snippet shows the most basic `pki` realm configuration:
@@ -61,6 +60,7 @@ xpack:
       realms:
         pki:
           pki1:
+            order: 1
             username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
 ------------------------------------------------------------
 
@@ -118,6 +118,7 @@ xpack:
       realms:
         pki:
           pki1:
+            order: 1
             truststore:
               path: "pki1_truststore.jks"
 ------------------------------------------------------------

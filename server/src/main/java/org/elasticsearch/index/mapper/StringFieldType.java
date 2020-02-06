@@ -124,6 +124,10 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        if (context.isAllowExpensiveQueries() == false) {
+            throw new ElasticsearchException("Range queries on text or keyword fields cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
+        }
         failIfNotIndexed();
         return new TermRangeQuery(name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),

@@ -6,13 +6,16 @@ setup:
 
   - do:
       indices.create:
-        index:  test
+        index: test
         body:
           mappings:
             properties:
               text:
                 type: text
                 analyzer: standard
+                fields:
+                  raw:
+                    type: keyword
               nested1:
                 type: nested
 
@@ -103,10 +106,34 @@ teardown:
 
   - match: { hits.total.value: 3 }
 
+  ### Range on text
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              text:
+                gte: "theres"
+
+  - match: { hits.total.value: 2 }
+
+  ### Range on keyword
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              text.raw:
+                gte : "Outside it is cold and wet"
+
+  - match: { hits.total.value: 2 }
+
   ### Nested
   - do:
       search:
-        index:  test
+        index: test
         body:
           query:
             nested:
@@ -129,7 +156,7 @@ teardown:
 
   ### Prefix
   - do:
-      catch: /prefix queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /Prefix queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index: test
         body:
@@ -140,7 +167,7 @@ teardown:
 
   ### Fuzzy
   - do:
-      catch: /fuzzy queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /Fuzzy queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index: test
         body:
@@ -151,7 +178,7 @@ teardown:
 
   ### Regexp
   - do:
-      catch: /regexp queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /Regexp queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index: test
         body:
@@ -162,7 +189,7 @@ teardown:
 
   ### Wildcard
   - do:
-      catch: /wildcard queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /Wildcard queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index: test
         body:
@@ -171,11 +198,33 @@ teardown:
               text:
                 value: out?ide
 
+  ### Range on text
+  - do:
+      catch: /Range queries on text or keyword fields cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      search:
+        index: test
+        body:
+          query:
+            range:
+              text:
+                gte: "theres"
+
+  ### Range on keyword
+  - do:
+      catch: /Range queries on text or keyword fields cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      search:
+        index: test
+        body:
+          query:
+            range:
+              text.raw:
+                gte : "Outside it is cold and wet"
+
   ### Nested
   - do:
-      catch: /joining queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
+      catch: /Joining queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
-        index:  test
+        index: test
         body:
           query:
             nested:
@@ -242,10 +291,34 @@ teardown:
 
   - match: { hits.total.value: 3 }
 
+  ### Range on text
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              text:
+                gte: "theres"
+
+  - match: { hits.total.value: 2 }
+
+  ### Range on keyword
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              text.raw:
+                gte: "Outside it is cold and wet"
+
+  - match: { hits.total.value: 2 }
+
   ### Nested
   - do:
       search:
-        index:  test
+        index: test
         body:
           query:
             nested:

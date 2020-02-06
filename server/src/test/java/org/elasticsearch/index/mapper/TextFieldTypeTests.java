@@ -30,11 +30,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.junit.Before;
 
@@ -130,6 +132,19 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.termsQuery(Arrays.asList("foo", "bar"), null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testRangeQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
+                ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("Range queries on text or keyword fields cannot be executed when 'search.allow_expensive_queries' " +
+                "is set to false", ee.getMessage());
     }
 
     public void testRegexpQuery() {

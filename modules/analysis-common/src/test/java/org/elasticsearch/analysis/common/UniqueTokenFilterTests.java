@@ -21,17 +21,26 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class UniqueTokenFilterTests extends ESTestCase {
     public void testSimple() throws IOException {
@@ -46,14 +55,18 @@ public class UniqueTokenFilterTests extends ESTestCase {
         TokenStream test = analyzer.tokenStream("test", "this test with test");
         test.reset();
         CharTermAttribute termAttribute = test.addAttribute(CharTermAttribute.class);
+        PositionIncrementAttribute positionIncrement = test.addAttribute(PositionIncrementAttribute.class);
         assertThat(test.incrementToken(), equalTo(true));
         assertThat(termAttribute.toString(), equalTo("this"));
+        assertEquals(1, positionIncrement.getPositionIncrement());
 
         assertThat(test.incrementToken(), equalTo(true));
         assertThat(termAttribute.toString(), equalTo("test"));
+        assertEquals(1, positionIncrement.getPositionIncrement());
 
         assertThat(test.incrementToken(), equalTo(true));
         assertThat(termAttribute.toString(), equalTo("with"));
+        assertEquals(1, positionIncrement.getPositionIncrement());
 
         assertThat(test.incrementToken(), equalTo(false));
     }
@@ -102,5 +115,50 @@ public class UniqueTokenFilterTests extends ESTestCase {
                 new int[]{3, 3, 3, 7, 7, 7, 11, 11, 23},
                 new int[]{1, 0, 0, 1, 0, 0, 1, 0, 3});
         analyzer.close();
+    }
+
+    /**
+     * For bwc reasons we need to return the legacy filter for indices create before 7.7
+     */
+    public void testOldVersionGetXUniqueTokenFilter() throws IOException {
+
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_6_0))
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        try (CommonAnalysisPlugin plugin = new CommonAnalysisPlugin()) {
+
+            TokenFilterFactory tff = plugin.getTokenFilters().get("unique").get(idxSettings, null, "unique", settings);
+            TokenStream ts = tff.create(new TokenStream() {
+
+                @Override
+                public boolean incrementToken() throws IOException {
+                    return false;
+                }
+            });
+            assertThat(ts, instanceOf(XUniqueTokenFilter.class));
+        }
+    }
+
+    public void testNewVersionGetUniqueTokenFilter() throws IOException {
+
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT))
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        try (CommonAnalysisPlugin plugin = new CommonAnalysisPlugin()) {
+
+            TokenFilterFactory tff = plugin.getTokenFilters().get("unique").get(idxSettings, null, "unique", settings);
+            TokenStream ts = tff.create(new TokenStream() {
+
+                @Override
+                public boolean incrementToken() throws IOException {
+                    return false;
+                }
+            });
+            assertThat(ts, instanceOf(UniqueTokenFilter.class));
+        }
     }
 }

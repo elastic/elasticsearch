@@ -28,9 +28,12 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import java.io.IOException;
 
 /**
- * A token filter that generates unique tokens. Can remove unique tokens only on the same
- * position increments as well.
+ * A token filter that generates unique tokens. Can remove unique tokens only on the same position increments as well.
+ *
+ * @deprecated this filter an old implementation superseded by {@link UniqueTokenFilter} only here for bwc reasons and should not be used
+ * any more. For details see https://github.com/elastic/elasticsearch/issues/35411
  */
+// TODO remove this filter in 9.0.0
 @Deprecated
 class XUniqueTokenFilter extends TokenFilter {
 

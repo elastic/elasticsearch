@@ -37,7 +37,7 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0) == false) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_7_0) == false) {
             return new XUniqueTokenFilter(tokenStream, onlyOnSamePosition);
         }
         return new UniqueTokenFilter(tokenStream, onlyOnSamePosition);

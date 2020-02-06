@@ -98,6 +98,12 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                             .setTotalPartitionFieldCount(103L)
                                                             .setBucketAllocationFailuresCount(104L)
                                                             .setMemoryStatus(ModelSizeStats.MemoryStatus.OK)
+                                                            .setCategorizedDocCount(42)
+                                                            .setTotalCategoryCount(8)
+                                                            .setFrequentCategoryCount(4)
+                                                            .setRareCategoryCount(2)
+                                                            .setDeadCategoryCount(1)
+                                                            .setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN)
                                                             .setTimestamp(date1)
                                                             .setLogTime(date2)
                                                             .build();
@@ -157,6 +163,12 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                 + "      \"total_partition_field_count\": 103,"
                 + "      \"bucket_allocation_failures_count\": 104,"
                 + "      \"memory_status\": \"ok\","
+                + "      \"categorized_doc_count\": 42,"
+                + "      \"total_category_count\": 8,"
+                + "      \"frequent_category_count\": 4,"
+                + "      \"rare_category_count\": 2,"
+                + "      \"dead_category_count\": 1,"
+                + "      \"categorization_status\": \"warn\","
                 + "      \"log_time\": 1483315322002,"
                 + "      \"timestamp\": 1483228861001"
                 + "    },"

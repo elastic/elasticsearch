@@ -103,7 +103,12 @@ public class UnboundCallNode extends ArgumentsNode {
                 argumentNode.write(classWriter, methodWriter, globals, scopeTable);
             }
 
-            methodWriter.invokeStatic(CLASS_TYPE, localFunction.getAsmMethod());
+            if (localFunction.isStatic()) {
+                methodWriter.invokeStatic(CLASS_TYPE, localFunction.getAsmMethod());
+            } else {
+                methodWriter.loadThis();
+                methodWriter.invokeVirtual(CLASS_TYPE, localFunction.getAsmMethod());
+            }
         } else if (importedMethod != null) {
             for (ExpressionNode argumentNode : getArgumentNodes()) {
                 argumentNode.write(classWriter, methodWriter, globals, scopeTable);

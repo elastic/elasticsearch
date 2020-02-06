@@ -1214,7 +1214,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         final Request request = new Request("GET", "_nodes");
         request.addParameter("filter_path", "nodes.*.version");
 
-        final Response response = client().performRequest(request);
+        final Response response = adminClient().performRequest(request);
         final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
 
         Version minVersion = null;

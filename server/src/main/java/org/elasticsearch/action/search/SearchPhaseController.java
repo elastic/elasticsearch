@@ -664,9 +664,9 @@ public final class SearchPhaseController {
                     }
                     numReducePhases++;
                     index = 1;
-                    if (hasAggs) {
+                    if (hasAggs || hasTopDocs) {
                         progressListener.notifyPartialReduce(progressListener.searchShards(processedShards),
-                            topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
+                            topDocsStats.getTotalHits(),  hasAggs ? aggsBuffer[0] : null, numReducePhases);
                     }
                 }
                 final int i = index++;

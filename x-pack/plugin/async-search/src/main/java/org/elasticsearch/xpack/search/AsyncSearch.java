@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -37,7 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-public final class AsyncSearchPlugin extends Plugin implements ActionPlugin {
+public final class AsyncSearch extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
@@ -69,11 +70,16 @@ public final class AsyncSearchPlugin extends Plugin implements ActionPlugin {
                                                Environment environment,
                                                NodeEnvironment nodeEnvironment,
                                                NamedWriteableRegistry namedWriteableRegistry) {
-        AsyncSearchIndexService indexService =
-            new AsyncSearchIndexService(clusterService, threadPool.getThreadContext(), client, namedWriteableRegistry);
-        AsyncSearchMaintenanceService maintenanceService =
-            new AsyncSearchMaintenanceService(nodeEnvironment.nodeId(), threadPool, indexService, TimeValue.timeValueHours(1));
-        clusterService.addListener(maintenanceService);
-        return Collections.singletonList(maintenanceService);
+        if (DiscoveryNode.isDataNode(environment.settings())) {
+            // only data nodes should be eligible to run the maintenance service.
+            AsyncSearchIndexService indexService =
+                new AsyncSearchIndexService(clusterService, threadPool.getThreadContext(), client, namedWriteableRegistry);
+            AsyncSearchMaintenanceService maintenanceService =
+                new AsyncSearchMaintenanceService(nodeEnvironment.nodeId(), threadPool, indexService, TimeValue.timeValueHours(1));
+            clusterService.addListener(maintenanceService);
+            return Collections.singletonList(maintenanceService);
+        } else {
+            return Collections.emptyList();
+        }
     }
 }

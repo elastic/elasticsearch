@@ -59,9 +59,7 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
             // Wait until the gateway has recovered from disk.
             return;
         }
-        if (state.nodes().getLocalNode().isDataNode()) {
-            tryStartCleanup(state);
-        }
+        tryStartCleanup(state);
     }
 
     void tryStartCleanup(ClusterState state) {

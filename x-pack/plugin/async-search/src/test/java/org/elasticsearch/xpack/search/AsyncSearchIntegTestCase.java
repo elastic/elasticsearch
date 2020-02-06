@@ -72,7 +72,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearchPlugin.class, IndexLifecycle.class,
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, IndexLifecycle.class,
             QueryBlockPlugin.class, ReindexPlugin.class);
     }
 

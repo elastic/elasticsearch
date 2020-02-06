@@ -69,7 +69,6 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                 }
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-                request.setKeepAlive(TimeValue.MINUS_ONE);
                 transportService.sendRequest(node, GetAsyncSearchAction.NAME, request, builder.build(),
                     new ActionListenerResponseHandler<>(listener, AsyncSearchResponse::new, ThreadPool.Names.SAME));
             }
@@ -135,10 +134,13 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                                    AsyncSearchResponse response,
                                    long nowInMillis,
                                    ActionListener<AsyncSearchResponse> listener) {
+        // check if the result has expired
         if (response.getExpirationTime() < nowInMillis) {
             listener.onFailure(new ResourceNotFoundException(request.getId()));
             return;
         }
+
+        // check last version
         if (response.getVersion() <= request.getLastVersion()) {
             // return a not-modified response
             listener.onResponse(new AsyncSearchResponse(response.getId(), response.getVersion(),

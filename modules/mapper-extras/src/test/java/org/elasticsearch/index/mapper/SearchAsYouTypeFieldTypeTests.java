@@ -114,6 +114,6 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
-                "For optimised prefix queries on text fields please enable [index_prefixes]", ee.getMessage());
+                "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
     }
 }

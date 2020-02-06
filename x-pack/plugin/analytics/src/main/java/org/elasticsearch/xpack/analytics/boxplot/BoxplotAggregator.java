@@ -99,37 +99,11 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public double metric(String name, long owningBucketOrd) {
+        TDigestState state = null;
         if (valuesSource != null && owningBucketOrd < states.size()) {
-            TDigestState state = states.get(owningBucketOrd);
-            if (state != null) {
-                switch (InternalBoxplot.Metrics.resolve(name)) {
-                    case min:
-                        return state.getMin();
-                    case max:
-                        return state.getMax();
-                    case q1:
-                        return state.quantile(0.25);
-                    case q2:
-                        return state.quantile(0.5);
-                    case q3:
-                        return state.quantile(0.75);
-                    default:
-                        throw new IllegalArgumentException("Unknown value [" + name + "] in boxplot aggregation");
-                }
-            }
+            state = states.get(owningBucketOrd);
         }
-        switch (InternalBoxplot.Metrics.resolve(name)) {
-            case min:
-                return Double.NEGATIVE_INFINITY;
-            case max:
-                return Double.POSITIVE_INFINITY;
-            case q1:
-            case q2:
-            case q3:
-                return Double.NaN;
-            default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in boxplot aggregation");
-        }
+        return InternalBoxplot.Metrics.resolve(name).value(state);
     }
 
 

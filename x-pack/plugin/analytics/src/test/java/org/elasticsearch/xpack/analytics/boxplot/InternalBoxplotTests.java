@@ -52,7 +52,6 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
             expected.add(input.state());
         }
         assertNotNull(expected);
-        // The final calculated result may very depending on the order, which requires higher delta
         assertEquals(expected.getMax(), reduced.getMax(), 0);
         assertEquals(expected.getMin(), reduced.getMin(), 0);
     }

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -28,18 +27,18 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder.COMPRESSION_FIELD;
+
 public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric,
     BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
-
-    public static final ParseField COMPRESSION_FIELD = new ParseField("compression");
 
     private static final ObjectParser<BoxplotAggregationBuilder, Void> PARSER;
 
     static {
         PARSER = new ObjectParser<>(BoxplotAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
-        PARSER.declareDouble((builder, compression) -> builder.compression = compression, COMPRESSION_FIELD);
+        PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

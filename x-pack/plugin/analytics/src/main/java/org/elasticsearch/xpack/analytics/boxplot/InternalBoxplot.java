@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,10 +25,48 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
 
     enum Metrics {
 
-        min, max, q1, q2, q3;
+        MIN, MAX, Q1, Q2, Q3;
 
         public static Metrics resolve(String name) {
-            return Metrics.valueOf(name);
+            return Metrics.valueOf(name.toUpperCase(Locale.ROOT));
+        }
+
+        public String value() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        double value(InternalBoxplot boxplot) {
+            switch (this) {
+                case MIN:
+                    return boxplot.getMin();
+                case MAX:
+                    return boxplot.getMax();
+                case Q1:
+                    return boxplot.getQ1();
+                case Q2:
+                    return boxplot.getQ2();
+                case Q3:
+                    return boxplot.getQ3();
+                default:
+                    throw new IllegalArgumentException("Unknown value [" + this.value() + "] in the boxplot aggregation");
+            }
+        }
+
+        double value(TDigestState state) {
+            switch (this) {
+                case MIN:
+                    return state == null ? Double.NEGATIVE_INFINITY : state.getMin();
+                case MAX:
+                    return state == null ? Double.POSITIVE_INFINITY : state.getMax();
+                case Q1:
+                    return state == null ? Double.NaN : state.quantile(0.25);
+                case Q2:
+                    return state == null ? Double.NaN : state.quantile(0.5);
+                case Q3:
+                    return state == null ? Double.NaN : state.quantile(0.75);
+                default:
+                    throw new IllegalArgumentException("Unknown value [" + this.value() + "] in the boxplot aggregation");
+            }
         }
     }
 
@@ -87,46 +126,32 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
 
     @Override
     public String getMinAsString() {
-        return valueAsString(Metrics.min.name());
+        return valueAsString(Metrics.MIN.name());
     }
 
     @Override
     public String getMaxAsString() {
-        return valueAsString(Metrics.max.name());
+        return valueAsString(Metrics.MAX.name());
     }
 
     @Override
     public String getQ1AsString() {
-        return valueAsString(Metrics.q1.name());
+        return valueAsString(Metrics.Q1.name());
     }
 
     @Override
     public String getQ2AsString() {
-        return valueAsString(Metrics.q2.name());
+        return valueAsString(Metrics.Q2.name());
     }
 
     @Override
     public String getQ3AsString() {
-        return valueAsString(Metrics.q3.name());
+        return valueAsString(Metrics.Q3.name());
     }
 
     @Override
     public double value(String name) {
-        Metrics metrics = Metrics.valueOf(name);
-        switch (metrics) {
-            case min:
-                return getMin();
-            case max:
-                return getMax();
-            case q1:
-                return getQ1();
-            case q2:
-                return getQ2();
-            case q3:
-                return getQ3();
-            default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-        }
+        return Metrics.resolve(name).value(this);
     }
 
     // for testing only
@@ -152,32 +177,19 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return new InternalBoxplot(name, merged, format, pipelineAggregators(), metaData);
     }
 
-    static class Fields {
-        public static final String MIN = "min";
-        public static final String MIN_AS_STRING = "min_as_string";
-        public static final String MAX = "max";
-        public static final String MAX_AS_STRING = "max_as_string";
-        public static final String Q1 = "q1";
-        public static final String Q1_AS_STRING = "q1_as_string";
-        public static final String Q2 = "q2";
-        public static final String Q2_AS_STRING = "q2_as_string";
-        public static final String Q3 = "q3";
-        public static final String Q3_AS_STRING = "q3_as_string";
-    }
-
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.MIN, getMin());
-        builder.field(Fields.MAX, getMax());
-        builder.field(Fields.Q1, getQ1());
-        builder.field(Fields.Q2, getQ2());
-        builder.field(Fields.Q3, getQ3());
+        builder.field("min", getMin());
+        builder.field("max", getMax());
+        builder.field("q1", getQ1());
+        builder.field("q2", getQ2());
+        builder.field("q3", getQ3());
         if (format != DocValueFormat.RAW) {
-            builder.field(Fields.MIN_AS_STRING, format.format(getMin()));
-            builder.field(Fields.MAX_AS_STRING, format.format(getMax()));
-            builder.field(Fields.Q1_AS_STRING, format.format(getQ1()));
-            builder.field(Fields.Q2_AS_STRING, format.format(getQ2()));
-            builder.field(Fields.Q3_AS_STRING, format.format(getQ3()));
+            builder.field("min_as_string", format.format(getMin()));
+            builder.field("max_as_string", format.format(getMax()));
+            builder.field("q1_as_string", format.format(getQ1()));
+            builder.field("q2_as_string", format.format(getQ2()));
+            builder.field("q3_as_string", format.format(getQ3()));
         }
         return builder;
     }

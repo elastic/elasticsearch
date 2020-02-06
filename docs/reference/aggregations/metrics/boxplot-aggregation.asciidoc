@@ -17,7 +17,7 @@ A `boxplot` aggregation looks like this in isolation:
 --------------------------------------------------
 {
     "boxplot": {
-        "buckets_path": "my_cardinality_agg"
+        "field": "load_time"
     }
 }
 --------------------------------------------------
@@ -62,15 +62,10 @@ The response will look like this:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-As you can see, the aggregation will return a calculated value for each percentile
-in the default range.  If we assume response times are in milliseconds, it is
-immediately obvious that the webpage normally loads in 10-725ms, but occasionally
-spikes to 945-985ms.
-
 ==== Script
 
 The boxplot metric supports scripting.  For example, if our load times
-are in milliseconds but we want percentiles calculated in seconds, we could use
+are in milliseconds but we want values calculated in seconds, we could use
 a script to convert them on-the-fly:
 
 [source,console]
@@ -162,21 +157,7 @@ GET latency/_search
 
 <1> Compression controls memory usage and approximation error
 
-The TDigest algorithm uses a number of "nodes" to approximate percentiles -- the
-more nodes available, the higher the accuracy (and large memory footprint) proportional
-to the volume of data.  The `compression` parameter limits the maximum number of
-nodes to `20 * compression`.
-
-Therefore, by increasing the compression value, you can increase the accuracy of
-your percentiles at the cost of more memory.  Larger compression values also
-make the algorithm slower since the underlying tree data structure grows in size,
-resulting in more expensive operations.  The default compression value is
-`100`.
-
-A "node" uses roughly 32 bytes of memory, so under worst-case scenarios (large amount
-of data which arrives sorted and in-order) the default settings will produce a
-TDigest roughly 64KB in size.  In practice data tends to be more random and
-the TDigest will use less memory.
+include::percentile-aggregation.asciidoc[tags=t-digest]
 
 ==== Missing value
 

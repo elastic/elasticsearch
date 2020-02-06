@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Ignore;
 
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -196,22 +195,70 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
     public void testIndexPolygonDateLine() throws Exception {
         String mappingVector = "{\n" +
-            "    \"properties\": {\n" +
-            "      \"shape\": {\n" +
-            "        \"type\": \"geo_shape\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }";
+                "    \"properties\": {\n" +
+                "      \"shape\": {\n" +
+                "        \"type\": \"geo_shape\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }";
+
+        String mappingQuad = "{\n" +
+                "    \"properties\": {\n" +
+                "      \"shape\": {\n" +
+                "        \"type\": \"geo_shape\",\n" +
+                "        \"tree\": \"quadtree\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }";
+
 
         // create index
         assertAcked(client().admin().indices().prepareCreate("vector").setMapping(mappingVector).get());
         ensureGreen();
 
-        String source = "{\n" +
-            "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\""+
-            "}";
+        assertAcked(client().admin().indices().prepareCreate("quad").setMapping(mappingQuad).get());
+        ensureGreen();
 
+        String source = "{\n" +
+                "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\""+
+                "}";
+
+        indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, XContentType.JSON));
         indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, XContentType.JSON));
+
+        try {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+            SearchResponse searchResponse = client().prepareSearch("quad").setQuery(
+                    geoShapeQuery("shape", new PointBuilder(-179.75, 1))
+            ).get();
+
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+            searchResponse = client().prepareSearch("quad").setQuery(
+                    geoShapeQuery("shape", new PointBuilder(90, 1))
+            ).get();
+
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+
+            searchResponse = client().prepareSearch("quad").setQuery(
+                    geoShapeQuery("shape", new PointBuilder(-180, 1))
+            ).get();
+
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+            searchResponse = client().prepareSearch("quad").setQuery(
+                    geoShapeQuery("shape", new PointBuilder(180, 1))
+            ).get();
+
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        } finally {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
 
         SearchResponse searchResponse = client().prepareSearch("vector").setQuery(
             geoShapeQuery("shape", new PointBuilder(90, 1))
@@ -236,62 +283,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-    }
-
-    public void testIndexPolygonDateLineOnLegacyQuadTrees() throws Exception {
-        try {
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-
-            String mappingQuad = "{\n" +
-                    "    \"properties\": {\n" +
-                    "      \"shape\": {\n" +
-                    "        \"type\": \"geo_shape\",\n" +
-                    "        \"tree\": \"quadtree\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }";
-
-
-            // create index
-            assertAcked(client().admin().indices().prepareCreate("quad").setMapping(mappingQuad).get());
-            ensureGreen();
-
-            String source = "{\n" +
-                    "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" +
-                    "}";
-
-            indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, XContentType.JSON));
-
-            SearchResponse searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(-179.75, 1))
-            ).get();
-
-
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-
-            searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(90, 1))
-            ).get();
-
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
-
-            searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(-180, 1))
-            ).get();
-
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-            searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(180, 1))
-            ).get();
-
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        } finally {
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-        }
     }
 
     private String findNodeName(String index) {

@@ -11,12 +11,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor.Property;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -188,7 +190,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null, Version.CURRENT,
-            Authentication.AuthenticationType.API_KEY,
+            AuthenticationType.API_KEY,
             Map.of(
                 ApiKeyService.API_KEY_ID_KEY, "api_key_id",
                 ApiKeyService.API_KEY_NAME_KEY, "api_key_name",
@@ -216,7 +218,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null, Version.CURRENT,
-            Authentication.AuthenticationType.API_KEY,
+            AuthenticationType.API_KEY,
             Map.of(
                 ApiKeyService.API_KEY_ID_KEY, "api_key_id",
                 ApiKeyService.API_KEY_NAME_KEY, "api_key_name",
@@ -234,6 +236,29 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(result.size(), equalTo(3));
         assertThat(((Map) result.get("api_key")).get("version"), equalTo(42));
         assertThat(((Map) result.get("realm")).get("id"), equalTo(7));
+    }
+
+    public void testWillSetRunAsRealmForNonApiAuth() throws Exception {
+        User user = new User(null, null, null);
+        Authentication.RealmRef authRealmRef = new Authentication.RealmRef(
+            randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
+        Authentication.RealmRef lookedUpRealmRef = new Authentication.RealmRef(
+            randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY,
+            new Authentication(user, authRealmRef, lookedUpRealmRef, Version.CURRENT,
+                randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL),
+                Collections.emptyMap()));
+
+        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.allOf(Property.class));
+        processor.execute(ingestDocument);
+
+        Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
+        assertThat(result.size(), equalTo(2));
+        assertThat(((Map) result.get("realm")).get("name"), equalTo(lookedUpRealmRef.getName()));
+        assertThat(((Map) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
     }
 
 }

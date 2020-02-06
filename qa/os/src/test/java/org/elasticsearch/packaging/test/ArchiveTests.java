@@ -51,6 +51,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.isEmptyString;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -58,6 +59,9 @@ public class ArchiveTests extends PackagingTestCase {
 
     @BeforeClass
     public static void filterDistros() {
+        // Muted on Windows see: https://github.com/elastic/elasticsearch/issues/50825
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"));
+
         assumeTrue("only archives", distribution.isArchive());
     }
 

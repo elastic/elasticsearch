@@ -89,6 +89,12 @@ When the operation is complete, you receive the following results:
       "total_partition_field_count" : 2,
       "bucket_allocation_failures_count" : 0,
       "memory_status" : "ok",
+      "categorized_doc_count" : 0,
+      "total_category_count" : 0,
+      "frequent_category_count" : 0,
+      "rare_category_count" : 0,
+      "dead_category_count" : 0,
+      "categorization_status" : "ok",
       "log_time" : 1575402237000,
       "timestamp" : 1576965600000
     },

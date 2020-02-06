@@ -40,12 +40,20 @@ setup:
         wait_for_completion: true
 
   - do:
-      snapshot.delete_repository:
-        repository: repository-fs
-
-  - do:
       indices.delete:
         index: docs
+---
+teardown:
+
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.delete_repository:
+        repository: repository-fs
 
 ---
 "Tests searchable snapshots stats":
@@ -54,13 +62,19 @@ setup:
       reason:  searchable snapshots introduced in 8.0
 
   - do:
+      catch: missing
       searchable_snapshots.stats: {}
-  - length: { indices: 0 }
+
+  - match: { error.root_cause.0.type: "resource_not_found_exception" }
+  - match: { error.root_cause.0.reason: "No searchable snapshots indices found" }
 
   - do:
+      catch: missing
       searchable_snapshots.stats:
         index: _all
-  - length: { indices: 0 }
+
+  - match: { error.root_cause.0.type: "resource_not_found_exception" }
+  - match: { error.root_cause.0.reason: "No searchable snapshots indices found" }
 
   - do:
       catch:   missing
@@ -75,6 +89,7 @@ setup:
       catch: missing
       searchable_snapshots.stats:
         index: non_*
+
   - match: { error.root_cause.0.type: "resource_not_found_exception" }
   - match: { error.root_cause.0.reason: "No searchable snapshots indices found" }
 

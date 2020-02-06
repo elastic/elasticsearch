@@ -97,7 +97,7 @@ public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastB
                 }
             }
         }
-        if (concreteIndices.length > 0 && searchableSnapshotIndices.isEmpty()) {
+        if (searchableSnapshotIndices.isEmpty()) {
             throw new ResourceNotFoundException("No searchable snapshots indices found");
         }
         return state.routingTable().allShards(searchableSnapshotIndices.toArray(new String[0]));

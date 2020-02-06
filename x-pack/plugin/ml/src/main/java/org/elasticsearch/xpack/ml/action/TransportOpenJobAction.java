@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -449,7 +451,15 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
                             ActionListener.wrap(
                                 response -> task.markAsCompleted(),
-                                e -> logger.error("error finalizing job [" + jobId + "]", e)
+                                e -> {
+                                    logger.error("error finalizing job [" + jobId + "]", e);
+                                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                                    if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
+                                        task.markAsCompleted();
+                                    } else {
+                                        task.markAsFailed(e);
+                                    }
+                                }
                             ));
                     } else {
                         task.markAsCompleted();

@@ -17,8 +17,8 @@ distribution of {es}>> you can bind mount custom JVM options files into
 modify the root `jvm.options` file instead preferring to use custom JVM options
 files. Custom JVM options files are processed in lexicographic order.
 
-JVM options files contain a line-delimited list of JVM arguments following a
-special syntax:
+JVM options files must have the suffix '.options' and contain a line-delimited
+list of JVM arguments following a special syntax:
 
 * lines consisting of whitespace only are ignored
 * lines beginning with `#` are treated as comments and are ignored

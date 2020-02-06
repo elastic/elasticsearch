@@ -27,6 +27,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -62,52 +63,55 @@ final class JvmOptionsParser {
             throw new IllegalArgumentException("expected one argument specifying path to ES_PATH_CONF but was " + Arrays.toString(args));
         }
 
-        final Stream<Path> jvmOptionsFiles;
-        final Path rootJvmOptions = Paths.get(args[0], "jvm.options");
+        final ArrayList<Path> jvmOptionsFiles = new ArrayList<>();
+        jvmOptionsFiles.add(Paths.get(args[0], "jvm.options"));
+
         final Path jvmOptionsDirectory = Paths.get(args[0], "jvm.options.d");
+
         if (Files.isDirectory(jvmOptionsDirectory)) {
-            final Stream<Path> jvmOptionsDirectoryFiles = Files.list(Paths.get(args[0], "jvm.options.d"));
-            jvmOptionsFiles = Stream.concat(Stream.of(rootJvmOptions), jvmOptionsDirectoryFiles.sorted())
-                .onClose(jvmOptionsDirectoryFiles::close);
-        } else {
-            jvmOptionsFiles = Stream.of(rootJvmOptions);
+            try (DirectoryStream<Path> jvmOptionsDirectoryFiles =
+                     Files.newDirectoryStream(Paths.get(args[0], "jvm.options.d"), "*.options")) {
+                for (final Path jvmOptionsDirectoryFile : jvmOptionsDirectoryFiles) {
+                    jvmOptionsFiles.add(jvmOptionsDirectoryFile);
+                }
+            }
+
         }
 
         final List<String> jvmOptions = new ArrayList<>();
-        try (jvmOptionsFiles) {
-            for (final Path jvmOptionsFile : (Iterable<Path>) jvmOptionsFiles::iterator) {
-                final SortedMap<Integer, String> invalidLines = new TreeMap<>();
-                try (
-                    InputStream is = Files.newInputStream(jvmOptionsFile);
-                    Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
-                    BufferedReader br = new BufferedReader(reader)
-                ) {
-                    parse(JavaVersion.majorVersion(JavaVersion.CURRENT), br, jvmOptions::add, invalidLines::put);
-                }
-                if (invalidLines.isEmpty() == false) {
-                    final String errorMessage = String.format(
+
+        for (final Path jvmOptionsFile : jvmOptionsFiles) {
+            final SortedMap<Integer, String> invalidLines = new TreeMap<>();
+            try (
+                InputStream is = Files.newInputStream(jvmOptionsFile);
+                Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
+                BufferedReader br = new BufferedReader(reader)
+            ) {
+                parse(JavaVersion.majorVersion(JavaVersion.CURRENT), br, jvmOptions::add, invalidLines::put);
+            }
+            if (invalidLines.isEmpty() == false) {
+                final String errorMessage = String.format(
+                    Locale.ROOT,
+                    "encountered [%d] error%s parsing [%s]",
+                    invalidLines.size(),
+                    invalidLines.size() == 1 ? "" : "s",
+                    jvmOptionsFile
+                );
+                Launchers.errPrintln(errorMessage);
+                int count = 0;
+                for (final Map.Entry<Integer, String> entry : invalidLines.entrySet()) {
+                    count++;
+                    final String message = String.format(
                         Locale.ROOT,
-                        "encountered [%d] error%s parsing [%s]",
-                        invalidLines.size(),
-                        invalidLines.size() == 1 ? "" : "s",
-                        jvmOptionsFile
+                        "[%d]: encountered improperly formatted JVM option in [%s] on line number [%d]: [%s]",
+                        count,
+                        jvmOptionsFile,
+                        entry.getKey(),
+                        entry.getValue()
                     );
-                    Launchers.errPrintln(errorMessage);
-                    int count = 0;
-                    for (final Map.Entry<Integer, String> entry : invalidLines.entrySet()) {
-                        count++;
-                        final String message = String.format(
-                            Locale.ROOT,
-                            "[%d]: encountered improperly formatted JVM option in [%s] on line number [%d]: [%s]",
-                            count,
-                            jvmOptionsFile,
-                            entry.getKey(),
-                            entry.getValue()
-                        );
-                        Launchers.errPrintln(message);
-                    }
-                    Launchers.exit(1);
+                    Launchers.errPrintln(message);
                 }
+                Launchers.exit(1);
             }
         }
 

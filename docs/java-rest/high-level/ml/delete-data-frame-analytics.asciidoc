@@ -21,6 +21,17 @@ include-tagged::{doc-tests-file}[{api}-request]
 ---------------------------------------------------
 <1> Constructing a new request referencing an existing {dfanalytics-job}.
 
+==== Optional arguments
+
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-force]
+---------------------------------------------------
+<1> Use to forcefully delete a job that is not stopped. This method is quicker than stopping
+and deleting the job. Defaults to `false`.
+
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]

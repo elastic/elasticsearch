@@ -10,6 +10,7 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CachedSupplier;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -113,11 +115,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return NAME.getPreferredName();
     }
 
-    @Override
-    public List<String> getFeatureNames() {
-        return featureNames;
-    }
-
     public List<TreeNode> getNodes() {
         return nodes;
     }
@@ -129,7 +126,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
         }
 
-        List<Double> features = featureNames.stream().map(f -> InferenceHelpers.toDouble(fields.get(f))).collect(Collectors.toList());
+        List<Double> features = featureNames.stream()
+            .map(f -> InferenceHelpers.toDouble(MapHelper.dig(f, fields)))
+            .collect(Collectors.toList());
         return infer(features, config);
     }
 
@@ -149,13 +148,17 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         switch (targetType) {
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
-                List<ClassificationInferenceResults.TopClassEntry> topClasses = InferenceHelpers.topClasses(
+                Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
                     classificationProbability(value),
                     classificationLabels,
+                    null,
                     classificationConfig.getNumTopClasses());
-                return new ClassificationInferenceResults(value, classificationLabel(value, classificationLabels), topClasses);
+                return new ClassificationInferenceResults(value,
+                    classificationLabel(topClasses.v1(), classificationLabels),
+                    topClasses.v2(),
+                    config);
             case REGRESSION:
-                return new RegressionInferenceResults(value);
+                return new RegressionInferenceResults(value, config);
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
         }
@@ -192,11 +195,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         // TODO, eventually have TreeNodes contain confidence levels
         list.set(Double.valueOf(inferenceValue).intValue(), 1.0);
         return list;
-    }
-
-    @Override
-    public List<String> classificationLabels() {
-        return classificationLabels;
     }
 
     @Override
@@ -255,6 +253,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public void validate() {
+        if (featureNames.isEmpty()) {
+            throw ExceptionsHelper.badRequestException("[{}] must not be empty for tree model", FEATURE_NAMES.getPreferredName());
+        }
         checkTargetType();
         detectMissingNodes();
         detectCycle();
@@ -267,9 +268,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     private void checkTargetType() {
-        if ((this.targetType == TargetType.CLASSIFICATION) != (this.classificationLabels != null)) {
+        if (this.classificationLabels != null && this.targetType != TargetType.CLASSIFICATION) {
             throw ExceptionsHelper.badRequestException(
-                "[target_type] should be [classification] if [classification_labels] is provided, and vice versa");
+                "[target_type] should be [classification] if [classification_labels] are provided");
         }
     }
 

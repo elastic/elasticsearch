@@ -93,14 +93,13 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             }
             childNodes = nextNodes;
         }
+        TargetType targetType = randomFrom(TargetType.values());
         List<String> categoryLabels = null;
-        if (randomBoolean()) {
+        if (randomBoolean() && targetType == TargetType.CLASSIFICATION) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
 
-        return builder.setTargetType(randomFrom(TargetType.values()))
-            .setClassificationLabels(categoryLabels)
-            .build();
+        return builder.setTargetType(targetType).setClassificationLabels(categoryLabels).build();
     }
 
     @Override
@@ -118,7 +117,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector); // does not really matter as this is a stump
         assertThat(42.0,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
     }
 
     public void testInfer() {
@@ -138,27 +137,27 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.3,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         // This should hit the left child of the left child of the root node
         // i.e. it takes the path left, left
         featureVector = Arrays.asList(0.3, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         // This should hit the right child of the left child of the root node
         // i.e. it takes the path left, right
         featureVector = Arrays.asList(0.3, 0.9);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         // This should still work if the internal values are strings
         List<String> featureVectorStrings = Arrays.asList("0.3", "0.9");
         featureMap = zipObjMap(featureNames, featureVectorStrings);
         assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         // This should handle missing values and take the default_left path
         featureMap = new HashMap<>(2) {{
@@ -166,7 +165,59 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             put("bar", null);
         }};
         assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+    }
+
+    public void testInferNestedFields() {
+        // Build a tree with 2 nodes and 3 leaves using 2 features
+        // The leaves have unique values 0.1, 0.2, 0.3
+        Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
+        TreeNode.Builder rootNode = builder.addJunction(0, 0, true, 0.5);
+        builder.addLeaf(rootNode.getRightChild(), 0.3);
+        TreeNode.Builder leftChildNode = builder.addJunction(rootNode.getLeftChild(), 1, true, 0.8);
+        builder.addLeaf(leftChildNode.getLeftChild(), 0.1);
+        builder.addLeaf(leftChildNode.getRightChild(), 0.2);
+
+        List<String> featureNames = Arrays.asList("foo.baz", "bar.biz");
+        Tree tree = builder.setFeatureNames(featureNames).build();
+
+        // This feature vector should hit the right child of the root node
+        Map<String, Object> featureMap = new HashMap<>() {{
+            put("foo", new HashMap<>(){{
+                put("baz", 0.6);
+            }});
+            put("bar", new HashMap<>(){{
+                put("biz", 0.0);
+            }});
+        }};
+        assertThat(0.3,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+
+        // This should hit the left child of the left child of the root node
+        // i.e. it takes the path left, left
+        featureMap = new HashMap<>() {{
+            put("foo", new HashMap<>(){{
+                put("baz", 0.3);
+            }});
+            put("bar", new HashMap<>(){{
+                put("biz", 0.7);
+            }});
+        }};
+        assertThat(0.1,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+
+        // This should hit the right child of the left child of the root node
+        // i.e. it takes the path left, right
+        featureMap = new HashMap<>() {{
+            put("foo", new HashMap<>(){{
+                put("baz", 0.3);
+            }});
+            put("bar", new HashMap<>(){{
+                put("biz", 0.9);
+            }});
+        }};
+        assertThat(0.2,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
     }
 
     public void testTreeClassificationProbability() {
@@ -273,7 +324,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public void testTreeWithTargetTypeAndLabelsMismatch() {
         List<String> featureNames = Arrays.asList("foo", "bar");
-        String msg = "[target_type] should be [classification] if [classification_labels] is provided, and vice versa";
+        String msg = "[target_type] should be [classification] if [classification_labels] are provided";
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             Tree.builder()
                 .setRoot(TreeNode.builder(0)
@@ -286,14 +337,17 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                 .validate();
         });
         assertThat(ex.getMessage(), equalTo(msg));
-        ex = expectThrows(ElasticsearchException.class, () -> {
+    }
+
+    public void testTreeWithEmptyFeatureNames() {
+        String msg = "[feature_names] must not be empty for tree model";
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             Tree.builder()
                 .setRoot(TreeNode.builder(0)
                     .setLeftChild(1)
                     .setSplitFeature(1)
                     .setThreshold(randomDouble()))
-                .setFeatureNames(featureNames)
-                .setTargetType(TargetType.CLASSIFICATION)
+                .setFeatureNames(Collections.emptyList())
                 .build()
                 .validate();
         });

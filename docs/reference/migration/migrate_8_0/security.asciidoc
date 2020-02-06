@@ -6,6 +6,29 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[float]
+==== The realm `order` setting is required
+
+The `xpack.security.authc.realms.{type}.{name}.order` setting is now required and must be
+specified for each explicitly configured realm. Each value must be unique.
+The cluster will fail to start if the requirements are not met.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms.kerberos.kerb1:
+  keytab.path: es.keytab
+  remove_realm_name: false
+--------------------------------------------------
+
+And must be configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms.kerberos.kerb1:
+  order: 0
+  keytab.path: es.keytab
+  remove_realm_name: false
+--------------------------------------------------
 
 // end::notable-breaking-changes[]
 
@@ -79,8 +102,8 @@ It is now an error to configure any SSL settings for
 For example, the following configuration is invalid:
 [source,yaml]
 --------------------------------------------------
-xpack.security.http.ssl.certificate: elasticsearch.crt 
-xpack.security.http.ssl.key: elasticsearch.key 
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
 xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
 --------------------------------------------------
 
@@ -88,8 +111,8 @@ And must be configured as either:
 [source,yaml]
 --------------------------------------------------
 xpack.security.http.ssl.enabled: true <1>
-xpack.security.http.ssl.certificate: elasticsearch.crt 
-xpack.security.http.ssl.key: elasticsearch.key 
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
 xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
 --------------------------------------------------
 <1> or `false`.
@@ -109,5 +132,3 @@ It is now an error to enable SSL for the HTTP (Rest) server without also configu
 a certificate and key through use of the `xpack.security.http.ssl.keystore.path`
 setting or the `xpack.security.http.ssl.certificate` and
 `xpack.security.http.ssl.key` settings.
-
-

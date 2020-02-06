@@ -7,11 +7,9 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-public interface InferenceResults extends NamedXContentObject, NamedWriteable {
+public interface InferenceResults extends NamedWriteable {
 
-    void writeResult(IngestDocument document, String resultField, InferenceConfig config);
+    void writeResult(IngestDocument document, String parentResultField);
 
 }

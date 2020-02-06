@@ -122,7 +122,7 @@ public class FieldSortIT extends ESIntegTestCase {
         final boolean useMapping = randomBoolean();
         for (int i = 0; i < numIndices; i++) {
             if (useMapping) {
-                assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")).addMapping("foo", "entry", "type=long"));
+                assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")).setMapping("entry", "type=long"));
             } else {
                 assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")));
             }
@@ -211,7 +211,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testTrackScores() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "svalue", "type=keyword").get());
+                .setMapping("svalue", "type=keyword").get());
         ensureGreen();
         index("test", jsonBuilder().startObject()
                 .field("id", "1")
@@ -253,10 +253,10 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testRandomSorting() throws IOException, InterruptedException, ExecutionException {
         Random random = random();
         assertAcked(prepareCreate("test")
-                .addMapping("type",
+                .setMapping(
                         XContentFactory.jsonBuilder()
                                 .startObject()
-                                .startObject("type")
+                                .startObject("_doc")
                                 .startObject("properties")
                                 .startObject("sparse_bytes")
                                 .field("type", "keyword")
@@ -325,7 +325,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void test3078() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field", "type=keyword").get());
+                .setMapping("field", "type=keyword").get());
         ensureGreen();
 
         for (int i = 1; i < 101; i++) {
@@ -455,7 +455,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testIssue2986() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("post", "field1", "type=keyword").get());
+                .setMapping("field1", "type=keyword").get());
 
         client().prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).get();
         client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).get();
@@ -477,7 +477,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 // ignore
             }
             assertAcked(client().admin().indices().prepareCreate("test")
-                    .addMapping("type", "tag", "type=keyword").get());
+                    .setMapping("tag", "type=keyword").get());
             ensureGreen();
             client().prepareIndex("test").setId("1").setSource("tag", "alpha").get();
             refresh();
@@ -510,8 +510,8 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testSimpleSorts() throws Exception {
         Random random = random();
         assertAcked(prepareCreate("test")
-.addMapping("type1",
-                XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("str_value")
+            .setMapping(
+                XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("str_value")
                         .field("type", "keyword").endObject().startObject("boolean_value").field("type", "boolean").endObject()
                         .startObject("byte_value").field("type", "byte").endObject().startObject("short_value").field("type", "short")
                         .endObject().startObject("integer_value").field("type", "integer").endObject().startObject("long_value")
@@ -722,10 +722,10 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMissingNumbers() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1",
+        assertAcked(prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                         .startObject("properties")
                             .startObject("i_value")
                                 .field("type", "integer")
@@ -794,10 +794,10 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMissingStrings() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1",
+        assertAcked(prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                         .startObject("properties")
                         .startObject("value")
                         .field("type", "keyword")
@@ -927,8 +927,8 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSortMVField() throws Exception {
         assertAcked(prepareCreate("test")
-                        .addMapping("type1",
-                XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("long_values")
+                        .setMapping(
+                XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("long_values")
                         .field("type", "long").endObject().startObject("int_values").field("type", "integer").endObject()
                         .startObject("short_values").field("type", "short").endObject().startObject("byte_values")
                         .field("type", "byte").endObject().startObject("float_values").field("type", "float").endObject()
@@ -1275,8 +1275,8 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortOnRareField() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1",
-                XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("string_values")
+        assertAcked(prepareCreate("test").setMapping(
+                XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("string_values")
                         .field("type", "keyword").endObject().endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test").setId(Integer.toString(1)).setSource(jsonBuilder().startObject()
@@ -1419,10 +1419,10 @@ public class FieldSortIT extends ESIntegTestCase {
      */
     public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
         assertAcked(prepareCreate("test")
-                .addMapping("type",
+                .setMapping(
                         XContentFactory.jsonBuilder()
                                 .startObject()
-                                    .startObject("type")
+                                    .startObject("_doc")
                                         .startObject("properties")
                                             .startObject("nested")
                                                 .field("type", "nested")
@@ -1545,10 +1545,10 @@ public class FieldSortIT extends ESIntegTestCase {
         String sortField = "sortField";
         assertAcked(prepareCreate("test1")
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, maximumNumberOfShards())))
-                .addMapping("type", sortField, "type=long").get());
+                .setMapping(sortField, "type=long").get());
         assertAcked(prepareCreate("test2")
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1))
-                .addMapping("type", sortField, "type=long").get());
+                .setMapping(sortField, "type=long").get());
 
         for (String index : new String[]{"test1", "test2"}) {
             List<IndexRequestBuilder> docs = new ArrayList<>();
@@ -1581,7 +1581,7 @@ public class FieldSortIT extends ESIntegTestCase {
         // representations of values, to make sure values are both correctly
         // rendered and parsed (search_after)
         assertAcked(prepareCreate("test")
-                .addMapping("type", "ip", "type=ip"));
+                .setMapping("ip", "type=ip"));
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("ip", "192.168.1.7"),
                 client().prepareIndex("test").setId("2").setSource("ip", "2001:db8::ff00:42:8329"));
@@ -1609,7 +1609,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testScriptFieldSort() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("t", "keyword", "type=keyword", "number", "type=integer"));
+            .setMapping("keyword", "type=keyword", "number", "type=integer"));
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
@@ -1661,9 +1661,9 @@ public class FieldSortIT extends ESIntegTestCase {
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
         assertAcked(prepareCreate("old_index")
-            .addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance"));
+            .setMapping("distance", "type=double", "route_length_miles", "type=alias,path=distance"));
         assertAcked(prepareCreate("new_index")
-            .addMapping("_doc", "route_length_miles", "type=double"));
+            .setMapping("route_length_miles", "type=double"));
         ensureGreen("old_index", "new_index");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -1689,9 +1689,9 @@ public class FieldSortIT extends ESIntegTestCase {
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
         assertAcked(prepareCreate("old_index")
-            .addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance"));
+            .setMapping("distance", "type=double", "route_length_miles", "type=alias,path=distance"));
         assertAcked(prepareCreate("new_index")
-            .addMapping("_doc", "route_length_miles", "type=double"));
+            .setMapping("route_length_miles", "type=double"));
         ensureGreen("old_index", "new_index");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -1715,11 +1715,11 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testCastNumericType() throws Exception {
         assertAcked(prepareCreate("index_double")
-            .addMapping("_doc", "field", "type=double"));
+            .setMapping("field", "type=double"));
         assertAcked(prepareCreate("index_long")
-            .addMapping("_doc", "field", "type=long"));
+            .setMapping("field", "type=long"));
         assertAcked(prepareCreate("index_float")
-            .addMapping("_doc", "field", "type=float"));
+            .setMapping("field", "type=float"));
         ensureGreen("index_double", "index_long", "index_float");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -1764,9 +1764,9 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testCastDate() throws Exception {
         assertAcked(prepareCreate("index_date")
-            .addMapping("_doc", "field", "type=date"));
+            .setMapping("field", "type=date"));
         assertAcked(prepareCreate("index_date_nanos")
-            .addMapping("_doc", "field", "type=date_nanos"));
+            .setMapping("field", "type=date_nanos"));
         ensureGreen("index_date", "index_date_nanos");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -1842,7 +1842,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testCastNumericTypeExceptions() throws Exception {
         assertAcked(prepareCreate("index")
-            .addMapping("_doc", "keyword", "type=keyword", "ip", "type=ip"));
+            .setMapping("keyword", "type=keyword", "ip", "type=ip"));
         ensureGreen("index");
         for (String invalidField : new String[] {"keyword", "ip"}) {
             for (String numericType : new String[]{"long", "double", "date", "date_nanos"}) {
@@ -1860,7 +1860,7 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testLongSortOptimizationCorrectResults() {
         assertAcked(prepareCreate("test1")
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2))
-            .addMapping("_doc", "long_field", "type=long").get());
+            .setMapping("long_field", "type=long").get());
 
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
         for (int i = 1; i <= 7000; i++) {

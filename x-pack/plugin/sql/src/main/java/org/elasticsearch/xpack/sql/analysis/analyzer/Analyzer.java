@@ -6,55 +6,55 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.function.Functions;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.InvalidMappedField;
+import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.capabilities.Resolvables;
-import org.elasticsearch.xpack.sql.expression.Alias;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.AttributeMap;
-import org.elasticsearch.xpack.sql.expression.AttributeSet;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.sql.expression.function.Functions;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.sql.plan.TableIdentifier;
-import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
-import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
-import org.elasticsearch.xpack.sql.rule.Rule;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
-import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.type.InvalidMappedField;
-import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
-import org.elasticsearch.xpack.sql.util.Holder;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,7 +70,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
     /**
@@ -217,13 +217,19 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // unsupported types
             else if (DataTypes.isUnsupported(fa.dataType())) {
                 UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
+                if (unsupportedField.hasInherited()) {
+                    named = u.withUnresolvedMessage(
+                            "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "] "
+                                    + "in hierarchy (field [" + unsupportedField.getInherited() + "])");
+                } else {
+                    named = u.withUnresolvedMessage(
+                            "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "]");
+                }
             }
             // compound fields
-            else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
+            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false) {
                 named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName + "] only its subfields");
+                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] only its subfields");
             }
         }
         return named;
@@ -806,7 +812,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (p.child() instanceof Filter) {
                     Filter f = (Filter) p.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
                         if (newCondition != condition) {
                             return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
@@ -820,7 +826,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (a.child() instanceof Filter) {
                     Filter f = (Filter) a.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
                         if (newCondition != condition) {
                             return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
@@ -992,7 +998,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (n.foldable() == false && Functions.isAggregate(n) == false
                             // folding might not work (it might wait for the optimizer)
                             // so check whether any column is referenced
-                            && n.anyMatch(e -> e instanceof FieldAttribute) == true) {
+                            && n.anyMatch(e -> e instanceof FieldAttribute)) {
                         return f;
                     }
                 }
@@ -1182,7 +1188,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 DataType l = left.dataType();
                 DataType r = right.dataType();
                 if (l != r) {
-                    DataType common = DataTypeConversion.commonType(l, r);
+                    DataType common = SqlDataTypeConverter.commonType(l, r);
                     if (common == null) {
                         return e;
                     }

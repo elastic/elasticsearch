@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -207,7 +208,7 @@ public class ObjectParserTests extends ESTestCase {
         {
             XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"not_supported_field\" : \"foo\"}");
             XContentParseException ex = expectThrows(XContentParseException.class, () -> objectParser.parse(parser, s, null));
-            assertEquals(ex.getMessage(), "[1:2] [the_parser] unknown field [not_supported_field], parser not found");
+            assertEquals(ex.getMessage(), "[1:2] [the_parser] unknown field [not_supported_field]");
         }
     }
 
@@ -825,133 +826,64 @@ public class ObjectParserTests extends ESTestCase {
             }
         }
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"a\": \"123\", \"c\": \"456\"}");
-        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
-        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
-        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-        objectParser.declareLong(TestStruct::setC, new ParseField("c"));
-        objectParser.declareLong(TestStruct::setD, new ParseField("d"));
-        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
-        objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
-
-        TestStruct obj = objectParser.apply(parser, null);
-        assertThat(obj.a, equalTo(123L));
-        assertThat(obj.b, nullValue());
-        assertThat(obj.c, equalTo(456L));
-        assertThat(obj.d, nullValue());
-
-        parser = createParser(JsonXContent.jsonXContent, "{\"a\": \"123\", \"d\": \"456\"}");
-        objectParser = new ObjectParser<>("foo", true, TestStruct::new);
-        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
-        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-        objectParser.declareLong(TestStruct::setC, new ParseField("c"));
-        objectParser.declareLong(TestStruct::setD, new ParseField("d"));
-        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
-        objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
-
-        obj = objectParser.apply(parser, null);
-        assertThat(obj.a, equalTo(123L));
-        assertThat(obj.b, nullValue());
-        assertThat(obj.c, nullValue());
-        assertThat(obj.d, equalTo(456L));
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(Arrays.asList(
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text()),
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("int"), p -> p.intValue()),
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("float"), p -> p.floatValue()),
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("bool"), p -> p.booleanValue())
+        ));
     }
 
-    public void testMissingRequiredFieldSet() throws IOException {
-        class TestStruct {
-            private long a;
-            private long b;
+    private static class TopLevelNamedXConent {
+        public static final ObjectParser<TopLevelNamedXConent, Void> PARSER = new ObjectParser<>(
+            "test", Object.class, TopLevelNamedXConent::setNamed, TopLevelNamedXConent::new
+        );
 
-            private void setA(long value) {
-                this.a = value;
+        Object named;
+        void setNamed(Object named) {
+            if (this.named != null) {
+                throw new IllegalArgumentException("Only one [named] allowed!");
             }
-
-            private void setB(long value) {
-                this.b = value;
-            }
+            this.named = named;
         }
-
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"unrelated\": \"123\"}");
-
-        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
-        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
-        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
-        assertThat(e.getMessage(), containsString("Required one of fields [a, b], but none were specified. "));
     }
 
-    public void testMultipleRequiredFieldSetTwoMissing() throws IOException {
-        class TestStruct {
-            private Long a;
-            private Long b;
-            private Long c;
-            private Long d;
-
-            private void setA(long value) {
-                this.a = value;
-            }
-
-            private void setB(long value) {
-                this.b = value;
-            }
-
-            private void setC(long value) {
-                this.c = value;
-            }
-
-            private void setD(long value) {
-                this.d = value;
-            }
+    public void testTopLevelNamedXContent() throws IOException {
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"str\": \"foo\"}");
+            TopLevelNamedXConent o = TopLevelNamedXConent.PARSER.parse(parser, null);
+            assertEquals("foo", o.named);
         }
-
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"unrelated\": \"123\"}");
-        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
-        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
-        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-        objectParser.declareLong(TestStruct::setC, new ParseField("c"));
-        objectParser.declareLong(TestStruct::setD, new ParseField("d"));
-        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
-        objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
-        assertThat(e.getMessage(), equalTo("Required one of fields [a, b], but none were specified. " +
-            "Required one of fields [c, d], but none were specified. "));
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"int\": 1}");
+            TopLevelNamedXConent o = TopLevelNamedXConent.PARSER.parse(parser, null);
+            assertEquals(1, o.named);
+        }
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"float\": 4.0}");
+            TopLevelNamedXConent o = TopLevelNamedXConent.PARSER.parse(parser, null);
+            assertEquals(4.0F, o.named);
+        }
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"bool\": false}");
+            TopLevelNamedXConent o = TopLevelNamedXConent.PARSER.parse(parser, null);
+            assertEquals(false, o.named);
+        }
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"not_supported_field\" : \"foo\"}");
+            XContentParseException ex = expectThrows(XContentParseException.class, () -> TopLevelNamedXConent.PARSER.parse(parser, null));
+            assertEquals("[1:2] [test] unknown field [not_supported_field]", ex.getMessage());
+            NamedObjectNotFoundException cause = (NamedObjectNotFoundException) ex.getCause();
+            assertThat(cause.getCandidates(), containsInAnyOrder("str", "int", "float", "bool"));
+        }
     }
 
-    public void testMultipleRequiredFieldSetOneMissing() throws IOException {
-        class TestStruct {
-            private Long a;
-            private Long b;
-            private Long c;
-            private Long d;
-
-            private void setA(long value) {
-                this.a = value;
-            }
-
-            private void setB(long value) {
-                this.b = value;
-            }
-
-            private void setC(long value) {
-                this.c = value;
-            }
-
-            private void setD(long value) {
-                this.d = value;
-            }
-        }
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"a\": \"123\"}");
-        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
-        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
-        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-        objectParser.declareLong(TestStruct::setC, new ParseField("c"));
-        objectParser.declareLong(TestStruct::setD, new ParseField("d"));
-        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
-        objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
-        assertThat(e.getMessage(), equalTo("Required one of fields [c, d], but none were specified. "));
+    public void testContextBuilder() throws IOException {
+        ObjectParser<AtomicReference<String>, String> parser = ObjectParser.fromBuilder("test", AtomicReference::new);
+        String context = randomAlphaOfLength(5);
+        AtomicReference<String> parsed = parser.parse(createParser(JsonXContent.jsonXContent, "{}"), context);
+        assertThat(parsed.get(), equalTo(context));
     }
 }

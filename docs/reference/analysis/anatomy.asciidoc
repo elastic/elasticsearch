@@ -1,5 +1,5 @@
 [[analyzer-anatomy]]
-== Anatomy of an analyzer
+=== Anatomy of an analyzer
 
 An _analyzer_  -- whether built-in or custom -- is just a package which
 contains three lower-level building blocks: _character filters_,
@@ -10,8 +10,7 @@ blocks into analyzers suitable for different languages and types of text.
 Elasticsearch also exposes the individual building blocks so that they can be
 combined to define new <<analysis-custom-analyzer,`custom`>> analyzers.
 
-[float]
-=== Character filters
+==== Character filters
 
 A _character filter_ receives the original text as a stream of characters and
 can transform the stream by adding, removing, or changing characters.  For
@@ -22,8 +21,7 @@ elements like `<b>` from the stream.
 An analyzer may have *zero or more* <<analysis-charfilters,character filters>>,
 which are applied in order.
 
-[float]
-=== Tokenizer
+==== Tokenizer
 
 A _tokenizer_  receives a stream of characters, breaks it up into individual
 _tokens_ (usually individual words), and outputs a stream of _tokens_. For
@@ -37,9 +35,7 @@ the term represents.
 
 An analyzer must have *exactly one* <<analysis-tokenizers,tokenizer>>.
 
-
-[float]
-=== Token filters
+==== Token filters
 
 A _token filter_ receives the token stream and may add, remove, or change
 tokens.  For example, a <<analysis-lowercase-tokenfilter,`lowercase`>> token
@@ -54,7 +50,3 @@ each token.
 
 An analyzer may have *zero or more* <<analysis-tokenfilters,token filters>>,
 which are applied in order.
-
-
-
-

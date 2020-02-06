@@ -154,7 +154,7 @@
       },
       "refresh":{
         "type":"boolean",
-        "description":"Should the effected indexes be refreshed?"
+        "description":"Should the affected indexes be refreshed?"
       },
       "timeout":{
         "type":"time",

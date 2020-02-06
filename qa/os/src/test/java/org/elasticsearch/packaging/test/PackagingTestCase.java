@@ -34,6 +34,8 @@ import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -44,9 +46,12 @@ import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
+import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assume.assumeFalse;
@@ -115,8 +120,22 @@ public abstract class PackagingTestCase extends Assert {
 
     @BeforeClass
     public static void createShell() throws Exception {
-        sh = new Shell();
+        if (distribution().isDocker()) {
+            ensureImageIsLoaded(distribution);
+            sh = new Docker.DockerShell();
+        } else {
+            sh = new Shell();
+        }
     }
+
+    @AfterClass
+    public static void cleanupDocker() {
+        if (distribution().isDocker()) {
+            // runContainer also calls this, so we don't need this method to be annotated as `@After`
+            removeContainer();
+        }
+    }
+
 
     @Before
     public void setup() throws Exception {
@@ -130,6 +149,24 @@ public abstract class PackagingTestCase extends Assert {
             Platforms.onWindows(() -> {
                 sh.getEnv().put("JAVA_HOME", systemJavaHome);
             });
+        }
+    }
+
+    @After
+    public void teardown() throws Exception {
+        // move log file so we can avoid false positives when grepping for
+        // messages in logs during test
+        if (installation != null && Files.exists(installation.logs)) {
+            Path logFile = installation.logs.resolve("elasticsearch.log");
+            String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
+            if (Files.exists(logFile)) {
+                Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
+                FileUtils.mv(logFile, newFile);
+            }
+            for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
+                Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());
+                FileUtils.mv(rotatedLogFile, newRotatedLogFile);
+            }
         }
     }
 
@@ -175,6 +212,12 @@ public abstract class PackagingTestCase extends Assert {
                 logger.warn("Elasticsearch log:\n" +
                     FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
             }
+            if (Files.exists(installation.logs.resolve("output.out"))) {
+                logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
+            }
+            if (Files.exists(installation.logs.resolve("output.err"))) {
+                logger.warn("Stderr:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.err")));
+            }
             throw e;
         }
 
@@ -199,7 +242,7 @@ public abstract class PackagingTestCase extends Assert {
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                return Archives.runElasticsearchStartCommand(installation, sh);
+                return Archives.runElasticsearchStartCommand(installation, sh, "");
             case DEB:
             case RPM:
                 return Packages.runElasticsearchStartCommand(sh);
@@ -257,7 +300,18 @@ public abstract class PackagingTestCase extends Assert {
         awaitElasticsearchStartup(runElasticsearchStartCommand());
     }
 
-    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage) {
+    public Shell.Result startElasticsearchStandardInputPassword(String password) {
+        assertTrue("Only archives support passwords on standard input", distribution().isArchive());
+        return Archives.runElasticsearchStartCommand(installation, sh, password);
+    }
+
+    public Shell.Result startElasticsearchTtyPassword(String password) throws Exception {
+        assertTrue("Only archives support passwords on TTY", distribution().isArchive());
+        return Archives.startElasticsearchWithTty(installation, sh, password);
+    }
+
+
+    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
 
         if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
 
@@ -271,10 +325,10 @@ public abstract class PackagingTestCase extends Assert {
 
             // For systemd, retrieve the error from journalctl
             assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
-            Shell.Result error = sh.run("journalctl --boot --unit elasticsearch.service");
+            Shell.Result error = journaldWrapper.getLogs();
             assertThat(error.stdout, containsString(expectedMessage));
 
-        } else if (Platforms.WINDOWS == true) {
+        } else if (Platforms.WINDOWS) {
 
             // In Windows, we have written our stdout and stderr to files in order to run
             // in the background
@@ -291,4 +345,5 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(result.stderr, containsString(expectedMessage));
         }
     }
+
 }

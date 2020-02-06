@@ -137,7 +137,7 @@ GET my_index/_search
 inject the single token value `Beck` at the same position as `beck` in the token stream.
 <2> Note annotations can inject multiple tokens at the same position - here we inject both
 the very specific value `Jeff Beck` and the broader term `Guitarist`. This enables
-broader positional queries e.g. finding mentions of a `Guitarist` near to `strat`.
+broader positional queries e.g. finding mentions of a `Guitarist` near to `start`.
 <3> A benefit of searching with these carefully defined annotation tokens is that a query for 
 `Beck` will not match document 2 that contains the tokens `jeff`, `beck` and `Jeff Beck`
 

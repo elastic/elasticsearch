@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
@@ -67,22 +66,32 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
             .collect(Collectors.toList());
         int numberOfModels = randomIntBetween(1, 10);
         List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6, targetType))
-            .limit(numberOfFeatures)
+            .limit(numberOfModels)
             .collect(Collectors.toList());
-        OutputAggregator outputAggregator = null;
-        if (randomBoolean()) {
-            List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-            outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights), new LogisticRegression(weights));
-        }
         List<String> categoryLabels = null;
-        if (randomBoolean()) {
-            categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
+        if (randomBoolean() && targetType.equals(TargetType.CLASSIFICATION)) {
+            categoryLabels = randomList(2, randomIntBetween(3, 10), () -> randomAlphaOfLength(10));
         }
+        List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
+        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ? new WeightedSum(weights) :
+            randomFrom(
+                new WeightedMode(
+                    categoryLabels != null ? categoryLabels.size() : randomIntBetween(2, 10),
+                    weights),
+                new LogisticRegression(weights));
+        double[] thresholds = randomBoolean() && targetType == TargetType.CLASSIFICATION  ?
+            Stream.generate(ESTestCase::randomDouble)
+                .limit(categoryLabels == null ? randomIntBetween(1, 10) : categoryLabels.size())
+                .mapToDouble(Double::valueOf)
+                .toArray() :
+            null;
+
         return new Ensemble(featureNames,
             models,
             outputAggregator,
             targetType,
-            categoryLabels);
+            categoryLabels,
+            thresholds);
     }
 
     @Override

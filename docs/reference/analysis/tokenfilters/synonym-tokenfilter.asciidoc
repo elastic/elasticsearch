@@ -1,5 +1,8 @@
 [[analysis-synonym-tokenfilter]]
-=== Synonym Token Filter
+=== Synonym token filter
+++++
+<titleabbrev>Synonym</titleabbrev>
+++++
 
 The `synonym` token filter allows to easily handle synonyms during the
 analysis process. Synonyms are configured using a configuration file.

@@ -212,9 +212,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testNestedFieldSimpleQueryString() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                         .startObject("properties")
                         .startObject("body").field("type", "text")
                         .startObject("fields")
@@ -336,18 +336,16 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     public void testSimpleQueryStringAnalyzeWildcard() throws ExecutionException, InterruptedException, IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "text")
                 .field("analyzer", "standard")
                 .endObject()
                 .endObject()
-                .endObject()
                 .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1")
-            .addMapping("type1", mapping, XContentType.JSON);
+            .setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("location", "Köln"));
         refresh();
@@ -386,19 +384,17 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         // https://github.com/elastic/elasticsearch/issues/18202
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("body")
                 .field("type", "text")
                 .field("analyzer", "stop")
                 .endObject()
                 .endObject()
-                .endObject()
                 .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices()
                 .prepareCreate("test1")
-                .addMapping("type1", mapping, XContentType.JSON);
+                .setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("body", "Some Text"));
         refresh();
@@ -573,7 +569,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     public void testLimitOnExpandedFields() throws Exception {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject("type1");
+        builder.startObject("_doc");
         builder.startObject("properties");
         for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT + 1; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
@@ -585,7 +581,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertAcked(prepareCreate("toomanyfields")
                 .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
                         CLUSTER_MAX_CLAUSE_COUNT + 100))
-                .addMapping("type1", builder));
+                .setMapping(builder));
 
         client().prepareIndex("toomanyfields").setId("1").setSource("field1", "foo bar baz").get();
         refresh();

@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -124,6 +125,7 @@ public class HistogramFieldMapper extends FieldMapper {
                                                                    Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
+            TypeParsers.parseMeta(builder, name, node);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();

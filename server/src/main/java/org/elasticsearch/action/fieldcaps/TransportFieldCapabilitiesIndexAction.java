@@ -38,6 +38,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -89,7 +90,8 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
             if (ft != null) {
                 if (indicesService.isMetaDataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
                         || fieldPredicate.test(ft.name())) {
-                    FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
+                    FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable(),
+                            ft.meta());
                     responseMap.put(field, fieldCap);
                 } else {
                     continue;
@@ -107,7 +109,7 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
                         // no field type, it must be an object field
                         ObjectMapper mapper = mapperService.getObjectMapper(parentField);
                         String type = mapper.nested().isNested() ? "nested" : "object";
-                        FieldCapabilities fieldCap = new FieldCapabilities(parentField, type, false, false);
+                        FieldCapabilities fieldCap = new FieldCapabilities(parentField, type, false, false, Collections.emptyMap());
                         responseMap.put(parentField, fieldCap);
                     }
                     dotIndex = parentField.lastIndexOf('.');

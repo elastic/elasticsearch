@@ -21,6 +21,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.http.MockResponse;
@@ -58,7 +59,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             SSLClientAuth.NONE, VerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
-        final SSLService sslService = new SSLService(sslSetup, newEnvironment());
+        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(sslSetup)));
         try (MockWebServer webServer = initWebServer(sslService);
              CloseableHttpClient client = buildHttpClient(sslService)) {
             final HttpGet request = new HttpGet(webServer.getUri("/"));
@@ -79,7 +80,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             // Client
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
-        final SSLService sslService = new SSLService(sslSetup, newEnvironment());
+        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(sslSetup)));
         try (MockWebServer webServer = initWebServer(sslService)) {
             try (RestClient restClient = buildRestClient(sslService, webServer)) {
                 restClient.performRequest(new Request("GET", "/"));
@@ -98,7 +99,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             SSLClientAuth.NONE, VerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
-        final SSLService sslService = new SSLService(settings, newEnvironment());
+        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
         final SSLConfiguration clientSslConfig = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
         final SSLSocketFactory clientSocketFactory = sslService.sslSocketFactory(clientSslConfig);
 

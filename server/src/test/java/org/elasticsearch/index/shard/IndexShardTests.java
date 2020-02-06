@@ -2113,8 +2113,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         IndexShardTestCase.updateRoutingEntry(primarySource,
             primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
-        final IndexShard primaryTarget = newShard(primarySource.routingEntry().getTargetRelocatingShard(), Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), primarySource.indexSettings().isSoftDeleteEnabled()).build());
+        final IndexShard primaryTarget = newShard(primarySource.routingEntry().getTargetRelocatingShard());
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetaData());
         recoverReplica(primaryTarget, primarySource, true);
 
@@ -2128,13 +2127,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
     /* This test just verifies that we fill up local checkpoint up to max seen seqID on primary recovery */
     public void testRecoverFromStoreWithNoOps() throws IOException {
-        final Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean()).build();
-        final IndexShard shard = newStartedShard(true, settings);
+        final IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0");
         indexDoc(shard, "_doc", "1");
         // start a replica shard and index the second doc
-        final IndexShard otherShard = newStartedShard(false, settings);
+        final IndexShard otherShard = newStartedShard(false);
         updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
         SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), "1",
             new BytesArray("{}"), XContentType.JSON);
@@ -2314,8 +2311,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRestoreShard() throws IOException {
         final IndexShard source = newStartedShard(true);
-        IndexShard target = newStartedShard(true, Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), source.indexSettings().isSoftDeleteEnabled()).build());
+        IndexShard target = newStartedShard(true);
 
         indexDoc(source, "_doc", "0");
         EngineTestCase.generateNewSeqNo(source.getEngine()); // create a gap in the history
@@ -2911,25 +2907,23 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexDoc(indexShard, "_doc", id);
             }
             // Need to update and sync the global checkpoint and the retention leases for the soft-deletes retention MergePolicy.
-            if (indexShard.indexSettings.isSoftDeleteEnabled()) {
-                final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
-                if (indexShard.routingEntry().primary()) {
-                    indexShard.updateLocalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint());
-                    indexShard.updateGlobalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint());
-                    indexShard.syncRetentionLeases();
-                } else {
-                    indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
+            final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
+            if (indexShard.routingEntry().primary()) {
+                indexShard.updateLocalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
+                    indexShard.getLocalCheckpoint());
+                indexShard.updateGlobalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
+                    indexShard.getLocalCheckpoint());
+                indexShard.syncRetentionLeases();
+            } else {
+                indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
 
-                    final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
-                    indexShard.updateRetentionLeasesOnReplica(new RetentionLeases(
-                        retentionLeases.primaryTerm(), retentionLeases.version() + 1,
-                        retentionLeases.leases().stream().map(lease -> new RetentionLease(lease.id(), newGlobalCheckpoint + 1,
-                            lease.timestamp(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE)).collect(Collectors.toList())));
-                }
-                indexShard.sync();
+                final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
+                indexShard.updateRetentionLeasesOnReplica(new RetentionLeases(
+                    retentionLeases.primaryTerm(), retentionLeases.version() + 1,
+                    retentionLeases.leases().stream().map(lease -> new RetentionLease(lease.id(), newGlobalCheckpoint + 1,
+                        lease.timestamp(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE)).collect(Collectors.toList())));
             }
+            indexShard.sync();
             // flush the buffered deletes
             final FlushRequest flushRequest = new FlushRequest();
             flushRequest.force(false);
@@ -3513,14 +3507,12 @@ public class IndexShardTests extends IndexShardTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its memory usage is freed.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            primary.updateGlobalCheckpointForShard(
-                primary.routingEntry().allocationId().getId(),
-                primary.getLastSyncedGlobalCheckpoint());
-            primary.syncRetentionLeases();
-            primary.sync();
-            flushShard(primary);
-        }
+        primary.updateGlobalCheckpointForShard(
+            primary.routingEntry().allocationId().getId(),
+            primary.getLastSyncedGlobalCheckpoint());
+        primary.syncRetentionLeases();
+        primary.sync();
+        flushShard(primary);
         primary.refresh("force refresh");
 
         ss = primary.segmentStats(randomBoolean(), randomBoolean());

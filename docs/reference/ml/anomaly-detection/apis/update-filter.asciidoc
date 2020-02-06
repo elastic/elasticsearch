@@ -24,7 +24,8 @@ Updates the description of a filter, adds items, or removes items.
 ==== {api-path-parms-title}
 
 `<filter_id>`::
-		(Required, string) Identifier for the filter.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-update-filter-request-body]]
 ==== {api-request-body-title}
@@ -40,9 +41,6 @@ Updates the description of a filter, adds items, or removes items.
 
 [[ml-update-filter-example]]
 ==== {api-examples-title}
-
-You can change the description, add and remove items to the `safe_domains`
-filter as follows:
 
 [source,console]
 --------------------------------------------------

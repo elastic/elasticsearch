@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -56,14 +56,16 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         return TrainedModelConfig.builder()
             .setInput(TrainedModelInputTests.createRandomInput())
             .setMetadata(randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)))
-            .setCreateTime(Instant.ofEpochMilli(randomNonNegativeLong()))
+            .setCreateTime(Instant.ofEpochMilli(randomLongBetween(Instant.MIN.getEpochSecond(), Instant.MAX.getEpochSecond())))
             .setVersion(Version.CURRENT)
             .setModelId(modelId)
             .setCreatedBy(randomAlphaOfLength(10))
             .setDescription(randomBoolean() ? null : randomAlphaOfLength(100))
             .setEstimatedHeapMemory(randomNonNegativeLong())
             .setEstimatedOperations(randomNonNegativeLong())
-            .setLicenseLevel(License.OperationMode.PLATINUM.description())
+            .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(),
+                License.OperationMode.GOLD.description(),
+                License.OperationMode.BASIC.description()))
             .setTags(tags);
     }
 
@@ -191,50 +193,52 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
     }
 
     public void testValidateWithNullDefinition() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> TrainedModelConfig.builder().validate());
-        assertThat(ex.getMessage(), equalTo("[definition] must not be null."));
+        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
+            () -> TrainedModelConfig.builder().validate());
+        assertThat(ex.getMessage(), containsString("[definition] must not be null."));
     }
 
     public void testValidateWithInvalidID() {
         String modelId = "InvalidID-";
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setModelId(modelId).validate());
-        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INVALID_ID, "model_id", modelId)));
+        assertThat(ex.getMessage(), containsString(Messages.getMessage(Messages.INVALID_ID, "model_id", modelId)));
     }
 
     public void testValidateWithLongID() {
         String modelId = IntStream.range(0, 100).mapToObj(x -> "a").collect(Collectors.joining());
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setModelId(modelId).validate());
-        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.ID_TOO_LONG, "model_id", modelId, MlStrings.ID_LENGTH_LIMIT)));
+        assertThat(ex.getMessage(),
+            containsString(Messages.getMessage(Messages.ID_TOO_LONG, "model_id", modelId, MlStrings.ID_LENGTH_LIMIT)));
     }
 
     public void testValidateWithIllegallyUserProvidedFields() {
         String modelId = "simplemodel";
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setCreateTime(Instant.now())
-                .setModelId(modelId).validate());
-        assertThat(ex.getMessage(), equalTo("illegal to set [create_time] at inference model creation"));
+                .setModelId(modelId).validate(true));
+        assertThat(ex.getMessage(), containsString("illegal to set [create_time] at inference model creation"));
 
-        ex = expectThrows(ElasticsearchException.class,
+        ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setVersion(Version.CURRENT)
-                .setModelId(modelId).validate());
-        assertThat(ex.getMessage(), equalTo("illegal to set [version] at inference model creation"));
+                .setModelId(modelId).validate(true));
+        assertThat(ex.getMessage(), containsString("illegal to set [version] at inference model creation"));
 
-        ex = expectThrows(ElasticsearchException.class,
+        ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setCreatedBy("ml_user")
-                .setModelId(modelId).validate());
-        assertThat(ex.getMessage(), equalTo("illegal to set [created_by] at inference model creation"));
+                .setModelId(modelId).validate(true));
+        assertThat(ex.getMessage(), containsString("illegal to set [created_by] at inference model creation"));
     }
 
     public void testSerializationWithLazyDefinition() throws IOException {

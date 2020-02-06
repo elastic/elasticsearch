@@ -48,6 +48,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
                     (in) -> TimeseriesLifecycleType.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, WaitForSnapshotAction.NAME, WaitForSnapshotAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
@@ -66,6 +67,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
                 (p) -> TimeseriesLifecycleType.INSTANCE),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class,
+                new ParseField(WaitForSnapshotAction.NAME), WaitForSnapshotAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
@@ -110,6 +113,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return AllocateActionTests.randomInstance();
                 case DeleteAction.NAME:
                     return new DeleteAction();
+                case WaitForSnapshotAction.NAME:
+                    return  WaitForSnapshotActionTests.randomInstance();
                 case ForceMergeAction.NAME:
                     return ForceMergeActionTests.randomInstance();
                 case ReadOnlyAction.NAME:
@@ -160,6 +165,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             switch (action) {
                 case AllocateAction.NAME:
                     return AllocateActionTests.randomInstance();
+                case WaitForSnapshotAction.NAME:
+                    return WaitForSnapshotActionTests.randomInstance();
                 case DeleteAction.NAME:
                     return new DeleteAction();
                 case ForceMergeAction.NAME:
@@ -240,14 +247,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertThat(steps.size(), equalTo(2));
         assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(new StepKey("new", "init", "init")));
-        assertThat(steps.get(0).getNextStepKey(), equalTo(TerminalPolicyStep.KEY));
-        assertSame(steps.get(1), TerminalPolicyStep.INSTANCE);
+        assertThat(steps.get(0).getNextStepKey(), equalTo(PhaseCompleteStep.finalStep("new").getKey()));
+        assertThat(steps.get(1), equalTo(PhaseCompleteStep.finalStep("new")));
     }
 
     public void testToStepsWithOneStep() {
         Client client = mock(Client.class);
         MockStep mockStep = new MockStep(
-            new Step.StepKey("test", "test", "test"), TerminalPolicyStep.KEY);
+            new Step.StepKey("test", "test", "test"), PhaseCompleteStep.finalStep("test").getKey());
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
@@ -257,7 +264,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.put(firstPhase.getName(), firstPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
         StepKey firstStepKey = InitializePolicyContextStep.KEY;
-        StepKey secondStepKey = new StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
+        StepKey secondStepKey = PhaseCompleteStep.finalStep("new").getKey();
         List<Step> steps = policy.toSteps(client);
         assertThat(steps.size(), equalTo(4));
         assertSame(steps.get(0).getKey(), firstStepKey);
@@ -265,13 +272,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertThat(steps.get(1).getKey(), equalTo(secondStepKey));
         assertThat(steps.get(1).getNextStepKey(), equalTo(mockStep.getKey()));
         assertThat(steps.get(2).getKey(), equalTo(mockStep.getKey()));
-        assertThat(steps.get(2).getNextStepKey(), equalTo(TerminalPolicyStep.KEY));
-        assertSame(steps.get(3), TerminalPolicyStep.INSTANCE);
+        assertThat(steps.get(2).getNextStepKey(), equalTo(PhaseCompleteStep.finalStep("test").getKey()));
+        assertThat(steps.get(3), equalTo(PhaseCompleteStep.finalStep("test")));
     }
 
     public void testToStepsWithTwoPhases() {
         Client client = mock(Client.class);
-        MockStep secondActionStep = new MockStep(new StepKey("second_phase", "test2", "test"), TerminalPolicyStep.KEY);
+        MockStep secondActionStep = new MockStep(new StepKey("second_phase", "test2", "test"),
+            PhaseCompleteStep.finalStep("second_phase").getKey());
         MockStep secondAfter = new MockStep(new StepKey("first_phase", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME),
                 secondActionStep.getKey());
         MockStep firstActionAnotherStep = new MockStep(new StepKey("first_phase", "test", "bar"), secondAfter.getKey());
@@ -305,7 +313,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertThat(steps.get(4).getKey(), equalTo(secondAfter.getKey()));
         assertThat(steps.get(4).getNextStepKey(), equalTo(secondAfter.getNextStepKey()));
         assertThat(steps.get(5), equalTo(secondActionStep));
-        assertSame(steps.get(6), TerminalPolicyStep.INSTANCE);
+        assertThat(steps.get(6), equalTo(PhaseCompleteStep.finalStep("second_phase")));
     }
 
     public void testIsActionSafe() {

@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<DataFrameAnalyticsConfig> {
@@ -327,7 +328,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                  XContentFactory.xContent(XContentType.JSON).createParser(
                      xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
-            assertThat(e.getMessage(), containsString("unknown field [create_time], parser not found"));
+            assertThat(e.getMessage(), containsString("unknown field [create_time]"));
         }
     }
 
@@ -342,7 +343,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                  XContentFactory.xContent(XContentType.JSON).createParser(
                      xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
-            assertThat(e.getMessage(), containsString("unknown field [version], parser not found"));
+            assertThat(e.getMessage(), containsString("unknown field [version]"));
         }
     }
 
@@ -382,6 +383,13 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
             String json = Strings.toString(builder);
             assertThat(json, not(containsString("randomize_seed")));
         }
+    }
+
+    public void testExtractJobIdFromDocId() {
+        assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-foo"), equalTo("foo"));
+        assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-data_frame_analytics_config-foo"),
+            equalTo("data_frame_analytics_config-foo"));
+        assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("foo"), is(nullValue()));
     }
 
     private static void assertTooSmall(ElasticsearchStatusException e) {

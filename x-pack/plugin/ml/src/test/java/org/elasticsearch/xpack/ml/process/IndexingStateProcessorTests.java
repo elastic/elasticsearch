@@ -6,16 +6,16 @@
 package org.elasticsearch.xpack.ml.process;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -54,24 +54,22 @@ public class IndexingStateProcessorTests extends ESTestCase {
     private static final int NUM_LARGE_DOCS = 2;
     private static final int LARGE_DOC_SIZE = 1000000;
 
-    private Client client;
     private IndexingStateProcessor stateProcessor;
+    private ResultsPersisterService resultsPersisterService;
 
     @Before
-    public void initialize() throws IOException {
-        client = mock(Client.class);
-        @SuppressWarnings("unchecked")
-        ActionFuture<BulkResponse> bulkResponseFuture = mock(ActionFuture.class);
-        stateProcessor = spy(new IndexingStateProcessor(client, JOB_ID));
-        when(client.bulk(any(BulkRequest.class))).thenReturn(bulkResponseFuture);
+    public void initialize() {
+        resultsPersisterService = mock(ResultsPersisterService.class);
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
+        stateProcessor = spy(new IndexingStateProcessor(JOB_ID, resultsPersisterService, auditor));
+        when(resultsPersisterService.bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any())).thenReturn(mock(BulkResponse.class));
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
     }
 
     @After
     public void verifyNoMoreClientInteractions() {
-        Mockito.verifyNoMoreInteractions(client);
+        Mockito.verifyNoMoreInteractions(resultsPersisterService);
     }
 
     public void testStateRead() throws IOException {
@@ -85,8 +83,7 @@ public class IndexingStateProcessorTests extends ESTestCase {
         assertEquals(threeStates[0], capturedBytes.get(0).utf8ToString());
         assertEquals(threeStates[1], capturedBytes.get(1).utf8ToString());
         assertEquals(threeStates[2], capturedBytes.get(2).utf8ToString());
-        verify(client, times(3)).bulk(any(BulkRequest.class));
-        verify(client, times(3)).threadPool();
+        verify(resultsPersisterService, times(3)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
     }
 
     public void testStateReadGivenConsecutiveZeroBytes() throws IOException {
@@ -96,7 +93,7 @@ public class IndexingStateProcessorTests extends ESTestCase {
         stateProcessor.process(stream);
 
         verify(stateProcessor, never()).persist(any());
-        Mockito.verifyNoMoreInteractions(client);
+        Mockito.verifyNoMoreInteractions(resultsPersisterService);
     }
 
     public void testStateReadGivenConsecutiveSpacesFollowedByZeroByte() throws IOException {
@@ -106,7 +103,7 @@ public class IndexingStateProcessorTests extends ESTestCase {
         stateProcessor.process(stream);
 
         verify(stateProcessor, times(1)).persist(any());
-        Mockito.verifyNoMoreInteractions(client);
+        Mockito.verifyNoMoreInteractions(resultsPersisterService);
     }
 
     /**
@@ -128,7 +125,6 @@ public class IndexingStateProcessorTests extends ESTestCase {
         ByteArrayInputStream stream = new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8));
         stateProcessor.process(stream);
         verify(stateProcessor, times(NUM_LARGE_DOCS)).persist(any());
-        verify(client, times(NUM_LARGE_DOCS)).bulk(any(BulkRequest.class));
-        verify(client, times(NUM_LARGE_DOCS)).threadPool();
+        verify(resultsPersisterService, times(NUM_LARGE_DOCS)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
     }
 }

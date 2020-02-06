@@ -3,7 +3,7 @@
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-reload-analyzers.html"
     },
-    "stability":"experimental",
+    "stability" : "stable",
     "url":{
       "paths":[
         {

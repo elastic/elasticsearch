@@ -306,10 +306,10 @@ public class Ec2DiscoveryTests extends ESTestCase {
                 return new ArrayList<>();
             }
         };
-        for (int i=0; i<3; i++) {
+        for (int i = 0; i < 3; i++) {
             provider.getSeedAddresses(null);
         }
-        assertThat(provider.fetchCount, is(3));
+        assertThat(provider.fetchCount, is(1));
     }
 
     public void testGetNodeListCached() throws Exception {

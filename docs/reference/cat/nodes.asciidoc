@@ -285,8 +285,6 @@ Number of suggest operations, such as `0`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]

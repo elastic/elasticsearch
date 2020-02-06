@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.transform.script;
 
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.support.Variables;
@@ -39,7 +38,7 @@ public abstract class WatcherTransformScript {
         return ctx;
     }
 
-    public interface Factory extends ScriptFactory {
+    public interface Factory {
         WatcherTransformScript newInstance(Map<String, Object> params, WatchExecutionContext watcherContext, Payload payload);
     }
 

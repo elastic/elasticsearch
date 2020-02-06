@@ -8,6 +8,14 @@
 #   On RedHat,
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
+
+# source the default env file
+if [ -f "${path.env}" ]; then
+    . "${path.env}"
+else
+  ES_PATH_CONF="${path.conf}"
+fi
+
 REMOVE_DIRS=false
 REMOVE_USER_AND_GROUP=false
 
@@ -73,8 +81,8 @@ if [ "$REMOVE_DIRS" = "true" ]; then
     fi
 
     # delete the conf directory if and only if empty
-    if [ -d /etc/elasticsearch ]; then
-        rmdir --ignore-fail-on-non-empty /etc/elasticsearch
+    if [ -d "${ES_PATH_CONF}" ]; then
+        rmdir --ignore-fail-on-non-empty "${ES_PATH_CONF}"
     fi
 
 fi

@@ -7,6 +7,7 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /** Runs rest tests against external cluster */
@@ -70,6 +72,10 @@ public class WatcherRestIT extends ESClientYamlSuiteTestCase {
 
     @After
     public void stopWatcher() throws Exception {
+        Request deleteWatchesIndexRequest = new Request("DELETE", "/.watches");
+        deleteWatchesIndexRequest.addParameter("ignore_unavailable", "true");
+        adminClient().performRequest(deleteWatchesIndexRequest);
+
         assertBusy(() -> {
             ClientYamlTestResponse response =
                 getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
@@ -77,6 +83,8 @@ public class WatcherRestIT extends ESClientYamlSuiteTestCase {
 
             switch (state) {
                 case "stopped":
+                    int watcherCount = (int) response.evaluate("stats.0.watch_count");
+                    assertThat(watcherCount, equalTo(0));
                     // all good here, we are done
                     break;
                 case "stopping":

@@ -7,15 +7,14 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractWireTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class ListCursorTests extends AbstractWireSerializingTestCase<ListCursor> {
+public class ListCursorTests extends AbstractWireTestCase<ListCursor> {
     public static ListCursor randomPagingListCursor() {
         int size = between(1, 20);
         int depth = between(1, 20);
@@ -46,16 +45,11 @@ public class ListCursorTests extends AbstractWireSerializingTestCase<ListCursor>
     }
 
     @Override
-    protected Reader<ListCursor> instanceReader() {
-        return ListCursor::new;
-    }
-
-    @Override
     protected ListCursor copyInstance(ListCursor instance, Version version) throws IOException {
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {
-            return super.copyInstance(instance, version);
+            return copyWriteable(instance, getNamedWriteableRegistry(), ListCursor::new, version);
         }
         return (ListCursor) Cursors.decodeFromString(Cursors.encodeToString(instance, randomZone()));
     }

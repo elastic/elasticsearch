@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -27,7 +28,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -42,14 +42,17 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
+    private final GeoBoundingBox geoBoundingBox;
 
-    GeoTileGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-                                 int shardSize, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    GeoTileGridAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize,
+                                 int shardSize, GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
+                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                 Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.geoBoundingBox = geoBoundingBox;
     }
 
     @Override
@@ -68,7 +71,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     }
 
     @Override
-    protected Aggregator doCreateInternal(final GeoPoint valuesSource,
+    protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
@@ -77,8 +80,8 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoTileUtils::longEncode);
-        return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, searchContext, parent,
-                pipelineAggregators, metaData);
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, geoBoundingBox, GeoTileUtils::longEncode);
+        return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
+            searchContext, parent, pipelineAggregators, metaData);
     }
 }

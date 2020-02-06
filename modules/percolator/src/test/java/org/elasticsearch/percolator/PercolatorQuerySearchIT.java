@@ -71,11 +71,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
-    @After
-    public void resetSettings() {
-
-    }
-
     public void testPercolatorQuery() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setMapping("id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")

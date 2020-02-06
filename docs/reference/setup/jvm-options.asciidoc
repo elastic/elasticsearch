@@ -11,6 +11,10 @@ file is `config/jvm.options` (when installing from the tar or zip distributions)
 and `/etc/elasticsearch/jvm.options` (when installing from the Debian or RPM
 packages).
 
+NOTE: If you are using the <<docker,Docker distribution of {es}>>, we
+recommend that you <<docker-notes-for-production,set the heap size using the
+`ES_JAVA_OPTS` environment variable>>.
+
 This file contains a line-delimited list of JVM arguments following
 a special syntax:
 

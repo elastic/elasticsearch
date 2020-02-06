@@ -73,8 +73,8 @@ public interface RestHandler {
     }
 
     /**
-     * A list of APIs handled by this RestHandler that are deprecated and do not have a direct
-     * replacement. If changing the {@code path} or {@code method} of the API,
+     * A list of routes handled by this RestHandler that are deprecated and do not have a direct
+     * replacement. If changing the {@code path} or {@code method} of a route,
      * use {@link #replacedRoutes()}.
      */
     default List<DeprecatedRoute> deprecatedRoutes() {
@@ -82,9 +82,9 @@ public interface RestHandler {
     }
 
     /**
-     * A list of APIs handled by this RestHandler that have had their {@code path} and/or
-     * {@code method} changed. The pre-existing {@code path} and {@code method} will be registered
-     * as deprecated alongside the updated {@code path} and {@code method}.
+     * A list of routes handled by this RestHandler that have had their {@code path} and/or
+     * {@code method} changed. The pre-existing {@code route} will be registered
+     * as deprecated alongside the updated {@code route}.
      */
     default List<ReplacedRoute> replacedRoutes() {
         return Collections.emptyList();

@@ -17,6 +17,13 @@ public final class Aggregations {
     private static final String DYNAMIC = "_dynamic";
     // the field mapping should be determined explicitly from the source field mapping if possible.
     private static final String SOURCE = "_source";
+    public static final String FLOAT = "float";
+    public static final String SCALED_FLOAT = "scaled_float";
+    public static final String DOUBLE = "double";
+    public static final String LONG = "long";
+    public static final String GEO_SHAPE = "geo_shape";
+    public static final String GEO_POINT = "geo_point";
+
     private Aggregations() {}
 
     /**
@@ -29,14 +36,14 @@ public final class Aggregations {
      *
      */
     enum AggregationType {
-        AVG("avg", "double"),
-        CARDINALITY("cardinality", "long"),
-        VALUE_COUNT("value_count", "long"),
+        AVG("avg", DOUBLE),
+        CARDINALITY("cardinality", LONG),
+        VALUE_COUNT("value_count", LONG),
         MAX("max", SOURCE),
         MIN("min", SOURCE),
-        SUM("sum", "double"),
-        GEO_CENTROID("geo_centroid", "geo_point"),
-        GEO_BOUNDS("geo_bounds", "geo_shape"),
+        SUM("sum", DOUBLE),
+        GEO_CENTROID("geo_centroid", GEO_POINT),
+        GEO_BOUNDS("geo_bounds", GEO_SHAPE),
         SCRIPTED_METRIC("scripted_metric", DYNAMIC),
         WEIGHTED_AVG("weighted_avg", DYNAMIC),
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
@@ -72,6 +79,15 @@ public final class Aggregations {
 
     public static String resolveTargetMapping(String aggregationType, String sourceType) {
         AggregationType agg = AggregationType.valueOf(aggregationType.toUpperCase(Locale.ROOT));
-        return agg.getTargetMapping().equals(SOURCE) ? sourceType : agg.getTargetMapping();
+
+        if (agg.getTargetMapping().equals(SOURCE)) {
+            // scaled float requires an additional parameter "scaling_factor", which we do not know, therefore we fallback to float
+            if (sourceType.equals(SCALED_FLOAT)) {
+                return FLOAT;
+            }
+            return sourceType;
+        }
+
+        return agg.getTargetMapping();
     }
 }

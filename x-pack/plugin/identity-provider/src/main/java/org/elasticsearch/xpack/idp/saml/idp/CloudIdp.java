@@ -14,6 +14,9 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
+import org.elasticsearch.xpack.idp.saml.sp.CloudKibanaServiceProvider;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
 
@@ -22,6 +25,7 @@ import java.security.PrivateKey;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ENTITY_ID;
@@ -37,6 +41,7 @@ public class CloudIdp implements SamlIdentityProvider {
     private final HashMap<String, String> ssoEndpoints = new HashMap<>();
     private final HashMap<String, String> sloEndpoints = new HashMap<>();
     private final X509Credential signingCredential;
+    private Map<String, SamlServiceProvider> registeredServiceProviders;
 
     public CloudIdp(Environment env, Settings settings) {
         this.entityId = require(settings, IDP_ENTITY_ID);
@@ -51,6 +56,7 @@ public class CloudIdp implements SamlIdentityProvider {
             this.sloEndpoints.put("redirect", settings.get(IDP_SLO_REDIRECT_ENDPOINT.getKey()));
         }
         this.signingCredential = buildSigningCredential(env, settings);
+        this.registeredServiceProviders = gatherRegisteredServiceProviders();
     }
 
     @Override
@@ -71,6 +77,11 @@ public class CloudIdp implements SamlIdentityProvider {
     @Override
     public X509Credential getSigningCredential() {
         return signingCredential;
+    }
+
+    @Override
+    public Map<String, SamlServiceProvider> getRegisteredServiceProviders() {
+        return registeredServiceProviders;
     }
 
     private static String require(Settings settings, Setting<String> setting) {
@@ -125,6 +136,16 @@ public class CloudIdp implements SamlIdentityProvider {
                 + "], only RSA and EC are supported");
         }
         return new X509KeyManagerX509CredentialAdapter(keyManager, selectedAlias);
+    }
+
+    private Map<String, SamlServiceProvider> gatherRegisteredServiceProviders() {
+        // TODO Fetch all the registered service providers from the index (?) they are persisted.
+        // For now hardcode something to use.
+        Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
+        registeredSps.put("kibana_url", new CloudKibanaServiceProvider("kibana_url", "kibana_url/api/security/v1/saml",
+            NameID.TRANSIENT, null));
+
+        return registeredSps;
     }
 
 

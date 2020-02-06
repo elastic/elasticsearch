@@ -6,9 +6,9 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
+import org.elasticsearch.common.Nullable;
 import org.joda.time.ReadableDuration;
-
-import java.net.URI;
+import org.opensaml.security.x509.X509Credential;
 
 /**
  * SAML 2.0 configuration information about a specific service provider
@@ -16,7 +16,9 @@ import java.net.URI;
 public interface SamlServiceProvider {
     String getEntityId();
 
-    URI getAssertionConsumerService();
+    String getNameIDPolicyFormat();
+
+    String getAssertionConsumerService();
 
     ReadableDuration getAuthnExpiry();
 
@@ -25,4 +27,8 @@ public interface SamlServiceProvider {
     }
 
     AttributeNames getAttributeNames();
+
+    @Nullable
+    X509Credential getSigningCredential();
+
 }

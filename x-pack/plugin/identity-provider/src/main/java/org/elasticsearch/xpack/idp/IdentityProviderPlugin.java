@@ -8,22 +8,34 @@ package org.elasticsearch.xpack.idp;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
+import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
-import org.elasticsearch.xpack.idp.saml.support.SamlInit;
+import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -31,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * This plugin provides the backend for an IdP built on top of Elasticsearch security features.
@@ -73,21 +86,45 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private final Logger logger = LogManager.getLogger();
     private boolean enabled;
+    private Settings settings;
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        final Settings settings = environment.settings();
+        settings = environment.settings();
         enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
             return List.of();
         }
 
-        SamlInit.initialize();
+        SamlUtils.initialize();
         CloudIdp idp = new CloudIdp(environment, settings);
         return List.of();
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+
+        enabled = ENABLED_SETTING.get(settings);
+        if (enabled == false) {
+            return Collections.emptyList();
+        }
+        return Collections.singletonList(
+            new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class)
+        );
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
+                                             IndexNameExpressionResolver indexNameExpressionResolver,
+                                             Supplier<DiscoveryNodes> nodesInCluster) {
+        if (enabled == false) {
+            return Collections.emptyList();
+        }
+        return Collections.singletonList(new RestSamlValidateAuthenticationRequestAction(restController));
     }
 
     @Override

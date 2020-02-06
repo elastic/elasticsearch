@@ -358,28 +358,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         });
     }
 
-    public static boolean hasPreIndexGensVersionSnapshots(RepositoryData repositoryData) {
-        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        final boolean hasOldFormatSnapshots;
-        if (snapshotIds.isEmpty()) {
-            hasOldFormatSnapshots = false;
-        } else {
-            if (repositoryData.indexMetaDataGenerations().isEmpty() == false) {
-                hasOldFormatSnapshots = false;
-            } else {
-                try {
-                    hasOldFormatSnapshots = snapshotIds.stream().anyMatch(
-                        snapshotId -> {
-                            final Version known = repositoryData.getVersion(snapshotId);
-                            return (known == null ? INDEX_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion() : known)
-                                .before(INDEX_GEN_IN_REPO_DATA_VERSION);
-                        });
-                } catch (SnapshotMissingException e) {
-                    logger.warn("Failed to load snapshot metadata, assuming repository is in old format", e);
-                    return true;
-                }
-            }
-        }
+    private boolean hasPreIndexGensVersionSnapshots(RepositoryData repositoryData, String repositoryName) {
+        final boolean hasOldFormatSnapshots = repositoryData.indexMetaDataGenerations().isEmpty()
+            && hasOldFormatSnapshots(INDEX_GEN_IN_REPO_DATA_VERSION, repositoryName, repositoryData, null);
         assert hasOldFormatSnapshots == false || repositoryData.indexMetaDataGenerations().isEmpty() :
             "Found non-empty index generations [" + repositoryData.indexMetaDataGenerations()
                 + "] but repository contained old version snapshots";
@@ -387,31 +368,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     public boolean hasOldVersionSnapshots(String repositoryName, RepositoryData repositoryData, @Nullable SnapshotId excluded) {
-        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        final boolean hasOldFormatSnapshots;
-        if (snapshotIds.isEmpty()) {
-            hasOldFormatSnapshots = false;
-        } else {
-            if (repositoryData.shardGenerations().totalShards() > 0) {
-                hasOldFormatSnapshots = false;
-            } else {
-                try {
-                    final Repository repository = repositoriesService.repository(repositoryName);
-                    hasOldFormatSnapshots = snapshotIds.stream().filter(snapshotId -> snapshotId.equals(excluded) == false).anyMatch(
-                        snapshotId -> {
-                            final Version known = repositoryData.getVersion(snapshotId);
-                            return (known == null ? repository.getSnapshotInfo(snapshotId).version() : known)
-                                .before(SHARD_GEN_IN_REPO_DATA_VERSION);
-                        });
-                } catch (SnapshotMissingException e) {
-                    logger.warn("Failed to load snapshot metadata, assuming repository is in old format", e);
-                    return true;
-                }
-            }
-        }
+        final boolean hasOldFormatSnapshots = repositoryData.shardGenerations().totalShards() == 0
+            && hasOldFormatSnapshots(SHARD_GEN_IN_REPO_DATA_VERSION, repositoryName, repositoryData, excluded);
         assert hasOldFormatSnapshots == false || repositoryData.shardGenerations().totalShards() == 0 :
             "Found non-empty shard generations [" + repositoryData.shardGenerations() + "] but repository contained old version snapshots";
         return hasOldFormatSnapshots;
+    }
+
+    private boolean hasOldFormatSnapshots(Version minVersion, String repositoryName, RepositoryData repositoryData,
+                                          @Nullable SnapshotId excluded) {
+        try {
+            final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+            if (snapshotIds.isEmpty()) {
+                return false;
+            }
+            final Repository repository = repositoriesService.repository(repositoryName);
+            if (snapshotIds.stream().filter(snapshotId -> snapshotId.equals(excluded) == false).anyMatch(
+                snapshotId -> {
+                    final Version known = repositoryData.getVersion(snapshotId);
+                    return (known == null ? repository.getSnapshotInfo(snapshotId).version() : known)
+                        .before(minVersion);
+                })) {
+                return true;
+            }
+        } catch (SnapshotMissingException e) {
+            logger.warn("Failed to load snapshot metadata, assuming repository is in old format", e);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -501,7 +485,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         && hasOldVersionSnapshots(snapshot.snapshot().getRepository(), repositoryData, null) == false;
                     final boolean writeIndexGenerations = writeShardGenerations &&
                         minNodeVersion.onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION) &&
-                        hasPreIndexGensVersionSnapshots(repositoryData) == false;
+                        hasPreIndexGensVersionSnapshots(repositoryData, snapshot.repository()) == false;
                     if (indices.isEmpty()) {
                         // No indices in this snapshot - we are done
                         userCreateSnapshotListener.onResponse(snapshot.snapshot());

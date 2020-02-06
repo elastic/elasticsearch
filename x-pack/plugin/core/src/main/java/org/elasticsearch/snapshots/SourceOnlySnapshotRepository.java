@@ -141,6 +141,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             final List<SegmentInfos> segmentInfosInRepo = segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation());
             FSDirectory directory = new SimpleFSDirectory(snapPath);
             toClose.add(0, directory);
+            Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
+            // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
+            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(directory, querySupplier,
+                () -> segmentInfosInRepo);
+            SegmentInfos newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {
@@ -156,11 +161,6 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                         metadataSnapshot.getCommitUserData(), metadataSnapshot.getNumDocs());
                 }
             };
-            Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
-            // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
-            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier,
-                () -> segmentInfosInRepo);
-            SegmentInfos newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             if (segmentInfosInRepo.contains(newFiles) == false) {
                 final long maxDoc = newFiles.totalMaxDoc();
@@ -170,7 +170,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             store.incRef();
             toClose.add(1, store::decRef);
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId,
-                new SourceOnlyIndexCommit(newFiles, tempStore.directory()), snapshotStatus, writeShardGens, userMetadata,
+                new SourceOnlyIndexCommit(newFiles, directory), snapshotStatus, writeShardGens, userMetadata,
                 ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {

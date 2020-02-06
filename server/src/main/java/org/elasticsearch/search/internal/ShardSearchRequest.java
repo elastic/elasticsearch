@@ -50,7 +50,11 @@ import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+<<<<<<< HEAD
 import org.elasticsearch.search.sort.FieldSortBuilder;
+=======
+import org.elasticsearch.search.query.QuerySearchResult;
+>>>>>>> master
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -182,6 +186,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         } else {
             canReturnNullResponseIfMatchNoDocs = false;
             rawBottomSortValues = null;
+        } else {
+            canReturnNullResponseIfMatchNoDocs = false;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
@@ -309,6 +315,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return  rawBottomSortValues;
     }
 
+    /**
+     * Returns true if the caller can handle null response {@link QuerySearchResult#nullInstance()}.
+     * Defaults to false since the coordinator node needs at least one shard response to build the global
+     * response.
+     */
     public boolean canReturnNullResponseIfMatchNoDocs() {
         return canReturnNullResponseIfMatchNoDocs;
     }

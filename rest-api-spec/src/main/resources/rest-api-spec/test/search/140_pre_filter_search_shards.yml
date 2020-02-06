@@ -222,3 +222,5 @@ setup:
   - length: { hits.hits: 1 }
   - match: {hits.hits.0._id: "3" }
   - length: { aggregations.idx_terms.buckets: 3 }
+  - match: { hits.total: 0 }
+  - length: { aggregations.idx_terms.buckets: 0 }

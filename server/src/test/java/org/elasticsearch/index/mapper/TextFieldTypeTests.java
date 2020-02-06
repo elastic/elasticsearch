@@ -197,7 +197,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.prefixQuery("internationalisatio", null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Prefix queries cannot be executed when 'search.allow_expensive_queries' is set to false." +
+        assertEquals("Prefix queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
                 "For optimised prefix queries on text fields please enable [index_prefixes]", ee.getMessage());
 
         q = ft.prefixQuery("g", CONSTANT_SCORE_REWRITE, randomMockShardContext());

@@ -45,8 +45,8 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Prefix queries cannot be executed when 'search.allow_expensive_queries' is set to false",
-                ee.getMessage());
+        assertEquals("Prefix queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
+                        "For optimised prefix queries on text fields please enable [index_prefixes]", ee.getMessage());
     }
 
     public void testRegexpQuery() {
@@ -59,8 +59,8 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.regexpQuery("foo?", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("Regexp queries cannot be executed when 'search.allow_expensive_queries' is set to false." +
-                "For optimised prefix queries on text fields please enable [index_prefixes]", ee.getMessage());
+        assertEquals("Regexp queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+                ee.getMessage());
     }
 
     public void testWildcardQuery() {

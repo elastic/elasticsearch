@@ -88,7 +88,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         void syncFlush(String syncId) throws IOException {
             assertNotNull(indexWriter);
             try (ReleasableLock ignored = writeLock.acquire()) {
-                assertThat(getTranslogStats().getUncommittedOperations(), equalTo(0));
+                assertFalse(indexWriter.hasUncommittedChanges());
                 Map<String, String> userData = new HashMap<>(getLastCommittedSegmentInfos().userData);
                 userData.put(Engine.SYNC_COMMIT_ID, syncId);
                 indexWriter.setLiveCommitData(userData.entrySet());
@@ -126,6 +126,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51969")
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();

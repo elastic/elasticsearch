@@ -132,15 +132,18 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/50307")
     public void testTDigestHistogram() throws Exception {
 
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
               .startObject("_doc")
                 .startObject("properties")
-                  .startObject("data")
-                    .field("type", "double")
+                  .startObject("inner")
+                     .startObject("properties")
+                        .startObject("data")
+                        .field("type", "double")
+                      .endObject()
+                    .endObject()
                   .endObject()
                 .endObject()
               .endObject()
@@ -154,8 +157,12 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             .startObject()
               .startObject("_doc")
                 .startObject("properties")
-                  .startObject("data")
-                    .field("type", "histogram")
+                  .startObject("inner")
+                    .startObject("properties")
+                        .startObject("data")
+                           .field("type", "histogram")
+                        .endObject()
+                     .endObject()
                   .endObject()
                 .endObject()
               .endObject()
@@ -165,7 +172,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         client().admin().indices().putMapping(request2).actionGet();
 
 
-        int compression = TestUtil.nextInt(random(), 25, 300);
+        int compression = TestUtil.nextInt(random(), 200, 300);
         TDigestState histogram = new TDigestState(compression);
         BulkRequest bulkRequest = new BulkRequest();
 
@@ -176,7 +183,9 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             double value  = random().nextDouble();
             XContentBuilder doc = XContentFactory.jsonBuilder()
                 .startObject()
-                  .field("data", value)
+                  .startObject("inner")
+                    .field("data", value)
+                  .endObject()
                 .endObject();
             bulkRequest.add(new IndexRequest("raw").source(doc));
             histogram.add(value);
@@ -192,10 +201,12 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                 }
                 XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
                     .startObject()
-                      .startObject("data")
-                        .field("values", values.toArray(new Double[values.size()]))
-                        .field("counts", counts.toArray(new Integer[counts.size()]))
-                      .endObject()
+                      .startObject("inner")
+                        .startObject("data")
+                          .field("values", values.toArray(new Double[values.size()]))
+                          .field("counts", counts.toArray(new Integer[counts.size()]))
+                        .endObject()
+                       .endObject()
                     .endObject();
                 client().prepareIndex("pre_agg").setSource(preAggDoc).get();
                 histogram = new TDigestState(compression);
@@ -210,7 +221,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
 
         PercentilesAggregationBuilder builder =
-            AggregationBuilders.percentiles("agg").field("data").method(PercentilesMethod.TDIGEST)
+            AggregationBuilders.percentiles("agg").field("inner.data").method(PercentilesMethod.TDIGEST)
                 .compression(compression).percentiles(10, 25, 500, 75);
 
         SearchResponse responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
@@ -221,8 +232,8 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         InternalTDigestPercentiles percentilesPreAgg = responsePreAgg.getAggregations().get("agg");
         InternalTDigestPercentiles percentilesBoth = responseBoth.getAggregations().get("agg");
         for (int i = 1; i < 100; i++) {
-            assertEquals(percentilesRaw.percentile(i), percentilesPreAgg.percentile(i), 1e-2);
-            assertEquals(percentilesRaw.percentile(i), percentilesBoth.percentile(i), 1e-2);
+            assertEquals(percentilesRaw.percentile(i), percentilesPreAgg.percentile(i), 1.0);
+            assertEquals(percentilesRaw.percentile(i), percentilesBoth.percentile(i), 1.0);
         }
     }
 

@@ -28,6 +28,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper.CollationFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -101,32 +102,36 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
-        expectThrows(UnsupportedOperationException.class,
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.regexpQuery("foo.*", 0, 10, null, randomMockShardContext()));
+        assertEquals("[regexp] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testFuzzyQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
-        expectThrows(UnsupportedOperationException.class,
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, randomMockShardContext()));
+        assertEquals("[fuzzy] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testPrefixQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
-        expectThrows(UnsupportedOperationException.class,
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.prefixQuery("prefix", null, randomMockShardContext()));
+        assertEquals("[prefix] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testWildcardQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
-        expectThrows(UnsupportedOperationException.class,
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.wildcardQuery("foo*", null, randomMockShardContext()));
+        assertEquals("[wildcard] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testRangeQuery() {
@@ -143,11 +148,16 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         TermRangeQuery expected = new TermRangeQuery("field", new BytesRef(aKey.bytes, 0, aKey.size),
             new BytesRef(bKey.bytes, 0, bKey.size), false, false);
 
-        assertEquals(expected, ft.rangeQuery("a", "b", false, false, null, null, null, null));
+        assertEquals(expected, ft.rangeQuery("a", "b", false, false, null, null, null, MOCK_QSC));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.rangeQuery("a", "b", true, true, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("Range queries on text or keyword fields cannot be executed when 'search.allow_expensive_queries' " +
+                "is set to false", ee.getMessage());
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> ft.rangeQuery("a", "b", false, false, null, null, null, null));
+            () -> ft.rangeQuery("a", "b", false, false, null, null, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

@@ -96,12 +96,17 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
         TermRangeQuery expected = new TermRangeQuery("field",
             new BytesRef("lower"),
             new BytesRef("upper"), false, false);
-        assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, null));
+        assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, MOCK_QSC));
 
         expected = new TermRangeQuery("field",
             new BytesRef("lower"),
             new BytesRef("upper"), true, true);
-        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, null));
+        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, MOCK_QSC));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.rangeQuery("lower", "upper", true, true, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("Range queries on text or keyword fields cannot be executed when 'search.allow_expensive_queries' " +
+                "is set to false", ee.getMessage());
     }
 
     public void testRegexpQuery() {

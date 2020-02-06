@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -18,19 +17,27 @@ import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends XPackRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPostStartTrialLicense.class));
 
-    RestPostStartTrialLicense(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/_license/start_trial", this,
-                POST, URI_BASE + "/license/start_trial", deprecationLogger);
+    RestPostStartTrialLicense() {}
+
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return singletonList(new ReplacedRoute(POST, "/_license/start_trial", POST, URI_BASE + "/license/start_trial", deprecationLogger));
     }
 
     @Override

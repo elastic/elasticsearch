@@ -37,7 +37,7 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestMultiTermVectorsAction(controller());
+        controller().registerHandler(new RestMultiTermVectorsAction());
     }
 
     public void testTypeInPath() {

@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -53,6 +52,8 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.stream.Collectors;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
@@ -62,16 +63,18 @@ public class RestGetMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get" +
         " mapping requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestGetMappingAction(final RestController controller) {
-        controller.registerHandler(GET, "/_mapping", this);
-        controller.registerHandler(GET, "/_mappings", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(GET, "/{index}/_mappings", this);
-        controller.registerHandler(GET, "/{index}/_mapping", this);
-        controller.registerHandler(GET, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(HEAD, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(GET, "/_mapping/{type}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_mapping"),
+            new Route(GET, "/_mappings"),
+            new Route(GET, "/{index}/{type}/_mapping"),
+            new Route(GET, "/{index}/_mapping"),
+            new Route(GET, "/{index}/_mappings"),
+            new Route(GET, "/{index}/_mappings/{type}"),
+            new Route(GET, "/{index}/_mapping/{type}"),
+            new Route(HEAD, "/{index}/_mapping/{type}"),
+            new Route(GET, "/_mapping/{type}")));
     }
 
     @Override

@@ -40,7 +40,8 @@ public class RestReindexActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestReindexAction(controller());
+        action = new RestReindexAction();
+        controller().registerHandler(action);
     }
 
     public void testPipelineQueryParameterIsError() throws IOException {

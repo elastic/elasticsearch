@@ -28,15 +28,17 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -54,10 +56,12 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
             " Specifying include_type_name in get index template requests is deprecated.";
 
-    public RestGetIndexTemplateAction(final RestController controller) {
-        controller.registerHandler(GET, "/_template", this);
-        controller.registerHandler(GET, "/_template/{name}", this);
-        controller.registerHandler(HEAD, "/_template/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_template"),
+            new Route(GET, "/_template/{name}"),
+            new Route(HEAD, "/_template/{name}")));
     }
 
     @Override

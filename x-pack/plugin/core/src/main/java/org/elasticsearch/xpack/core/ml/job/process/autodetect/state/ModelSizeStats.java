@@ -115,11 +115,11 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     }
 
     /**
-     * The status of categorization for a job. OK is default, POOR
+     * The status of categorization for a job. OK is default, WARN
      * means that inappropriate numbers of categories are being found
      */
     public enum CategorizationStatus implements Writeable {
-        OK, POOR;
+        OK, WARN;
 
         public static CategorizationStatus fromString(String statusName) {
             return valueOf(statusName.trim().toUpperCase(Locale.ROOT));

@@ -103,7 +103,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                             .setFrequentCategoryCount(4)
                                                             .setRareCategoryCount(2)
                                                             .setDeadCategoryCount(1)
-                                                            .setCategorizationStatus(ModelSizeStats.CategorizationStatus.POOR)
+                                                            .setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN)
                                                             .setTimestamp(date1)
                                                             .setLogTime(date2)
                                                             .build();
@@ -168,7 +168,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                 + "      \"frequent_category_count\": 4,"
                 + "      \"rare_category_count\": 2,"
                 + "      \"dead_category_count\": 1,"
-                + "      \"categorization_status\": \"poor\","
+                + "      \"categorization_status\": \"warn\","
                 + "      \"log_time\": 1483315322002,"
                 + "      \"timestamp\": 1483228861001"
                 + "    },"

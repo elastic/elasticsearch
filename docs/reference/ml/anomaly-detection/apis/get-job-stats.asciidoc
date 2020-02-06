@@ -205,7 +205,7 @@ Contains one of the following values.
 --
 * `ok`: Categorization is performing acceptably well (or not being
 used at all).
-* `poor`: Categorization is detecting a distribution of categories
+* `warn`: Categorization is detecting a distribution of categories
 that suggests the input data is inappropriate for categorization.
 Problems could be that there is only one category, more than 90% of
 categories are rare, the number of categories is greater than 50% of

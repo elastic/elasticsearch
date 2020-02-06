@@ -1,0 +1,130 @@
+=== Java Time Migration Guide
+
+Since version 7.0 Elasticsearch is using java.time as an underlying implementation of dates parsing, formatting and calculations.
+java.time is many aspects very similar to joda-time which we previously used. However there are some differences and this guide is meant to
+help to become compatible.
+
+==== Identifying if you are affected
+You are only affected if you have used any custom date formats in your mappings, pipelines or templates.
+Most of the custom date formats are compatible, but with some there is a change of meaning or missing. More on that below.
+A custom format could be specified on a date field like this:
+[source,console]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "date": {
+        "type":   "date",
+        "format": "YYYY-MM-dd"
+      }
+    }
+  }
+}
+--------------------------------------------------
+See more on:
+https://www.elastic.co/guide/en/elasticsearch/reference/current/date.html#multiple-date-formats
+
+To make sure if any of the date formats is deprecated you should run deprecation API or kibana upgrade assistant.
+* <<migration-api-deprecation>>
+include::apis/deprecation.asciidoc[]
+
+Sample output of deprecation api will be as follows:
+[source,console]
+--------------------------------------------------
+This index has date fields with deprecated formats: [[type: doc, field: param2, format: yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis, suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.]]. Prefix your date format with '8' to use the new specifier.
+--------------------------------------------------
+
+==== Incompatible formats
+If your pattern contains literals below, that means your format is incompatible and needs to be changed.
+
+===== Y - in 6.8 meaning Year of era. It should be replaced to y in 7.0 This is an big change as in 7.0 Y means week-based-year.
+If you don't update your date pattern, you will have problems with search results, parsing and date calculations.
+example:
+YYYY-MM-dd should become yyyy-MM-dd
+
+====== The difference between year-of-era and week based year
+For pattern YYYY-ww and date 2019-01-01T00:00:00.000Z  will give 2019-01
+For pattern YYYY-ww and date 2018-12-31T00:00:00.000Z  will give 2019-01 (counter intuitive) because there  is >4 days of that year 2019 on that week
+
+===== y - in 6.8 meaning year. It should be replaced to 'u' in 7.0. This is a subtle change, but worth fixing.
+As previously stated 'y' means year-of-era. 'u' means year. The difference is that year can contain non positive values, whereas 'y' can not. //clarify 0 year
+year-of-era can also be associated with an era field.
+
+===== C - century of era is no longer supported in 7.0. There is no replacement, so you need to preprocess your input.
+https://stackoverflow.com/questions/38354151/how-to-force-java-time-localdate-to-assume-19th-century-as-yy-year-pattern
+
+===== x - in 6.8 meaning week year. It should be replaced with 'Y' in 7.0. Again a big change as 'x' means zone-offset in 7.0.
+You will get parsing, search problems if you won't update.
+
+===== Z - in 6.8 meaning time zone offset/id. It has similar meaning in 7.0 with a notable difference that it expects different number of literals
+to parse different forms.
+It also won't parse 'Z' for Zulu timezone. You should consider migrating to 'X' which give you more control of how your time is parsed.
+For instance format YYYY-MM-dd'T'hh:mm:ssZZ
+allowed all the forms below:
+2010-01-01T01:02:03Z
+2010-01-01T01:02:03+01
+2010-01-01T01:02:03+01:02
+2010-01-01T01:02:03+01:02:03
+
+You cannot parse them all with one pattern in 7.0. You need to specify 3 separate patterns
+2010-01-01T01:02:03Z
+2010-01-01T01:02:03+01
+both parsed with yyyy-MM-dd'T'hh:mm:ssX //clarify Z
+
+2010-01-01T01:02:03+01:02
+yyyy-MM-dd'T'hh:mm:ssXXX
+
+2010-01-01T01:02:03+01:02:03
+yyyy-MM-dd'T'hh:mm:ssXXXXX
+
+If you expect all these combination to occur in your data you need to combine these patterns in 7.0
+yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXXX||yyyy-MM-dd'T'hh:mm:ssXXXXX
+
+The same applies if you expected your pattern to occur without a colon:
+Pattern YYYY-MM-dd'T'hh:mm:ssZ accepting these dates:
+2010-01-01T01:02:03Z
+2010-01-01T01:02:03+01
+2010-01-01T01:02:03+0102
+2010-01-01T01:02:03+010203
+should be migrated to
+yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXX||yyyy-MM-dd'T'hh:mm:ssXXXX
+
+===== d for day.
+This one have the same meaning in 7.0 but are less flexible.
+If your pattern was YYYY-MM-dd in 6.8 and you expects dates in form
+2010-01-01 or 2010-01-1
+You will need to provide an alternative pattern for all of these.
+yyyy-MM-dd||yyyy-MM-d
+More then 2 digits are not allowed anymore. If you want to parse dates like 2010-01-00001 you need to create a pattern that expects a text literal '000' before 'd'
+yyyy-MM-'000'dd
+
+===== e for name of day
+Also has a similar meaning in 7.0. However was more flexible in 6.8 and allowed to parse short and full text forms.
+if you used EEE YYYY-MM for a format and expected days in form:
+Wed 2020-01 or Wednesday 2020-01
+then you have to use two combined patterns in 7.0
+cccc yyyy-MM||ccc yyyy-MM
+
+E vs c. E means day-of-week vs c is for localized day-of-week. The difference is that E won't behave correctly for full text forms like Wednesday
+//todo confirm
+
+===== more on text forms EEEE and similar //todo
+
+===== 'z'
+'z' time zone text. Will print 'Z' for Zulu given UTC timezone.
+//todo expand
+
+==== Migrating affected mappings
+Once an index is created with a mapping, it cannot change already existing fields. You need to create a new index with updated mapping
+and reindex your data to it.
+You can howeve update your pipelines or templates.
+
+- Create new_index_1 with mappings changed with the format set to 8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis as required
+- Reindex the deprecated format index to new_index_1
+- repoint aliases??
+
+- upgrade pipeline
+- upgrade template
+
+- Upgrade to 7.x

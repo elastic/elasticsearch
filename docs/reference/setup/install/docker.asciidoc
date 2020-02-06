@@ -299,6 +299,7 @@ docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclusternam
 
 See <<configuring-tls-docker>>.
 
+[[docker-notes-for-production]]
 ==== Notes for production use and defaults
 
 We have collected a number of best practices for production use.

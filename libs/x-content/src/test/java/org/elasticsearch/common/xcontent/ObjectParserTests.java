@@ -825,6 +825,7 @@ public class ObjectParserTests extends ESTestCase {
                 this.d = value;
             }
         }
+    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {

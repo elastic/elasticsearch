@@ -246,7 +246,8 @@ public abstract class AbstractObjectParser<Value, Context>
      *
      * The following would however be rejected:
      *
-     * <table summary="failure cases">
+     * <table>
+     *   <caption>failure cases</caption>
      *   <tr><th>Provided JSON</th><th>Reason for failure</th></tr>
      *   <tr><td><code>{"foo":"..."}</code></td><td>Missing "bizz" or "buzz" field</td></tr>
      *   <tr><td><code>{"bar":"..."}</code></td><td>Missing "bizz" or "buzz" field</td></tr>
@@ -257,14 +258,14 @@ public abstract class AbstractObjectParser<Value, Context>
      *   <tr><td><code>{"unrelated":"..."}</code></td>  <td>Missing "foo" or "bar" field, and missing "bizz" or "buzz" field</td></tr>
      * </table>
      *
-     * @param requriedSet
+     * @param requiredSet
      *          A set of required fields, where at least one of the fields in the array _must_ be present
      */
-    public void declareRequiredFieldSet(String... requriedSet) {
-        if (requriedSet.length == 0) {
+    public void declareRequiredFieldSet(String... requiredSet) {
+        if (requiredSet.length == 0) {
             return;
         }
-        this.requiredFieldSets.add(requriedSet);
+        this.requiredFieldSets.add(requiredSet);
     }
 
     private interface IOSupplier<T> {

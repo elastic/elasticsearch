@@ -79,8 +79,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         if (context.isAllowExpensiveQueries() == false) {
             throw new ElasticsearchException("Prefix queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text fields" +
-                    "please enable [index_prefixes]");
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
+                    "fields please enable [index_prefixes]");
         }
         failIfNotIndexed();
         PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));

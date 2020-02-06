@@ -309,10 +309,10 @@ public class QueryShardContext extends QueryRewriteContext {
         try {
             QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this, true);
             return new ParsedQuery(filterOrQuery.apply(rewriteQuery), copyNamedQueries());
-        } catch(QueryShardException | ParsingException e ) {
+        } catch(QueryShardException | ParsingException e) {
             throw e;
         } catch(Exception e) {
-            throw new QueryShardException(this, "failed to create query: {}", e, queryBuilder);
+            throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());
         } finally {
             reset();
         }

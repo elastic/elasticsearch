@@ -24,9 +24,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -58,8 +60,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 //The default 20 minutes timeout isn't always enough, please do not increase further than 30 before analyzing what makes this suite so slow
-// gh#49753, tv#49753 : increasing timeout to 40 minutes until this gets fixes properly
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -106,6 +107,50 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         if (isMachineLearningTest() || isTransformTest()) {
             ESRestTestCase.waitForPendingTasks(adminClient());
         }
+
+        // check that there are no templates
+        Request request = new Request("GET", "_cat/templates");
+        request.addParameter("h", "name");
+        String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
+        if (false == "".equals(templates)) {
+            for (String template : templates.split("\n")) {
+                if (isXPackTemplate(template)) continue;
+                if ("".equals(template)) {
+                    throw new IllegalStateException("empty template in templates list:\n" + templates);
+                }
+                throw new RuntimeException("Template " + template + " not cleared after test");
+            }
+        }
+    }
+
+    @Override
+    protected boolean preserveSLMPoliciesUponCompletion() {
+        return isSLMTest() == false;
+    }
+
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return isILMTest() == false;
+    }
+
+    /**
+     * Tests are themselves responsible for cleaning up templates, which speeds up build.
+     */
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    protected boolean isSLMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/slm/") || testName.contains("\\slm\\") || (testName.contains("\\slm/")) ||
+            // TODO: Remove after backport of https://github.com/elastic/elasticsearch/pull/48705 which moves SLM docs to correct folder
+            testName.contains("/ilm/") || testName.contains("\\ilm\\") || testName.contains("\\ilm/"));
+    }
+
+    protected boolean isILMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/ilm/") || testName.contains("\\ilm\\") || testName.contains("\\ilm/"));
     }
 
     protected boolean isMachineLearningTest() {

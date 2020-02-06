@@ -48,7 +48,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
       setting 'xpack.license.self_generated.type', 'basic'
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 

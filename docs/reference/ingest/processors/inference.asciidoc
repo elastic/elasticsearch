@@ -27,8 +27,7 @@ include::common-options.asciidoc[]
     "model_id": "flight_delay_regression-1571767128603",
     "target_field": "FlightDelayMin_prediction_infer",
     "field_mappings": {},
-    "inference_config": { "regression": {} },
-    "model_info_field": "ml"
+    "inference_config": { "regression": {} }
   }
 }
 --------------------------------------------------

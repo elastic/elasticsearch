@@ -48,7 +48,7 @@ how retention works.
 --------------------------------------------------
 PUT /_slm/policy/nightly-snapshots
 {
-  "schedule": "0 30 1 * * ?", <1>
+  "schedule": "0 30 2 * * ?", <1>
   "name": "<nightly-snap-{now/d}>", <2>
   "repository": "my_repository", <3>
   "config": { <4>

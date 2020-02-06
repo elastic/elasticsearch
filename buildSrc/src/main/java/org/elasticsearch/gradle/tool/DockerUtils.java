@@ -53,19 +53,19 @@ public class DockerUtils {
             // Since we use a multi-stage Docker build, check the Docker version since 17.05
             lastResult = runCommand(project, dockerPath, "version", "--format", "{{.Server.Version}}");
 
-            if (lastResult.isSuccess() == true) {
+            if (lastResult.isSuccess()) {
                 version = Version.fromString(lastResult.stdout.trim(), Version.Mode.RELAXED);
 
                 isVersionHighEnough = version.onOrAfter("17.05.0");
 
-                if (isVersionHighEnough == true) {
+                if (isVersionHighEnough) {
                     // Check that we can execute a privileged command
                     lastResult = runCommand(project, dockerPath, "images");
                 }
             }
         }
 
-        boolean isAvailable = isVersionHighEnough && lastResult.isSuccess() == true;
+        boolean isAvailable = isVersionHighEnough && lastResult.isSuccess();
 
         return new DockerAvailability(isAvailable, isVersionHighEnough, dockerPath, version, lastResult);
     }
@@ -125,7 +125,7 @@ public class DockerUtils {
     public static void assertDockerIsAvailable(Project project, List<String> tasks) {
         DockerAvailability availability = getDockerAvailability(project);
 
-        if (availability.isAvailable == true) {
+        if (availability.isAvailable) {
             return;
         }
 
@@ -146,17 +146,7 @@ public class DockerUtils {
             throwDockerRequiredException(message);
         }
 
-        if (availability.version == null) {
-            final String message = String.format(
-                Locale.ROOT,
-                "Docker is required to run the following task%s, but it doesn't appear to be running: \n%s",
-                tasks.size() > 1 ? "s" : "",
-                String.join("\n", tasks)
-            );
-            throwDockerRequiredException(message);
-        }
-
-        if (availability.isVersionHighEnough == false) {
+        if (availability.lastCommand.isSuccess() && availability.isVersionHighEnough == false) {
             final String message = String.format(
                 Locale.ROOT,
                 "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
@@ -168,9 +158,10 @@ public class DockerUtils {
         // Some other problem, print the error
         final String message = String.format(
             Locale.ROOT,
-            "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n"
-                + "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
+            "a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s: \n%s\n"
+                + "the problem is that Docker exited with exit code [%d] with standard error output:\n%s",
             availability.path,
+            availability.version == null ? "" : " v" + availability.version,
             tasks.size() > 1 ? "s" : "",
             String.join("\n", tasks),
             availability.lastCommand.exitCode,
@@ -213,8 +204,8 @@ public class DockerUtils {
             spec.setCommandLine((Object[]) args);
             spec.setStandardOutput(stdout);
             spec.setErrorOutput(stderr);
+            spec.setIgnoreExitValue(true);
         });
-
         return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
     }
 

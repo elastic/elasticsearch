@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
@@ -43,7 +44,14 @@ public class InferenceRescorerBuilderTests extends AbstractSerializingTestCase<I
             }
         }
 
-        return new InferenceRescorerBuilder(randomAlphaOfLength(8), config, randomMap());
+        InferenceRescorerBuilder builder = new InferenceRescorerBuilder(randomAlphaOfLength(8), config, randomMap());
+        if (randomBoolean()) {
+            builder.setQueryWeight((float)randomDoubleBetween(0.0, 1.0, true));
+            builder.setModelWeight((float)randomDoubleBetween(0.0, 2.0, true));
+            builder.setScoreMode(randomFrom(QueryRescoreMode.values()));
+        }
+
+        return builder;
     }
 
     private Map<String, String> randomMap() {

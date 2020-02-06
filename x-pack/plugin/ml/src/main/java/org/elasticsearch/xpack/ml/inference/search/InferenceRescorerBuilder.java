@@ -6,17 +6,6 @@
 
 package org.elasticsearch.xpack.ml.inference.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
@@ -27,30 +16,20 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.RescoreContext;
-import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -60,13 +39,17 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     public static final String NAME = "ml_rescore";
 
-    private static final Logger logger = LogManager.getLogger(InferenceRescorerBuilder.class);
-
-    // TODO - window size??
-    // combine scores
     public static final ParseField MODEL_ID = new ParseField("model_id");
-    public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
-    public static final ParseField FIELD_MAPPINGS = new ParseField("field_mappings");
+    private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
+    private static final ParseField FIELD_MAPPINGS = new ParseField("field_mappings");
+
+    private static final ParseField QUERY_WEIGHT = new ParseField("query_weight");
+    private static final ParseField MODEL_WEIGHT = new ParseField("model_weight");
+    private static final ParseField SCORE_MODE = new ParseField("score_mode");
+
+    private static final float DEFAULT_QUERY_WEIGHT = 1.0f;
+    private static final float DEFAULT_MODEL_WEIGHT = 1.0f;
+    private static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferenceRescorerBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
@@ -76,6 +59,9 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         PARSER.declareString(constructorArg(), MODEL_ID);
         PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> p.namedObject(InferenceConfig.class, n, c),  INFERENCE_CONFIG);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapStrings(), FIELD_MAPPINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareFloat(InferenceRescorerBuilder::setQueryWeight, QUERY_WEIGHT);
+        PARSER.declareFloat(InferenceRescorerBuilder::setModelWeight, MODEL_WEIGHT);
+        PARSER.declareString((builder, mode) ->  builder.setScoreMode(QueryRescoreMode.fromString(mode)), SCORE_MODE);
     }
 
     public static InferenceRescorerBuilder fromXContent(XContentParser parser) {
@@ -88,6 +74,10 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     private LocalModel model;
     private Supplier<LocalModel> modelSupplier;
+
+    private float queryWeight = DEFAULT_QUERY_WEIGHT;
+    private float modelWeight = DEFAULT_MODEL_WEIGHT;
+    private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
 
     private InferenceRescorerBuilder(String modelId, @Nullable List<InferenceConfig> config, @Nullable Map<String, String> fieldMap) {
         this.modelId = modelId;
@@ -106,13 +96,13 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         this.fieldMap = fieldMap;
     }
 
-    InferenceRescorerBuilder(String modelId, @Nullable InferenceConfig config, @Nullable Map<String, String> fieldMap,
+    private InferenceRescorerBuilder(String modelId, @Nullable InferenceConfig config, @Nullable Map<String, String> fieldMap,
                              Supplier<LocalModel> modelSupplier) {
         this(modelId, config, fieldMap);
         this.modelSupplier = modelSupplier;
     }
 
-    InferenceRescorerBuilder(String modelId, @Nullable InferenceConfig config, @Nullable Map<String, String> fieldMap,
+    private InferenceRescorerBuilder(String modelId, @Nullable InferenceConfig config, @Nullable Map<String, String> fieldMap,
                              LocalModel model) {
         this(modelId, config, fieldMap);
         this.model = Objects.requireNonNull(model);
@@ -128,6 +118,21 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         } else {
             fieldMap = null;
         }
+        queryWeight = in.readFloat();
+        modelWeight = in.readFloat();
+        scoreMode = QueryRescoreMode.readFromStream(in);
+    }
+
+    void setQueryWeight(float queryWeight) {
+        this.queryWeight = queryWeight;
+    }
+
+    void setModelWeight(float modelWeight) {
+        this.modelWeight = modelWeight;
+    }
+
+    void setScoreMode(QueryRescoreMode scoreMode) {
+        this.scoreMode = scoreMode;
     }
 
     @Override
@@ -143,6 +148,9 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         if (fieldMapPresent) {
             out.writeMap(fieldMap, StreamOutput::writeString, StreamOutput::writeString);
         }
+        out.writeFloat(queryWeight);
+        out.writeFloat(modelWeight);
+        scoreMode.writeTo(out);
     }
 
     @Override
@@ -156,6 +164,9 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         if (fieldMap != null) {
             builder.field(FIELD_MAPPINGS.getPreferredName(), fieldMap);
         }
+        builder.field(QUERY_WEIGHT.getPreferredName(), queryWeight);
+        builder.field(MODEL_WEIGHT.getPreferredName(), modelWeight);
+        builder.field(SCORE_MODE.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -174,7 +185,8 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             if (modelSupplier.get() == null) {
                 return this;
             } else {
-                return new InferenceRescorerBuilder(modelId, inferenceConfig, fieldMap, modelSupplier.get());
+                return copyScoringSettings(new InferenceRescorerBuilder(modelId, inferenceConfig, fieldMap, modelSupplier.get()));
+
             }
         } else {
             SetOnce<LocalModel> modelHolder = new SetOnce<>();
@@ -193,20 +205,45 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                 ));
             }));
 
-            return new InferenceRescorerBuilder(modelId, inferenceConfig, fieldMap, modelHolder::get);
+            return copyScoringSettings(new InferenceRescorerBuilder(modelId, inferenceConfig, fieldMap, modelHolder::get));
         }
+    }
+
+    private InferenceRescorerBuilder copyScoringSettings(InferenceRescorerBuilder target) {
+        target.setQueryWeight(queryWeight);
+        target.setModelWeight(modelWeight);
+        target.setScoreMode(scoreMode);
+        return target;
     }
 
     @Override
     protected RescoreContext innerBuildContext(int windowSize, QueryShardContext context) {
         LocalModel m = (model != null) ? model : modelSupplier.get();
         assert m != null;
-        return new RescoreContext(windowSize, new InferenceRescorer(m, inferenceConfig, fieldMap));
+
+        return new RescoreContext(windowSize, new InferenceRescorer(m, inferenceConfig, fieldMap,
+                scoreModeSettings()));
+    }
+
+    class ScoreModeSettings {
+        float queryWeight;
+        float modelWeight;
+        QueryRescoreMode scoreMode;
+
+        ScoreModeSettings(float queryWeight, float modelWeight, QueryRescoreMode scoreMode) {
+            this.queryWeight = queryWeight;
+            this.modelWeight = modelWeight;
+            this.scoreMode = scoreMode;
+        }
+    }
+
+    private ScoreModeSettings scoreModeSettings() {
+        return new ScoreModeSettings(this.queryWeight, this.modelWeight, this.scoreMode);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(windowSize, modelId, inferenceConfig, fieldMap);
+        return Objects.hash(windowSize, modelId, inferenceConfig, fieldMap, queryWeight, modelWeight, scoreMode);
     }
 
     @Override
@@ -221,84 +258,9 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         return Objects.equals(windowSize, other.windowSize) &&
                 Objects.equals(modelId, other.modelId) &&
                 Objects.equals(inferenceConfig, other.inferenceConfig) &&
-                Objects.equals(fieldMap, other.fieldMap);
+                Objects.equals(fieldMap, other.fieldMap) &&
+                Objects.equals(queryWeight, other.queryWeight) &&
+                Objects.equals(modelWeight, other.modelWeight) &&
+                Objects.equals(scoreMode, other.scoreMode);
     }
-
-
-    private static class InferenceRescorer implements Rescorer {
-
-        private final LocalModel model;
-        private final InferenceConfig inferenceConfig;
-        private final Map<String, String> fieldMap;
-
-
-        private InferenceRescorer(LocalModel model, InferenceConfig inferenceConfig, Map<String, String> fieldMap) {
-            this.model = model;
-            this.inferenceConfig = inferenceConfig;
-            this.fieldMap = fieldMap;
-
-            assert inferenceConfig instanceof RegressionConfig;
-        }
-
-        @Override
-        public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
-
-            // Copy ScoreDoc[] and sort by ascending docID:
-            ScoreDoc[] sortedHits = topDocs.scoreDocs.clone();
-            Comparator<ScoreDoc> docIdComparator = Comparator.comparingInt(sd -> sd.doc);
-            Arrays.sort(sortedHits, docIdComparator);
-
-            // field map is fieldname in doc -> fieldname expected by model
-            Set<String> fieldsToRead = new HashSet<>(model.getFieldNames());
-            for (Map.Entry<String, String> entry : fieldMap.entrySet()) {
-                if (fieldsToRead.contains(entry.getValue())) {
-                    // replace the model fieldname with the doc fieldname
-                    fieldsToRead.remove(entry.getValue());
-                    fieldsToRead.add(entry.getKey());
-                }
-            }
-
-            List<LeafReaderContext> leaves = searcher.getIndexReader().getContext().leaves();
-            Map<String, Object> fields = new HashMap<>();
-            for (int i=0; i<sortedHits.length; i++) {
-                ScoreDoc scoreDoc = sortedHits[i];
-
-                LeafReaderContext leafContext = leaves.get(ReaderUtil.subIndex(scoreDoc.doc, leaves));
-
-                logger.info("doc id {}", scoreDoc.doc);
-                for (String field : fieldsToRead) {
-                    SortedNumericDocValues docValuesIter = DocValues.getSortedNumeric(leafContext.reader(), field);
-                    SortedNumericDoubleValues doubles = FieldData.sortableLongBitsToDoubles(docValuesIter);
-                    if (doubles.advanceExact(scoreDoc.doc)) {
-                        double val = doubles.nextValue();
-                        logger.warn("got value {} for field {}, doc {}", val, field, scoreDoc.doc);
-                        fields.put(fieldMap.getOrDefault(field, field), val);
-                    } else if (docValuesIter.docID() == DocIdSetIterator.NO_MORE_DOCS) {
-                        logger.warn("No more docs for field {}, doc {}", field, scoreDoc.doc);
-                        fields.remove(field);
-                    } else {
-                        logger.warn("no value for field {}, doc {}", field, scoreDoc.doc);
-                        fields.remove(field);
-                    }
-                }
-
-                InferenceResults infer = model.infer(fields, inferenceConfig);
-                if (infer instanceof WarningInferenceResults) {
-                    logger.warn("inference error: " + ((WarningInferenceResults) infer).getWarning());
-                } else {
-                    SingleValueInferenceResults regressionResult = (SingleValueInferenceResults) infer;
-                    sortedHits[i] = new ScoreDoc(scoreDoc.doc, regressionResult.value().floatValue());
-                }
-            }
-
-            return new TopDocs(topDocs.totalHits, sortedHits);
-        }
-
-        @Override
-        public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
-                                   Explanation sourceExplanation) {
-            return Explanation.match(1.0, "because");
-        }
-    }
-
 }

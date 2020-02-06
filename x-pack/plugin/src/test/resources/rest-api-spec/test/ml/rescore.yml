@@ -92,9 +92,11 @@ setup:
               "ml_rescore" : {
                 "model_id": "a-complex-regression-model",
                 "field_mappings": {"size": "decider"},
-                "inference_config": { "regression": {} }
+                "inference_config": { "regression": {} },
+                "model_weight": 2.0,
+                "query_weight": 0.0
               }
             }
           }
-  - match: { hits.hits.0._score: 5.0 }
-  - match: { hits.hits.1._score: 2.0 }
+  - match: { hits.hits.0._score: 10.0 }
+  - match: { hits.hits.1._score: 4.0 }

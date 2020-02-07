@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -30,7 +30,6 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store and defers to a child subnode.
@@ -45,12 +44,6 @@ public final class PBrace extends AStoreable {
         super(location, prefix);
 
         this.index = Objects.requireNonNull(index);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-        index.extractVariables(variables);
     }
 
     @Override

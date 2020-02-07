@@ -237,7 +237,7 @@ public class InternalStringStats extends InternalAggregation {
             builder.field(Fields.MAX_LENGTH.getPreferredName(), maxLength);
             builder.field(Fields.AVG_LENGTH.getPreferredName(), getAvgLength());
             builder.field(Fields.ENTROPY.getPreferredName(), getEntropy());
-            if (showDistribution == true) {
+            if (showDistribution) {
                 builder.field(Fields.DISTRIBUTION.getPreferredName(), getDistribution());
             }
             if (format != DocValueFormat.RAW) {
@@ -245,7 +245,7 @@ public class InternalStringStats extends InternalAggregation {
                 builder.field(Fields.MAX_LENGTH_AS_STRING.getPreferredName(), format.format(getMaxLength()));
                 builder.field(Fields.AVG_LENGTH_AS_STRING.getPreferredName(), format.format(getAvgLength()));
                 builder.field(Fields.ENTROPY_AS_STRING.getPreferredName(), format.format(getEntropy()));
-                if (showDistribution == true) {
+                if (showDistribution) {
                     builder.startObject(Fields.DISTRIBUTION_AS_STRING.getPreferredName());
                     for (Map.Entry<String, Double> e: getDistribution().entrySet()) {
                         builder.field(e.getKey(), format.format(e.getValue()).toString());
@@ -259,7 +259,7 @@ public class InternalStringStats extends InternalAggregation {
             builder.nullField(Fields.AVG_LENGTH.getPreferredName());
             builder.field(Fields.ENTROPY.getPreferredName(), 0.0);
 
-            if (showDistribution == true) {
+            if (showDistribution) {
                 builder.nullField(Fields.DISTRIBUTION.getPreferredName());
             }
         }

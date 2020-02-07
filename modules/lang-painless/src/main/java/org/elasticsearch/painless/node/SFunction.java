@@ -30,10 +30,8 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.painless.Scope.newFunctionScope;
@@ -48,7 +46,15 @@ public final class SFunction extends ANode {
     private final List<String> paramTypeStrs;
     private final List<String> paramNameStrs;
     private final SBlock block;
+    public final boolean isInternal;
+    public final boolean isStatic;
     public final boolean synthetic;
+
+    /**
+     * If set to {@code true} default return values are inserted if
+     * not all paths return a value.
+     */
+    public final boolean isAutoReturnEnabled;
 
     private int maxLoopCounter;
 
@@ -58,11 +64,12 @@ public final class SFunction extends ANode {
 
     org.objectweb.asm.commons.Method method;
 
+    private ScriptRoot scriptRoot;
     private boolean methodEscape;
 
     public SFunction(Location location, String rtnType, String name,
             List<String> paramTypes, List<String> paramNames,
-            SBlock block, boolean synthetic) {
+            SBlock block, boolean isInternal, boolean isStatic, boolean synthetic, boolean isAutoReturnEnabled) {
         super(location);
 
         this.rtnTypeStr = Objects.requireNonNull(rtnType);
@@ -70,15 +77,10 @@ public final class SFunction extends ANode {
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.block = Objects.requireNonNull(block);
+        this.isInternal = isInternal;
         this.synthetic = synthetic;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        // we reset the list for function scope
-        // note this is not stored for this node
-        // but still required for lambdas
-        block.extractVariables(new HashSet<>());
+        this.isStatic = isStatic;
+        this.isAutoReturnEnabled = isAutoReturnEnabled;
     }
 
     void generateSignature(PainlessLookup painlessLookup) {
@@ -114,6 +116,7 @@ public final class SFunction extends ANode {
     }
 
     void analyze(ScriptRoot scriptRoot) {
+        this.scriptRoot = scriptRoot;
         FunctionScope functionScope = newFunctionScope(returnType);
 
         for (int index = 0; index < typeParameters.size(); ++index) {
@@ -121,6 +124,20 @@ public final class SFunction extends ANode {
             String parameterName = paramNameStrs.get(index);
             functionScope.defineVariable(location, typeParameter, parameterName, false);
         }
+
+        // TODO: do not specialize for execute
+        // TODO: https://github.com/elastic/elasticsearch/issues/51841
+        if ("execute".equals(name)) {
+            for (int get = 0; get < scriptRoot.getScriptClassInfo().getGetMethods().size(); ++get) {
+                org.objectweb.asm.commons.Method method = scriptRoot.getScriptClassInfo().getGetMethods().get(get);
+                String name = method.getName().substring(3);
+                name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+
+                Class<?> rtn = scriptRoot.getScriptClassInfo().getGetReturns().get(get);
+                functionScope.defineVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
+            }
+        }
+        // TODO: end
 
         maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
 
@@ -132,9 +149,17 @@ public final class SFunction extends ANode {
         block.analyze(scriptRoot, functionScope.newLocalScope());
         methodEscape = block.methodEscape;
 
-        if (!methodEscape && returnType != void.class) {
-            throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
+        if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
+            throw createError(new IllegalArgumentException("not all paths provide a return value " +
+                    "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
         }
+
+        // TODO: do not specialize for execute
+        // TODO: https://github.com/elastic/elasticsearch/issues/51841
+        if ("execute".equals(name)) {
+            scriptRoot.setUsedVariables(functionScope.getUsedVariables());
+        }
+        // TODO: end
     }
 
     @Override
@@ -144,11 +169,14 @@ public final class SFunction extends ANode {
         functionNode.setBlockNode(block.write(classNode));
 
         functionNode.setLocation(location);
+        functionNode.setScriptRoot(scriptRoot);
         functionNode.setName(name);
         functionNode.setReturnType(returnType);
         functionNode.getTypeParameters().addAll(typeParameters);
         functionNode.getParameterNames().addAll(paramNameStrs);
+        functionNode.setStatic(isStatic);
         functionNode.setSynthetic(synthetic);
+        functionNode.setAutoReturnEnabled(isAutoReturnEnabled);
         functionNode.setMethodEscape(methodEscape);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 

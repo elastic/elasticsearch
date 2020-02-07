@@ -70,7 +70,7 @@ setup:
           }
 
 ---
-"Test get job stats after uploading data prompting the creation of some stats":
+"Test cat anomaly detector jobs":
 
   - do:
       ml.post_data:
@@ -86,7 +86,7 @@ setup:
   - match: { flushed: true }
 
   - do:
-      cat.ml.jobs:
+      cat.ml_jobs:
         job_id: job-stats-test
   - match:
       $body: |
@@ -94,7 +94,7 @@ setup:
         ^ (job\-stats\-test \s+  \w+  \s+ \d+                   \s+  .*?        \s+ \w+                 \s+ \d+           \s+  \d+         \n)+  $/
 
   - do:
-      cat.ml.jobs:
+      cat.ml_jobs:
         v: true
         job_id: job-stats-test
   - match:
@@ -103,7 +103,7 @@ setup:
            (job\-stats\-test  \s+  \w+   \s+ \d+                     \s+ .*?         \s+ \w+                  \s+ \d+             \s+ \d+            \n)+  $/
 
   - do:
-      cat.ml.jobs:
+      cat.ml_jobs:
         h: id,data.processed_records,data.processed_fields,data.input_bytes
         v: true
   - match:

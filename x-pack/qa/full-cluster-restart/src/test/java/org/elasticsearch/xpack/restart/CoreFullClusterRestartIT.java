@@ -21,4 +21,10 @@ public class CoreFullClusterRestartIT extends FullClusterRestartIT {
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52031")
+    @Override
+    public void testRecovery() throws Exception {
+        super.testRecovery();
+    }
 }

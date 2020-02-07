@@ -20,12 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope.FunctionScope;
-import org.elasticsearch.painless.Scope.BlockScope;
 import org.elasticsearch.painless.ScriptClassInfo;
-import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StatementNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -34,11 +30,8 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.util.Printer;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -52,28 +45,18 @@ public final class SClass extends ANode {
     private final Printer debugStream;
     private final List<SFunction> functions = new ArrayList<>();
     private final List<SField> fields = new ArrayList<>();
-    private final List<AStatement> statements;
-
-    private CompilerSettings settings;
 
     private ScriptRoot scriptRoot;
-    private final Set<String> extractedVariables;
     private final String sourceText;
 
-    private boolean methodEscape;
-    private boolean allEscape;
-
     public SClass(ScriptClassInfo scriptClassInfo, String name, String sourceText, Printer debugStream,
-            Location location, List<SFunction> functions, List<AStatement> statements) {
+            Location location, List<SFunction> functions) {
         super(location);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.name = Objects.requireNonNull(name);
         this.debugStream = debugStream;
         this.functions.addAll(Objects.requireNonNull(functions));
-        this.statements = Collections.unmodifiableList(statements);
         this.sourceText = Objects.requireNonNull(sourceText);
-
-        this.extractedVariables = new HashSet<>();
     }
 
     void addFunction(SFunction function) {
@@ -84,21 +67,7 @@ public final class SClass extends ANode {
         fields.add(field);
     }
 
-    @Override
-    public void extractVariables(Set<String> variables) {
-        for (SFunction function : functions) {
-            function.extractVariables(null);
-        }
-
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
-
-        extractedVariables.addAll(variables);
-    }
-
     public ScriptRoot analyze(PainlessLookup painlessLookup, CompilerSettings settings) {
-        this.settings = settings;
         scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, this);
 
         for (SFunction function : functions) {
@@ -110,7 +79,8 @@ public final class SClass extends ANode {
                 throw createError(new IllegalArgumentException("Illegal duplicate functions [" + key + "]."));
             }
 
-            scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, false);
+            scriptRoot.getFunctionTable().addFunction(
+                    function.name, function.returnType, function.typeParameters, function.isInternal, function.isStatic);
         }
 
         // copy protection is required because synthetic functions are
@@ -119,44 +89,6 @@ public final class SClass extends ANode {
         List<SFunction> functions = new ArrayList<>(this.functions);
         for (SFunction function : functions) {
             function.analyze(scriptRoot);
-        }
-
-        if (statements == null || statements.isEmpty()) {
-            throw createError(new IllegalArgumentException("Cannot generate an empty script."));
-        }
-
-        FunctionScope functionScope = Scope.newFunctionScope(scriptClassInfo.getExecuteMethodReturnType());
-
-        for (MethodArgument argument : scriptClassInfo.getExecuteArguments()) {
-            functionScope.defineVariable(
-                    new Location("execute [" + argument.getName() + "]", 0), argument.getClazz(), argument.getName(), true);
-        }
-
-        for (int get = 0; get < scriptClassInfo.getGetMethods().size(); ++get) {
-            org.objectweb.asm.commons.Method method = scriptClassInfo.getGetMethods().get(get);
-            String name = method.getName().substring(3);
-            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-
-            Class<?> rtn = scriptClassInfo.getGetReturns().get(get);
-            functionScope.defineVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
-        }
-
-        BlockScope blockScope = functionScope.newLocalScope();
-
-        AStatement last = statements.get(statements.size() - 1);
-
-        for (AStatement statement : statements) {
-            // Note that we do not need to check after the last statement because
-            // there is no statement that can be unreachable after the last.
-            if (allEscape) {
-                throw createError(new IllegalArgumentException("Unreachable statement."));
-            }
-
-            statement.lastSource = statement == last;
-            statement.analyze(scriptRoot, blockScope);
-
-            methodEscape = statement.methodEscape;
-            allEscape = statement.allEscape;
         }
 
         return scriptRoot;
@@ -178,27 +110,20 @@ public final class SClass extends ANode {
             classNode.addFunctionNode(function.write(classNode));
         }
 
-        for (AStatement statement : statements) {
-            classNode.addStatementNode(statement.write(classNode));
-        }
-
         classNode.setLocation(location);
         classNode.setScriptClassInfo(scriptClassInfo);
         classNode.setScriptRoot(scriptRoot);
         classNode.setDebugStream(debugStream);
         classNode.setName(name);
         classNode.setSourceText(sourceText);
-        classNode.setMethodEscape(methodEscape);
-        classNode.getExtractedVariables().addAll(extractedVariables);
 
         return classNode;
     }
 
     @Override
     public String toString() {
-        List<Object> subs = new ArrayList<>(functions.size() + statements.size());
+        List<Object> subs = new ArrayList<>(functions.size());
         subs.addAll(functions);
-        subs.addAll(statements);
         return multilineToString(emptyList(), subs);
     }
 }

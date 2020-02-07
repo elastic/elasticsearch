@@ -1,53 +1,36 @@
 {
-  "cat.ml.jobs":{
+  "cat.ml_datafeeds":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed-stats.html"
     },
     "stability":"stable",
     "url":{
       "paths":[
         {
-          "path":"/_cat/ml/anomaly_detectors",
+          "path":"/_cat/ml/datafeeds",
           "methods":[
             "GET"
           ]
         },
         {
-          "path":"/_cat/ml/anomaly_detectors/{job_id}",
+          "path":"/_cat/ml/datafeeds/{datafeed_id}",
           "methods":[
             "GET"
           ],
           "parts":{
-            "job_id":{
+            "datafeed_id":{
               "type":"string",
-              "description":"The ID of the jobs stats to fetch"
+              "description":"The ID of the datafeeds stats to fetch"
             }
           }
         }
       ]
     },
     "params":{
-      "allow_no_jobs":{
+      "allow_no_datafeeds":{
         "type":"boolean",
         "required":false,
-        "description":"Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)"
-      },
-      "bytes":{
-        "type":"enum",
-        "description":"The unit in which to display byte values",
-        "options":[
-          "b",
-          "k",
-          "kb",
-          "m",
-          "mb",
-          "g",
-          "gb",
-          "t",
-          "tb",
-          "p",
-          "pb"
-        ]
+        "description":"Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string or when no datafeeds have been specified)"
       },
       "format":{
         "type":"string",

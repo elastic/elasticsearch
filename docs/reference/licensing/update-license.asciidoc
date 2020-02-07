@@ -6,7 +6,7 @@
 <titleabbrev>Update license</titleabbrev>
 ++++
 
-This API enables you to update your license.
+Updates the license for your {es} cluster.
 
 [[update-license-api-request]]
 ==== {api-request-title}
@@ -28,10 +28,10 @@ install the license. See <<configuring-tls>>.
 [[update-license-api-desc]]
 ==== {api-description-title}
 
-You can update your license at runtime without shutting down your nodes.
-License updates take effect immediately.  If the license you are installing does
-not support all of the features that were available with your previous license,
-however, you are notified in the response.  You must then re-submit the API
+You can update your license at runtime without shutting down your nodes. License
+updates take effect immediately. If the license you are installing does not
+support all of the features that were available with your previous license,
+however, you are notified in the response. You must then re-submit the API
 request with the `acknowledge` parameter set to `true`.
 
 For more information about the different types of licenses, see
@@ -99,8 +99,8 @@ Invoke-WebRequest -uri http://<host>:<port>/_xpack/license -Credential elastic -
 In these examples,
 
 * `<user>` is a user ID with the appropriate authority.
-* `<host>` is the hostname of the {es} node (`localhost` if executing
-  locally)
+* `<host>` is the hostname of any node in the {es} cluster  (`localhost` if
+  executing locally)
 * `<port>` is the http port (defaults to `9200`)
 * `license.json` is the license JSON file
 

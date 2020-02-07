@@ -1,0 +1,352 @@
+setup:
+  - do:
+      indices.create:
+        index: job_applicants
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+          mappings:
+            properties:
+              skills:
+                type: keyword
+              years_work_experience:
+                type: integer
+              expected_salary:
+                type: integer
+
+  - do:
+      bulk:
+        index: job_applicants
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"skills": "Java"}'
+          - '{"index": {"_id": "2"}}'
+          - '{"skills": "Scalla"}'
+          - '{"index": {"_id": "3"}}'
+          - '{"skills": ["Java", "Scalla"]}'
+
+---
+"Test first combine_mode 1":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Compound query was added from 8.0"
+  - do:
+      search:
+        index: job_applicants
+        body:  >
+          {
+            "query": {
+              "compound": {
+                "combine_mode": "first",
+                "queries": [
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Java"
+                        }
+                      },
+                      "script": { "source": "10.0"}
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Scalla"
+                        }
+                      },
+                      "script": {"source": "5.0"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id : "1" }
+  - match: { hits.hits.0._score: 10 }
+  - match: { hits.hits.1._id : "3" }
+  - match: { hits.hits.1._score: 10 } #3rd doc that has both "Java" and "Scalla" gets a score from the 1st query
+  - match: { hits.hits.2._id : "2" }
+  - match: { hits.hits.2._score: 5 }
+
+
+---
+"Test first combine_mode 2":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Compound query was added from 8.0"
+  - do:
+      search:
+        index: job_applicants
+        body:  >
+          {
+            "query": {
+              "compound": {
+                "combine_mode": "first",
+                "queries": [
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Scalla"
+                        }
+                      },
+                      "script": { "source": "5.0"}
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Java"
+                        }
+                      },
+                      "script": {"source": "10.0"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id : "1" }
+  - match: { hits.hits.0._score: 10 }
+  - match: { hits.hits.1._id : "2" }
+  - match: { hits.hits.1._score: 5 }
+  - match: { hits.hits.2._id : "3" }
+  - match: { hits.hits.2._score: 5 }  #3rd doc that has both "Java" and "Scalla" gets a score from the 1st query
+
+---
+"Test sum combine_mode":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Compound query was added from 8.0"
+  - do:
+      search:
+        index: job_applicants
+        body:  >
+          {
+            "query": {
+              "compound": {
+                "combine_mode": "sum",
+                "queries": [
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Java"
+                        }
+                      },
+                      "script": { "source": "10.0"}
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Scalla"
+                        }
+                      },
+                      "script": {"source": "5.0"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id : "3" }
+  - match: { hits.hits.0._score: 15 }
+  - match: { hits.hits.1._id : "1" }
+  - match: { hits.hits.1._score: 10 }
+  - match: { hits.hits.2._id : "2" }
+  - match: { hits.hits.2._score: 5 }
+
+---
+"Test multiply combine_mode":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Compound query was added from 8.0"
+  - do:
+      search:
+        index: job_applicants
+        body:  >
+          {
+            "query": {
+              "compound": {
+                "combine_mode": "multiply",
+                "queries": [
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Java"
+                        }
+                      },
+                      "script": { "source": "10.0"}
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Scalla"
+                        }
+                      },
+                      "script": {"source": "5.0"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id : "3" }
+  - match: { hits.hits.0._score: 50 }
+  - match: { hits.hits.1._id : "1" }
+  - match: { hits.hits.1._score: 10 }
+  - match: { hits.hits.2._id : "2" }
+  - match: { hits.hits.2._score: 5 }
+
+---
+"Test avg combine_mode":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Compound query was added from 8.0"
+  - do:
+      search:
+        index: job_applicants
+        body:  >
+          {
+            "query": {
+              "compound": {
+                "combine_mode": "avg",
+                "queries": [
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Java"
+                        }
+                      },
+                      "script": { "source": "10.0"}
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Scalla"
+                        }
+                      },
+                      "script": {"source": "5.0"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id : "1" }
+  - match: { hits.hits.0._score: 10 }
+  - match: { hits.hits.1._id : "3" }
+  - match: { hits.hits.1._score: 7.5 }
+  - match: { hits.hits.2._id : "2" }
+  - match: { hits.hits.2._score: 5 }
+
+---
+"Test max combine_mode":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Compound query was added from 8.0"
+  - do:
+      search:
+        index: job_applicants
+        body:  >
+          {
+            "query": {
+              "compound": {
+                "combine_mode": "max",
+                "queries": [
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Java"
+                        }
+                      },
+                      "script": { "source": "10.0"}
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Scalla"
+                        }
+                      },
+                      "script": {"source": "5.0"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id : "1" }
+  - match: { hits.hits.0._score: 10 }
+  - match: { hits.hits.1._id : "3" }
+  - match: { hits.hits.1._score: 10 }
+  - match: { hits.hits.2._id : "2" }
+  - match: { hits.hits.2._score: 5 }
+
+
+---
+"Test min combine_mode":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Compound query was added from 8.0"
+  - do:
+      search:
+        index: job_applicants
+        body:  >
+          {
+            "query": {
+              "compound": {
+                "combine_mode": "min",
+                "queries": [
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Java"
+                        }
+                      },
+                      "script": { "source": "10.0"}
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Scalla"
+                        }
+                      },
+                      "script": {"source": "5.0"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id : "1" }
+  - match: { hits.hits.0._score: 10 }
+  - match: { hits.hits.1._id : "2" }
+  - match: { hits.hits.1._score: 5 }
+  - match: { hits.hits.2._id : "3" }
+  - match: { hits.hits.2._score: 5 }

@@ -19,7 +19,8 @@ Compound query clauses::
 
 Compound query clauses wrap other leaf *or* compound queries and are used to combine
 multiple queries in a logical fashion (such as the
-<<query-dsl-bool-query,`bool`>> or <<query-dsl-dis-max-query,`dis_max`>> query),
+<<query-dsl-bool-query,`bool`>>, <<query-dsl-dis-max-query,`dis_max`>> query
+or <<query-dsl-compound-query,`compound`>>),
 or to alter their behaviour (such as the
 <<query-dsl-constant-score-query,`constant_score`>> query).
 

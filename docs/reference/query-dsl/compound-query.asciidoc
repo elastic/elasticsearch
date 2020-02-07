@@ -1,0 +1,182 @@
+[[query-dsl-compound-query]]
+=== Compound query
+++++
+<titleabbrev>Compound</titleabbrev>
+++++
+
+Returns documents matching any of wrapped queries and computes
+the documents' scores by combining scores from the queries.
+
+Similarly to <<query-dsl-bool-query, `bool`
+query's>> `should` option, `compound` query returns the union of all documents
+matching any of the provided queries. Unlike,  <<query-dsl-bool-query, `bool`
+query's>> `should` option that always sums the scores from the queries
+to compute the final documents' scores, `compound` query allows to define
+`combine_mode` -- how the queries' scores should be combined: summing,
+multiplying, taking an average, maximum, minimum, or taking the score from
+the first matching query.
+
+`compound` query best suits for situations when
+you want to combine scores produced by script queries.
+
+NOTE: Use <<query-dsl-bool-query, `bool` query's>> `should` option,
+if you want to sum up scores from queries.
+Use <<query-dsl-dis-max-query, `dis_max` query>> if you want get
+a max score from queries. `bool` and `dis_max` queries use optimizations
+and are more performant.
+
+
+[[query-dsl-compound-request]]
+==== Example request
+
+[[compound-index-setup]]
+===== Index setup
+. Create an `job_applicants` index with the following field mapping:
++
+--
+[source,console]
+----
+PUT /items
+{
+  "mappings": {
+    "properties": {
+      "skills": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+--
+
+. Index several documents to this index.
++
+--
+[source,console]
+----
+PUT /job_applicants/_doc/1?refresh
+{
+  "skills" : "Java"
+}
+
+PUT /job_applicants/_doc/2?refresh
+{
+  "skills" : "Scalla"
+}
+
+
+PUT /job_applicants/_doc/3?refresh
+{
+  "skills" : ["Java", "Scalla"]
+}
+----
+--
+
+
+[[compound-query-ex-query]]
+===== Example query
+The following request scores documents by the first matching query:
+[source,console]
+----
+GET /job_applicants/_search
+{
+    "query": {
+      "compound": {
+        "combine_mode": "first",
+        "queries": [
+          {
+            "script_score": {
+              "query": {
+                "match": {
+                  "skills": "Java"
+                }
+              },
+              "script": { "source": "10.0"}
+            }
+          },
+          {
+            "script_score": {
+              "query": {
+                "match": {
+                  "skills": "Scalla"
+                }
+              },
+              "script": {"source": "5.0"}
+            }
+          }
+        ]
+      }
+    }
+}
+----
+
+This returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+    ...,
+    "hits" : {
+        "total" : {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 10.0,
+        "hits": [
+            {
+                "_index": "test-index",
+                "_id": "1",
+                "_score": 10.0,
+                "_source": {
+                    "skills": "Java"
+                }
+            },
+            {
+                "_index": "test-index",
+                "_id": "3",
+                "_score": 10.0,
+                "_source": {
+                    "skills": [
+                        "Java",
+                        "Scalla"
+                    ]
+                }
+            },
+            {
+                "_index": "test-index",
+                "_id": "2",
+                "_score": 5.0,
+                "_source": {
+                    "skills": "Scalla"
+                }
+            }
+        ]
+    }
+}
+--------------------------------------------------
+
+[[query-dsl-compound-query-top-level-params]]
+==== Top-level parameters for `compound`
+
+`queries`::
+(Required, array of query objects) Contains one or more query clauses. Returned
+documents **must match one or more** of these queries. If a document matches
+multiple queries, {es} combines scores from the queries according the
+`combine_mode`
+
+`combine_mode`::
++
+--
+(Required, string) If a document matches  multiple queries,
+instructs how scores from the multiple queries should be combined.
+Can take one of the following options:
+
+[horizontal]
+`multiply`::    scores are multiplied
+`sum`::         scores are summed
+`avg`::         scores are averaged
+`first`::       score from the the first matching query is applied
+`max`::         maximum score is used
+`min`::         minimum score is used
+--

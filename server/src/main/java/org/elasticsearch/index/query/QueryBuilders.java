@@ -27,6 +27,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.index.query.compound.CompoundQuery;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
@@ -437,6 +438,16 @@ public final class QueryBuilders {
      */
     public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, Script script) {
         return new ScriptScoreQueryBuilder(queryBuilder, script);
+    }
+
+    /**
+     * A query that combines scores from different queries
+     *
+     * @param queryBuilders Queries which scores need to be combined
+     * @param combineMode  combination mode
+     */
+    public static CompoundQueryBuilder compoundQuery(List<QueryBuilder> queryBuilders, CompoundQuery.CombineMode combineMode) {
+        return new CompoundQueryBuilder(queryBuilders, combineMode);
     }
 
 

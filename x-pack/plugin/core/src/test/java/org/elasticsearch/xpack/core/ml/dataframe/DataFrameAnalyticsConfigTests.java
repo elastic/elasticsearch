@@ -94,11 +94,6 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     @Override
-    protected List<Version> bwcVersions() {
-        return AbstractBWCSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
-    }
-
-    @Override
     protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, Version version) {
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance)
             .setSource(DataFrameAnalyticsSourceTests.mutateForVersion(instance.getSource(), version))

@@ -146,7 +146,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                 if (randomBoolean()) {
                     builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.HDR);
                 } else {
-                    PercentilesMethod.Config hdr = new PercentilesMethod.Config.Hdr();
+                    PercentilesConfig hdr = new PercentilesConfig.Hdr();
                     builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
                 }
 

@@ -168,7 +168,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                 if (randomBoolean()) {
                     builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
                 } else {
-                    PercentilesMethod.Config hdr = new PercentilesMethod.Config.TDigest();
+                    PercentilesConfig hdr = new PercentilesConfig.TDigest();
                     builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
                 }
 

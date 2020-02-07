@@ -54,7 +54,7 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
         this(name, values, null);
     }
 
-    private PercentileRanksAggregationBuilder(String name, double[] values, PercentilesMethod.Config percentilesConfig) {
+    private PercentileRanksAggregationBuilder(String name, double[] values, PercentilesConfig percentilesConfig) {
         super(name, values, percentilesConfig, VALUES_FIELD);
     }
 

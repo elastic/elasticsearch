@@ -40,11 +40,11 @@ import java.util.Map;
 class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final double[] percents;
-    private final PercentilesMethod.Config percentilesConfig;
+    private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
 
     PercentilesAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double[] percents,
-                                 PercentilesMethod.Config percentilesConfig, boolean keyed, QueryShardContext queryShardContext,
+                                 PercentilesConfig percentilesConfig, boolean keyed, QueryShardContext queryShardContext,
                                  AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                  Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);

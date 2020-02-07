@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,11 +30,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 public class PercentilesAggregationBuilder extends AbstractPercentilesAggregationBuilder<PercentilesAggregationBuilder> {
@@ -69,7 +66,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
         this(name, DEFAULT_PERCENTS, null);
     }
 
-    public PercentilesAggregationBuilder(String name, double[] values, PercentilesMethod.Config percentilesConfig) {
+    public PercentilesAggregationBuilder(String name, double[] values, PercentilesConfig percentilesConfig) {
         super(name, values, percentilesConfig, PERCENTS_FIELD);
     }
 

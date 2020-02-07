@@ -36,13 +36,13 @@ import java.util.Map;
 class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final double[] percents;
-    private final PercentilesMethod.Config percentilesConfig;
+    private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
 
     PercentileRanksAggregatorFactory(String name,
                                      ValuesSourceConfig<ValuesSource> config,
                                      double[] percents,
-                                     PercentilesMethod.Config percentilesConfig,
+                                     PercentilesConfig percentilesConfig,
                                      boolean keyed,
                                      QueryShardContext queryShardContext,
                                      AggregatorFactory parent,

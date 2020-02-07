@@ -43,7 +43,7 @@ import java.util.Objects;
 /**
  * This provides a base class for aggregations that are building percentiles or percentiles-like functionality (e.g. percentile ranks).
  * It provides a set of common fields/functionality for setting the available algorithms (TDigest and HDRHistogram),
- * as well as algorithm-specific settings via a {@link PercentilesMethod.Config} object
+ * as well as algorithm-specific settings via a {@link PercentilesConfig} object
  */
 public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPercentilesAggregationBuilder<T>>
     extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, T> {
@@ -51,11 +51,11 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
     protected boolean keyed = true;
     protected double[] values;
-    private PercentilesMethod.Config percentilesConfig;
+    private PercentilesConfig percentilesConfig;
     private ParseField valuesField;
 
     public static <T extends AbstractPercentilesAggregationBuilder<T>> ConstructingObjectParser<T, String> getParser(String aggName,
-                                                         TriFunction<String, double[], PercentilesMethod.Config, T> fn,
+                                                         TriFunction<String, double[], PercentilesConfig, T> fn,
                                                          ParseField valuesField) {
 
         /**
@@ -75,21 +75,21 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             if (objects == null || objects.length == 0) {
                 // Note: if this is a Percentiles agg, the null `values` will be converted into a default,
                 // whereas a Ranks agg will throw an exception due to missing a required param
-                return fn.apply(name, null, new PercentilesMethod.Config.TDigest());
+                return fn.apply(name, null, new PercentilesConfig.TDigest());
             }
 
             double[] values = objects[0] != null ? ((List<Double>) objects[0]).stream().mapToDouble(Double::doubleValue).toArray() : null;
-            PercentilesMethod.Config percentilesConfig;
+            PercentilesConfig percentilesConfig;
 
             if (objects[1] != null && objects[2] != null) {
                 throw new IllegalArgumentException("Only one percentiles method should be declared.");
             } else if (objects[1] == null && objects[2] == null) {
                 // Default is tdigest
-                percentilesConfig = new PercentilesMethod.Config.TDigest();
+                percentilesConfig = new PercentilesConfig.TDigest();
             } else if (objects[1] != null) {
-                percentilesConfig = (PercentilesMethod.Config) objects[1];
+                percentilesConfig = (PercentilesConfig) objects[1];
             } else {
-                percentilesConfig = (PercentilesMethod.Config) objects[2];
+                percentilesConfig = (PercentilesConfig) objects[2];
             }
 
             return fn.apply(name, values, percentilesConfig);
@@ -106,7 +106,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         return parser;
     }
 
-    AbstractPercentilesAggregationBuilder(String name, double[] values, PercentilesMethod.Config percentilesConfig,
+    AbstractPercentilesAggregationBuilder(String name, double[] values, PercentilesConfig percentilesConfig,
                                           ParseField valuesField) {
         super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
         if (values == null) {
@@ -137,12 +137,12 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         keyed = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             percentilesConfig
-                = (PercentilesMethod.Config) in.readOptionalWriteable((Reader<Writeable>) PercentilesMethod.Config::fromStream);
+                = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
         } else {
             int numberOfSignificantValueDigits = in.readVInt();
             double compression = in.readDouble();
             PercentilesMethod method = PercentilesMethod.readFromStream(in);
-            percentilesConfig = PercentilesMethod.Config.fromLegacy(method, compression, numberOfSignificantValueDigits);
+            percentilesConfig = PercentilesConfig.fromLegacy(method, compression, numberOfSignificantValueDigits);
         }
     }
 
@@ -156,12 +156,12 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             // Legacy method serialized both SigFigs and compression, even though we only need one.  So we need
             // to serialize the default for the unused method
             int numberOfSignificantValueDigits = percentilesConfig.getMethod().equals(PercentilesMethod.HDR)
-                ? ((PercentilesMethod.Config.Hdr)percentilesConfig).getNumberOfSignificantValueDigits()
-                : PercentilesMethod.Config.Hdr.DEFAULT_NUMBER_SIG_FIGS;
+                ? ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits()
+                : PercentilesConfig.Hdr.DEFAULT_NUMBER_SIG_FIGS;
 
             double compression = percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)
-                ? ((PercentilesMethod.Config.TDigest)percentilesConfig).getCompression()
-                : PercentilesMethod.Config.TDigest.DEFAULT_COMPRESSION;
+                ? ((PercentilesConfig.TDigest)percentilesConfig).getCompression()
+                : PercentilesConfig.TDigest.DEFAULT_COMPRESSION;
 
             out.writeVInt(numberOfSignificantValueDigits);
             out.writeDouble(compression);
@@ -188,13 +188,13 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * Expert: set the number of significant digits in the values. Only relevant
      * when using {@link PercentilesMethod#HDR}.
      *
-     * Deprecated: set numberOfSignificantValueDigits by configuring a {@link PercentilesMethod.Config.Hdr} instead
-     * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesMethod.Config)}
+     * Deprecated: set numberOfSignificantValueDigits by configuring a {@link PercentilesConfig.Hdr} instead
+     * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
     @Deprecated
     public T numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
         if (percentilesConfig == null || percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-            percentilesConfig = new PercentilesMethod.Config.Hdr(numberOfSignificantValueDigits);
+            percentilesConfig = new PercentilesConfig.Hdr(numberOfSignificantValueDigits);
         } else {
             throw new IllegalArgumentException("Cannot set [numberOfSignificantValueDigits] because the method " +
                 "has already been configured for TDigest");
@@ -207,13 +207,13 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * Expert: get the number of significant digits in the values. Only relevant
      * when using {@link PercentilesMethod#HDR}.
      *
-     * Deprecated: get numberOfSignificantValueDigits by inspecting the {@link PercentilesMethod.Config} returned from
+     * Deprecated: get numberOfSignificantValueDigits by inspecting the {@link PercentilesConfig} returned from
      * {@link PercentilesAggregationBuilder#percentilesConfig()} instead
      */
     @Deprecated
     public int numberOfSignificantValueDigits() {
         if (percentilesConfig != null && percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-            return ((PercentilesMethod.Config.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
+            return ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
         }
         throw new IllegalStateException("Percentiles [method] has not been configured yet, or is a TDigest");
     }
@@ -222,13 +222,13 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * Expert: set the compression. Higher values improve accuracy but also
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
      *
-     * Deprecated: set compression by configuring a {@link PercentilesMethod.Config.TDigest} instead
-     * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesMethod.Config)}
+     * Deprecated: set compression by configuring a {@link PercentilesConfig.TDigest} instead
+     * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
     @Deprecated
     public T compression(double compression) {
         if (percentilesConfig == null || percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-            percentilesConfig = new PercentilesMethod.Config.TDigest(compression);
+            percentilesConfig = new PercentilesConfig.TDigest(compression);
         } else {
             throw new IllegalArgumentException("Cannot set [compression] because the method has already been configured for HDRHistogram");
         }
@@ -239,21 +239,21 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * Expert: get the compression. Higher values improve accuracy but also
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
      *
-     * Deprecated: get compression by inspecting the {@link PercentilesMethod.Config} returned from
+     * Deprecated: get compression by inspecting the {@link PercentilesConfig} returned from
      * {@link PercentilesAggregationBuilder#percentilesConfig()} instead
      */
     @Deprecated
     public double compression() {
         if (percentilesConfig != null && percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-            return ((PercentilesMethod.Config.TDigest)percentilesConfig).getCompression();
+            return ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
         }
         throw new IllegalStateException("Percentiles [method] has not been configured yet, or is a HdrHistogram");
     }
 
 
     /**
-     * Deprecated: set method by configuring a {@link PercentilesMethod.Config} instead
-     * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesMethod.Config)}
+     * Deprecated: set method by configuring a {@link PercentilesConfig} instead
+     * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
     @Deprecated
     public T method(PercentilesMethod method) {
@@ -262,17 +262,17 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         }
         if (percentilesConfig == null) {
             if (method.equals(PercentilesMethod.TDIGEST) ) {
-                this.percentilesConfig = new PercentilesMethod.Config.TDigest();
+                this.percentilesConfig = new PercentilesConfig.TDigest();
             } else {
-                this.percentilesConfig = new PercentilesMethod.Config.Hdr();
+                this.percentilesConfig = new PercentilesConfig.Hdr();
             }
         } else if (percentilesConfig.getMethod().equals(method) == false) {
             // we already have an algo configured, but it's different from the requested method
             // reset to default for the requested method
             if (method.equals(PercentilesMethod.TDIGEST) ) {
-                this.percentilesConfig = new PercentilesMethod.Config.TDigest();
+                this.percentilesConfig = new PercentilesConfig.TDigest();
             } else {
-                this.percentilesConfig = new PercentilesMethod.Config.Hdr();
+                this.percentilesConfig = new PercentilesConfig.Hdr();
             }
         } // if method and config were same, this is a no-op so we don't overwrite settings
 
@@ -280,7 +280,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     }
 
     /**
-     * Deprecated: get method by inspecting the {@link PercentilesMethod.Config} returned from
+     * Deprecated: get method by inspecting the {@link PercentilesConfig} returned from
      * {@link PercentilesAggregationBuilder#percentilesConfig()} instead
      */
     @Nullable
@@ -293,14 +293,14 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * Returns how the percentiles algorithm has been configured, or null if it has not been configured yet
      */
     @Nullable
-    public PercentilesMethod.Config percentilesConfig() {
+    public PercentilesConfig percentilesConfig() {
         return percentilesConfig;
     }
 
     /**
      * Sets how the percentiles algorithm should be configured
      */
-    public T percentilesConfig(PercentilesMethod.Config percentilesConfig) {
+    public T percentilesConfig(PercentilesConfig percentilesConfig) {
         this.percentilesConfig = percentilesConfig;
         return (T) this;
     }
@@ -319,9 +319,9 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * However, this means we need a way to fetch the default if the user hasn't
      * selected any method and uses a builder-side feature like xcontent
      */
-    PercentilesMethod.Config configOrDefault() {
+    PercentilesConfig configOrDefault() {
         if (percentilesConfig == null) {
-            return new PercentilesMethod.Config.TDigest();
+            return new PercentilesConfig.TDigest();
         }
         return percentilesConfig;
     }

@@ -3,13 +3,16 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.querydsl.query;
+package org.elasticsearch.xpack.ql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -31,7 +34,16 @@ public class TermsQuery extends LeafQuery {
         if (values.isEmpty()) {
             this.values = Collections.emptySet();
         } else {
-            this.values = new LinkedHashSet<>(Foldables.valuesOf(values, values.get(0).dataType()));
+            DataType dt = values.get(0).dataType();
+            Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(values.size()));
+            for (Expression e : values) {
+                if (e.foldable()) {
+                    set.add(DataTypeConverter.convert(e.fold(), dt));
+                } else {
+                    throw new QlIllegalArgumentException("Cannot determine value for {}", e);
+                }
+            }
+            this.values = set;
         }
     }
 

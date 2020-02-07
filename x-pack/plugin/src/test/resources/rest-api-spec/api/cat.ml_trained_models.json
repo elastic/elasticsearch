@@ -1,36 +1,64 @@
 {
-  "cat.ml.datafeeds":{
+  "cat.ml_trained_models":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed-stats.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html"
     },
     "stability":"stable",
     "url":{
       "paths":[
         {
-          "path":"/_cat/ml/datafeeds",
+          "path":"/_cat/ml/trained_models",
           "methods":[
             "GET"
           ]
         },
         {
-          "path":"/_cat/ml/datafeeds/{datafeed_id}",
+          "path":"/_cat/ml/trained_models/{model_id}",
           "methods":[
             "GET"
           ],
           "parts":{
-            "datafeed_id":{
+            "model_id":{
               "type":"string",
-              "description":"The ID of the datafeeds stats to fetch"
+              "description":"The ID of the trained models stats to fetch"
             }
           }
         }
       ]
     },
     "params":{
-      "allow_no_datafeeds":{
+      "allow_no_match":{
         "type":"boolean",
         "required":false,
-        "description":"Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string or when no datafeeds have been specified)"
+        "description":"Whether to ignore if a wildcard expression matches no trained models. (This includes `_all` string or when no trained models have been specified)",
+        "default":true
+      },
+      "from":{
+        "type":"int",
+        "description":"skips a number of trained models",
+        "default":0
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of trained models to get",
+        "default":100
+      },
+      "bytes":{
+        "type":"enum",
+        "description":"The unit in which to display byte values",
+        "options":[
+          "b",
+          "k",
+          "kb",
+          "m",
+          "mb",
+          "g",
+          "gb",
+          "t",
+          "tb",
+          "p",
+          "pb"
+        ]
       },
       "format":{
         "type":"string",

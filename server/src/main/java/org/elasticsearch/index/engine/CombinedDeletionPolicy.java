@@ -123,9 +123,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
         assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
         final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        final long localCheckpointOfLastCommit = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         softDeletesPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
-        translogDeletionPolicy.setLocalCheckpointOfLastCommit(localCheckpointOfLastCommit);
         translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
     }
 

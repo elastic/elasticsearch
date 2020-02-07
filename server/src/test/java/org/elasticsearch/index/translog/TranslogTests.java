@@ -165,7 +165,6 @@ public class TranslogTests extends ESTestCase {
 
         if (translog.isOpen()) {
             if (translog.currentFileGeneration() > 1) {
-                translog.getDeletionPolicy().setLocalCheckpointOfLastCommit(Long.MAX_VALUE);
                 translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(Long.MAX_VALUE);
                 translog.trimUnreferencedReaders();
                 assertFileDeleted(translog, translog.currentFileGeneration() - 1);
@@ -479,7 +478,6 @@ public class TranslogTests extends ESTestCase {
             }
         }
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));
-        translog.getDeletionPolicy().setLocalCheckpointOfLastCommit(randomLongBetween(3, Long.MAX_VALUE));
         translog.trimUnreferencedReaders();
         {
             final TranslogStats stats = stats();
@@ -506,8 +504,7 @@ public class TranslogTests extends ESTestCase {
             }
             assertThat(translog.stats().getUncommittedOperations(), equalTo(uncommittedOps));
             if (frequently()) {
-                deletionPolicy.setLocalCheckpointOfSafeCommit(randomLongBetween(deletionPolicy.getLocalCheckpointOfSafeCommit(), i));
-                deletionPolicy.setLocalCheckpointOfLastCommit(i);
+                deletionPolicy.setLocalCheckpointOfSafeCommit(i);
                 assertThat(translog.stats().getUncommittedOperations(), equalTo(operationsInLastGen));
                 uncommittedOps = operationsInLastGen;
             }
@@ -625,7 +622,7 @@ public class TranslogTests extends ESTestCase {
 
             Translog.Snapshot snapshot2 = translog.newSnapshot();
             toClose.add(snapshot2);
-            translog.getDeletionPolicy().setLocalCheckpointOfLastCommit(2);
+            translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(2);
             assertThat(snapshot2, containsOperationsInAnyOrder(ops));
             assertThat(snapshot2.totalOperations(), equalTo(ops.size()));
         } finally {
@@ -972,7 +969,6 @@ public class TranslogTests extends ESTestCase {
                                 translog.rollGeneration();
                                 // expose the new checkpoint (simulating a commit), before we trim the translog
                                 lastCommittedLocalCheckpoint.set(localCheckpoint);
-                                deletionPolicy.setLocalCheckpointOfLastCommit(localCheckpoint);
                                 deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
                                 translog.trimUnreferencedReaders();
                             }
@@ -1360,7 +1356,7 @@ public class TranslogTests extends ESTestCase {
                 Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             final boolean commit = commitOften ? frequently() : rarely();
             if (commit && op < translogOperations - 1) {
-                translog.getDeletionPolicy().setLocalCheckpointOfLastCommit(op);
+                translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(op);
                 minUncommittedOp = op + 1;
                 translogGeneration = translog.getGeneration();
             }
@@ -1816,7 +1812,6 @@ public class TranslogTests extends ESTestCase {
             if (randomBoolean()) {
                 translog.rollGeneration();
                 translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(op);
-                translog.getDeletionPolicy().setLocalCheckpointOfLastCommit(op);
                 translog.trimUnreferencedReaders();
                 firstUncommitted = op + 1;
             }
@@ -2219,7 +2214,6 @@ public class TranslogTests extends ESTestCase {
         TranslogConfig config = translog.getConfig();
         final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy();
         deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
-        deletionPolicy.setLocalCheckpointOfLastCommit(randomLongBetween(localCheckpoint, Long.MAX_VALUE));
         translog = new Translog(config, translog.getTranslogUUID(), deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {});
         assertThat(translog.getMinFileGeneration(), equalTo(1L));
@@ -2268,7 +2262,6 @@ public class TranslogTests extends ESTestCase {
                 }
             }
             deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
-            deletionPolicy.setLocalCheckpointOfLastCommit(randomLongBetween(localCheckpoint, op));
             minGenForRecovery = translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration;
             fail.failRandomly();
             try {
@@ -2278,7 +2271,6 @@ public class TranslogTests extends ESTestCase {
             }
         }
         final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy();
-        deletionPolicy.setLocalCheckpointOfLastCommit(randomLongBetween(localCheckpoint, Long.MAX_VALUE));
         deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {})) {
@@ -2626,7 +2618,6 @@ public class TranslogTests extends ESTestCase {
                             unsynced.clear();
                             failableTLog.rollGeneration();
                             committing = true;
-                            failableTLog.getDeletionPolicy().setLocalCheckpointOfLastCommit(opsAdded);
                             failableTLog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(opsAdded);
                             syncedDocs.clear();
                             failableTLog.trimUnreferencedReaders();
@@ -2671,7 +2662,6 @@ public class TranslogTests extends ESTestCase {
             if (randomBoolean()) {
                 try {
                     TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy();
-                    deletionPolicy.setLocalCheckpointOfLastCommit(localCheckpointOfSafeCommit);
                     deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
                     IOUtils.close(getFailableTranslog(fail, config, randomBoolean(), false, generationUUID, deletionPolicy));
                 } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
@@ -2684,7 +2674,6 @@ public class TranslogTests extends ESTestCase {
             fail.failNever(); // we don't wanna fail here but we might since we write a new checkpoint and create a new tlog file
             TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy();
             deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
-            deletionPolicy.setLocalCheckpointOfLastCommit(localCheckpointOfSafeCommit);
             if (generationUUID == null) {
                 // we never managed to successfully create a translog, make it
                 generationUUID = Translog.createEmptyTranslog(config.getTranslogPath(),
@@ -2868,12 +2857,15 @@ public class TranslogTests extends ESTestCase {
             Stream.concat(translog.getReaders().stream(), Stream.of(translog.getCurrent()))
                 .filter(r -> r.getCheckpoint().minSeqNo >= 0)
                 .collect(Collectors.toList()));
+        int retainedOps = Stream.concat(translog.getReaders().stream(), Stream.of(translog.getCurrent()))
+            .filter(r -> r.getCheckpoint().generation >= minRetainedReader.generation)
+            .mapToInt(r -> r.getCheckpoint().numOps)
+            .sum();
         deletionPolicy.setLocalCheckpointOfSafeCommit(
             randomLongBetween(minRetainedReader.getCheckpoint().minSeqNo, minRetainedReader.getCheckpoint().maxSeqNo) - 1);
-        deletionPolicy.setLocalCheckpointOfLastCommit(seqNo);
         translog.trimUnreferencedReaders();
         assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
-        assertThat(translog.stats().getUncommittedOperations(), equalTo(0));
+        assertThat(translog.stats().getUncommittedOperations(), equalTo(retainedOps));
         // immediate cleanup
         for (long i = 0; i < minRetainedReader.generation; i++) {
             assertFileDeleted(translog, i);
@@ -2967,7 +2959,6 @@ public class TranslogTests extends ESTestCase {
             }
         }
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(0, operations));
-        translog.getDeletionPolicy().setLocalCheckpointOfLastCommit(randomLongBetween(operations, Long.MAX_VALUE));
     }
 
     public void testAcquiredLockIsPassedToDeletionPolicy() throws IOException {
@@ -2981,8 +2972,6 @@ public class TranslogTests extends ESTestCase {
             if (rarely()) {
                 translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(
                     randomLongBetween(deletionPolicy.getLocalCheckpointOfSafeCommit(), i));
-                translog.getDeletionPolicy().setLocalCheckpointOfLastCommit(
-                    randomLongBetween(deletionPolicy.getLocalCheckpointOfLastCommit(), Long.MAX_VALUE));
             }
             if (frequently()) {
                 long minGen;
@@ -3136,9 +3125,6 @@ public class TranslogTests extends ESTestCase {
         translog.sync();
         assertThat(translog.getMaxSeqNo(),
             equalTo(maxSeqNoPerGeneration.isEmpty() ? SequenceNumbers.NO_OPS_PERFORMED : Collections.max(maxSeqNoPerGeneration.values())));
-        if (randomBoolean()) {
-            translog.getDeletionPolicy().setLocalCheckpointOfLastCommit(randomFrom(maxSeqNoPerGeneration.values()));
-        }
         long expectedMaxSeqNo = maxSeqNoPerGeneration.entrySet().stream()
             .filter(e -> e.getKey() >= translog.getMinFileGeneration()).mapToLong(e -> e.getValue())
             .max().orElse(SequenceNumbers.NO_OPS_PERFORMED);

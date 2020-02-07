@@ -84,7 +84,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             }
         }
         assertThat(translogPolicy.getLocalCheckpointOfSafeCommit(), equalTo(getLocalCheckpoint(commitList.get(keptIndex))));
-        assertThat(translogPolicy.getLocalCheckpointOfLastCommit(), equalTo(getLocalCheckpoint(commitList.get(commitList.size() - 1))));
         assertThat(softDeletesPolicy.getMinRetainedSeqNo(),
             equalTo(Math.max(NO_OPS_PERFORMED,
                 Math.min(getLocalCheckpoint(commitList.get(keptIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
@@ -149,7 +148,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             snapshottingCommits.forEach(snapshot -> assertThat(snapshot.isDeleted(), equalTo(false)));
             // We don't need to retain translog for snapshotting commits.
             assertThat(translogPolicy.getLocalCheckpointOfSafeCommit(), equalTo(getLocalCheckpoint(commitList.get(safeIndex))));
-            assertThat(translogPolicy.getLocalCheckpointOfLastCommit(), equalTo(getLocalCheckpoint(commitList.get(commitList.size() - 1))));
             assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
                 Math.max(NO_OPS_PERFORMED,
                     Math.min(getLocalCheckpoint(commitList.get(safeIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
@@ -163,7 +161,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
         assertThat(commitList.get(commitList.size() - 1).isDeleted(), equalTo(false));
         assertThat(translogPolicy.getLocalCheckpointOfSafeCommit(), equalTo(getLocalCheckpoint(commitList.get(commitList.size() - 1))));
-        assertThat(translogPolicy.getLocalCheckpointOfLastCommit(), equalTo(getLocalCheckpoint(commitList.get(commitList.size() - 1))));
         IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
         assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
             Math.max(NO_OPS_PERFORMED, Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
@@ -224,7 +221,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         if (safeCommitIndex == commitList.size() - 1) {
             // Safe commit is the last commit - no need to clean up
             assertThat(translogPolicy.getLocalCheckpointOfSafeCommit(), equalTo(getLocalCheckpoint(commitList.get(commitList.size() - 1))));
-            assertThat(translogPolicy.getLocalCheckpointOfLastCommit(), equalTo(getLocalCheckpoint(commitList.get(commitList.size() - 1))));
             assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
         } else {
             // Advanced but not enough for any commit after the safe commit becomes safe
@@ -242,7 +238,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             indexPolicy.onCommit(commitList);
             // Safe commit is the last commit - no need to clean up
             assertThat(translogPolicy.getLocalCheckpointOfSafeCommit(), equalTo(getLocalCheckpoint(commitList.get(commitList.size() - 1))));
-            assertThat(translogPolicy.getLocalCheckpointOfLastCommit(), equalTo(getLocalCheckpoint(commitList.get(commitList.size() - 1))));
             assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
         }
     }

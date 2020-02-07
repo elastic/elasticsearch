@@ -150,7 +150,6 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 final long localCheckpoint = Long.parseLong(commitUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
                 final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
                 translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
-                translogDeletionPolicy.setLocalCheckpointOfLastCommit(localCheckpoint);
                 try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy,
                     engineConfig.getGlobalCheckpointSupplier(), engineConfig.getPrimaryTermSupplier(), seqNo -> {})) {
                     translog.trimUnreferencedReaders();

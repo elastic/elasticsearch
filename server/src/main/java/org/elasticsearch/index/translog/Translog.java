@@ -843,7 +843,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            final long uncommittedGen = minGenerationForSeqNo(deletionPolicy.getLocalCheckpointOfLastCommit() + 1, current, readers);
+            final long uncommittedGen = minGenerationForSeqNo(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, current, readers);
             return new TranslogStats(totalOperations(), sizeInBytes(), totalOperationsByMinGen(uncommittedGen),
                 sizeInBytesByMinGen(uncommittedGen), earliestLastModifiedAge());
         }

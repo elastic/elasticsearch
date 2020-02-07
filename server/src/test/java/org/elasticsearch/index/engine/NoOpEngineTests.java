@@ -167,10 +167,13 @@ public class NoOpEngineTests extends EngineTestCase {
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
 
         final int numDocs = scaledRandomIntBetween(10, 3000);
+        int totalTranslogOps = 0;
         for (int i = 0; i < numDocs; i++) {
+            totalTranslogOps++;
             engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
             tracker.updateLocalCheckpoint(allocationId.getId(), i);
             if (rarely()) {
+                totalTranslogOps = 0;
                 engine.flush();
             }
             if (randomBoolean()) {
@@ -183,6 +186,7 @@ public class NoOpEngineTests extends EngineTestCase {
         engine.close();
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
+        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(totalTranslogOps));
         noOpEngine.trimUnreferencedTranslogFiles();
         assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(0));
         assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));

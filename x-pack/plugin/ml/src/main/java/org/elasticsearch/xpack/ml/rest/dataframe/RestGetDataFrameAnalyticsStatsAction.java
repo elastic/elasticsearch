@@ -28,8 +28,8 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/_stats"),
-            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stats"
-            )));
+            new Route(
+                GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stats")));
     }
 
     @Override

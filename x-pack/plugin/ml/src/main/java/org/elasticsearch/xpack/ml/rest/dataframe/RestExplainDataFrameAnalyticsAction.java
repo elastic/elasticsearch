@@ -34,10 +34,10 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
         return unmodifiableList(asList(
             new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),
             new Route(POST, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),
-            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"
-            ),
-            new Route(POST, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"
-            )));
+            new Route(
+                GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"),
+            new Route(POST,
+                MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain")));
     }
 
     @Override

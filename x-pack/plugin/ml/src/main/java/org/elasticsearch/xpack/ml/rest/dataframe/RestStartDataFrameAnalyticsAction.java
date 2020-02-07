@@ -25,8 +25,8 @@ public class RestStartDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return singletonList(
-            new Route(POST, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_start"
-            ));
+            new Route(
+                POST, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_start"));
     }
 
     @Override

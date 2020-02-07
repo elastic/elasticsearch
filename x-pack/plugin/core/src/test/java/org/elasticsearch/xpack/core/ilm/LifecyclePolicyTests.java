@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -146,24 +145,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
-        LifecyclePolicy policy = null;
-
-        // Keep generating a random policy until it passes the validation,
-        // ignoring known specific invalid states
-        while (policy == null) {
-            try {
-                policy = innerRandomTimeseriesLifecyclePolicy(lifecycleName);
-            } catch (IllegalArgumentException e) {
-                assertThat(e.getMessage(),
-                    containsString("the [forcemerge] action may not be used in the [hot]" +
-                        " phase without an accompanying [rollover] action"));
-                // Ignore and try again
-            }
-        }
-        return policy;
-    }
-
-    private static LifecyclePolicy innerRandomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
         List<String> phaseNames = randomSubsetOf(
             between(0, TimeseriesLifecycleType.VALID_PHASES.size() - 1), TimeseriesLifecycleType.VALID_PHASES);
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
@@ -209,6 +190,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
+
+            // If the hot phase contains a forcemerge, also make sure to add a rollover, or else the policy will not validate
+            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE) && actionNames.contains(ForceMergeAction.NAME)) {
+                actionNames.add(RolloverAction.NAME);
+            }
+
             for (String action : actionNames) {
                 actions.put(action, randomAction.apply(action));
             }

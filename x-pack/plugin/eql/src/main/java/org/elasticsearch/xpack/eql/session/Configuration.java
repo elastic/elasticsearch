@@ -23,8 +23,7 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
     private QueryBuilder filter;
 
     public Configuration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter,
-            TimeValue requestTimeout,
-            boolean includeFrozen, String clientId) {
+            TimeValue requestTimeout, boolean includeFrozen, String clientId) {
 
         super(zi, username, clusterName);
 

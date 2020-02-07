@@ -125,35 +125,6 @@ public class TransformIndexerStats extends IndexerJobStats {
         this.expAvgDocumentsProcessed = expAvgDocumentsProcessed == null ? 0.0 : expAvgDocumentsProcessed;
     }
 
-    public TransformIndexerStats(
-        long numPages,
-        long numInputDocuments,
-        long numOutputDocuments,
-        long numInvocations,
-        long indexTime,
-        long searchTime,
-        long indexTotal,
-        long searchTotal,
-        long indexFailures,
-        long searchFailures
-    ) {
-        this(
-            numPages,
-            numInputDocuments,
-            numOutputDocuments,
-            numInvocations,
-            indexTime,
-            searchTime,
-            indexTotal,
-            searchTotal,
-            indexFailures,
-            searchFailures,
-            0.0,
-            0.0,
-            0.0
-        );
-    }
-
     public TransformIndexerStats(TransformIndexerStats other) {
         this(
             other.numPages,
@@ -165,11 +136,11 @@ public class TransformIndexerStats extends IndexerJobStats {
             other.indexTotal,
             other.searchTotal,
             other.indexFailures,
-            other.searchFailures
+            other.searchFailures,
+            other.expAvgCheckpointDurationMs,
+            other.expAvgDocumentsIndexed,
+            other.expAvgDocumentsProcessed
         );
-        this.expAvgCheckpointDurationMs = other.expAvgCheckpointDurationMs;
-        this.expAvgDocumentsIndexed = other.expAvgDocumentsIndexed;
-        this.expAvgDocumentsProcessed = other.expAvgDocumentsProcessed;
     }
 
     public TransformIndexerStats(StreamInput in) throws IOException {
@@ -293,6 +264,11 @@ public class TransformIndexerStats extends IndexerJobStats {
             expAvgDocumentsIndexed,
             expAvgDocumentsProcessed
         );
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static TransformIndexerStats fromXContent(XContentParser parser) {

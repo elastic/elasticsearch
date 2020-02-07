@@ -291,6 +291,22 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
+    public void test73CustomJvmOptionsDirectoryFilesWithoutOptionsExtensionIgnored() throws Exception {
+        final Path jvmOptionsIgnored = installation.config(Paths.get("jvm.options.d", "jvm.options.ignored"));
+        try {
+            append(jvmOptionsIgnored, "-Xms512\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
+
+            stopElasticsearch();
+        } finally {
+            rm(jvmOptionsIgnored);
+        }
+    }
+
     public void test80RelativePathConf() throws Exception {
 
         final Path temp = getTempDir().resolve("esconf-alternate");

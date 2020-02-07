@@ -68,7 +68,7 @@ setup:
   - match: { test_index.shards.0.translog.recovered: 0}
   - match: { test_index.shards.0.translog.total: 0}
   - match: { test_index.shards.0.translog.total_on_start: 0}
-  - match: { test_index.shards.0.index.files.recovered: 5}
+  - match: { test_index.shards.0.index.files.recovered: 6}
   - match: { test_index.shards.0.index.files.reused: 0}
   - match: { test_index.shards.0.index.size.reused_in_bytes: 0}
   - gt: { test_index.shards.0.index.size.recovered_in_bytes: 0}

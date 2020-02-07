@@ -6,16 +6,15 @@
  *
  */
 
-package org.elasticsearch.xpack.core.enrich.action;
+package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeTests;
 
-public class EnrichStatsActionTests extends ESTestCase {
+public class EnrichClusterPrivilegeTests extends ESTestCase {
 
     public void testMonitorPrivilegeWillAllowAction() {
-        final ClusterPermission clusterPermission = ClusterPrivilegeResolver.MONITOR.buildPermission(ClusterPermission.builder()).build();
-        assertTrue(clusterPermission.check(EnrichStatsAction.NAME, null, null));
+        ClusterPrivilegeTests.assertGranted(ClusterPrivilegeResolver.MONITOR, EnrichCoordinatorStatsAction.INSTANCE);
     }
 }

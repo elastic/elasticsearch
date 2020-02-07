@@ -78,7 +78,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
         if (enabled) {
-            return List.of(new RestGetAutoscalingDecisionHandler(controller));
+            return List.of(new RestGetAutoscalingDecisionHandler());
         } else {
             return List.of();
         }

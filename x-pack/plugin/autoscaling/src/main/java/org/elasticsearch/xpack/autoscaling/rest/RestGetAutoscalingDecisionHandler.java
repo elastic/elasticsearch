@@ -8,15 +8,20 @@ package org.elasticsearch.xpack.autoscaling.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingDecisionAction;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestGetAutoscalingDecisionHandler extends BaseRestHandler {
 
-    public RestGetAutoscalingDecisionHandler(final RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_autoscaling/decision", this);
+    @Override
+    public List<Route> handledRoutes() {
+        return singletonList(new Route("/_autoscaling/decision", GET));
     }
 
     @Override

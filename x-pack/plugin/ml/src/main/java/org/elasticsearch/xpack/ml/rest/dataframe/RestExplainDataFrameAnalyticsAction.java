@@ -30,7 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),
             new Route(POST, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),

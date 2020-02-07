@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_slm/policy/{name}/_execute"),
             new Route(PUT, "/_slm/policy/{name}/_execute")));

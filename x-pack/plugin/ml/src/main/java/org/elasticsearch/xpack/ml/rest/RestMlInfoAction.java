@@ -26,7 +26,7 @@ public class RestMlInfoAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestMlInfoAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

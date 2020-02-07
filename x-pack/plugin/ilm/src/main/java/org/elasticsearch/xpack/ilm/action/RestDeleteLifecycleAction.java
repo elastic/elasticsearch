@@ -20,7 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteLifecycleAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_ilm/policy/{name}"));
     }
 

@@ -24,7 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public final class RestFreezeIndexAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/{index}/_freeze"),
             new Route(POST, "/{index}/_unfreeze")));

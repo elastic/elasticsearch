@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestAliasAction extends AbstractCatAction {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_cat/aliases"),
             new Route(GET, "/_cat/aliases/{alias}")));

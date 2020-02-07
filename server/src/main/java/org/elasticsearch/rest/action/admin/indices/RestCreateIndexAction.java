@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(PUT, "/{index}"));
     }
 

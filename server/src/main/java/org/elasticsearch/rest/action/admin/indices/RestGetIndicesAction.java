@@ -44,7 +44,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetIndicesAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/{index}"),
             new Route(HEAD, "/{index}")));

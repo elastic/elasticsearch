@@ -42,7 +42,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     private static final String TRANSIENT = "transient";
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(PUT, "/_cluster/settings"));
     }
 

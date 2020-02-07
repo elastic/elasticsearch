@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestRecoveryAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_recovery"),
             new Route(GET, "/{index}/_recovery")));

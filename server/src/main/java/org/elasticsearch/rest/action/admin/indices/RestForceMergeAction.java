@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestForceMergeAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_forcemerge"),
             new Route(POST, "/{index}/_forcemerge")));

@@ -51,7 +51,7 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

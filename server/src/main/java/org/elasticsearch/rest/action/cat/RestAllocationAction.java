@@ -47,7 +47,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestAllocationAction extends AbstractCatAction {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_cat/allocation"),
             new Route(GET, "/_cat/allocation/{nodes}")));

@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/_snapshot/{repository}/{snapshot}/_restore"));
     }
 

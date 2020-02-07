@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction
 public class RestGetAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_ccr/auto_follow/{name}"),
             new Route(GET, "/_ccr/auto_follow")));

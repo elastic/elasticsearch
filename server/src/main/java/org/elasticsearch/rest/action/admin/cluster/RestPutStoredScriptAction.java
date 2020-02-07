@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_scripts/{id}"),
             new Route(PUT, "/_scripts/{id}"),

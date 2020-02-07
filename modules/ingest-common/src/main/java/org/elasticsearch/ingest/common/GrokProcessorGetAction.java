@@ -119,7 +119,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
     public static class RestAction extends BaseRestHandler {
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return singletonList(new Route(GET, "/_ingest/processor/grok"));
         }
 

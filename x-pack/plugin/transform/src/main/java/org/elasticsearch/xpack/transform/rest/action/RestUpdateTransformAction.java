@@ -23,7 +23,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestUpdateTransformAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_update"));
     }
 

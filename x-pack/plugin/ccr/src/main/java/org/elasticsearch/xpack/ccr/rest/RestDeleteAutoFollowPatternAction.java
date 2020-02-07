@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAct
 public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_ccr/auto_follow/{name}"));
     }
 

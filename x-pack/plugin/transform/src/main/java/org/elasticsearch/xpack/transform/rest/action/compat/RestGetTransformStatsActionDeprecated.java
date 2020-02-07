@@ -32,7 +32,7 @@ public class RestGetTransformStatsActionDeprecated extends BaseRestHandler {
             LogManager.getLogger(RestGetTransformStatsActionDeprecated.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

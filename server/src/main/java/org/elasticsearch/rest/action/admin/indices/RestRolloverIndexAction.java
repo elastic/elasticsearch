@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/{index}/_rollover"),
             new Route(POST, "/{index}/_rollover/{new_index}")));

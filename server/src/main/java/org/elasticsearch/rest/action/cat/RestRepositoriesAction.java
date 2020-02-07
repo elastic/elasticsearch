@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestRepositoriesAction extends AbstractCatAction {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(GET, "/_cat/repositories"));
     }
 

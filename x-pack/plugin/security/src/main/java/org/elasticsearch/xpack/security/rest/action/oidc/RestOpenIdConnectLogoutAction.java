@@ -46,7 +46,7 @@ public class RestOpenIdConnectLogoutAction extends OpenIdConnectBaseRestHandler 
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/_security/oidc/logout"));
     }
 

@@ -46,7 +46,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestValidateQueryAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_validate/query"),
             new Route(POST, "/_validate/query"),

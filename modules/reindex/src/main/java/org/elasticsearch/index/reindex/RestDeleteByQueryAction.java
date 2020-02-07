@@ -38,7 +38,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/{index}/_delete_by_query"));
     }
 

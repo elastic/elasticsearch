@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestFlushAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_flush"),
             new Route(POST, "/_flush"),

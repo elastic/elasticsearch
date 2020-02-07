@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetSettingsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_settings"),
             new Route(GET, "/_settings/{name}"),

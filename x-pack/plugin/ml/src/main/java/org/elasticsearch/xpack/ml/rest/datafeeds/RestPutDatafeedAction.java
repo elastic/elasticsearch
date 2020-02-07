@@ -28,7 +28,7 @@ public class RestPutDatafeedAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestPutDatafeedAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

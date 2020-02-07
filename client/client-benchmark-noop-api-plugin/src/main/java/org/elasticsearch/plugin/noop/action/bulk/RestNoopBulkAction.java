@@ -48,7 +48,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestNoopBulkAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_noop_bulk"),
             new Route(PUT, "/_noop_bulk"),

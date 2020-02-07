@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_field_caps"),
             new Route(POST, "/_field_caps"),

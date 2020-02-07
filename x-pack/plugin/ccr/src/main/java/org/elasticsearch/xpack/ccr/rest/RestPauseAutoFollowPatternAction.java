@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternA
 public class RestPauseAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/_ccr/auto_follow/{name}/pause"));
     }
 

@@ -23,7 +23,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestDeprecationInfoAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_migration/deprecations"),
             new Route(GET, "/{index}/_migration/deprecations")));

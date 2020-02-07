@@ -23,7 +23,7 @@ public class RestGetRollupCapsAction extends BaseRestHandler {
     public static final ParseField ID = new ParseField("id");
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(GET, "/_rollup/data/{id}"));
     }
 

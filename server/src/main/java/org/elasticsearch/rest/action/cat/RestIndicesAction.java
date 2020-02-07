@@ -71,7 +71,7 @@ public class RestIndicesAction extends AbstractCatAction {
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_cat/indices"),
             new Route(GET, "/_cat/indices/{index}")));

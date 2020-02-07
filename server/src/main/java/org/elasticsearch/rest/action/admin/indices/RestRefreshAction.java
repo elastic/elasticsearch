@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestRefreshAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_refresh"),
             new Route(POST, "/_refresh"),

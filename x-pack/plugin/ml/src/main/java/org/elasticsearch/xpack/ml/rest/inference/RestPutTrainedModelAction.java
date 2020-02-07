@@ -23,7 +23,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutTrainedModelAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(
             new Route(PUT, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
     }

@@ -47,7 +47,7 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 public class RestCountAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_count"),
             new Route(POST, "/_count"),

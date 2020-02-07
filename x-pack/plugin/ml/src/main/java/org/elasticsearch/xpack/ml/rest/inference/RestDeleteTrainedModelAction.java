@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteTrainedModelAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(
             new Route(DELETE, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
     }

@@ -28,7 +28,7 @@ public class RestPutFilterAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestPutFilterAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

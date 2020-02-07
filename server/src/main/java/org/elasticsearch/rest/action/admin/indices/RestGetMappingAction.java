@@ -42,7 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_mapping"),
             new Route(GET, "/_mappings"),

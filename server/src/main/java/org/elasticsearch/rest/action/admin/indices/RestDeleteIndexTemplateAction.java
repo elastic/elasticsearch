@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteIndexTemplateAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_template/{name}"));
     }
 

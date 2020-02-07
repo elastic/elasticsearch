@@ -38,7 +38,7 @@ public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_security/api_key"),
             new Route(PUT, "/_security/api_key")));

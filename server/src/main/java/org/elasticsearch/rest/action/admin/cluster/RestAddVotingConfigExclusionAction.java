@@ -44,7 +44,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/_cluster/voting_config_exclusions/{node_name}"));
     }
 

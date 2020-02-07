@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(PUT, "/_slm/policy/{name}"));
     }
 

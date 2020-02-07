@@ -21,7 +21,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestWatchServiceAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/_watcher/_start"));
     }
 
@@ -39,7 +39,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
     public static class StopRestHandler extends BaseRestHandler {
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return singletonList(new Route(POST, "/_watcher/_stop"));
         }
 

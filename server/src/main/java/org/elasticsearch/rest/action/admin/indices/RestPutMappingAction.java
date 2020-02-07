@@ -42,7 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/{index}/_mapping/"),
             new Route(PUT, "/{index}/_mapping/"),

@@ -93,7 +93,7 @@ public class RestRankEvalAction extends BaseRestHandler {
     public static String ENDPOINT = "_rank_eval";
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/" + ENDPOINT),
             new Route(POST, "/" + ENDPOINT),

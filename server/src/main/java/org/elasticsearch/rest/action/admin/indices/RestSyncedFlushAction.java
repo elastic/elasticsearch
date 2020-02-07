@@ -50,7 +50,7 @@ public class RestSyncedFlushAction extends BaseRestHandler {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_flush/synced"),
             new Route(POST, "/_flush/synced"),

@@ -25,7 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/_stats"),
             new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stats"

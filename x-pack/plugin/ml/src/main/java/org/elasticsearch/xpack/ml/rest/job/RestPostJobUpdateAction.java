@@ -28,7 +28,7 @@ public class RestPostJobUpdateAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestPostJobUpdateAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

@@ -28,7 +28,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestDeleteWatchAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_watcher/watch/{id}"));
     }
 

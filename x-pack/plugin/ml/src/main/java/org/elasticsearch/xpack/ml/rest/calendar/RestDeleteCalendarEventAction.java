@@ -28,7 +28,7 @@ public class RestDeleteCalendarEventAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestDeleteCalendarEventAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

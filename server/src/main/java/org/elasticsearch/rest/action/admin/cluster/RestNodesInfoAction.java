@@ -57,7 +57,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_nodes"),
             // this endpoint is used for metrics, not for node IDs, like /_nodes/fs

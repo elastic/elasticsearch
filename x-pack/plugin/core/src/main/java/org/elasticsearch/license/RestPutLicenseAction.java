@@ -24,7 +24,7 @@ public class RestPutLicenseAction extends BaseRestHandler {
     RestPutLicenseAction() {}
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         // TODO: remove POST endpoint?
         return unmodifiableList(asList(
             new Route(POST, "/_license"),

@@ -25,7 +25,7 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
     static final ParseField INDEX = new ParseField("index");
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(GET, "/{index}/_rollup/data"));
     }
 

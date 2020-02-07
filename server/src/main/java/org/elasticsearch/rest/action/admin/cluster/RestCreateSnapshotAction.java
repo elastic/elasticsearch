@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestCreateSnapshotAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(PUT, "/_snapshot/{repository}/{snapshot}"),
             new Route(POST, "/_snapshot/{repository}/{snapshot}")));

@@ -103,7 +103,7 @@ public class UsageServiceTests extends ESTestCase {
         }
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return Collections.emptyList();
         }
 

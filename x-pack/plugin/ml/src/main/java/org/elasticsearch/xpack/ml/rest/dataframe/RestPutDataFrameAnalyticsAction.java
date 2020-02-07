@@ -23,7 +23,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(
             new Route(PUT, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}"));
     }

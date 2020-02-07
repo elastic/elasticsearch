@@ -61,7 +61,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_cluster/state"),
             new Route(GET, "/_cluster/state/{metric}"),

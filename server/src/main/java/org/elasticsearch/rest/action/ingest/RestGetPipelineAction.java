@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_ingest/pipeline"),
             new Route(GET, "/_ingest/pipeline/{id}")));

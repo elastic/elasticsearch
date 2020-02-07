@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_cat/templates"),
             new Route(GET, "/_cat/templates/{name}")));

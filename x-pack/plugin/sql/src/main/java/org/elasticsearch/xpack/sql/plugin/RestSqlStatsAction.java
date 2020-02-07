@@ -20,7 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestSqlStatsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(GET, Protocol.SQL_STATS_REST_ENDPOINT));
     }
 

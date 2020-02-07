@@ -28,7 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestCatDatafeedsAction extends AbstractCatAction {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
             new Route(GET, "_cat/ml/datafeeds")));

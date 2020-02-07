@@ -195,7 +195,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
     public static class RestAction extends BaseRestHandler {
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return singletonList(new Route(GET, "/_scripts/painless/_context"));
         }
 

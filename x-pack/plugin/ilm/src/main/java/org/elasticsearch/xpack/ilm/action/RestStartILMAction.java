@@ -21,7 +21,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestStartILMAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/_ilm/start"));
     }
 

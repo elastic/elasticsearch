@@ -25,7 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestReloadAnalyzersAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/{index}/_reload_search_analyzers"),
             new Route(POST, "/{index}/_reload_search_analyzers")));

@@ -59,7 +59,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public static class RestShrinkIndexAction extends RestResizeHandler {
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return unmodifiableList(asList(
                 new Route(POST, "/{index}/_shrink/{target}"),
                 new Route(PUT, "/{index}/_shrink/{target}")));
@@ -80,7 +80,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public static class RestSplitIndexAction extends RestResizeHandler {
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return unmodifiableList(asList(
                 new Route(POST, "/{index}/_split/{target}"),
                 new Route(PUT, "/{index}/_split/{target}")));
@@ -101,7 +101,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public static class RestCloneIndexAction extends RestResizeHandler {
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return unmodifiableList(asList(
                 new Route(POST, "/{index}/_clone/{target}"),
                 new Route(PUT, "/{index}/_clone/{target}")));

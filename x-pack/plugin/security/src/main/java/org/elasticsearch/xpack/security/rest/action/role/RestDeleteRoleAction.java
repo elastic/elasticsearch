@@ -38,7 +38,7 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

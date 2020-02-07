@@ -59,7 +59,7 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_nodes/reload_secure_settings"),
             new Route(POST, "/_nodes/{nodeId}/reload_secure_settings")));

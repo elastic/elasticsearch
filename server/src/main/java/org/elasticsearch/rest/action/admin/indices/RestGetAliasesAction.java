@@ -57,7 +57,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetAliasesAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_alias"),
             new Route(GET, "/_aliases"),

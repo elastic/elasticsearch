@@ -46,7 +46,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesStatsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_nodes/stats"),
             new Route(GET, "/_nodes/{nodeId}/stats"),

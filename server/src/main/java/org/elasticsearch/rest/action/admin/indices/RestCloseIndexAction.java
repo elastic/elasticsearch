@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestCloseIndexAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_close"),
             new Route(POST, "/{index}/_close")));

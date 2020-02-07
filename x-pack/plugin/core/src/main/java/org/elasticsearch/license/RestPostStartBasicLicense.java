@@ -22,7 +22,7 @@ public class RestPostStartBasicLicense extends BaseRestHandler {
     RestPostStartBasicLicense() {}
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/_license/start_basic"));
     }
 

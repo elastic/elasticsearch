@@ -93,8 +93,8 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     @Override
-    public List<Route> handledRoutes() {
-        return restHandler.handledRoutes();
+    public List<Route> routes() {
+        return restHandler.routes();
     }
 
     @Override

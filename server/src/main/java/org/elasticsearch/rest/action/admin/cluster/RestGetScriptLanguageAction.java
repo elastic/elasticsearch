@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetScriptLanguageAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(GET, "/_script_language"));
     }
 

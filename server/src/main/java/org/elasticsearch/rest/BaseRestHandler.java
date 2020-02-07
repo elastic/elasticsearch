@@ -72,7 +72,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * {@inheritDoc}
      */
     @Override
-    public abstract List<Route> handledRoutes();
+    public abstract List<Route> routes();
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {

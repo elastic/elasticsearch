@@ -46,7 +46,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetFieldMappingAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_mapping/field/{fields}"),
             new Route(GET, "/{index}/_mapping/field/{fields}")));

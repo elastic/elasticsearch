@@ -28,7 +28,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetWatchAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(GET, "/_watcher/watch/{id}"));
     }
 

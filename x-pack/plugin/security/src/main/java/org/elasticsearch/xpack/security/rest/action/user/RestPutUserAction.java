@@ -47,7 +47,7 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

@@ -23,7 +23,7 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
     RestDeleteLicenseAction() {}
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_license"));
     }
 

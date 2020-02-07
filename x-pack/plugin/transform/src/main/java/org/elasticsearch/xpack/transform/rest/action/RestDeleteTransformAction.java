@@ -21,7 +21,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteTransformAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(DELETE, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
     }
 

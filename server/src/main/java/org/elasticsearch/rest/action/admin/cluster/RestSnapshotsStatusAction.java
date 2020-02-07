@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestSnapshotsStatusAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_snapshot/{repository}/{snapshot}/_status"),
             new Route(GET, "/_snapshot/{repository}/_status"),

@@ -31,7 +31,7 @@ public class RestPreviewTransformActionDeprecated extends BaseRestHandler {
             LogManager.getLogger(RestPreviewTransformActionDeprecated.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

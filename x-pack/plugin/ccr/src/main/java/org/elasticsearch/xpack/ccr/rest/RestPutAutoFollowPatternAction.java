@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction
 public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(PUT, "/_ccr/auto_follow/{name}"));
     }
 

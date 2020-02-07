@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetStoredScriptAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(GET, "/_scripts/{id}"));
     }
 

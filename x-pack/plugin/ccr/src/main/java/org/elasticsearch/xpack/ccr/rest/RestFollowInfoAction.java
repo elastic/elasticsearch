@@ -21,7 +21,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestFollowInfoAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(GET, "/{index}/_ccr/info"));
     }
 

@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestPutWatchAction extends BaseRestHandler implements RestRequestFilter {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_watcher/watch/{id}"),
             new Route(PUT, "/_watcher/watch/{id}")));

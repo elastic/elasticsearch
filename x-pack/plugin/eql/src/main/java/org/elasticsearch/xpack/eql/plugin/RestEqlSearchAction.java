@@ -32,7 +32,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
     private static final String SEARCH_PATH = "/{index}/_eql/search";
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, SEARCH_PATH),
             new Route(POST, SEARCH_PATH)));

@@ -119,7 +119,7 @@ public class ActionModuleTests extends ESTestCase {
                 }
 
                 @Override
-                public List<Route> handledRoutes() {
+                public List<Route> routes() {
                     return singletonList(new Route(Method.GET, "/"));
                 }
             }));
@@ -152,7 +152,7 @@ public class ActionModuleTests extends ESTestCase {
     public void testPluginCanRegisterRestHandler() {
         class FakeHandler implements RestHandler {
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return singletonList(new Route(Method.GET, "/_dummy"));
             }
 
@@ -185,7 +185,7 @@ public class ActionModuleTests extends ESTestCase {
                     }
 
                     @Override
-                    public List<Route> handledRoutes() {
+                    public List<Route> routes() {
                         return singletonList(new Route(Method.GET, "/_dummy"));
                     }
                 }));

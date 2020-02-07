@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Requ
 public class RestCatTrainedModelsAction extends AbstractCatAction {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "_cat/ml/trained_models"),
             new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}")));

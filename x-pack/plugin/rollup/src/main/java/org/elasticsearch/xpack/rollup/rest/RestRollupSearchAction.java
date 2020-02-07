@@ -27,7 +27,7 @@ public class RestRollupSearchAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "_rollup_search"),
             new Route(POST, "_rollup_search"),

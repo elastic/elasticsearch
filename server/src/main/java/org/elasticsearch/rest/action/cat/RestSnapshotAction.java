@@ -50,7 +50,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestSnapshotAction extends AbstractCatAction {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_cat/snapshots"),
             new Route(GET, "/_cat/snapshots/{repository}")));

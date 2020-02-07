@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.core.ccr.action.UnfollowAction.INSTANCE;
 public class RestUnfollowAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/{index}/_ccr/unfollow"));
     }
 

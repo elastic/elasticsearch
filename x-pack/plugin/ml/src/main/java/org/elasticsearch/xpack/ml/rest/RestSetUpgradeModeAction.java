@@ -26,7 +26,7 @@ public class RestSetUpgradeModeAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestSetUpgradeModeAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

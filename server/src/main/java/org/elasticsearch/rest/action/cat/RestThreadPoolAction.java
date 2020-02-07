@@ -54,7 +54,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestThreadPoolAction extends AbstractCatAction {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_cat/thread_pool"),
             new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}")));

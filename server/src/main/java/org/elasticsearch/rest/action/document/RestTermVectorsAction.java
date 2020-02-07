@@ -46,7 +46,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/{index}/_termvectors"),
             new Route(POST, "/{index}/_termvectors"),

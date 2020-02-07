@@ -567,7 +567,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
     public static class RestAction extends BaseRestHandler {
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return unmodifiableList(asList(
                 new Route(GET, "/_scripts/painless/_execute"),
                 new Route(POST, "/_scripts/painless/_execute")));

@@ -46,7 +46,7 @@ public class RestMultiGetAction extends BaseRestHandler {
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_mget"),
             new Route(POST, "/_mget"),

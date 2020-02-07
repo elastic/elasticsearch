@@ -44,7 +44,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestClusterHealthAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(new Route(GET, "/_cluster/health"),
             new Route(GET, "/_cluster/health/{index}")));
     }

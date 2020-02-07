@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestIndicesSegmentsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_segments"),
             new Route(GET, "/{index}/_segments")));

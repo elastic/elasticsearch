@@ -59,7 +59,7 @@ public class RestGraphAction extends BaseRestHandler {
     public static final ParseField TERM_FIELD = new ParseField("term");
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/{index}/_graph/explore"),
             new Route(POST, "/{index}/_graph/explore")));

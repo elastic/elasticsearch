@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestActivateWatchAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_watcher/watch/{id}/_activate"),
             new Route(PUT, "/_watcher/watch/{id}/_activate")));
@@ -62,7 +62,7 @@ public class RestActivateWatchAction extends BaseRestHandler {
     public static class DeactivateRestHandler extends BaseRestHandler {
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return unmodifiableList(asList(
                 new Route(POST, "/_watcher/watch/{id}/_deactivate"),
                 new Route(PUT, "/_watcher/watch/{id}/_deactivate")));

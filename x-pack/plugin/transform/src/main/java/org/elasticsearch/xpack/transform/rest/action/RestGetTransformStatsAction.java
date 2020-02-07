@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MAT
 public class RestGetTransformStatsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS + "_stats"),
             new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stats")));

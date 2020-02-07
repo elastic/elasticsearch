@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_template/{name}"),
             new Route(PUT, "/_template/{name}")));

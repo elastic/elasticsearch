@@ -50,7 +50,7 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
     }
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/_security/oidc/authenticate"));
     }
 

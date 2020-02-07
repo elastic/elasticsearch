@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestAckWatchAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_watcher/watch/{id}/_ack"),
             new Route(PUT, "/_watcher/watch/{id}/_ack"),

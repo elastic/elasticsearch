@@ -33,7 +33,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestGetBucketsAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

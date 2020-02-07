@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_slm/policy"),
             new Route(GET, "/_slm/policy/{name}")));

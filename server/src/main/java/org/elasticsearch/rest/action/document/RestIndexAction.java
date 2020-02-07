@@ -43,7 +43,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestIndexAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/{index}/_doc/{id}"),
             new Route(PUT, "/{index}/_doc/{id}")));
@@ -62,7 +62,7 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return unmodifiableList(asList(
                 new Route(POST, "/{index}/_create/{id}"),
                 new Route(PUT, "/{index}/_create/{id}")));
@@ -96,7 +96,7 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
-        public List<Route> handledRoutes() {
+        public List<Route> routes() {
             return singletonList(new Route(POST, "/{index}/_doc"));
         }
 

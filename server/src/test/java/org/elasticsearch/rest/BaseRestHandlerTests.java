@@ -58,7 +58,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return Collections.emptyList();
             }
         };
@@ -89,7 +89,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return Collections.emptyList();
             }
         };
@@ -130,7 +130,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return Collections.emptyList();
             }
         };
@@ -178,7 +178,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return Collections.emptyList();
             }
         };
@@ -206,7 +206,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return Collections.emptyList();
             }
         };
@@ -246,7 +246,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return Collections.emptyList();
             }
         };
@@ -281,7 +281,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return Collections.emptyList();
             }
         };
@@ -310,7 +310,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return Collections.emptyList();
             }
         };
@@ -335,7 +335,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             }
 
             @Override
-            public List<Route> handledRoutes() {
+            public List<Route> routes() {
                 return Collections.emptyList();
             }
         };

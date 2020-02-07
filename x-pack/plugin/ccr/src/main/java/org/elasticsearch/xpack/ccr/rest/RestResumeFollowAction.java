@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request
 public class RestResumeFollowAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/{index}/_ccr/resume_follow"));
     }
 

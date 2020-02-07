@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.Request;
 public class RestPauseFollowAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, "/{index}/_ccr/pause_follow"));
     }
 

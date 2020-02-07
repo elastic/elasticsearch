@@ -42,7 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestFielddataAction extends AbstractCatAction {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_cat/fielddata"),
             new Route(GET, "/_cat/fielddata/{fields}")));

@@ -24,7 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT));
     }
 

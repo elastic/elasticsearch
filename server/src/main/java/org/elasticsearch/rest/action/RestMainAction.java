@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestMainAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/"),
             new Route(HEAD, "/")));

@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Requ
 public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
             new Route(GET, MachineLearning.BASE_PATH + MachineLearning.BASE_PATH + "inference/_stats")));

@@ -30,7 +30,7 @@ public class RestGetFiltersAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestGetFiltersAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestIndexPutAliasAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/{index}/_alias/{name}"),
             new Route(PUT, "/{index}/_alias/{name}"),

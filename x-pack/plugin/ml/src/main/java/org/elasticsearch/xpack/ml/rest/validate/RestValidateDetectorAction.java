@@ -27,7 +27,7 @@ public class RestValidateDetectorAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestValidateDetectorAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

@@ -29,7 +29,7 @@ public class RestStopTransformActionDeprecated extends BaseRestHandler {
             LogManager.getLogger(RestStopTransformActionDeprecated.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

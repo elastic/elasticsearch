@@ -46,7 +46,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_template"),
             new Route(GET, "/_template/{name}"),

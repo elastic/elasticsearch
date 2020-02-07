@@ -49,7 +49,7 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
             WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName());
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_watcher/watch/{id}/_execute"),
             new Route(PUT, "/_watcher/watch/{id}/_execute"),

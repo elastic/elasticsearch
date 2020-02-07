@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(DELETE, "/{index}/_doc/{id}"));
     }
 

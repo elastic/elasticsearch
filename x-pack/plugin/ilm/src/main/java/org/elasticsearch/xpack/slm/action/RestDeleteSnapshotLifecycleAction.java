@@ -20,7 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_slm/policy/{name}"));
     }
 

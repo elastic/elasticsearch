@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.Request;
 public class RestPutFollowAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(PUT, "/{index}/_ccr/follow"));
     }
 

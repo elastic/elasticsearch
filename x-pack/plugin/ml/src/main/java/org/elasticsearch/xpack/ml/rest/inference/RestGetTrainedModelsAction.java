@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Requ
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
             new Route(GET, MachineLearning.BASE_PATH + "inference")));

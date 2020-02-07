@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestUpdateSettingsAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(PUT, "/{index}/_settings"),
             new Route(PUT, "/_settings")));

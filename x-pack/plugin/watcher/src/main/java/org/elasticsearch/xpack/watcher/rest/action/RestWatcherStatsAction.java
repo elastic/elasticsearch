@@ -30,7 +30,7 @@ public class RestWatcherStatsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_watcher/stats"),
             new Route(GET, "/_watcher/stats/{metric}")));

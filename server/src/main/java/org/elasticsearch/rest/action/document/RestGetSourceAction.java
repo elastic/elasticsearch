@@ -51,7 +51,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetSourceAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/{index}/_source/{id}"),
             new Route(HEAD, "/{index}/_source/{id}")));

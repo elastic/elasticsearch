@@ -28,7 +28,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestXPackUsageAction extends BaseRestHandler {
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(new Route(GET, "/_xpack/usage"));
     }
 

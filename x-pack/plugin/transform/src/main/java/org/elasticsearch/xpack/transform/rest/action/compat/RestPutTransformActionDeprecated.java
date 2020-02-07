@@ -31,7 +31,7 @@ public class RestPutTransformActionDeprecated extends BaseRestHandler {
             LogManager.getLogger(RestPutTransformActionDeprecated.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return Collections.emptyList();
     }
 

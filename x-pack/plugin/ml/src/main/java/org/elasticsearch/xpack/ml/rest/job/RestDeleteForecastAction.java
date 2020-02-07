@@ -29,7 +29,7 @@ public class RestDeleteForecastAction extends BaseRestHandler {
         new DeprecationLogger(LogManager.getLogger(RestDeleteForecastAction.class));
 
     @Override
-    public List<Route> handledRoutes() {
+    public List<Route> routes() {
         return singletonList(
             new Route(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast/"));
     }

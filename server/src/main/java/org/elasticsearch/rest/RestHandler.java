@@ -68,7 +68,7 @@ public interface RestHandler {
     /**
      * The list of {@link Route}s that this RestHandler is responsible for handling.
      */
-    default List<Route> handledRoutes() {
+    default List<Route> routes() {
         return Collections.emptyList();
     }
 

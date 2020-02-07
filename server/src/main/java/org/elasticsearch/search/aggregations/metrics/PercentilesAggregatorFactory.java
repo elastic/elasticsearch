@@ -112,7 +112,7 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
 
-        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.getInstance().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             PercentilesAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof PercentilesAggregatorSupplier == false) {

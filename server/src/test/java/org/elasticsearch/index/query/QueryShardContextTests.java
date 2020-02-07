@@ -153,6 +153,6 @@ public class QueryShardContextTests extends ESTestCase {
                 (mappedFieldType, idxName) ->
                     mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> nowInMillis, clusterAlias, null);
+            null, null, () -> nowInMillis, clusterAlias, null, () -> true);
     }
 }

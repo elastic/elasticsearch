@@ -122,27 +122,6 @@ public class QueryShardContext extends QueryRewriteContext {
                         indexSettings.getIndex().getUUID()), isAllowExpensiveQueries);
     }
 
-    public QueryShardContext(int shardId,
-                             IndexSettings indexSettings,
-                             BigArrays bigArrays,
-                             BitsetFilterCache bitsetFilterCache,
-                             BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup,
-                             MapperService mapperService,
-                             SimilarityService similarityService,
-                             ScriptService scriptService,
-                             NamedXContentRegistry xContentRegistry,
-                             NamedWriteableRegistry namedWriteableRegistry,
-                             Client client,
-                             IndexSearcher searcher,
-                             LongSupplier nowInMillis,
-                             String clusterAlias,
-                             Predicate<String> indexNameMatcher) {
-        this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
-            scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
-            new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-                indexSettings.getIndex().getUUID()), () -> true);
-    }
-
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
             source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),

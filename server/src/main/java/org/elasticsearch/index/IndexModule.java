@@ -156,15 +156,6 @@ public final class IndexModule {
         this.isAllowExpensiveQueries = isAllowExpensiveQueries;
     }
 
-    // For testing
-    IndexModule(
-            final IndexSettings indexSettings,
-            final AnalysisRegistry analysisRegistry,
-            final EngineFactory engineFactory,
-            final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories) {
-        this(indexSettings, analysisRegistry, engineFactory, directoryFactories, () -> true);
-    }
-
     /**
      * Adds a Setting and it's consumer for this index.
      */

@@ -65,7 +65,7 @@ public final class CardinalityAggregationBuilder
 
     private static AtomicBoolean wasRegistered = new AtomicBoolean(false);
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        if (wasRegistered.compareAndSet(false, true) == true) {
+        if (wasRegistered.compareAndSet(false, true)) {
             CardinalityAggregatorFactory.registerAggregators(valuesSourceRegistry);
         }
     }

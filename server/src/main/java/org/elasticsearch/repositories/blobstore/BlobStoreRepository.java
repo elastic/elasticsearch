@@ -182,6 +182,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String UPLOADED_DATA_BLOB_PREFIX = "__";
 
+    /**
+     * Prefix used for the identifiers of data blobs that were not actually written to the repository physically because their contents are
+     * already stored in the metadata referencing them, i.e. in {@link BlobStoreIndexShardSnapshot} and
+     * {@link BlobStoreIndexShardSnapshots}. This is the case for files for which {@link StoreFileMetaData#hashEqualsContents()} is
+     * {@code true}.
+     */
     private static final String VIRTUAL_DATA_BLOB_PREFIX = "v__";
 
     /**
@@ -1521,7 +1527,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 // We can skip writing blobs where the metadata hash is equal to the blob's contents because we store the hash/contents
                 // directly in the shard level metadata in this case
-                final boolean needsWrite = md.hash().length != md.length();
+                final boolean needsWrite = md.hashEqualsContents() == false;
                 indexTotalFileCount += md.length();
                 indexTotalNumberOfFiles++;
 

@@ -308,9 +308,9 @@ Which looks like:
 [NOTE]
 The `columns` object is only part of the first page.
 [NOTE]
-If in the initial HTTP request, that specifies the SQL query, there was a <<sql-rest-param-timezone, `time_zone`>>
-param passed, the same `time_zone` parameter should be passed to the subsequent `cursor` requests in order to keep
-applying the same `time_zone` (as in the initial HTTP request) the result data of each subsequent page.
+If in the initial HTTP request, that specifies the SQL query, there was a <<sql-rest-fields, `time_zone` parameter>>
+passed, the same `time_zone` parameter should be passed to the subsequent `cursor` requests in order to keep
+applying the same `time_zone` (as in the initial HTTP request) to the result data of each subsequent page.
 
 You've reached the last page when there is no `cursor` returned
 in the results. Like Elasticsearch's <<request-body-search-scroll,scroll>>,
@@ -514,7 +514,6 @@ s|Description
 |45s
 |The timeout before a pagination request fails.
 
-[[sql-rest-param-timezone]]
 |time_zone
 |`Z` (or `UTC`)
 |Time-zone in ISO 8601 used for executing the query on the server.

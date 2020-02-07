@@ -1120,26 +1120,26 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // {@link org.elasticsearch.xpack.core.ilm.ErrorStep} in order to retry the failing step. As {@link #assertBusy}
         // increases the wait time between calls exponentially, we might miss the window where the policy is on
         // {@link WaitForRolloverReadyStep} and the move to `attempt-rollover` request will not be successful.
-        waitUntil(() -> {
+        assertThat(waitUntil(() -> {
             try {
                 return client().performRequest(moveToStepRequest).getStatusLine().getStatusCode() == 200;
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS), is(true));
 
         // Similar to above, using {@link #waitUntil} as we want to make sure the `attempt-rollover` step started failing and is being
         // retried (which means ILM moves back and forth between the `attempt-rollover` step and the `error` step)
-        waitUntil(() -> {
+        assertThat("ILM did not start retrying the attempt-rollover step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
-                String step = (String) explainIndexResponse.get("step");
+                String failedStep = (String) explainIndexResponse.get("failed_step");
                 Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return step != null && step.equals("attempt-rollover") && retryCount != null && retryCount >= 1;
+                return failedStep != null && failedStep.equals("attempt-rollover") && retryCount != null && retryCount >= 1;
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS), is(true));
 
         deleteIndex(rolledIndex);
 
@@ -1181,16 +1181,17 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}");
         client().performRequest(moveToStepRequest);
 
-        waitUntil(() -> {
+        assertThat("ILM did not start retrying the update-rollover-lifecycle-date step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
-                String step = (String) explainIndexResponse.get("step");
+                String failedStep = (String) explainIndexResponse.get("failed_step");
                 Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return step != null && step.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null && retryCount >= 1;
+                return failedStep != null && failedStep.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null
+                    && retryCount >= 1;
             } catch (IOException e) {
                 return false;
             }
-        });
+        }, 30, TimeUnit.SECONDS), is(true));
 
         index(client(), index, "1", "foo", "bar");
         Request refreshIndex = new Request("POST", "/" + index + "/_refresh");

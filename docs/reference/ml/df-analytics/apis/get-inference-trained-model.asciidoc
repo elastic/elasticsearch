@@ -75,6 +75,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=include-model-definition]
 (Optional, integer) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 
+`tags`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=tags]
 
 [[ml-get-inference-response-codes]]
 ==== {api-response-codes-title}

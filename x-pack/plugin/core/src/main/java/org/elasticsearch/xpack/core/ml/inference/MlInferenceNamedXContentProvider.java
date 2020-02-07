@@ -99,6 +99,12 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             LogisticRegression.NAME,
             LogisticRegression::fromXContentStrict));
 
+        // Inference Configs
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class, ClassificationConfig.NAME,
+                ClassificationConfig::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class, RegressionConfig.NAME,
+                RegressionConfig::fromXContent));
+
         return namedXContent;
     }
 
@@ -142,8 +148,10 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             RegressionInferenceResults::new));
 
         // Inference Configs
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, ClassificationConfig.NAME, ClassificationConfig::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, RegressionConfig.NAME, RegressionConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
+                ClassificationConfig.NAME.getPreferredName(), ClassificationConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
+                RegressionConfig.NAME.getPreferredName(), RegressionConfig::new));
 
         return namedWriteables;
     }

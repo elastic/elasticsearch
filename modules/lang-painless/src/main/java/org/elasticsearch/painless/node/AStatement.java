@@ -19,9 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.StatementNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * The superclass for all S* (statement) nodes.
@@ -84,28 +86,10 @@ public abstract class AStatement extends ANode {
     boolean anyBreak = false;
 
     /**
-     * Set to the loop counter variable slot as a shortcut if loop statements
-     * are being counted.
-     */
-    Variable loopCounter = null;
-
-    /**
      * Set to the approximate number of statements in a loop block to prevent
      * infinite loops during runtime.
      */
     int statementCount = 0;
-
-    /**
-     * Set to the beginning of a loop so a continue statement knows where to
-     * jump to.  Only used during the writing phase.
-     */
-    Label continu = null;
-
-    /**
-     * Set to the beginning of a loop so a break statement knows where to
-     * jump to.  Only used during the writing phase.
-     */
-    Label brake = null;
 
     /**
      * Standard constructor with location used for error tracking.
@@ -113,4 +97,14 @@ public abstract class AStatement extends ANode {
     AStatement(Location location) {
         super(location);
     }
+
+    /**
+     * Checks for errors and collects data for the writing phase.
+     */
+    abstract void analyze(ScriptRoot scriptRoot, Scope scope);
+
+    /**
+     * Writes ASM based on the data collected during the analysis phase.
+     */
+    abstract StatementNode write(ClassNode classNode);
 }

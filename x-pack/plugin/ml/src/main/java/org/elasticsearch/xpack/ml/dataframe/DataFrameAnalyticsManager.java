@@ -186,7 +186,7 @@ public class DataFrameAnalyticsManager {
                 reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
                 reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
                 reindexRequest.setDestIndex(config.getDest().getIndex());
-                reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsIndex.ID_COPY + " = ctx._id"));
+                reindexRequest.setScript(new Script("ctx._source." + DestinationIndex.ID_COPY + " = ctx._id"));
 
                 final ThreadContext threadContext = client.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
@@ -206,7 +206,7 @@ public class DataFrameAnalyticsManager {
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX, indexResponse.indices()[0]));
                 LOGGER.info("[{}] Using existing destination index [{}]", config.getId(), indexResponse.indices()[0]);
-                DataFrameAnalyticsIndex.updateMappingsToDestIndex(client, config, indexResponse, ActionListener.wrap(
+                DestinationIndex.updateMappingsToDestIndex(client, config, indexResponse, ActionListener.wrap(
                     acknowledgedResponse -> copyIndexCreatedListener.onResponse(null),
                     copyIndexCreatedListener::onFailure
                 ));
@@ -217,7 +217,7 @@ public class DataFrameAnalyticsManager {
                         config.getId(),
                         Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX, config.getDest().getIndex()));
                     LOGGER.info("[{}] Creating destination index [{}]", config.getId(), config.getDest().getIndex());
-                    DataFrameAnalyticsIndex.createDestinationIndex(client, Clock.systemUTC(), config, copyIndexCreatedListener);
+                    DestinationIndex.createDestinationIndex(client, Clock.systemUTC(), config, copyIndexCreatedListener);
                 } else {
                     copyIndexCreatedListener.onFailure(e);
                 }

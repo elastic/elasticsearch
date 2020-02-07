@@ -455,6 +455,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             listener.onResponse(null);
             return;
         }
+
+        logger.error("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
         auditor.error(transform.getId(), reason);
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.

@@ -72,8 +72,11 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
-        final String failureReason = "task encountered more than 0 failures; latest failure: "
-            + ".*BulkIndexingException: Bulk index experienced failures. See the logs of the node running the transform for details.";
+        final String failureReason = "Failed to index documents into destination index due to permanent error: "
+            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+            + "failures and at least 1 irrecoverable "
+            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
+            + "incompatible with the transform configuration.;.*";
         // Verify we have failed for the expected reason
         assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
 
@@ -100,15 +103,18 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
     public void testStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
-        String dataFrameIndex = "failure_pivot_reviews";
-        createDestinationIndexWithBadMapping(dataFrameIndex);
-        createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
+        String transformIndex = "failure_pivot_reviews";
+        createDestinationIndexWithBadMapping(transformIndex);
+        createContinuousPivotReviewsTransform(transformId, transformIndex, null);
         failureTransforms.add(transformId);
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
-        final String failureReason = "task encountered more than 0 failures; latest failure: "
-            + ".*BulkIndexingException: Bulk index experienced failures. See the logs of the node running the transform for details.";
+        final String failureReason = "Failed to index documents into destination index due to permanent error: "
+            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+            + "failures and at least 1 irrecoverable "
+            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
+            + "incompatible with the transform configuration.;.*";
         // Verify we have failed for the expected reason
         assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
 

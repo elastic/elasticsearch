@@ -233,6 +233,33 @@ public class ActionListenerTests extends ESTestCase {
         ActionListener.completeWith(onFailureListener, () -> { throw new IOException("not found"); });
         assertThat(onFailureListener.isDone(), equalTo(true));
         assertThat(expectThrows(ExecutionException.class, onFailureListener::get).getCause(), instanceOf(IOException.class));
+
+        AtomicReference<Exception> exReference = new AtomicReference<>();
+        ActionListener<String> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(String s) {
+                if (s == null) {
+                    throw new IllegalArgumentException("simulate onResponse exception");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exReference.set(e);
+                if (e instanceof IllegalArgumentException) {
+                    throw (IllegalArgumentException) e;
+                }
+            }
+        };
+
+        AssertionError assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener, () -> null));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
+        assertNull(exReference.get());
+
+        assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener,
+            () -> { throw new IllegalArgumentException(); }));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }
 
     /**

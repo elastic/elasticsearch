@@ -271,6 +271,17 @@ public class OutlierDetection implements DataFrameAnalysis {
         private double outlierFraction = 0.05;
         private boolean standardizationEnabled = true;
 
+        public Builder() {}
+
+        public Builder(OutlierDetection other) {
+            this.nNeighbors = other.nNeighbors;
+            this.method = other.method;
+            this.featureInfluenceThreshold = other.featureInfluenceThreshold;
+            this.computeFeatureInfluence = other.computeFeatureInfluence;
+            this.outlierFraction = other.outlierFraction;
+            this.standardizationEnabled = other.standardizationEnabled;
+        }
+
         public Builder setNNeighbors(Integer nNeighbors) {
             this.nNeighbors = nNeighbors;
             return this;

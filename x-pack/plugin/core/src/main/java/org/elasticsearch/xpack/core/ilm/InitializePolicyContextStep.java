@@ -47,13 +47,17 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
         IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(indexMetaData);
         if (shouldParseIndexName(indexMetaData.getSettings())) {
-            long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
-            indexMetadataBuilder.settingsVersion(indexMetaData.getSettingsVersion() + 1)
-                .settings(Settings.builder()
-                    .put(indexMetaData.getSettings())
-                    .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
-                    .build()
-                );
+            try {
+                long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
+                indexMetadataBuilder.settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                    .settings(Settings.builder()
+                        .put(indexMetaData.getSettings())
+                        .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
+                        .build()
+                    );
+            } catch (Exception e) {
+                throw new InitializePolicyException(e.getMessage(), e);
+            }
         }
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);

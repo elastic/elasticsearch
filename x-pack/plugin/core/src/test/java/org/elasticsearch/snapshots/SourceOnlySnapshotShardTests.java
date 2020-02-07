@@ -149,7 +149,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1.si, _1.fnm, _1.fdx, _1.fdt, _1.fdm
             assertEquals(6, copy.getIncrementalFileCount());
-            // in total we have 4 more files than the previous snap since we don't count the segments_N twice
+            // in total we have 5 more files than the previous snap since we don't count the segments_N twice
             assertEquals(totalFileCount+5, copy.getTotalFileCount());
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
@@ -165,7 +165,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1_1.liv
             assertEquals(2, copy.getIncrementalFileCount());
-            // in total we have 5 more files than the previous snap since we don't count the segments_N twice
+            // in total we have 6 more files than the previous snap since we don't count the segments_N twice
             assertEquals(totalFileCount+6, copy.getTotalFileCount());
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }

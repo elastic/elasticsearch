@@ -37,6 +37,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -196,7 +197,8 @@ public abstract class TransportClient extends AbstractClient {
             BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
             modules.add(settingsModule);
             NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
-                bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, null);
+                bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, null,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = new TransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(),

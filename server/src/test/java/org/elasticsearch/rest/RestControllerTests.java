@@ -630,12 +630,12 @@ public class RestControllerTests extends ESTestCase {
         }
     }
 
-    private static final class AssertingChannel extends AbstractRestChannel {
+    public static final class AssertingChannel extends AbstractRestChannel {
 
         private final RestStatus expectedStatus;
         private final AtomicReference<RestResponse> responseReference = new AtomicReference<>();
 
-        protected AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
+        public AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
             super(request, detailedErrorsEnabled);
             this.expectedStatus = expectedStatus;
         }

@@ -83,9 +83,9 @@ public class LegacySimilarityTests extends ESSingleNodeTestCase {
                     .put("index.similarity.my_similarity.discount_overlaps", false)
                     .build();
             final MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
-            assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(ClassicSimilarity.class));
+            assertThat(mapperService.fieldType("field1").similarity().get(), instanceOf(ClassicSimilarity.class));
 
-            final ClassicSimilarity similarity = (ClassicSimilarity) mapperService.fullName("field1").similarity().get();
+            final ClassicSimilarity similarity = (ClassicSimilarity) mapperService.fieldType("field1").similarity().get();
             assertThat(similarity.getDiscountOverlaps(), equalTo(false));
         }
     }

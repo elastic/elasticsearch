@@ -97,6 +97,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32827")
     public void testQueryRewrite() throws Exception {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")

@@ -63,7 +63,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         String fieldPattern = queryBuilder.fieldName();
         Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
         Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
-                || context.getMapperService().fullName(field) != null).collect(Collectors.toList());
+                || context.getMapperService().fieldType(field) != null).collect(Collectors.toList());
         if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
             if (fields.size() == 1) {
                 assertThat(query, instanceOf(ConstantScoreQuery.class));
@@ -102,11 +102,11 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                     BooleanClause booleanClause = booleanQuery.clauses().get(i);
                     assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
-            } else if (context.getMapperService().fullName(field).hasDocValues()) {
+            } else if (context.getMapperService().fieldType(field).hasDocValues()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
                 DocValuesFieldExistsQuery dvExistsQuery = (DocValuesFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, dvExistsQuery.getField());
-            } else if (context.getMapperService().fullName(field).omitNorms() == false) {
+            } else if (context.getMapperService().fieldType(field).omitNorms() == false) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(NormsFieldExistsQuery.class));
                 NormsFieldExistsQuery normsExistsQuery = (NormsFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, normsExistsQuery.getField());

@@ -31,6 +31,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,7 +77,11 @@ public class Docker {
      * @param distribution details about the docker image to potentially load.
      */
     public static void ensureImageIsLoaded(Distribution distribution) {
-        final long count = sh.run("docker image ls --format '{{.Repository}}' " + distribution.flavor.name).stdout.split("\n").length;
+        Shell.Result result = sh.run("docker image ls --format '{{.Repository}}' " + distribution.flavor.name);
+
+        final long count = Arrays.stream(result.stdout.split("\n"))
+            .filter(e -> e.trim().isEmpty() == false)
+            .count();
 
         if (count != 0) {
             return;

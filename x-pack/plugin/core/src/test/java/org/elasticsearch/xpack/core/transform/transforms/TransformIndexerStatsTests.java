@@ -6,9 +6,18 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+
+import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,13 +40,21 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
     }
 
     public static TransformIndexerStats randomStats() {
-        return new TransformIndexerStats(randomLongBetween(10L, 10000L),
-            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+        return new TransformIndexerStats(
+            randomLongBetween(10L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
             randomBoolean() ? randomDouble() : null,
             randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomDouble() : null);
+            randomBoolean() ? randomDouble() : null
+        );
     }
 
     public void testExpAvgIncrement() {

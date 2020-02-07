@@ -562,7 +562,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertThat(e, hasToString(containsString(expectedMessage)));
     }
 
-    public void testValidateIndexNameChecksSystemIndexNames() {
+    public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test3", "test"));

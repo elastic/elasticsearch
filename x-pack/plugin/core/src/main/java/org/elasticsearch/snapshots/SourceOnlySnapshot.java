@@ -51,7 +51,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_EXTENSION;
-import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_INDEX_EXTENSION;
+import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.INDEX_EXTENSION_PREFIX;
 
 public class SourceOnlySnapshot {
     private final Directory targetDirectory;
@@ -206,7 +206,7 @@ public class SourceOnlySnapshot {
             FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));
             codec.fieldInfosFormat().write(trackingDir, newSegmentInfo, segmentSuffix, newFieldInfos, IOContext.DEFAULT);
             newInfo.setFieldInfosFiles(trackingDir.getCreatedFiles());
-            String idxFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, FIELDS_INDEX_EXTENSION);
+            String idxFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, INDEX_EXTENSION_PREFIX);
             String dataFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, FIELDS_EXTENSION);
             Directory sourceDir = newSegmentInfo.dir;
             if (si.getUseCompoundFile()) {

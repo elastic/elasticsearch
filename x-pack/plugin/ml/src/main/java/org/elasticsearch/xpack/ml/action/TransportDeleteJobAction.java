@@ -204,7 +204,17 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
                 markJobAsDeletingIfNotUsed(request.getJobId(), markAsDeletingListener);
             },
-            e -> finalListener.onFailure(e));
+            e -> {
+                if (request.isForce()
+                    && MlTasks.getJobTask(request.getJobId(), state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE)) != null) {
+                    logger.info(
+                        "[{}] config is missing but task exists. Attempting to delete tasks and stop process",
+                        request.getJobId());
+                    forceDeleteJob(parentTaskClient, request, finalListener);
+                } else {
+                    finalListener.onFailure(e);
+                }
+            });
 
         // First check that the job exists, because we don't want to audit
         // the beginning of its deletion if it didn't exist in the first place

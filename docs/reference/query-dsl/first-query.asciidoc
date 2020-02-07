@@ -1,0 +1,159 @@
+[[query-dsl-first-query]]
+=== First query
+++++
+<titleabbrev>First</titleabbrev>
+++++
+
+Returns documents matching any of wrapped queries and computes
+the documents' scores by the first matching query.
+
+Similarly to <<query-dsl-bool-query, `bool`
+query's>> `should` option, `first` query returns the union of all documents
+matching any of the provided queries. Unlike, <<query-dsl-bool-query, `bool`
+query's>> `should` option that sums up the scores from the matching queries,
+`first` query applies only the score from the first matching query.
+
+`first` query presents a custom scoring logic. It is useful in
+a situation when you have an ordered list of queries (serving as
+priorities in your domain), and you want documents that match the first
+query to be scored higher than documents that match the second query, which
+in their turn scored higher than documents that match the third query etc.
+
+
+[[query-dsl-first-request]]
+==== Example request
+
+[[first-index-setup]]
+===== Index setup
+Create an `job_applicants` index and index several documents to this index.
+
+[source,console]
+----
+PUT /job_applicants
+{
+  "mappings": {
+    "properties": {
+      "skills": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+PUT /job_applicants/_doc/1?refresh
+{
+  "skills" : "Java"
+}
+PUT /job_applicants/_doc/2?refresh
+{
+  "skills" : "Scalla"
+}
+
+PUT /job_applicants/_doc/3?refresh
+{
+  "skills" : ["Java", "Scalla"]
+}
+----
+// TESTSETUP
+
+[[first--query-ex-query]]
+===== Example query
+The query below scores documents by the first matching query.
+The query assigns the same score of `10` to job applicants with a Java skill,
+regardless of them having any additional skills (matching other queries).
+Applicants that lack a Java skill, but possess a Scala skill are assigned
+lesser score of `5`.
+
+[source,console]
+----
+GET /job_applicants/_search
+{
+    "query": {
+      "first": {
+        "queries": [
+          {
+            "script_score": {
+              "query": {
+                "match": {
+                  "skills": "Java"
+                }
+              },
+              "script": { "source": "10.0"}
+            }
+          },
+          {
+            "script_score": {
+              "query": {
+                "match": {
+                  "skills": "Scalla"
+                }
+              },
+              "script": {"source": "5.0"}
+            }
+          }
+        ]
+      }
+    }
+}
+----
+
+This returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "took": 3,
+    "timed_out": false,
+    "_shards": ...,
+    "hits" : {
+        "total" : {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 10.0,
+        "hits": [
+            {
+                "_index": "job_applicants",
+                "_id": "1",
+                "_score": 10.0,
+                "_source": {
+                    "skills": "Java"
+                }
+            },
+            {
+                "_index": "job_applicants",
+                "_id": "3",
+                "_score": 10.0,
+                "_source": {
+                    "skills": [
+                        "Java",
+                        "Scalla"
+                    ]
+                }
+            },
+            {
+                "_index": "job_applicants",
+                "_id": "2",
+                "_score": 5.0,
+                "_source": {
+                    "skills": "Scalla"
+                }
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+
+[[query-dsl-first-query-top-level-params]]
+==== Top-level parameters for `first`
+
+`queries`::
+(Required, array of query objects) Contains one or more query clauses. Returned
+documents **must match one or more** of these queries. If a document matches
+multiple queries, {es} applies the score from the first matching query.
+
+`boost`::
+(Optional, float) Floating point number by which the first matching query's
+score is multiplied to produce a final document's score. Defaults to `1.0`.
+

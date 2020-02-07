@@ -312,6 +312,7 @@ public class SearchModuleTests extends ESTestCase {
             "dis_max",
             "exists",
             "field_masking_span",
+            "first",
             "function_score",
             "fuzzy",
             "geo_bounding_box",

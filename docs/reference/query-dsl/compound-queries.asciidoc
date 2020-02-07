@@ -27,6 +27,12 @@ any of the query clauses.  While the `bool` query combines the scores from all
 matching queries, the `dis_max` query uses the score of the single best-
 matching query clause.
 
+<<query-dsl-first-query,`first` query>>::
+A query which accepts multiple queries, and returns any documents which match
+any of the query clauses.  While the `bool` query combines the scores from all
+matching queries, the `first` query uses the score of the first
+matching query clause.
+
 <<query-dsl-function-score-query,`function_score` query>>::
 Modify the scores returned by the main query with functions to take into
 account factors like popularity, recency, distance, or custom algorithms
@@ -37,4 +43,5 @@ include::bool-query.asciidoc[]
 include::boosting-query.asciidoc[]
 include::constant-score-query.asciidoc[]
 include::dis-max-query.asciidoc[]
+include::first-query.asciidoc[]
 include::function-score-query.asciidoc[]

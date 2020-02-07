@@ -439,6 +439,15 @@ public final class QueryBuilders {
         return new ScriptScoreQueryBuilder(queryBuilder, script);
     }
 
+    /**
+     * A query that applies score from the first matching query
+     *
+     * @param queryBuilders Queries
+     */
+    public static FirstQueryBuilder firstQuery(List<QueryBuilder> queryBuilders) {
+        return new FirstQueryBuilder(queryBuilders);
+    }
+
 
     /**
      * A more like this query that finds documents that are "like" the provided texts or documents

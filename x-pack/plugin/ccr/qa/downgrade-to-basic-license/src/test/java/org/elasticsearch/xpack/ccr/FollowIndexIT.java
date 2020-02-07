@@ -29,6 +29,7 @@ import static org.hamcrest.core.Is.is;
 
 public class FollowIndexIT extends ESCCRRestTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52034")
     public void testDowngradeRemoteClusterToBasic() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             return;

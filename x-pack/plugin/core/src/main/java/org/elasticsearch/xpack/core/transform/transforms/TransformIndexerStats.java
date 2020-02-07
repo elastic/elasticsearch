@@ -210,9 +210,15 @@ public class TransformIndexerStats extends IndexerJobStats {
         builder.field(SEARCH_TIME_IN_MS.getPreferredName(), searchTime);
         builder.field(SEARCH_TOTAL.getPreferredName(), searchTotal);
         builder.field(SEARCH_FAILURES.getPreferredName(), searchFailures);
-        builder.field(EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(), this.expAvgCheckpointDurationMs);
-        builder.field(EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(), this.expAvgDocumentsIndexed);
-        builder.field(EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), this.expAvgDocumentsProcessed);
+        if (expAvgCheckpointDurationMs != 0.0) {
+            builder.field(EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(), expAvgCheckpointDurationMs);
+        }
+        if (expAvgDocumentsIndexed != 0.0) {
+            builder.field(EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(), expAvgDocumentsIndexed);
+        }
+        if (expAvgDocumentsProcessed != 0.0) {
+            builder.field(EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), expAvgDocumentsProcessed);
+        }
         builder.endObject();
         return builder;
     }
@@ -293,6 +299,11 @@ public class TransformIndexerStats extends IndexerJobStats {
             expAvgDocumentsIndexed,
             expAvgDocumentsProcessed
         );
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static TransformIndexerStats fromXContent(XContentParser parser) {

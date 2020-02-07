@@ -202,19 +202,17 @@ public class TimeseriesLifecycleType implements LifecycleType {
         });
 
         // Check for forcemerge in 'hot' without a rollover action
-        phases.stream()
+        if (phases.stream()
             // Is there a hot phase
             .filter(phase -> HOT_PHASE.equals(phase.getName()))
             // That contains the 'forcemerge' action
             .filter(phase -> phase.getActions().containsKey(ForceMergeAction.NAME))
             // But does *not* contain the 'rollover' action?
-            .filter(phase -> phase.getActions().containsKey(RolloverAction.NAME) == false)
+            .anyMatch(phase -> phase.getActions().containsKey(RolloverAction.NAME) == false)) {
             // If there is, throw an exception
-            .findAny()
-            .ifPresent(phase -> {
-                throw new IllegalArgumentException("the [" + ForceMergeAction.NAME +
-                    "] action may not be used in the [" + phase.getName() +
-                    "] phase without an accompanying [" + RolloverAction.NAME + "] action");
-            });
+            throw new IllegalArgumentException("the [" + ForceMergeAction.NAME +
+                "] action may not be used in the [" + HOT_PHASE +
+                "] phase without an accompanying [" + RolloverAction.NAME + "] action");
+        }
     }
 }

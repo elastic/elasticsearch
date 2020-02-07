@@ -34,10 +34,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.HDRPercentilesAggregator;
-import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
@@ -151,7 +147,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                     builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.HDR);
                 } else {
                     PercentilesMethod.Config hdr = new PercentilesMethod.Config.Hdr();
-                    builder = new PercentilesAggregationBuilder("test").field("number").setPercentilesConfig(hdr);
+                    builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
                 }
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);

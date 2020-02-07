@@ -169,7 +169,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                     builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
                 } else {
                     PercentilesMethod.Config hdr = new PercentilesMethod.Config.TDigest();
-                    builder = new PercentilesAggregationBuilder("test").field("number").setPercentilesConfig(hdr);
+                    builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
                 }
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);

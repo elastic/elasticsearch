@@ -58,9 +58,23 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
                                                          TriFunction<String, double[], PercentilesMethod.Config, T> fn,
                                                          ParseField valuesField) {
 
+        /**
+         * This is a non-ideal ConstructingObjectParser, because it is a compromise between Percentiles and Ranks.
+         * Ranks requires an array of values because there is no sane default, and we want to keep that in the ctor.
+         * Percentiles has defaults, which means the API allows the user to either use the default or configure
+         * their own.
+         *
+         * The mutability of Percentiles keeps us from having a strict ConstructingObjectParser, while the ctor
+         * of Ranks keeps us from using a regular ObjectParser.
+         *
+         * This is a compromise, in that it is a ConstructingOP which accepts all optional arguments, and then we sort
+         * out the behavior from there
+         */
         ConstructingObjectParser<T, String> parser = new ConstructingObjectParser<>(aggName, false, (objects, name) -> {
 
             if (objects == null || objects.length == 0) {
+                // Note: if this is a Percentiles agg, the null `values` will be converted into a default,
+                // whereas a Ranks agg will throw an exception due to missing a required param
                 return fn.apply(name, null, new PercentilesMethod.Config.TDigest());
             }
 
@@ -175,7 +189,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * when using {@link PercentilesMethod#HDR}.
      *
      * Deprecated: set numberOfSignificantValueDigits by configuring a {@link PercentilesMethod.Config.Hdr} instead
-     * and set via {@link PercentilesAggregationBuilder#setPercentilesConfig(PercentilesMethod.Config)}
+     * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesMethod.Config)}
      */
     @Deprecated
     public T numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
@@ -194,7 +208,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * when using {@link PercentilesMethod#HDR}.
      *
      * Deprecated: get numberOfSignificantValueDigits by inspecting the {@link PercentilesMethod.Config} returned from
-     * {@link PercentilesAggregationBuilder#getPercentilesConfig()} instead
+     * {@link PercentilesAggregationBuilder#percentilesConfig()} instead
      */
     @Deprecated
     public int numberOfSignificantValueDigits() {
@@ -209,7 +223,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
      *
      * Deprecated: set compression by configuring a {@link PercentilesMethod.Config.TDigest} instead
-     * and set via {@link PercentilesAggregationBuilder#setPercentilesConfig(PercentilesMethod.Config)}
+     * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesMethod.Config)}
      */
     @Deprecated
     public T compression(double compression) {
@@ -226,7 +240,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
      *
      * Deprecated: get compression by inspecting the {@link PercentilesMethod.Config} returned from
-     * {@link PercentilesAggregationBuilder#getPercentilesConfig()} instead
+     * {@link PercentilesAggregationBuilder#percentilesConfig()} instead
      */
     @Deprecated
     public double compression() {
@@ -239,7 +253,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
 
     /**
      * Deprecated: set method by configuring a {@link PercentilesMethod.Config} instead
-     * and set via {@link PercentilesAggregationBuilder#setPercentilesConfig(PercentilesMethod.Config)}
+     * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesMethod.Config)}
      */
     @Deprecated
     public T method(PercentilesMethod method) {
@@ -267,7 +281,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
 
     /**
      * Deprecated: get method by inspecting the {@link PercentilesMethod.Config} returned from
-     * {@link PercentilesAggregationBuilder#getPercentilesConfig()} instead
+     * {@link PercentilesAggregationBuilder#percentilesConfig()} instead
      */
     @Nullable
     @Deprecated
@@ -279,14 +293,14 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * Returns how the percentiles algorithm has been configured, or null if it has not been configured yet
      */
     @Nullable
-    public PercentilesMethod.Config getPercentilesConfig() {
+    public PercentilesMethod.Config percentilesConfig() {
         return percentilesConfig;
     }
 
     /**
      * Sets how the percentiles algorithm should be configured
      */
-    public T setPercentilesConfig(PercentilesMethod.Config percentilesConfig) {
+    public T percentilesConfig(PercentilesMethod.Config percentilesConfig) {
         this.percentilesConfig = percentilesConfig;
         return (T) this;
     }

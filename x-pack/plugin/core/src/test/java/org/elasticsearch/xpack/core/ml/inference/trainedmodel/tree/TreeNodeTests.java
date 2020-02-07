@@ -54,6 +54,7 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
     public static TreeNode createRandomLeafNode(double internalValue) {
         return TreeNode.builder(randomInt(100))
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
+            .setNumberSamples(randomNonNegativeLong())
             .setLeafValue(internalValue)
             .build();
     }
@@ -69,6 +70,7 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
             .setLeftChild(left)
             .setRightChild(right)
+            .setNumberSamples(randomNonNegativeLong())
             .setThreshold(threshold)
             .setOperator(operator)
             .setSplitFeature(randomBoolean() ? null : randomInt())

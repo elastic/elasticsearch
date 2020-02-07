@@ -371,6 +371,24 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(1).toString(), startsWith("a{r}"));
     }
 
+    public void testSelectLiteralWithGroupBy() {
+        PhysicalPlan p = plan("SELECT 1, MAX(int) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(2, ee.output().size());
+        assertEquals(Arrays.asList("1", "MAX(int)"), Expressions.names(ee.output()));
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                containsString("\"max\":{\"field\":\"int\""));
+
+        p = plan("SELECT 1, count(*) FROM test GROUP BY int");
+        assertEquals(EsQueryExec.class, p.getClass());
+        ee = (EsQueryExec) p;
+        assertEquals(2, ee.output().size());
+        assertEquals(Arrays.asList("1", "count(*)"), Expressions.names(ee.output()));
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                containsString("\"terms\":{\"field\":\"int\""));
+    }
+
     public void testConcatIsNotFoldedForNull() {
         PhysicalPlan p = plan("SELECT keyword FROM test WHERE CONCAT(keyword, null) IS NULL");
         assertEquals(LocalExec.class, p.getClass());

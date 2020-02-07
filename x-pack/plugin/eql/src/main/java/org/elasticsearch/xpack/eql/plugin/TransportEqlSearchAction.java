@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
+import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.Configuration;
 import org.elasticsearch.xpack.eql.session.Results;
 
@@ -63,8 +64,13 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         boolean includeFrozen = request.indicesOptions().ignoreThrottled() == false;
         String clientId = null;
         
+        ParserParams params = new ParserParams()
+                .fieldEventType(request.eventTypeField())
+                .fieldTimestamp(request.timestampField())
+                .implicitJoinKey(request.implicitJoinKeyField());
+        
         Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen, clientId);
-        //planExecutor.eql(cfg, request.rule(), emptyList(), wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
+        //planExecutor.eql(cfg, request.rule(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
         listener.onResponse(createResponse(null));
     }
 

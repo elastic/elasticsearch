@@ -16,6 +16,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -67,8 +68,8 @@ public class InferenceRescorer implements Rescorer {
         Comparator<ScoreDoc> docIdComparator = Comparator.comparingInt(sd -> sd.doc);
         Arrays.sort(sortedHits, docIdComparator);
 
-        // field map is fieldname in doc -> fieldname expected by model
         Set<String> fieldsToRead = new HashSet<>(model.getFieldNames());
+        // field map is fieldname in doc -> fieldname expected by model
         for (Map.Entry<String, String> entry : fieldMap.entrySet()) {
             if (fieldsToRead.contains(entry.getValue())) {
                 // replace the model fieldname with the doc fieldname
@@ -88,6 +89,7 @@ public class InferenceRescorer implements Rescorer {
             ScoreDoc hit = sortedHits[hitIndex];
             int docId = hit.doc;
 
+            // get the context for this docId
             while (docId >= endDoc) {
                 readerContext = leaves.get(currentReader);
                 currentReader++;
@@ -111,8 +113,9 @@ public class InferenceRescorer implements Rescorer {
 
             InferenceResults infer = model.infer(fields, inferenceConfig);
             if (infer instanceof WarningInferenceResults) {
-                logger.warn("inference error: " + ((WarningInferenceResults) infer).getWarning());
-                // TODO how to propagate this error
+                String message = ((WarningInferenceResults) infer).getWarning();
+                logger.warn("inference error: " + message);
+                throw new ElasticsearchException(message);
             } else {
                 SingleValueInferenceResults regressionResult = (SingleValueInferenceResults) infer;
 

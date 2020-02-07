@@ -170,7 +170,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         allowPartialSearchResults = in.readBoolean();
         indexRoutings = in.readStringArray();
         preference = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             canReturnNullResponseIfMatchNoDocs = in.readBoolean();
         } else {
             canReturnNullResponseIfMatchNoDocs = false;
@@ -209,7 +209,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
         }
     }

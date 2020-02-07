@@ -236,6 +236,14 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             }
         }
 
+        public String restoreUUID() {
+            return restoreUUID;
+        }
+
+        public Snapshot snapshot() {
+            return snapshot;
+        }
+
         /**
          * Gets the {@link IndexId} of the recovery source. May contain {@link IndexMetaData#INDEX_UUID_NA_VALUE} as the index uuid if it
          * was created by an older version master in a mixed version cluster.
@@ -244,14 +252,6 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
          */
         public IndexId index() {
             return index;
-        }
-
-        public String restoreUUID() {
-            return restoreUUID;
-        }
-
-        public Snapshot snapshot() {
-            return snapshot;
         }
 
         public Version version() {
@@ -300,13 +300,12 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
             SnapshotRecoverySource that = (SnapshotRecoverySource) o;
             return restoreUUID.equals(that.restoreUUID) && snapshot.equals(that.snapshot)
-                && version.equals(that.version)
-                && index.equals(that.index);
+                && index.equals(that.index) && version.equals(that.version);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(restoreUUID, snapshot, version, index);
+            return Objects.hash(restoreUUID, snapshot, index, version);
         }
 
     }

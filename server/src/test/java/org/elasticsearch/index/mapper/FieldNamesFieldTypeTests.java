@@ -62,8 +62,8 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
         IndexSettings indexSettings = new IndexSettings(
                 new IndexMetaData.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName("_field_names")).thenReturn(fieldNamesFieldType);
-        when(mapperService.fullName("field_name")).thenReturn(fieldType);
+        when(mapperService.fieldType("_field_names")).thenReturn(fieldNamesFieldType);
+        when(mapperService.fieldType("field_name")).thenReturn(fieldType);
         when(mapperService.simpleMatchToFullName("field_name")).thenReturn(Collections.singleton("field_name"));
 
         QueryShardContext queryShardContext = new QueryShardContext(0,

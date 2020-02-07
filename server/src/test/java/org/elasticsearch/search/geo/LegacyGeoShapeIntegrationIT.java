@@ -79,7 +79,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
         // left orientation test
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
         IndexService indexService = indicesService.indexService(resolveIndex(idxName));
-        MappedFieldType fieldType = indexService.mapperService().fullName("location");
+        MappedFieldType fieldType = indexService.mapperService().fieldType("location");
         assertThat(fieldType, instanceOf(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class));
 
         LegacyGeoShapeFieldMapper.GeoShapeFieldType gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;
@@ -91,7 +91,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
         indexService = indicesService.indexService(resolveIndex((idxName+"2")));
-        fieldType = indexService.mapperService().fullName("location");
+        fieldType = indexService.mapperService().fieldType("location");
         assertThat(fieldType, instanceOf(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class));
 
         gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;

@@ -52,6 +52,8 @@ import java.util.function.Supplier;
 
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_EXTENSION;
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.INDEX_EXTENSION_PREFIX;
+import static org.apache.lucene.codecs.compressing.FieldsIndexWriter.FIELDS_INDEX_EXTENSION_SUFFIX;
+import static org.apache.lucene.codecs.compressing.FieldsIndexWriter.FIELDS_META_EXTENSION_SUFFIX;
 
 public class SourceOnlySnapshot {
     private final Directory targetDirectory;
@@ -206,13 +208,15 @@ public class SourceOnlySnapshot {
             FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));
             codec.fieldInfosFormat().write(trackingDir, newSegmentInfo, segmentSuffix, newFieldInfos, IOContext.DEFAULT);
             newInfo.setFieldInfosFiles(trackingDir.getCreatedFiles());
-            String idxFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, INDEX_EXTENSION_PREFIX);
+            String idxFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, INDEX_EXTENSION_PREFIX + FIELDS_INDEX_EXTENSION_SUFFIX);
+            String metadataFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, INDEX_EXTENSION_PREFIX + FIELDS_META_EXTENSION_SUFFIX);
             String dataFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, FIELDS_EXTENSION);
             Directory sourceDir = newSegmentInfo.dir;
             if (si.getUseCompoundFile()) {
                 sourceDir = codec.compoundFormat().getCompoundReader(sourceDir, si, IOContext.DEFAULT);
             }
             trackingDir.copyFrom(sourceDir, idxFile, idxFile, IOContext.DEFAULT);
+            trackingDir.copyFrom(sourceDir, metadataFile, metadataFile, IOContext.DEFAULT);
             trackingDir.copyFrom(sourceDir, dataFile, dataFile, IOContext.DEFAULT);
             if (sourceDir != newSegmentInfo.dir) {
                 sourceDir.close();

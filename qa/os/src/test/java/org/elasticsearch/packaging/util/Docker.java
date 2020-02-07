@@ -80,7 +80,8 @@ public class Docker {
         Shell.Result result = sh.run("docker image ls --format '{{.Repository}}' " + distribution.flavor.name);
 
         final long count = Arrays.stream(result.stdout.split("\n"))
-            .filter(e -> e.trim().isEmpty() == false)
+            .map(String::trim)
+            .filter(s -> s.isEmpty() == false)
             .count();
 
         if (count != 0) {

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceRes
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
+    private final double eps = 1.0E-8;
     private boolean lenient;
 
     @Before
@@ -117,7 +119,8 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector); // does not really matter as this is a stump
         assertThat(42.0,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001));
     }
 
     public void testInfer() {
@@ -137,27 +140,31 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.3,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001));
 
         // This should hit the left child of the left child of the root node
         // i.e. it takes the path left, left
         featureVector = Arrays.asList(0.3, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001));
 
         // This should hit the right child of the left child of the root node
         // i.e. it takes the path left, right
         featureVector = Arrays.asList(0.3, 0.9);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001));
 
         // This should still work if the internal values are strings
         List<String> featureVectorStrings = Arrays.asList("0.3", "0.9");
         featureMap = zipObjMap(featureNames, featureVectorStrings);
         assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001));
 
         // This should handle missing values and take the default_left path
         featureMap = new HashMap<>(2) {{
@@ -165,7 +172,8 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             put("bar", null);
         }};
         assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001));
     }
 
     public void testInferNestedFields() {
@@ -191,7 +199,8 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             }});
         }};
         assertThat(0.3,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001));
 
         // This should hit the left child of the left child of the root node
         // i.e. it takes the path left, left
@@ -204,7 +213,8 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             }});
         }};
         assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001));
 
         // This should hit the right child of the left child of the root node
         // i.e. it takes the path left, right
@@ -217,7 +227,8 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             }});
         }};
         assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001));
     }
 
     public void testTreeClassificationProbability() {
@@ -240,7 +251,8 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         List<String> expectedFields = Arrays.asList("dog", "cat");
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         List<ClassificationInferenceResults.TopClassEntry> probabilities =
-            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
+            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
+                .getTopClasses();
         for(int i = 0; i < expectedProbs.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));
@@ -251,7 +263,8 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         featureVector = Arrays.asList(0.3, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         probabilities =
-            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
+            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
+                .getTopClasses();
         for(int i = 0; i < expectedProbs.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));
@@ -263,7 +276,8 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             put("bar", null);
         }};
         probabilities =
-            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
+            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
+                .getTopClasses();
         for(int i = 0; i < expectedProbs.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));
@@ -357,6 +371,55 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
     public void testOperationsEstimations() {
         Tree tree = buildRandomTree(Arrays.asList("foo", "bar", "baz"), 5);
         assertThat(tree.estimatedNumOperations(), equalTo(7L));
+    }
+
+    public void testFeatureImportance() {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        Tree tree = Tree.builder()
+            .setFeatureNames(featureNames)
+            .setNodes(
+            TreeNode.builder(0)
+                .setSplitFeature(0)
+                .setOperator(Operator.LT)
+                .setLeftChild(1)
+                .setRightChild(2)
+                .setThreshold(0.5)
+                .setNumberSamples(4L),
+            TreeNode.builder(1)
+                .setSplitFeature(1)
+                .setLeftChild(3)
+                .setRightChild(4)
+                .setOperator(Operator.LT)
+                .setThreshold(0.5)
+                .setNumberSamples(2L),
+            TreeNode.builder(2)
+                .setSplitFeature(1)
+                .setLeftChild(5)
+                .setRightChild(6)
+                .setOperator(Operator.LT)
+                .setThreshold(0.5)
+                .setNumberSamples(2L),
+            TreeNode.builder(3).setLeafValue(3.0).setNumberSamples(1L),
+            TreeNode.builder(4).setLeafValue(8.0).setNumberSamples(1L),
+            TreeNode.builder(5).setLeafValue(13.0).setNumberSamples(1L),
+            TreeNode.builder(6).setLeafValue(18.0).setNumberSamples(1L)).build();
+
+        Map<String, Double> featureImportance = tree.featureImportance(zipObjMap(featureNames, Arrays.asList(0.25, 0.25)),
+            Collections.emptyMap());
+        assertThat(featureImportance.get("foo"), closeTo(-5.0, eps));
+        assertThat(featureImportance.get("bar"), closeTo(-2.5, eps));
+
+        featureImportance = tree.featureImportance(zipObjMap(featureNames, Arrays.asList(0.25, 0.75)), Collections.emptyMap());
+        assertThat(featureImportance.get("foo"), closeTo(-5.0, eps));
+        assertThat(featureImportance.get("bar"), closeTo(2.5, eps));
+
+        featureImportance = tree.featureImportance(zipObjMap(featureNames, Arrays.asList(0.75, 0.25)), Collections.emptyMap());
+        assertThat(featureImportance.get("foo"), closeTo(5.0, eps));
+        assertThat(featureImportance.get("bar"), closeTo(-2.5, eps));
+
+        featureImportance = tree.featureImportance(zipObjMap(featureNames, Arrays.asList(0.75, 0.75)), Collections.emptyMap());
+        assertThat(featureImportance.get("foo"), closeTo(5.0, eps));
+        assertThat(featureImportance.get("bar"), closeTo(2.5, eps));
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<? extends Object> values) {

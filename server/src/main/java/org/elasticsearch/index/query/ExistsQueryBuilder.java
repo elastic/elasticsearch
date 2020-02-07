@@ -130,7 +130,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
 
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-                .getMapperService().fullName(FieldNamesFieldMapper.NAME);
+                .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
             return Queries.newMatchNoDocsQuery("Missing types in \"" + NAME + "\" query.");
@@ -158,7 +158,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     private static Query newFieldExistsQuery(QueryShardContext context, String field) {
-        MappedFieldType fieldType = context.getMapperService().fullName(field);
+        MappedFieldType fieldType = context.getMapperService().fieldType(field);
         if (fieldType == null) {
             // The field does not exist as a leaf but could be an object so
             // check for an object mapper
@@ -175,7 +175,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
         Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
         for (String field : fields) {
-            Query existsQuery = context.getMapperService().fullName(field).existsQuery(context);
+            Query existsQuery = context.getMapperService().fieldType(field).existsQuery(context);
             booleanQuery.add(existsQuery, Occur.SHOULD);
         }
         return new ConstantScoreQuery(booleanQuery.build());

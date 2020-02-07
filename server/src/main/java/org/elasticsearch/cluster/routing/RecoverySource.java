@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -215,45 +215,35 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     public static class SnapshotRecoverySource extends RecoverySource {
         private final String restoreUUID;
         private final Snapshot snapshot;
-        private final String index;
-
-        @Nullable
-        private final IndexId indexId;
+        private final IndexId index;
         private final Version version;
 
         public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
-            this.indexId = Objects.requireNonNull(indexId);
-            this.index = indexId.getName();
+            this.index = Objects.requireNonNull(indexId);
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
             restoreUUID = in.readString();
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
-            index = in.readString();
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                final String indexUUID = in.readOptionalString();
-                if (indexUUID == null) {
-                    indexId = null;
-                } else {
-                    indexId = new IndexId(index, indexUUID);
-                }
+                index = new IndexId(in);
             } else {
-                indexId = null;
+                index = new IndexId(in.readString(), IndexMetaData.INDEX_UUID_NA_VALUE);
             }
         }
 
         /**
-         * Gets the {@link IndexId} of the recovery source.
+         * Gets the {@link IndexId} of the recovery source. May contain {@link IndexMetaData#INDEX_UUID_NA_VALUE} as the index uuid if it
+         * was created by an older version master in a mixed version cluster.
          *
-         * @return IndexId or {@code null} if running against old version master that did not add an IndexId to the recovery source
+         * @return IndexId
          */
-        @Nullable
-        public IndexId indexId() {
-            return indexId;
+        public IndexId index() {
+            return index;
         }
 
         public String restoreUUID() {
@@ -262,10 +252,6 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         public Snapshot snapshot() {
             return snapshot;
-        }
-
-        public String index() {
-            return index;
         }
 
         public Version version() {
@@ -277,9 +263,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
-            out.writeString(index);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalString(indexId == null ? null : indexId.getId());
+                index.writeTo(out);
+            } else {
+                out.writeString(index.getName());
             }
         }
 
@@ -293,7 +280,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             builder.field("repository", snapshot.getRepository())
                 .field("snapshot", snapshot.getSnapshotId().getName())
                 .field("version", version.toString())
-                .field("index", index)
+                .field("index", index.getName())
                 .field("restoreUUID", restoreUUID);
         }
 
@@ -313,13 +300,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
             SnapshotRecoverySource that = (SnapshotRecoverySource) o;
             return restoreUUID.equals(that.restoreUUID) && snapshot.equals(that.snapshot)
-                && index.equals(that.index) && version.equals(that.version)
-                && Objects.equals(indexId, that.indexId);
+                && version.equals(that.version)
+                && index.equals(that.index);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(restoreUUID, snapshot, index, version, indexId);
+            return Objects.hash(restoreUUID, snapshot, version, index);
         }
 
     }

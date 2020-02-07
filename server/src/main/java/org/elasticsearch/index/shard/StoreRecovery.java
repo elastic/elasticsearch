@@ -475,18 +475,19 @@ final class StoreRecovery {
             translogState.totalOperationsOnStart(0);
             indexShard.prepareForIndexRecovery();
             final ShardId snapshotShardId;
-            final String indexName = restoreSource.index();
-            if (shardId.getIndexName().equals(indexName)) {
+            final IndexId indexIdFromCS = restoreSource.index();
+            if (shardId.getIndexName().equals(indexIdFromCS.getName())) {
                 snapshotShardId = shardId;
             } else {
-                snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
+                snapshotShardId = new ShardId(indexIdFromCS.getName(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
+            // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it buy index name
+            final boolean indexUUIDUnavailable = indexIdFromCS.getId().equals(IndexMetaData.INDEX_UUID_NA_VALUE);
             final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-            final IndexId indexIdFromCS = restoreSource.indexId();
             repositoryDataListener.whenComplete(repositoryData -> {
                 final IndexId indexId;
-                if (indexIdFromCS == null) {
-                    indexId = repositoryData.resolveIndexId(indexName);
+                if (indexUUIDUnavailable) {
+                    indexId = repositoryData.resolveIndexId(indexIdFromCS.getName());
                 } else {
                     assert repositoryData == null: "Shouldn't have loaded RepositoryData but saw [" + repositoryData + "]";
                     indexId = indexIdFromCS;
@@ -495,7 +496,7 @@ final class StoreRecovery {
                 repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
                     indexShard.recoveryState(), restoreListener);
             }, restoreListener::onFailure);
-            if (indexIdFromCS == null) {
+            if (indexUUIDUnavailable) {
                 // BwC path, running against an old version master that did not add the IndexId to the recovery source
                 repository.getRepositoryData(repositoryDataListener);
             } else {

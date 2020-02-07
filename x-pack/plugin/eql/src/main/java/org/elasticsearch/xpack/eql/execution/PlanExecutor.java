@@ -13,14 +13,13 @@ import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
+import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.planner.Planner;
 import org.elasticsearch.xpack.eql.session.Configuration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
-
-import java.util.List;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -53,7 +52,7 @@ public class PlanExecutor {
         return new EqlSession(client, cfg, indexResolver, preAnalyzer, analyzer, optimizer, planner, this);
     }
 
-    public void eql(Configuration cfg, String eql, List<Object> params, ActionListener<Results> listener) {
-        newSession(cfg).eql(eql, params, wrap(listener::onResponse, listener::onFailure));
+    public void eql(Configuration cfg, String eql, ParserParams parserParams, ActionListener<Results> listener) {
+        newSession(cfg).eql(eql, parserParams, wrap(listener::onResponse, listener::onFailure));
     }
 }

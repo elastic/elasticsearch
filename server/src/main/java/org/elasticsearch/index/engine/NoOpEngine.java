@@ -138,9 +138,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-            if (commits.size() == 1 &&
-                translogStats.getUncommittedOperations() == 0 &&
-                translogStats.getTranslogSizeInBytes() > translogStats.getUncommittedSizeInBytes()) {
+            if (commits.size() == 1 && translogStats.getTranslogSizeInBytes() > translogStats.getUncommittedSizeInBytes()) {
                 final Map<String, String> commitUserData = getLastCommittedSegmentInfos().getUserData();
                 final String translogUuid = commitUserData.get(Translog.TRANSLOG_UUID_KEY);
                 if (translogUuid == null) {

@@ -25,7 +25,7 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return singletonList(
-            new Route(MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", PUT));
+            new Route(PUT, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
     }
 
     @Override

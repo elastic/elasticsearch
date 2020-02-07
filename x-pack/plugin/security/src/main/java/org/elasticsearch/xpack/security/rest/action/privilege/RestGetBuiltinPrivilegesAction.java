@@ -36,7 +36,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_security/privilege/_builtin", GET));
+        return singletonList(new Route(GET, "/_security/privilege/_builtin"));
     }
 
     @Override

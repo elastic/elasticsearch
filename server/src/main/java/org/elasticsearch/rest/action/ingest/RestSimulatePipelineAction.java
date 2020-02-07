@@ -41,10 +41,10 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_ingest/pipeline/{id}/_simulate", GET),
-            new Route("/_ingest/pipeline/{id}/_simulate", POST),
-            new Route("/_ingest/pipeline/_simulate", GET),
-            new Route("/_ingest/pipeline/_simulate", POST)));
+            new Route(GET, "/_ingest/pipeline/{id}/_simulate"),
+            new Route(POST, "/_ingest/pipeline/{id}/_simulate"),
+            new Route(GET, "/_ingest/pipeline/_simulate"),
+            new Route(POST, "/_ingest/pipeline/_simulate")));
     }
 
     @Override

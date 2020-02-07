@@ -26,8 +26,8 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route(TransformField.REST_BASE_PATH_TRANSFORMS + "_stats", GET),
-            new Route(TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stats", GET)));
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS + "_stats"),
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stats")));
     }
 
     @Override

@@ -26,7 +26,7 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_rollup/data", GET));
+        return singletonList(new Route(GET, "/{index}/_rollup/data"));
     }
 
     @Override

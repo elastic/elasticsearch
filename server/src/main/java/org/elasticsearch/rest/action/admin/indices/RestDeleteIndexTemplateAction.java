@@ -34,7 +34,7 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_template/{name}", DELETE));
+        return singletonList(new Route(DELETE, "/_template/{name}"));
     }
 
     @Override

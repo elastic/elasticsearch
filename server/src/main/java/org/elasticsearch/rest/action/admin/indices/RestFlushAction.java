@@ -40,10 +40,10 @@ public class RestFlushAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_flush", GET),
-            new Route("/_flush", POST),
-            new Route("/{index}/_flush", GET),
-            new Route("/{index}/_flush", POST)));
+            new Route(GET, "/_flush"),
+            new Route(POST, "/_flush"),
+            new Route(GET, "/{index}/_flush"),
+            new Route(POST, "/{index}/_flush")));
     }
 
     @Override

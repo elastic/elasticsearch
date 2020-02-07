@@ -37,7 +37,7 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_security/api_key", GET));
+        return singletonList(new Route(GET, "/_security/api_key"));
     }
 
     @Override

@@ -21,7 +21,7 @@ public class RestDeleteLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ilm/policy/{name}", DELETE));
+        return singletonList(new Route(DELETE, "/_ilm/policy/{name}"));
     }
 
     @Override

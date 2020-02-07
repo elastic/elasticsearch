@@ -48,10 +48,10 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_stats", GET),
-            new Route("/_stats/{metric}", GET),
-            new Route("/{index}/_stats", GET),
-            new Route("/{index}/_stats/{metric}", GET)));
+            new Route(GET, "/_stats"),
+            new Route(GET, "/_stats/{metric}"),
+            new Route(GET, "/{index}/_stats"),
+            new Route(GET, "/{index}/_stats/{metric}")));
     }
 
     @Override

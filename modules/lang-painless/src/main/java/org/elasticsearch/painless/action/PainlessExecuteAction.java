@@ -569,8 +569,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         @Override
         public List<Route> handledRoutes() {
             return unmodifiableList(asList(
-                new Route("/_scripts/painless/_execute", GET),
-                new Route("/_scripts/painless/_execute", POST)));
+                new Route(GET, "/_scripts/painless/_execute"),
+                new Route(POST, "/_scripts/painless/_execute")));
         }
 
         @Override

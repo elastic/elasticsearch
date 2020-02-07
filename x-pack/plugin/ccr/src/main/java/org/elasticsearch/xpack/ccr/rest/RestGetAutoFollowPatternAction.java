@@ -23,8 +23,8 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_ccr/auto_follow/{name}", GET),
-            new Route("/_ccr/auto_follow", GET)));
+            new Route(GET, "/_ccr/auto_follow/{name}"),
+            new Route(GET, "/_ccr/auto_follow")));
     }
 
     @Override

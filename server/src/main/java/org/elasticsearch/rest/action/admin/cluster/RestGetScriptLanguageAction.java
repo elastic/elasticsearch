@@ -36,7 +36,7 @@ public class RestGetScriptLanguageAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_script_language", GET));
+        return singletonList(new Route(GET, "/_script_language"));
     }
 
     @Override public String getName() {

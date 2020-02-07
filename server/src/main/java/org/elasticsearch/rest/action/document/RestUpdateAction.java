@@ -41,7 +41,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_update/{id}", POST));
+        return singletonList(new Route(POST, "/{index}/_update/{id}"));
     }
 
     @Override

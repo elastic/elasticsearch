@@ -29,7 +29,7 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ssl/certificates", GET));
+        return singletonList(new Route(GET, "/_ssl/certificates"));
     }
 
     @Override

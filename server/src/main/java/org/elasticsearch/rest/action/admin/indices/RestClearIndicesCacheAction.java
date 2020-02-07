@@ -39,8 +39,8 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_cache/clear", POST),
-            new Route("/{index}/_cache/clear", POST)));
+            new Route(POST, "/_cache/clear"),
+            new Route(POST, "/{index}/_cache/clear")));
     }
 
     @Override

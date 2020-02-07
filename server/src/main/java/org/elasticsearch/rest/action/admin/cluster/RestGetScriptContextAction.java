@@ -36,7 +36,7 @@ public class RestGetScriptContextAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_script_context", GET));
+        return singletonList(new Route(GET, "/_script_context"));
     }
 
     @Override public String getName() {

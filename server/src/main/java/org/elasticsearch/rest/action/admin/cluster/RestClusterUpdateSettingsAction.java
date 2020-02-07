@@ -43,7 +43,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cluster/settings", PUT));
+        return singletonList(new Route(PUT, "/_cluster/settings"));
     }
 
     @Override

@@ -30,8 +30,8 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("_cat/ml/datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}", GET),
-            new Route("_cat/ml/datafeeds", GET)));
+            new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
+            new Route(GET, "_cat/ml/datafeeds")));
     }
 
     @Override

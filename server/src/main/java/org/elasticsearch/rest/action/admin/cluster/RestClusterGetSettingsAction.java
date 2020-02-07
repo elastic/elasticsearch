@@ -58,7 +58,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cluster/settings", GET));
+        return singletonList(new Route(GET, "/_cluster/settings"));
     }
     @Override
     public String getName() {

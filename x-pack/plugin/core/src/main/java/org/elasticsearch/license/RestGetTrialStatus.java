@@ -22,7 +22,7 @@ public class RestGetTrialStatus extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_license/trial_status", GET));
+        return singletonList(new Route(GET, "/_license/trial_status"));
     }
 
     @Override

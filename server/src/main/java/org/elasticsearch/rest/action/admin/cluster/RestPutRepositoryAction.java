@@ -43,8 +43,8 @@ public class RestPutRepositoryAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_snapshot/{repository}", POST),
-            new Route("/_snapshot/{repository}", PUT)));
+            new Route(POST, "/_snapshot/{repository}"),
+            new Route(PUT, "/_snapshot/{repository}")));
     }
 
     @Override

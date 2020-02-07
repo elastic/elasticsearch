@@ -26,8 +26,8 @@ public class RestXPackInfoAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_xpack", GET),
-            new Route("/_xpack", HEAD)));
+            new Route(GET, "/_xpack"),
+            new Route(HEAD, "/_xpack")));
     }
 
     @Override

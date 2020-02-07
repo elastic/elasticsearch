@@ -39,7 +39,7 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_snapshot/{repository}", DELETE));
+        return singletonList(new Route(DELETE, "/_snapshot/{repository}"));
     }
 
     @Override

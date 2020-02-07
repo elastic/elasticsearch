@@ -39,7 +39,7 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_snapshot/{repository}/_cleanup", POST));
+        return singletonList(new Route(POST, "/_snapshot/{repository}/_cleanup"));
     }
 
     @Override

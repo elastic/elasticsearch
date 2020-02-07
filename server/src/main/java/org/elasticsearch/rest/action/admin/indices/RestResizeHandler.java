@@ -61,8 +61,8 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         @Override
         public List<Route> handledRoutes() {
             return unmodifiableList(asList(
-                new Route("/{index}/_shrink/{target}", POST),
-                new Route("/{index}/_shrink/{target}", PUT)));
+                new Route(POST, "/{index}/_shrink/{target}"),
+                new Route(PUT, "/{index}/_shrink/{target}")));
         }
 
         @Override
@@ -82,8 +82,8 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         @Override
         public List<Route> handledRoutes() {
             return unmodifiableList(asList(
-                new Route("/{index}/_split/{target}", POST),
-                new Route("/{index}/_split/{target}", PUT)));
+                new Route(POST, "/{index}/_split/{target}"),
+                new Route(PUT, "/{index}/_split/{target}")));
         }
 
         @Override
@@ -103,8 +103,8 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         @Override
         public List<Route> handledRoutes() {
             return unmodifiableList(asList(
-                new Route("/{index}/_clone/{target}", POST),
-                new Route("/{index}/_clone/{target}", PUT)));
+                new Route(POST, "/{index}/_clone/{target}"),
+                new Route(PUT, "/{index}/_clone/{target}")));
         }
 
         @Override

@@ -41,7 +41,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_reindex", POST));
+        return singletonList(new Route(POST, "/_reindex"));
     }
 
     @Override

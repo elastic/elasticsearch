@@ -29,7 +29,7 @@ public class RestGetWatchAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_watcher/watch/{id}", GET));
+        return singletonList(new Route(GET, "/_watcher/watch/{id}"));
     }
 
     @Override

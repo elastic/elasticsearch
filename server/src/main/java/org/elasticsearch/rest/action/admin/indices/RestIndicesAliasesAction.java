@@ -41,7 +41,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_aliases", POST));
+        return singletonList(new Route(POST, "/_aliases"));
     }
 
     @Override

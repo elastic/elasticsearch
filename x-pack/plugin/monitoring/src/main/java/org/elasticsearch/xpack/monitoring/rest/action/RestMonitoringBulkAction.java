@@ -50,8 +50,8 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_monitoring/bulk", POST),
-            new Route("/_monitoring/bulk", PUT)));
+            new Route(POST, "/_monitoring/bulk"),
+            new Route(PUT, "/_monitoring/bulk")));
     }
 
     @Override

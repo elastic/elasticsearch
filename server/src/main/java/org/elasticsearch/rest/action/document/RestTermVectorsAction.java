@@ -48,10 +48,10 @@ public class RestTermVectorsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}/_termvectors", GET),
-            new Route("/{index}/_termvectors", POST),
-            new Route("/{index}/_termvectors/{id}", GET),
-            new Route("/{index}/_termvectors/{id}", POST)));
+            new Route(GET, "/{index}/_termvectors"),
+            new Route(POST, "/{index}/_termvectors"),
+            new Route(GET, "/{index}/_termvectors/{id}"),
+            new Route(POST, "/{index}/_termvectors/{id}")));
     }
 
     @Override

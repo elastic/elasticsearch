@@ -22,7 +22,7 @@ public class RestStopAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ilm/stop", POST));
+        return singletonList(new Route(POST, "/_ilm/stop"));
     }
 
     @Override

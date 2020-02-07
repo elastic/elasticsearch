@@ -24,7 +24,7 @@ public class RestGetRollupJobsAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_rollup/job/{id}", GET));
+        return singletonList(new Route(GET, "/_rollup/job/{id}"));
     }
 
     @Override

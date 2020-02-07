@@ -52,8 +52,8 @@ public class RestSnapshotAction extends AbstractCatAction {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_cat/snapshots", GET),
-            new Route("/_cat/snapshots/{repository}", GET)));
+            new Route(GET, "/_cat/snapshots"),
+            new Route(GET, "/_cat/snapshots/{repository}")));
     }
 
     @Override

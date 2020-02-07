@@ -32,12 +32,12 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route(MachineLearning.BASE_PATH + "data_frame/analytics/_explain", GET),
-            new Route(MachineLearning.BASE_PATH + "data_frame/analytics/_explain", POST),
-            new Route(MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain",
-                GET),
-            new Route(MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain",
-                POST)));
+            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),
+            new Route(POST, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),
+            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"
+            ),
+            new Route(POST, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"
+            )));
     }
 
     @Override

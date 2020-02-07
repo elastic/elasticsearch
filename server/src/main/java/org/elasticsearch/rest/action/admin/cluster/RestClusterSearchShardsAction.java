@@ -41,10 +41,10 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_search_shards", GET),
-            new Route("/_search_shards", POST),
-            new Route("/{index}/_search_shards", GET),
-            new Route("/{index}/_search_shards", POST)));
+            new Route(GET, "/_search_shards"),
+            new Route(POST, "/_search_shards"),
+            new Route(GET, "/{index}/_search_shards"),
+            new Route(POST, "/{index}/_search_shards")));
     }
 
     @Override

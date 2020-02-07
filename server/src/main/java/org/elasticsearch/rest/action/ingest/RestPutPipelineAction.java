@@ -39,7 +39,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ingest/pipeline/{id}", PUT));
+        return singletonList(new Route(PUT, "/_ingest/pipeline/{id}"));
     }
 
     @Override

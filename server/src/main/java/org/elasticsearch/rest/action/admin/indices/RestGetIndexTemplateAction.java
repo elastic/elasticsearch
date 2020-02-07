@@ -48,9 +48,9 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_template", GET),
-            new Route("/_template/{name}", GET),
-            new Route("/_template/{name}", HEAD)));
+            new Route(GET, "/_template"),
+            new Route(GET, "/_template/{name}"),
+            new Route(HEAD, "/_template/{name}")));
     }
 
     @Override

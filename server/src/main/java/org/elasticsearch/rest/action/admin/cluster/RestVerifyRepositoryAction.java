@@ -36,7 +36,7 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_snapshot/{repository}/_verify", POST));
+        return singletonList(new Route(POST, "/_snapshot/{repository}/_verify"));
     }
 
     @Override

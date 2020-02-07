@@ -39,10 +39,10 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_field_caps", GET),
-            new Route("/_field_caps", POST),
-            new Route("/{index}/_field_caps", GET),
-            new Route("/{index}/_field_caps", POST)));
+            new Route(GET, "/_field_caps"),
+            new Route(POST, "/_field_caps"),
+            new Route(GET, "/{index}/_field_caps"),
+            new Route(POST, "/{index}/_field_caps")));
     }
 
     @Override

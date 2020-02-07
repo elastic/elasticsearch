@@ -42,8 +42,8 @@ public class RestTemplatesAction extends AbstractCatAction {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_cat/templates", GET),
-            new Route("/_cat/templates/{name}", GET)));
+            new Route(GET, "/_cat/templates"),
+            new Route(GET, "/_cat/templates/{name}")));
     }
 
     @Override

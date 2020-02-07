@@ -44,8 +44,8 @@ public class RestFielddataAction extends AbstractCatAction {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_cat/fielddata", GET),
-            new Route("/_cat/fielddata/{fields}", GET)));
+            new Route(GET, "/_cat/fielddata"),
+            new Route(GET, "/_cat/fielddata/{fields}")));
     }
 
     @Override

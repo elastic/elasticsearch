@@ -42,10 +42,10 @@ public class RestRefreshAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_refresh", GET),
-            new Route("/_refresh", POST),
-            new Route("/{index}/_refresh", GET),
-            new Route("/{index}/_refresh", POST)));
+            new Route(GET, "/_refresh"),
+            new Route(POST, "/_refresh"),
+            new Route(GET, "/{index}/_refresh"),
+            new Route(POST, "/{index}/_refresh")));
     }
 
     @Override

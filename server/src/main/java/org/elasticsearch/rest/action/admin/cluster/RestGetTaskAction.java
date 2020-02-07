@@ -37,7 +37,7 @@ public class RestGetTaskAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_tasks/{task_id}", GET));
+        return singletonList(new Route(GET, "/_tasks/{task_id}"));
     }
 
     @Override

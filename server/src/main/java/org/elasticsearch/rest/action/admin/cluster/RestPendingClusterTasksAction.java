@@ -35,7 +35,7 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cluster/pending_tasks", GET));
+        return singletonList(new Route(GET, "/_cluster/pending_tasks"));
     }
 
     @Override

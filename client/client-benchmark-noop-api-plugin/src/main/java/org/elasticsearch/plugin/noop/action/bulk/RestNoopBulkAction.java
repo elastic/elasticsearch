@@ -50,10 +50,10 @@ public class RestNoopBulkAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_noop_bulk", POST),
-            new Route("/_noop_bulk", PUT),
-            new Route("/{index}/_noop_bulk", POST),
-            new Route("/{index}/_noop_bulk", PUT)));
+            new Route(POST, "/_noop_bulk"),
+            new Route(PUT, "/_noop_bulk"),
+            new Route(POST, "/{index}/_noop_bulk"),
+            new Route(PUT, "/{index}/_noop_bulk")));
     }
 
     @Override

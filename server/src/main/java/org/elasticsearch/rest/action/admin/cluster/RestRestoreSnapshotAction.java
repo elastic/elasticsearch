@@ -39,7 +39,7 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_snapshot/{repository}/{snapshot}/_restore", POST));
+        return singletonList(new Route(POST, "/_snapshot/{repository}/{snapshot}/_restore"));
     }
 
     @Override

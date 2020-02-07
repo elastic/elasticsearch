@@ -27,7 +27,7 @@ public class RestPostStartTrialLicense extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_license/start_trial", POST));
+        return singletonList(new Route(POST, "/_license/start_trial"));
     }
 
     @Override

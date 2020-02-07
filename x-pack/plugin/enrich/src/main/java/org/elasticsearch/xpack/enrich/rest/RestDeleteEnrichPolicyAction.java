@@ -21,7 +21,7 @@ public class RestDeleteEnrichPolicyAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_enrich/policy/{name}", DELETE));
+        return singletonList(new Route(DELETE, "/_enrich/policy/{name}"));
     }
 
     @Override

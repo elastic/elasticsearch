@@ -38,8 +38,8 @@ public class RestGetPipelineAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_ingest/pipeline", GET),
-            new Route("/_ingest/pipeline/{id}", GET)));
+            new Route(GET, "/_ingest/pipeline"),
+            new Route(GET, "/_ingest/pipeline/{id}")));
     }
 
     @Override

@@ -39,8 +39,8 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_segments", GET),
-            new Route("/{index}/_segments", GET)));
+            new Route(GET, "/_segments"),
+            new Route(GET, "/{index}/_segments")));
     }
 
     @Override

@@ -24,7 +24,7 @@ public class RestPutTransformAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route(TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, PUT));
+        return singletonList(new Route(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
     }
 
     @Override

@@ -24,8 +24,8 @@ public class RestGetLifecycleAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_ilm/policy", GET),
-            new Route("/_ilm/policy/{name}", GET)));
+            new Route(GET, "/_ilm/policy"),
+            new Route(GET, "/_ilm/policy/{name}")));
     }
 
     @Override

@@ -120,7 +120,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Override
         public List<Route> handledRoutes() {
-            return singletonList(new Route("/_ingest/processor/grok", GET));
+            return singletonList(new Route(GET, "/_ingest/processor/grok"));
         }
 
         @Override

@@ -48,10 +48,10 @@ public class RestValidateQueryAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_validate/query", GET),
-            new Route("/_validate/query", POST),
-            new Route("/{index}/_validate/query", GET),
-            new Route("/{index}/_validate/query", POST)));
+            new Route(GET, "/_validate/query"),
+            new Route(POST, "/_validate/query"),
+            new Route(GET, "/{index}/_validate/query"),
+            new Route(POST, "/{index}/_validate/query")));
     }
 
     @Override

@@ -23,7 +23,7 @@ public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_ilm/remove", POST));
+        return singletonList(new Route(POST, "/{index}/_ilm/remove"));
     }
 
     @Override

@@ -95,7 +95,7 @@ public interface RestHandler {
         private final String path;
         private final Method method;
 
-        public Route(String path, Method method) {
+        public Route(Method method, String path) {
             this.path = path;
             this.method = method;
         }
@@ -117,8 +117,8 @@ public interface RestHandler {
         private final String deprecationMessage;
         private final DeprecationLogger logger;
 
-        public DeprecatedRoute(String path, Method method, String deprecationMessage, DeprecationLogger logger) {
-            super(path, method);
+        public DeprecatedRoute(Method method, String path, String deprecationMessage, DeprecationLogger logger) {
+            super(method, path);
             this.deprecationMessage = deprecationMessage;
             this.logger = logger;
         }
@@ -143,7 +143,7 @@ public interface RestHandler {
         private final DeprecationLogger logger;
 
         public ReplacedRoute(Method method, String path, Method deprecatedMethod, String deprecatedPath, DeprecationLogger logger) {
-            super(path, method);
+            super(method, path);
             this.deprecatedMethod = deprecatedMethod;
             this.deprecatedPath = deprecatedPath;
             this.logger = logger;

@@ -43,7 +43,7 @@ public class RestPluginsAction extends AbstractCatAction {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cat/plugins", GET));
+        return singletonList(new Route(GET, "/_cat/plugins"));
     }
 
     @Override

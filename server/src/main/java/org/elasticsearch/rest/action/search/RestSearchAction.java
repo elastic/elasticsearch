@@ -78,10 +78,10 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_search", GET),
-            new Route("/_search", POST),
-            new Route("/{index}/_search", GET),
-            new Route("/{index}/_search", POST)));
+            new Route(GET, "/_search"),
+            new Route(POST, "/_search"),
+            new Route(GET, "/{index}/_search"),
+            new Route(POST, "/{index}/_search")));
     }
 
     @Override

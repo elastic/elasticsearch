@@ -196,7 +196,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         @Override
         public List<Route> handledRoutes() {
-            return singletonList(new Route("/_scripts/painless/_context", GET));
+            return singletonList(new Route(GET, "/_scripts/painless/_context"));
         }
 
         @Override

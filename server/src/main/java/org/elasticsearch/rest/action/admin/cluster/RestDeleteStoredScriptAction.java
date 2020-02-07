@@ -34,7 +34,7 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_scripts/{id}", DELETE));
+        return singletonList(new Route(DELETE, "/_scripts/{id}"));
     }
 
     @Override

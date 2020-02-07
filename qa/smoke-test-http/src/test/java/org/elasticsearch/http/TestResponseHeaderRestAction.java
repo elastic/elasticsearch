@@ -34,7 +34,7 @@ public class TestResponseHeaderRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_protected", GET));
+        return singletonList(new Route(GET, "/_protected"));
     }
 
     @Override

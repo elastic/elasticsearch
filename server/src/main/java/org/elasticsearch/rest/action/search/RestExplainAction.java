@@ -45,8 +45,8 @@ public class RestExplainAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}/_explain/{id}", GET),
-            new Route("/{index}/_explain/{id}", POST)));
+            new Route(GET, "/{index}/_explain/{id}"),
+            new Route(POST, "/{index}/_explain/{id}")));
     }
 
     @Override

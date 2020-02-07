@@ -29,8 +29,8 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route(MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats", GET),
-            new Route(MachineLearning.BASE_PATH + MachineLearning.BASE_PATH + "inference/_stats", GET)));
+            new Route(GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
+            new Route(GET, MachineLearning.BASE_PATH + MachineLearning.BASE_PATH + "inference/_stats")));
     }
 
     @Override

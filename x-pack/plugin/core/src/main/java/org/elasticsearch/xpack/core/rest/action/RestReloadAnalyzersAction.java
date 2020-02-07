@@ -27,8 +27,8 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}/_reload_search_analyzers", GET),
-            new Route("/{index}/_reload_search_analyzers", POST)));
+            new Route(GET, "/{index}/_reload_search_analyzers"),
+            new Route(POST, "/{index}/_reload_search_analyzers")));
     }
 
     @Override

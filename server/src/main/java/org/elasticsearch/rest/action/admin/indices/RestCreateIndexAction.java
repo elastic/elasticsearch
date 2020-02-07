@@ -42,7 +42,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}", PUT));
+        return singletonList(new Route(PUT, "/{index}"));
     }
 
     @Override

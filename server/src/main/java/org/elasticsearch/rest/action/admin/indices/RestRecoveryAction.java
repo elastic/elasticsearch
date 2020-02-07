@@ -42,8 +42,8 @@ public class RestRecoveryAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_recovery", GET),
-            new Route("/{index}/_recovery", GET)));
+            new Route(GET, "/_recovery"),
+            new Route(GET, "/{index}/_recovery")));
     }
 
     @Override

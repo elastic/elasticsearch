@@ -51,8 +51,8 @@ public class RestGetAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}/_doc/{id}", GET),
-            new Route("/{index}/_doc/{id}", HEAD)));
+            new Route(GET, "/{index}/_doc/{id}"),
+            new Route(HEAD, "/{index}/_doc/{id}")));
     }
 
     @Override

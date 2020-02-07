@@ -40,7 +40,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_snapshot/{repository}/{snapshot}", GET));
+        return singletonList(new Route(GET, "/_snapshot/{repository}/{snapshot}"));
     }
 
     @Override

@@ -41,17 +41,17 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}/_alias/{name}", POST),
-            new Route("/{index}/_alias/{name}", PUT),
-            new Route("/_alias/{name}", POST),
-            new Route("/_alias/{name}", PUT),
-            new Route("/{index}/_aliases/{name}", POST),
-            new Route("/{index}/_aliases/{name}", PUT),
-            new Route("/_aliases/{name}", POST),
-            new Route("/_aliases/{name}", PUT),
-            new Route("/{index}/_alias", PUT),
-            new Route("/{index}/_aliases", PUT),
-            new Route("/_alias", PUT)));
+            new Route(POST, "/{index}/_alias/{name}"),
+            new Route(PUT, "/{index}/_alias/{name}"),
+            new Route(POST, "/_alias/{name}"),
+            new Route(PUT, "/_alias/{name}"),
+            new Route(POST, "/{index}/_aliases/{name}"),
+            new Route(PUT, "/{index}/_aliases/{name}"),
+            new Route(POST, "/_aliases/{name}"),
+            new Route(PUT, "/_aliases/{name}"),
+            new Route(PUT, "/{index}/_alias"),
+            new Route(PUT, "/{index}/_aliases"),
+            new Route(PUT, "/_alias")));
     }
 
     @Override

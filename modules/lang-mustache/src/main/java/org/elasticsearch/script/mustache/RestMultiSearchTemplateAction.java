@@ -59,10 +59,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_msearch/template", GET),
-            new Route("/_msearch/template", POST),
-            new Route("/{index}/_msearch/template", GET),
-            new Route("/{index}/_msearch/template", POST)));
+            new Route(GET, "/_msearch/template"),
+            new Route(POST, "/_msearch/template"),
+            new Route(GET, "/{index}/_msearch/template"),
+            new Route(POST, "/{index}/_msearch/template")));
     }
 
     @Override

@@ -52,7 +52,7 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_security/oidc/prepare", POST));
+        return singletonList(new Route(POST, "/_security/oidc/prepare"));
     }
 
     @Override

@@ -38,8 +38,8 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}/_alias/{name}", DELETE),
-            new Route("/{index}/_aliases/{name}", DELETE)));
+            new Route(DELETE, "/{index}/_alias/{name}"),
+            new Route(DELETE, "/{index}/_aliases/{name}")));
     }
 
     @Override

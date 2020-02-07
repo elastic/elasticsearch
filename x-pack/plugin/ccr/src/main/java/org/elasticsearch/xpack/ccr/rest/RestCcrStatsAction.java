@@ -21,7 +21,7 @@ public class RestCcrStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ccr/stats", GET));
+        return singletonList(new Route(GET, "/_ccr/stats"));
     }
 
     @Override

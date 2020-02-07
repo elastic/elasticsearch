@@ -21,7 +21,7 @@ public class RestGetSnapshotLifecycleStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_slm/stats", GET));
+        return singletonList(new Route(GET, "/_slm/stats"));
     }
 
     @Override

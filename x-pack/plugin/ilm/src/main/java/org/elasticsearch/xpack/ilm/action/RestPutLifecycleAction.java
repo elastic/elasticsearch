@@ -23,7 +23,7 @@ public class RestPutLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ilm/policy/{name}", PUT));
+        return singletonList(new Route(PUT, "/_ilm/policy/{name}"));
     }
 
     @Override

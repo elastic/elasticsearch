@@ -52,7 +52,7 @@ public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_security/api_key", DELETE));
+        return singletonList(new Route(DELETE, "/_security/api_key"));
     }
 
     @Override

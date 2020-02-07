@@ -29,7 +29,7 @@ public class RestDeleteWatchAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_watcher/watch/{id}", DELETE));
+        return singletonList(new Route(DELETE, "/_watcher/watch/{id}"));
     }
 
     @Override

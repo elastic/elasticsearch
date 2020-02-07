@@ -38,7 +38,7 @@ public class RestDeleteAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_doc/{id}", DELETE));
+        return singletonList(new Route(DELETE, "/{index}/_doc/{id}"));
     }
 
     @Override

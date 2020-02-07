@@ -120,7 +120,7 @@ public class ActionModuleTests extends ESTestCase {
 
                 @Override
                 public List<Route> handledRoutes() {
-                    return singletonList(new Route("/", Method.GET));
+                    return singletonList(new Route(Method.GET, "/"));
                 }
             }));
         assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
@@ -153,7 +153,7 @@ public class ActionModuleTests extends ESTestCase {
         class FakeHandler implements RestHandler {
             @Override
             public List<Route> handledRoutes() {
-                return singletonList(new Route("/_dummy", Method.GET));
+                return singletonList(new Route(Method.GET, "/_dummy"));
             }
 
             @Override
@@ -186,7 +186,7 @@ public class ActionModuleTests extends ESTestCase {
 
                     @Override
                     public List<Route> handledRoutes() {
-                        return singletonList(new Route("/_dummy", Method.GET));
+                        return singletonList(new Route(Method.GET, "/_dummy"));
                     }
                 }));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));

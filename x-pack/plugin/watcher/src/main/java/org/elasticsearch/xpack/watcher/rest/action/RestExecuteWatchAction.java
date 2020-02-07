@@ -51,10 +51,10 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_watcher/watch/{id}/_execute", POST),
-            new Route("/_watcher/watch/{id}/_execute", PUT),
-            new Route("/_watcher/watch/_execute", POST),
-            new Route("/_watcher/watch/_execute", PUT)));
+            new Route(POST, "/_watcher/watch/{id}/_execute"),
+            new Route(PUT, "/_watcher/watch/{id}/_execute"),
+            new Route(POST, "/_watcher/watch/_execute"),
+            new Route(PUT, "/_watcher/watch/_execute")));
     }
 
     @Override

@@ -44,7 +44,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cat/nodeattrs", GET));
+        return singletonList(new Route(GET, "/_cat/nodeattrs"));
     }
 
     @Override

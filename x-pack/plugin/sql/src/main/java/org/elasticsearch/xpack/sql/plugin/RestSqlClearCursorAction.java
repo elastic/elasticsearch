@@ -25,7 +25,7 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route(Protocol.CLEAR_CURSOR_REST_ENDPOINT, POST));
+        return singletonList(new Route(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT));
     }
 
     @Override

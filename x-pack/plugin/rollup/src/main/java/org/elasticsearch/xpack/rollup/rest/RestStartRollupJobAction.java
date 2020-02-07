@@ -22,7 +22,7 @@ public class RestStartRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_rollup/job/{id}/_start", POST));
+        return singletonList(new Route(POST, "/_rollup/job/{id}/_start"));
     }
 
     @Override

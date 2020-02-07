@@ -23,7 +23,7 @@ public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ccr/auto_follow/{name}", PUT));
+        return singletonList(new Route(PUT, "/_ccr/auto_follow/{name}"));
     }
 
     @Override

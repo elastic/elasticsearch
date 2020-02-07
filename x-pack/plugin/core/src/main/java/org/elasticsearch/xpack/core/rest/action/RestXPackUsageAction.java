@@ -29,7 +29,7 @@ public class RestXPackUsageAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_xpack/usage", GET));
+        return singletonList(new Route(GET, "/_xpack/usage"));
     }
 
     @Override

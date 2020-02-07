@@ -61,8 +61,8 @@ public class RestGraphAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}/_graph/explore", GET),
-            new Route("/{index}/_graph/explore", POST)));
+            new Route(GET, "/{index}/_graph/explore"),
+            new Route(POST, "/{index}/_graph/explore")));
     }
 
     @Override

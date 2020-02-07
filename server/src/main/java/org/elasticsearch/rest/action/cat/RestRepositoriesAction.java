@@ -40,7 +40,7 @@ public class RestRepositoriesAction extends AbstractCatAction {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cat/repositories", GET));
+        return singletonList(new Route(GET, "/_cat/repositories"));
     }
 
     @Override

@@ -22,7 +22,7 @@ public class RestPutEnrichPolicyAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_enrich/policy/{name}", PUT));
+        return singletonList(new Route(PUT, "/_enrich/policy/{name}"));
     }
 
     @Override

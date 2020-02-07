@@ -21,7 +21,7 @@ public class RestPauseFollowAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_ccr/pause_follow", POST));
+        return singletonList(new Route(POST, "/{index}/_ccr/pause_follow"));
     }
 
     @Override

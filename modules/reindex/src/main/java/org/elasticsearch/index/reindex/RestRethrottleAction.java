@@ -43,9 +43,9 @@ public class RestRethrottleAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_update_by_query/{taskId}/_rethrottle", POST),
-            new Route("/_delete_by_query/{taskId}/_rethrottle", POST),
-            new Route("/_reindex/{taskId}/_rethrottle", POST)));
+            new Route(POST, "/_update_by_query/{taskId}/_rethrottle"),
+            new Route(POST, "/_delete_by_query/{taskId}/_rethrottle"),
+            new Route(POST, "/_reindex/{taskId}/_rethrottle")));
     }
 
     @Override

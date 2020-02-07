@@ -48,7 +48,7 @@ public class RestCatAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cat", GET));
+        return singletonList(new Route(GET, "/_cat"));
     }
 
     @Override

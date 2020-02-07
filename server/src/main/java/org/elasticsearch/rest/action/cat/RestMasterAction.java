@@ -38,7 +38,7 @@ public class RestMasterAction extends AbstractCatAction {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cat/master", GET));
+        return singletonList(new Route(GET, "/_cat/master"));
     }
 
     @Override

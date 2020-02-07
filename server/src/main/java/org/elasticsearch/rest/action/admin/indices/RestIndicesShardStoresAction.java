@@ -48,8 +48,8 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_shard_stores", GET),
-            new Route("/{index}/_shard_stores", GET)));
+            new Route(GET, "/_shard_stores"),
+            new Route(GET, "/{index}/_shard_stores")));
     }
 
     @Override

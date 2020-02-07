@@ -36,10 +36,10 @@ public class RestNoopSearchAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_noop_search", GET),
-            new Route("/_noop_search", POST),
-            new Route("/{index}/_noop_search", GET),
-            new Route("/{index}/_noop_search", POST)));
+            new Route(GET, "/_noop_search"),
+            new Route(POST, "/_noop_search"),
+            new Route(GET, "/{index}/_noop_search"),
+            new Route(POST, "/{index}/_noop_search")));
     }
 
     @Override

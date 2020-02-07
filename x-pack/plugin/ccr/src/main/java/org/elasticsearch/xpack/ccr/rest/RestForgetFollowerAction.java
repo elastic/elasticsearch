@@ -24,7 +24,7 @@ public class RestForgetFollowerAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_ccr/forget_follower", POST));
+        return singletonList(new Route(POST, "/{index}/_ccr/forget_follower"));
     }
 
     @Override

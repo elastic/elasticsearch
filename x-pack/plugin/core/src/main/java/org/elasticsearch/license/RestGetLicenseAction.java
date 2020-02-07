@@ -36,7 +36,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_license", GET));
+        return singletonList(new Route(GET, "/_license"));
     }
 
     @Override

@@ -45,8 +45,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return unmodifiableList(asList(new Route("/_cluster/health", GET),
-            new Route("/_cluster/health/{index}", GET)));
+        return unmodifiableList(asList(new Route(GET, "/_cluster/health"),
+            new Route(GET, "/_cluster/health/{index}")));
     }
 
     @Override

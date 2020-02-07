@@ -56,7 +56,7 @@ public class RestTasksAction extends AbstractCatAction {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cat/tasks", GET));
+        return singletonList(new Route(GET, "/_cat/tasks"));
     }
 
     @Override

@@ -45,8 +45,8 @@ public class RestIndexAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}/_doc/{id}", POST),
-            new Route("/{index}/_doc/{id}", PUT)));
+            new Route(POST, "/{index}/_doc/{id}"),
+            new Route(PUT, "/{index}/_doc/{id}")));
     }
 
     @Override
@@ -64,8 +64,8 @@ public class RestIndexAction extends BaseRestHandler {
         @Override
         public List<Route> handledRoutes() {
             return unmodifiableList(asList(
-                new Route("/{index}/_create/{id}", POST),
-                new Route("/{index}/_create/{id}", PUT)));
+                new Route(POST, "/{index}/_create/{id}"),
+                new Route(PUT, "/{index}/_create/{id}")));
         }
 
         @Override
@@ -97,7 +97,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> handledRoutes() {
-            return singletonList(new Route("/{index}/_doc", POST));
+            return singletonList(new Route(POST, "/{index}/_doc"));
         }
 
         @Override

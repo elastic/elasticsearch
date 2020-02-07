@@ -45,8 +45,8 @@ public class RestCountAction extends AbstractCatAction {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_cat/count", GET),
-            new Route("/_cat/count/{index}", GET)));
+            new Route(GET, "/_cat/count"),
+            new Route(GET, "/_cat/count/{index}")));
     }
 
     @Override

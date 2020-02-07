@@ -42,9 +42,9 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_snapshot/{repository}/{snapshot}/_status", GET),
-            new Route("/_snapshot/{repository}/_status", GET),
-            new Route("/_snapshot/_status", GET)));
+            new Route(GET, "/_snapshot/{repository}/{snapshot}/_status"),
+            new Route(GET, "/_snapshot/{repository}/_status"),
+            new Route(GET, "/_snapshot/_status")));
     }
 
     @Override

@@ -34,7 +34,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_scripts/{id}", GET));
+        return singletonList(new Route(GET, "/_scripts/{id}"));
     }
 
     @Override

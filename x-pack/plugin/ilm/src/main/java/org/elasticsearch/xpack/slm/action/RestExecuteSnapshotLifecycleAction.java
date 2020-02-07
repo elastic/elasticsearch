@@ -24,8 +24,8 @@ public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_slm/policy/{name}/_execute", POST),
-            new Route("/_slm/policy/{name}/_execute", PUT)));
+            new Route(POST, "/_slm/policy/{name}/_execute"),
+            new Route(PUT, "/_slm/policy/{name}/_execute")));
     }
 
     @Override

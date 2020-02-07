@@ -25,7 +25,7 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_rollup/job/{id}", DELETE));
+        return singletonList(new Route(DELETE, "/_rollup/job/{id}"));
     }
 
     @Override

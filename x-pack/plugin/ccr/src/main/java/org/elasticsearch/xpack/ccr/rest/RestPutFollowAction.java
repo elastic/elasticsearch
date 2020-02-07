@@ -24,7 +24,7 @@ public class RestPutFollowAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_ccr/follow", PUT));
+        return singletonList(new Route(PUT, "/{index}/_ccr/follow"));
     }
 
     @Override

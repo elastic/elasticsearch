@@ -22,7 +22,7 @@ public class RestPutRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_rollup/job/{id}", PUT));
+        return singletonList(new Route(PUT, "/_rollup/job/{id}"));
     }
 
     @Override

@@ -36,8 +36,8 @@ public class RestSqlQueryAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route(Protocol.SQL_QUERY_REST_ENDPOINT, GET),
-            new Route(Protocol.SQL_QUERY_REST_ENDPOINT, POST)));
+            new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
+            new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT)));
     }
 
     @Override

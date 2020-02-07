@@ -32,8 +32,8 @@ public class RestWatcherStatsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_watcher/stats", GET),
-            new Route("/_watcher/stats/{metric}", GET)));
+            new Route(GET, "/_watcher/stats"),
+            new Route(GET, "/_watcher/stats/{metric}")));
     }
 
     @Override

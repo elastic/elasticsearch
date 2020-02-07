@@ -43,8 +43,8 @@ public class RestMainAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/", GET),
-            new Route("/", HEAD)));
+            new Route(GET, "/"),
+            new Route(HEAD, "/")));
     }
 
     @Override

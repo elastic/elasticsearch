@@ -35,8 +35,8 @@ public class RestActivateWatchAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_watcher/watch/{id}/_activate", POST),
-            new Route("/_watcher/watch/{id}/_activate", PUT)));
+            new Route(POST, "/_watcher/watch/{id}/_activate"),
+            new Route(PUT, "/_watcher/watch/{id}/_activate")));
     }
 
     @Override
@@ -64,8 +64,8 @@ public class RestActivateWatchAction extends BaseRestHandler {
         @Override
         public List<Route> handledRoutes() {
             return unmodifiableList(asList(
-                new Route("/_watcher/watch/{id}/_deactivate", POST),
-                new Route("/_watcher/watch/{id}/_deactivate", PUT)));
+                new Route(POST, "/_watcher/watch/{id}/_deactivate"),
+                new Route(PUT, "/_watcher/watch/{id}/_deactivate")));
         }
 
         @Override

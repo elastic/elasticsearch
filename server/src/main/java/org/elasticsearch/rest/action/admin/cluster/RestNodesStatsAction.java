@@ -48,12 +48,12 @@ public class RestNodesStatsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_nodes/stats", GET),
-            new Route("/_nodes/{nodeId}/stats", GET),
-            new Route("/_nodes/stats/{metric}", GET),
-            new Route("/_nodes/{nodeId}/stats/{metric}", GET),
-            new Route("/_nodes/stats/{metric}/{index_metric}", GET),
-            new Route("/_nodes/{nodeId}/stats/{metric}/{index_metric}", GET)));
+            new Route(GET, "/_nodes/stats"),
+            new Route(GET, "/_nodes/{nodeId}/stats"),
+            new Route(GET, "/_nodes/stats/{metric}"),
+            new Route(GET, "/_nodes/{nodeId}/stats/{metric}"),
+            new Route(GET, "/_nodes/stats/{metric}/{index_metric}"),
+            new Route(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}")));
     }
 
     static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(

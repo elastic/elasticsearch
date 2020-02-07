@@ -21,7 +21,7 @@ public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ccr/auto_follow/{name}", DELETE));
+        return singletonList(new Route(DELETE, "/_ccr/auto_follow/{name}"));
     }
 
     @Override

@@ -22,7 +22,7 @@ public class RestStartILMAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ilm/start", POST));
+        return singletonList(new Route(POST, "/_ilm/start"));
     }
 
     @Override

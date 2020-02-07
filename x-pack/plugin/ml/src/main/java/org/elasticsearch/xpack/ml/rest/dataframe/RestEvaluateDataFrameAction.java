@@ -22,7 +22,7 @@ public class RestEvaluateDataFrameAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route(MachineLearning.BASE_PATH + "data_frame/_evaluate", POST));
+        return singletonList(new Route(POST, MachineLearning.BASE_PATH + "data_frame/_evaluate"));
     }
 
     @Override

@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeletePipelineAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ingest/pipeline/{id}", DELETE));
+        return singletonList(new Route(DELETE, "/_ingest/pipeline/{id}"));
     }
 
     @Override

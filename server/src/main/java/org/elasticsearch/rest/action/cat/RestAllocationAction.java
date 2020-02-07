@@ -49,8 +49,8 @@ public class RestAllocationAction extends AbstractCatAction {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_cat/allocation", GET),
-            new Route("/_cat/allocation/{nodes}", GET)));
+            new Route(GET, "/_cat/allocation"),
+            new Route(GET, "/_cat/allocation/{nodes}")));
     }
 
     @Override

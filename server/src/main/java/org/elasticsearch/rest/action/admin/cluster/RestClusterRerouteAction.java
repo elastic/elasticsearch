@@ -63,7 +63,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cluster/reroute", POST));
+        return singletonList(new Route(POST, "/_cluster/reroute"));
     }
 
     @Override

@@ -46,7 +46,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_update_by_query", POST));
+        return singletonList(new Route(POST, "/{index}/_update_by_query"));
     }
 
     @Override

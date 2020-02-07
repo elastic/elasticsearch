@@ -47,8 +47,8 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("_cat/ml/trained_models", GET),
-            new Route("_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", GET)));
+            new Route(GET, "_cat/ml/trained_models"),
+            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}")));
     }
 
     @Override

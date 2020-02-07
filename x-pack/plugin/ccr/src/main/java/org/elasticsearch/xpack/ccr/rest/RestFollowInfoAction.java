@@ -22,7 +22,7 @@ public class RestFollowInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_ccr/info", GET));
+        return singletonList(new Route(GET, "/{index}/_ccr/info"));
     }
 
     @Override

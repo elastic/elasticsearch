@@ -24,7 +24,7 @@ public class RestDeleteTrainedModelAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return singletonList(
-            new Route(MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", DELETE));
+            new Route(DELETE, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
     }
 
     @Override

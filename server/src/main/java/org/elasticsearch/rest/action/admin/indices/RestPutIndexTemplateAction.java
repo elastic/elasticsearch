@@ -41,8 +41,8 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_template/{name}", POST),
-            new Route("/_template/{name}", PUT)));
+            new Route(POST, "/_template/{name}"),
+            new Route(PUT, "/_template/{name}")));
     }
 
     @Override

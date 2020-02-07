@@ -23,7 +23,7 @@ public class RestGetEnrichPolicyAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return unmodifiableList(asList(new Route("/_enrich/policy/{name}", GET), new Route("/_enrich/policy", GET)));
+        return unmodifiableList(asList(new Route(GET, "/_enrich/policy/{name}"), new Route(GET, "/_enrich/policy")));
     }
 
     @Override

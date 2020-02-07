@@ -56,8 +56,8 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_snapshot", GET),
-            new Route("/_snapshot/{repository}", GET)));
+            new Route(GET, "/_snapshot"),
+            new Route(GET, "/_snapshot/{repository}")));
     }
 
     @Override

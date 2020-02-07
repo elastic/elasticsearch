@@ -38,8 +38,8 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}/_rollover", POST),
-            new Route("/{index}/_rollover/{new_index}", POST)));
+            new Route(POST, "/{index}/_rollover"),
+            new Route(POST, "/{index}/_rollover/{new_index}")));
     }
 
     @Override

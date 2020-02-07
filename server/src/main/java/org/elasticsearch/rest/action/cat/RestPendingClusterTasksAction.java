@@ -37,7 +37,7 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_cat/pending_tasks", GET));
+        return singletonList(new Route(GET, "/_cat/pending_tasks"));
     }
 
     @Override

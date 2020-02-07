@@ -22,7 +22,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_watcher/_start", POST));
+        return singletonList(new Route(POST, "/_watcher/_start"));
     }
 
     @Override
@@ -40,7 +40,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
         @Override
         public List<Route> handledRoutes() {
-            return singletonList(new Route("/_watcher/_stop", POST));
+            return singletonList(new Route(POST, "/_watcher/_stop"));
         }
 
         @Override

@@ -40,10 +40,10 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_scripts/{id}", POST),
-            new Route("/_scripts/{id}", PUT),
-            new Route("/_scripts/{id}/{context}", POST),
-            new Route("/_scripts/{id}/{context}", PUT)));
+            new Route(POST, "/_scripts/{id}"),
+            new Route(PUT, "/_scripts/{id}"),
+            new Route(POST, "/_scripts/{id}/{context}"),
+            new Route(PUT, "/_scripts/{id}/{context}")));
     }
 
     @Override

@@ -22,7 +22,7 @@ public class RestGetBasicStatus extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_license/basic_status", GET));
+        return singletonList(new Route(GET, "/_license/basic_status"));
     }
 
     @Override

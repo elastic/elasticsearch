@@ -21,7 +21,7 @@ public class RestStartSLMAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_slm/start", POST));
+        return singletonList(new Route(POST, "/_slm/start"));
     }
 
     @Override

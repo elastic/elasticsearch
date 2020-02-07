@@ -24,7 +24,7 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_ilm/explain", GET));
+        return singletonList(new Route(GET, "/{index}/_ilm/explain"));
     }
 
     @Override

@@ -30,8 +30,8 @@ public class RestSqlTranslateAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route(Protocol.SQL_TRANSLATE_REST_ENDPOINT, GET),
-            new Route(Protocol.SQL_TRANSLATE_REST_ENDPOINT, POST)));
+            new Route(GET, Protocol.SQL_TRANSLATE_REST_ENDPOINT),
+            new Route(POST, Protocol.SQL_TRANSLATE_REST_ENDPOINT)));
     }
 
     @Override

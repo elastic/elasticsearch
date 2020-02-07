@@ -46,10 +46,10 @@ public class RestNodesUsageAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_nodes/usage", GET),
-            new Route("/_nodes/{nodeId}/usage", GET),
-            new Route("/_nodes/usage/{metric}", GET),
-            new Route("/_nodes/{nodeId}/usage/{metric}", GET)));
+            new Route(GET, "/_nodes/usage"),
+            new Route(GET, "/_nodes/{nodeId}/usage"),
+            new Route(GET, "/_nodes/usage/{metric}"),
+            new Route(GET, "/_nodes/{nodeId}/usage/{metric}")));
     }
 
     @Override

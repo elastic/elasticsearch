@@ -44,10 +44,10 @@ public class RestGetMappingAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_mapping", GET),
-            new Route("/_mappings", GET),
-            new Route("/{index}/_mapping", GET),
-            new Route("/{index}/_mappings", GET)));
+            new Route(GET, "/_mapping"),
+            new Route(GET, "/_mappings"),
+            new Route(GET, "/{index}/_mapping"),
+            new Route(GET, "/{index}/_mappings")));
     }
 
     @Override

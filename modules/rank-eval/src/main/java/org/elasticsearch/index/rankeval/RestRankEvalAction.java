@@ -95,10 +95,10 @@ public class RestRankEvalAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/" + ENDPOINT, GET),
-            new Route("/" + ENDPOINT, POST),
-            new Route("/{index}/" + ENDPOINT, GET),
-            new Route("/{index}/" + ENDPOINT, POST)));
+            new Route(GET, "/" + ENDPOINT),
+            new Route(POST, "/" + ENDPOINT),
+            new Route(GET, "/{index}/" + ENDPOINT),
+            new Route(POST, "/{index}/" + ENDPOINT)));
     }
 
     @Override

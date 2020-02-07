@@ -34,7 +34,7 @@ public class RestDieWithDignityAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_die_with_dignity", GET));
+        return singletonList(new Route(GET, "/_die_with_dignity"));
     }
 
     @Override

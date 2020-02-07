@@ -40,8 +40,8 @@ public class RestOpenIndexAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_open", POST),
-            new Route("/{index}/_open", POST)));
+            new Route(POST, "/_open"),
+            new Route(POST, "/{index}/_open")));
     }
 
     @Override

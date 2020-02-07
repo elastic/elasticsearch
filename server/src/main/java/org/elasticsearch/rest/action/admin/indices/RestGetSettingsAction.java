@@ -39,11 +39,11 @@ public class RestGetSettingsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_settings", GET),
-            new Route("/_settings/{name}", GET),
-            new Route("/{index}/_settings", GET),
-            new Route("/{index}/_settings/{name}", GET),
-            new Route("/{index}/_setting/{name}", GET)));
+            new Route(GET, "/_settings"),
+            new Route(GET, "/_settings/{name}"),
+            new Route(GET, "/{index}/_settings"),
+            new Route(GET, "/{index}/_settings/{name}"),
+            new Route(GET, "/{index}/_setting/{name}")));
     }
 
     @Override

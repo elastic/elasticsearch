@@ -51,10 +51,10 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_search/template", GET),
-            new Route("/_search/template", POST),
-            new Route("/{index}/_search/template", GET),
-            new Route("/{index}/_search/template", POST)));
+            new Route(GET, "/_search/template"),
+            new Route(POST, "/_search/template"),
+            new Route(GET, "/{index}/_search/template"),
+            new Route(POST, "/{index}/_search/template")));
     }
 
     @Override

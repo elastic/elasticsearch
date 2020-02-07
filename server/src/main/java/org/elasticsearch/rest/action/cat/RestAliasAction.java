@@ -40,8 +40,8 @@ public class RestAliasAction extends AbstractCatAction {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_cat/aliases", GET),
-            new Route("/_cat/aliases/{alias}", GET)));
+            new Route(GET, "/_cat/aliases"),
+            new Route(GET, "/_cat/aliases/{alias}")));
     }
 
     @Override

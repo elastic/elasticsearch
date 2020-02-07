@@ -46,8 +46,8 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/{index}", GET),
-            new Route("/{index}", HEAD)));
+            new Route(GET, "/{index}"),
+            new Route(HEAD, "/{index}")));
     }
 
     @Override

@@ -51,8 +51,8 @@ public class RestCancelTasksAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return unmodifiableList(asList(new Route("/_tasks/_cancel", POST),
-            new Route("/_tasks/{task_id}/_cancel", POST)));
+        return unmodifiableList(asList(new Route(POST, "/_tasks/_cancel"),
+            new Route(POST, "/_tasks/{task_id}/_cancel")));
     }
 
     @Override

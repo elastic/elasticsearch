@@ -49,10 +49,10 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_count", GET),
-            new Route("/_count", POST),
-            new Route("/{index}/_count", GET),
-            new Route("/{index}/_count", POST)));
+            new Route(GET, "/_count"),
+            new Route(POST, "/_count"),
+            new Route(GET, "/{index}/_count"),
+            new Route(POST, "/{index}/_count")));
     }
 
     @Override

@@ -45,14 +45,14 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_cluster/nodes/hotthreads", GET),
-            new Route("/_cluster/nodes/hot_threads", GET),
-            new Route("/_cluster/nodes/{nodeId}/hotthreads", GET),
-            new Route("/_cluster/nodes/{nodeId}/hot_threads", GET),
-            new Route("/_nodes/hotthreads", GET),
-            new Route("/_nodes/hot_threads", GET),
-            new Route("/_nodes/{nodeId}/hotthreads", GET),
-            new Route("/_nodes/{nodeId}/hot_threads", GET)));
+            new Route(GET, "/_cluster/nodes/hotthreads"),
+            new Route(GET, "/_cluster/nodes/hot_threads"),
+            new Route(GET, "/_cluster/nodes/{nodeId}/hotthreads"),
+            new Route(GET, "/_cluster/nodes/{nodeId}/hot_threads"),
+            new Route(GET, "/_nodes/hotthreads"),
+            new Route(GET, "/_nodes/hot_threads"),
+            new Route(GET, "/_nodes/{nodeId}/hotthreads"),
+            new Route(GET, "/_nodes/{nodeId}/hot_threads")));
     }
 
     @Override

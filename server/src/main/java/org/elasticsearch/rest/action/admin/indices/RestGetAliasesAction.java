@@ -59,14 +59,14 @@ public class RestGetAliasesAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_alias", GET),
-            new Route("/_aliases", GET),
-            new Route("/_alias/{name}", GET),
-            new Route("/_alias/{name}", HEAD),
-            new Route("/{index}/_alias", GET),
-            new Route("/{index}/_alias", HEAD),
-            new Route("/{index}/_alias/{name}", GET),
-            new Route("/{index}/_alias/{name}", HEAD)));
+            new Route(GET, "/_alias"),
+            new Route(GET, "/_aliases"),
+            new Route(GET, "/_alias/{name}"),
+            new Route(HEAD, "/_alias/{name}"),
+            new Route(GET, "/{index}/_alias"),
+            new Route(HEAD, "/{index}/_alias"),
+            new Route(GET, "/{index}/_alias/{name}"),
+            new Route(HEAD, "/{index}/_alias/{name}")));
     }
 
     @Override

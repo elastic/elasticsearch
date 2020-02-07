@@ -40,10 +40,10 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_mtermvectors", GET),
-            new Route("/_mtermvectors", POST),
-            new Route("/{index}/_mtermvectors", GET),
-            new Route("/{index}/_mtermvectors", POST)));
+            new Route(GET, "/_mtermvectors"),
+            new Route(POST, "/_mtermvectors"),
+            new Route(GET, "/{index}/_mtermvectors"),
+            new Route(POST, "/{index}/_mtermvectors")));
     }
 
     @Override

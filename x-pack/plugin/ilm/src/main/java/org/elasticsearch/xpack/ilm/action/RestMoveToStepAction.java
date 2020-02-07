@@ -24,7 +24,7 @@ public class RestMoveToStepAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ilm/move/{name}", POST));
+        return singletonList(new Route(POST, "/_ilm/move/{name}"));
     }
 
     @Override

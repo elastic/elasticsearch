@@ -21,7 +21,7 @@ public class RestPauseAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ccr/auto_follow/{name}/pause", POST));
+        return singletonList(new Route(POST, "/_ccr/auto_follow/{name}/pause"));
     }
 
     @Override

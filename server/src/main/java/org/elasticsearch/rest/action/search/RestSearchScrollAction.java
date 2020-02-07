@@ -48,10 +48,10 @@ public class RestSearchScrollAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_search/scroll", GET),
-            new Route("/_search/scroll", POST),
-            new Route("/_search/scroll/{scroll_id}", GET),
-            new Route("/_search/scroll/{scroll_id}", POST)));
+            new Route(GET, "/_search/scroll"),
+            new Route(POST, "/_search/scroll"),
+            new Route(GET, "/_search/scroll/{scroll_id}"),
+            new Route(POST, "/_search/scroll/{scroll_id}")));
     }
 
     @Override

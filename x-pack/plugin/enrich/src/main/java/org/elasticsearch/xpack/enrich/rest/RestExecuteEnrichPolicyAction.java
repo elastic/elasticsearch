@@ -24,7 +24,7 @@ public class RestExecuteEnrichPolicyAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(
-            asList(new Route("/_enrich/policy/{name}/_execute", POST), new Route("/_enrich/policy/{name}/_execute", PUT))
+            asList(new Route(POST, "/_enrich/policy/{name}/_execute"), new Route(PUT, "/_enrich/policy/{name}/_execute"))
         );
     }
 

@@ -29,10 +29,10 @@ public class RestRollupSearchAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("_rollup_search", GET),
-            new Route("_rollup_search", POST),
-            new Route("{index}/_rollup_search", GET),
-            new Route("{index}/_rollup_search", POST)));
+            new Route(GET, "_rollup_search"),
+            new Route(POST, "_rollup_search"),
+            new Route(GET, "{index}/_rollup_search"),
+            new Route(POST, "{index}/_rollup_search")));
     }
 
     @Override

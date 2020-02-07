@@ -48,8 +48,8 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
     @Override
     public List<Route> handledRoutes() {
         return unmodifiableList(asList(
-            new Route("/_cluster/allocation/explain", GET),
-            new Route("/_cluster/allocation/explain", POST)));
+            new Route(GET, "/_cluster/allocation/explain"),
+            new Route(POST, "/_cluster/allocation/explain")));
     }
 
     @Override

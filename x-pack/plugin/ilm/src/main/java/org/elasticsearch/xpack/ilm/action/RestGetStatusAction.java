@@ -21,7 +21,7 @@ public class RestGetStatusAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/_ilm/status", GET));
+        return singletonList(new Route(GET, "/_ilm/status"));
     }
 
     @Override

@@ -22,7 +22,7 @@ public class RestUnfollowAction extends BaseRestHandler {
 
     @Override
     public List<Route> handledRoutes() {
-        return singletonList(new Route("/{index}/_ccr/unfollow", POST));
+        return singletonList(new Route(POST, "/{index}/_ccr/unfollow"));
     }
 
     @Override

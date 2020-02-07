@@ -64,7 +64,7 @@ public class TreeNodeTests extends AbstractXContentTestCase<TreeNode> {
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
             .setLeftChild(left)
             .setRightChild(right)
-            .setNumberSamples(randomNonNegativeLong())
+            .setNumberSamples(randomBoolean() ? null : randomNonNegativeLong())
             .setThreshold(threshold)
             .setOperator(operator)
             .setSplitFeature(featureIndex)

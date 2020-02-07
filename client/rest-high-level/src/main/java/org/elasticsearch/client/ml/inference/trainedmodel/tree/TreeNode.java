@@ -278,7 +278,7 @@ public class TreeNode implements ToXContentObject {
             return rightChild;
         }
 
-        public Builder setNumberSamples(long numberSamples) {
+        public Builder setNumberSamples(Long numberSamples) {
             this.numberSamples = numberSamples;
             return this;
         }

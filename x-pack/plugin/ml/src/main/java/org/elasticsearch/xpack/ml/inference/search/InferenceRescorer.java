@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -77,6 +76,53 @@ public class InferenceRescorer implements Rescorer {
 
         List<LeafReaderContext> leaves = searcher.getIndexReader().getContext().leaves();
         Map<String, Object> fields = new HashMap<>();
+
+        int currentReader = 0;
+        int endDoc = 0;
+        LeafReaderContext readerContext = null;
+
+        for (int hitIndex=0; hitIndex<sortedHits.length; hitIndex++) {
+            ScoreDoc hit = sortedHits[hitIndex];
+            int docId = hit.doc;
+
+            while (docId >= endDoc) {
+                readerContext = leaves.get(currentReader);
+                currentReader++;
+                endDoc = readerContext.docBase + readerContext.reader().maxDoc();
+            }
+
+            for (String field : fieldsToRead) {
+                SortedNumericDocValues docValuesIter = DocValues.getSortedNumeric(readerContext.reader(), field);
+                SortedNumericDoubleValues doubles = FieldData.sortableLongBitsToDoubles(docValuesIter);
+                if (doubles.advanceExact(hit.doc)) {
+                    double val = doubles.nextValue();
+                    fields.put(fieldMap.getOrDefault(field, field), val);
+                } else if (docValuesIter.docID() == DocIdSetIterator.NO_MORE_DOCS) {
+                    logger.warn("No more docs for field {}, doc {}", field, hit.doc);
+                    fields.remove(field);
+                } else {
+                    logger.warn("no value for field {}, doc {}", field, hit.doc);
+                    fields.remove(field);
+                }
+            }
+
+            InferenceResults infer = model.infer(fields, inferenceConfig);
+            if (infer instanceof WarningInferenceResults) {
+                logger.warn("inference error: " + ((WarningInferenceResults) infer).getWarning());
+                // TODO how to propagate this error
+            } else {
+                SingleValueInferenceResults regressionResult = (SingleValueInferenceResults) infer;
+
+                float combinedScore = scoreModeSettings.scoreMode.combine(
+                        hit.score * scoreModeSettings.queryWeight,
+                        regressionResult.value().floatValue() * scoreModeSettings.modelWeight);
+
+                sortedHits[hitIndex] = new ScoreDoc(hit.doc, combinedScore);
+            }
+        }
+
+
+        /*
         for (int i=0; i<sortedHits.length; i++) {
             ScoreDoc scoreDoc = sortedHits[i];
 
@@ -97,6 +143,8 @@ public class InferenceRescorer implements Rescorer {
                 }
             }
 
+
+
             InferenceResults infer = model.infer(fields, inferenceConfig);
             if (infer instanceof WarningInferenceResults) {
                 logger.warn("inference error: " + ((WarningInferenceResults) infer).getWarning());
@@ -111,6 +159,8 @@ public class InferenceRescorer implements Rescorer {
                 sortedHits[i] = new ScoreDoc(scoreDoc.doc, combinedScore);
             }
         }
+
+         */
 
         return new TopDocs(topDocs.totalHits, sortedHits);
     }

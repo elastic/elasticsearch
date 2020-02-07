@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingDecisionAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingDecisionAction;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingDecisionHandler;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -64,7 +63,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         if (enabled) {
             return List.of(new ActionHandler<>(GetAutoscalingDecisionAction.INSTANCE, TransportGetAutoscalingDecisionAction.class));
         } else {
-            return Collections.emptyList();
+            return List.of();
         }
     }
 

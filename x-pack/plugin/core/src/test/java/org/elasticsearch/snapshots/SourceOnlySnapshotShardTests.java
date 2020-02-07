@@ -147,7 +147,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 snapshotRef.getIndexCommit(), indexShardSnapshotStatus, true, Collections.emptyMap(), future));
             shardGeneration = future.actionGet();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
-            // we processed the segments_N file plus _1.si, _1.fdx, _1.fnm, _1.fdt, , _1.fdx
+            // we processed the segments_N file plus _1.si, _1.fnm, _1.fdx, _1.fdt, _1.fdm
             assertEquals(6, copy.getIncrementalFileCount());
             // in total we have 4 more files than the previous snap since we don't count the segments_N twice
             assertEquals(totalFileCount+5, copy.getTotalFileCount());

@@ -307,7 +307,7 @@ public class QueryShardContext extends QueryRewriteContext {
         } catch(QueryShardException | ParsingException e ) {
             throw e;
         } catch(Exception e) {
-            throw new QueryShardException(this, "failed to create query: {}", e, queryBuilder);
+            throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());
         } finally {
             reset();
         }

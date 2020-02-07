@@ -939,16 +939,18 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                                         CircuitBreakerService circuitBreakerService,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
-                                                                        HttpServerTransport.Dispatcher dispatcher) {
+                                                                        HttpServerTransport.Dispatcher dispatcher,
+                                                                        ClusterSettings clusterSettings) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
         httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
+            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher, clusterSettings));
         httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
-            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings)));
+            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings),
+            clusterSettings));
 
         return httpTransports;
     }
@@ -1070,12 +1072,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return Collections.unmodifiableList(Arrays.asList(
-            new SystemIndexDescriptor(SECURITY_MAIN_ALIAS, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, this.getClass().getSimpleName()),
+            new SystemIndexDescriptor(SECURITY_MAIN_ALIAS, "Contains Security configuration"),
+            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, "Contains Security configuration"),
+            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, "Contains Security configuration"),
 
-            new SystemIndexDescriptor(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7, this.getClass().getSimpleName())
+            new SystemIndexDescriptor(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, "Contains auth token data"),
+            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7, "Contains auth token data")
             ));
     }
 }

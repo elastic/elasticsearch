@@ -58,6 +58,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
         printStream = new PrintStream(loggingStream, false, StandardCharsets.UTF_8);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51838")
     public void testEmptyLine() {
         printStream.println("");
         assertTrue(loggingStream.lines.isEmpty());
@@ -71,9 +72,17 @@ public class LoggingOutputStreamTests extends ESTestCase {
         assertTrue(loggingStream.lines.isEmpty());
     }
 
-    public void testFlushOnNewline() {
-        printStream.println("hello");
-        printStream.println("world");
+    // this test explicitly outputs the newlines instead of relying on println, to always test the unix behavior
+    public void testFlushOnUnixNewline() {
+        printStream.print("hello\n");
+        printStream.print("world\n");
+        assertThat(loggingStream.lines, contains("hello", "world"));
+    }
+
+    // this test explicitly outputs the newlines instead of relying on println, to always test the windows behavior
+    public void testFlushOnWindowsNewline() {
+        printStream.print("hello\r\n");
+        printStream.print("world\r\n");
         assertThat(loggingStream.lines, contains("hello", "world"));
     }
 
@@ -87,6 +96,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
         assertThat(loggingStream.threadLocal.get().bytes.length, equalTo(DEFAULT_BUFFER_LENGTH));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51838")
     public void testMaxBuffer() {
         String longStr = randomAlphaOfLength(MAX_BUFFER_LENGTH);
         String extraLongStr = longStr + "OVERFLOW";

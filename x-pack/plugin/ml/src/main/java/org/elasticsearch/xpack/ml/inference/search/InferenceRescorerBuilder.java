@@ -52,16 +52,18 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     private static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<InferenceRescorerBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            args -> new InferenceRescorerBuilder((String) args[0], (List<InferenceConfig>) args[1], (Map<String, String>) args[2]));
+    private static final ConstructingObjectParser<InferenceRescorerBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new InferenceRescorerBuilder((String) args[0], (List<InferenceConfig>) args[1], (Map<String, String>) args[2])
+    );
 
     static {
         PARSER.declareString(constructorArg(), MODEL_ID);
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> p.namedObject(InferenceConfig.class, n, c),  INFERENCE_CONFIG);
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> p.namedObject(InferenceConfig.class, n, c), INFERENCE_CONFIG);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapStrings(), FIELD_MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareFloat(InferenceRescorerBuilder::setQueryWeight, QUERY_WEIGHT);
         PARSER.declareFloat(InferenceRescorerBuilder::setModelWeight, MODEL_WEIGHT);
-        PARSER.declareString((builder, mode) ->  builder.setScoreMode(QueryRescoreMode.fromString(mode)), SCORE_MODE);
+        PARSER.declareString((builder, mode) -> builder.setScoreMode(QueryRescoreMode.fromString(mode)), SCORE_MODE);
     }
 
     public static InferenceRescorerBuilder fromXContent(XContentParser parser) {
@@ -96,14 +98,22 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         this.fieldMap = fieldMap;
     }
 
-    private InferenceRescorerBuilder(String modelId, @Nullable InferenceConfig config, @Nullable Map<String, String> fieldMap,
-                             Supplier<LocalModel> modelSupplier) {
+    private InferenceRescorerBuilder(
+        String modelId,
+        @Nullable InferenceConfig config,
+        @Nullable Map<String, String> fieldMap,
+        Supplier<LocalModel> modelSupplier
+    ) {
         this(modelId, config, fieldMap);
         this.modelSupplier = modelSupplier;
     }
 
-    private InferenceRescorerBuilder(String modelId, @Nullable InferenceConfig config, @Nullable Map<String, String> fieldMap,
-                             LocalModel model) {
+    private InferenceRescorerBuilder(
+        String modelId,
+        @Nullable InferenceConfig config,
+        @Nullable Map<String, String> fieldMap,
+        LocalModel model
+    ) {
         this(modelId, config, fieldMap);
         this.model = Objects.requireNonNull(model);
     }
@@ -193,16 +203,15 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
             ctx.registerAsyncAction(((client, actionListener) -> {
                 TrainedModelProvider modelProvider = new TrainedModelProvider(client, ctx.getXContentRegistry());
-                modelProvider.getTrainedModel(modelId, true, ActionListener.wrap(
-                        trainedModel -> {
-                            LocalModel model = new LocalModel(modelId,
-                                    trainedModel.ensureParsedDefinition(ctx.getXContentRegistry()).getModelDefinition(),
-                                    trainedModel.getInput());
-                            modelHolder.set(model);
-                            actionListener.onResponse(null);
-                        },
-                        actionListener::onFailure
-                ));
+                modelProvider.getTrainedModel(modelId, true, ActionListener.wrap(trainedModel -> {
+                    LocalModel model = new LocalModel(
+                        modelId,
+                        trainedModel.ensureParsedDefinition(ctx.getXContentRegistry()).getModelDefinition(),
+                        trainedModel.getInput()
+                    );
+                    modelHolder.set(model);
+                    actionListener.onResponse(null);
+                }, actionListener::onFailure));
             }));
 
             return copyScoringSettings(new InferenceRescorerBuilder(modelId, inferenceConfig, fieldMap, modelHolder::get));
@@ -221,8 +230,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         LocalModel m = (model != null) ? model : modelSupplier.get();
         assert m != null;
 
-        return new RescoreContext(windowSize, new InferenceRescorer(m, inferenceConfig, fieldMap,
-                scoreModeSettings()));
+        return new RescoreContext(windowSize, new InferenceRescorer(m, inferenceConfig, fieldMap, scoreModeSettings()));
     }
 
     class ScoreModeSettings {
@@ -255,12 +263,12 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             return false;
         }
         InferenceRescorerBuilder other = (InferenceRescorerBuilder) obj;
-        return Objects.equals(windowSize, other.windowSize) &&
-                Objects.equals(modelId, other.modelId) &&
-                Objects.equals(inferenceConfig, other.inferenceConfig) &&
-                Objects.equals(fieldMap, other.fieldMap) &&
-                Objects.equals(queryWeight, other.queryWeight) &&
-                Objects.equals(modelWeight, other.modelWeight) &&
-                Objects.equals(scoreMode, other.scoreMode);
+        return Objects.equals(windowSize, other.windowSize)
+            && Objects.equals(modelId, other.modelId)
+            && Objects.equals(inferenceConfig, other.inferenceConfig)
+            && Objects.equals(fieldMap, other.fieldMap)
+            && Objects.equals(queryWeight, other.queryWeight)
+            && Objects.equals(modelWeight, other.modelWeight)
+            && Objects.equals(scoreMode, other.scoreMode);
     }
 }

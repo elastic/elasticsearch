@@ -45,9 +45,12 @@ public class InferenceRescorer implements Rescorer {
     private final Map<String, String> fieldMap;
     private final InferenceRescorerBuilder.ScoreModeSettings scoreModeSettings;
 
-
-    InferenceRescorer(LocalModel model, InferenceConfig inferenceConfig,
-                      Map<String, String> fieldMap, InferenceRescorerBuilder.ScoreModeSettings scoreModeSettings) {
+    InferenceRescorer(
+        LocalModel model,
+        InferenceConfig inferenceConfig,
+        Map<String, String> fieldMap,
+        InferenceRescorerBuilder.ScoreModeSettings scoreModeSettings
+    ) {
         this.model = model;
         this.inferenceConfig = inferenceConfig;
         this.fieldMap = fieldMap;
@@ -81,7 +84,7 @@ public class InferenceRescorer implements Rescorer {
         int endDoc = 0;
         LeafReaderContext readerContext = null;
 
-        for (int hitIndex=0; hitIndex<sortedHits.length; hitIndex++) {
+        for (int hitIndex = 0; hitIndex < sortedHits.length; hitIndex++) {
             ScoreDoc hit = sortedHits[hitIndex];
             int docId = hit.doc;
 
@@ -114,8 +117,9 @@ public class InferenceRescorer implements Rescorer {
                 SingleValueInferenceResults regressionResult = (SingleValueInferenceResults) infer;
 
                 float combinedScore = scoreModeSettings.scoreMode.combine(
-                        hit.score * scoreModeSettings.queryWeight,
-                        regressionResult.value().floatValue() * scoreModeSettings.modelWeight);
+                    hit.score * scoreModeSettings.queryWeight,
+                    regressionResult.value().floatValue() * scoreModeSettings.modelWeight
+                );
 
                 sortedHits[hitIndex] = new ScoreDoc(hit.doc, combinedScore);
             }
@@ -125,8 +129,7 @@ public class InferenceRescorer implements Rescorer {
     }
 
     @Override
-    public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
-                               Explanation sourceExplanation) {
+    public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext, Explanation sourceExplanation) {
         return Explanation.match(1.0, "because");
     }
 }

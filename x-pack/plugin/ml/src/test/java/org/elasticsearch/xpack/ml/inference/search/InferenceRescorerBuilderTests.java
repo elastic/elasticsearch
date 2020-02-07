@@ -46,8 +46,8 @@ public class InferenceRescorerBuilderTests extends AbstractSerializingTestCase<I
 
         InferenceRescorerBuilder builder = new InferenceRescorerBuilder(randomAlphaOfLength(8), config, randomMap());
         if (randomBoolean()) {
-            builder.setQueryWeight((float)randomDoubleBetween(0.0, 1.0, true));
-            builder.setModelWeight((float)randomDoubleBetween(0.0, 2.0, true));
+            builder.setQueryWeight((float) randomDoubleBetween(0.0, 1.0, true));
+            builder.setModelWeight((float) randomDoubleBetween(0.0, 2.0, true));
             builder.setScoreMode(randomFrom(QueryRescoreMode.values()));
         }
 
@@ -57,7 +57,7 @@ public class InferenceRescorerBuilderTests extends AbstractSerializingTestCase<I
     private Map<String, String> randomMap() {
         int numEntries = randomIntBetween(0, 6);
         Map<String, String> result = new HashMap<>();
-        for (int i=0; i<numEntries; i++) {
+        for (int i = 0; i < numEntries; i++) {
             result.put("field" + i, randomAlphaOfLength(5));
         }
 

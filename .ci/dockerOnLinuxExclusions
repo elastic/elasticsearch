@@ -9,7 +9,7 @@ opensuse-15-1
 ol-7.7
 sles-12
 
-# These OSes are deprecated and filtered on master, but need to be excluded 
+# These OSes are deprecated and filtered starting with 8.0.0, but need to be excluded 
 # for PR checks
 centos-6
 ol-6.10

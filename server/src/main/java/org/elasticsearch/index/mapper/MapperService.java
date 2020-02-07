@@ -750,11 +750,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns the {@link MappedFieldType} for the give fullName.
-     *
-     * If multiple types have fields with the same full name, the first is returned.
+     * Given the full name of a field, returns its {@link MappedFieldType}.
      */
-    public MappedFieldType fullName(String fullName) {
+    public MappedFieldType fieldType(String fullName) {
         return fieldTypes.get(fullName);
     }
 
@@ -858,7 +856,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            MappedFieldType fieldType = fullName(fieldName);
+            MappedFieldType fieldType = fieldType(fieldName);
             if (fieldType != null) {
                 Analyzer analyzer = extractAnalyzer.apply(fieldType);
                 if (analyzer != null) {

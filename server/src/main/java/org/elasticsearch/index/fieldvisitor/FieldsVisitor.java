@@ -94,7 +94,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
             type = mapper.type();
         }
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            MappedFieldType fieldType = mapperService.fullName(entry.getKey());
+            MappedFieldType fieldType = mapperService.fieldType(entry.getKey());
             if (fieldType == null) {
                 throw new IllegalStateException("Field [" + entry.getKey()
                     + "] exists in the index but not in mappings");

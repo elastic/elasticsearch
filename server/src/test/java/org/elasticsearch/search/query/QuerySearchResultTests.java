@@ -99,4 +99,11 @@ public class QuerySearchResultTests extends ESTestCase {
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
     }
+
+    public void testNullResponse() throws Exception {
+        QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
+        QuerySearchResult deserialized =
+            copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
+        assertEquals(querySearchResult.isNull(), deserialized.isNull());
+    }
 }

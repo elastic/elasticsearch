@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
@@ -66,8 +66,9 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, routingNodes, clusterState, null,
                 System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
+        String indexName = indexMetaData.getIndex().getName();
         final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()
-            .allShards(indexMetaData.getIndex().getName())
+            .allShards(indexName)
             .stream()
             .collect(Collectors.groupingBy(ShardRouting::shardId));
 
@@ -88,15 +89,16 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             if (nodeId.isPresent()) {
                 Settings settings = Settings.builder()
                         .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
-                UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName())
+                UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName)
                         .masterNodeTimeout(getMasterTimeout(clusterState))
                         .settings(settings);
                 getClient().admin().indices().updateSettings(updateSettingsRequest,
                         ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
             } else {
                 // No nodes currently match the allocation rules, so report this as an error and we'll retry
-                logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink");
-                listener.onFailure(new NoNodeAvailableException("could not find any nodes to allocate index [{}] onto prior to shrink"));
+                logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);
+                listener.onFailure(new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName + "] onto" +
+                    " prior to shrink"));
             }
         } else {
             // There are no shards for the index, the index might be gone. Even though this is a retryable step ILM will not retry in

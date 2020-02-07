@@ -401,9 +401,10 @@ public final class SqlDataTypeConverter {
         DATE_TO_BOOLEAN(delegate(DATETIME_TO_BOOLEAN)),
         TIME_TO_BOOLEAN(fromTime(value -> value != 0)),
 
-        STRING_ISO8601_PERIOD_TO_TEMPORAL(fromString(Period::parse, "duration")),
-        STRING_ISO8601_DURATION_TO_TEMPORAL(fromString(Duration::parse, "duration"));
+        STRING_ISO8601_PERIOD_TO_TEMPORAL(fromString(Period::parse, SqlConverter.INTERVAL_TYPE_NAME)),
+        STRING_ISO8601_DURATION_TO_TEMPORAL(fromString(Duration::parse, SqlConverter.INTERVAL_TYPE_NAME));
 
+        private static final String INTERVAL_TYPE_NAME = "INTERVAL(period)";
         public static final String NAME = "dtc-sql";
 
         private final Function<Object, Object> converter;

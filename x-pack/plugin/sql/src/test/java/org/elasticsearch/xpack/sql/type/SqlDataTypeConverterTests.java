@@ -600,22 +600,31 @@ public class SqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testConversionToInterval() {
-        assertNull(converterFor(KEYWORD, INTERVAL_YEAR).convert(null));
+        {
+            assertNull(converterFor(KEYWORD, INTERVAL_YEAR).convert(null));
+        }
+        {
+            assertEquals(converterFor(KEYWORD, INTERVAL_YEAR).convert("P200Y"), Period.of(200, 0, 0));
+            assertEquals(converterFor(KEYWORD, INTERVAL_MONTH).convert("P11M"), Period.of(0, 11, 0));
+            assertEquals(converterFor(KEYWORD, INTERVAL_YEAR_TO_MONTH).convert("P200Y11M"), Period.of(200, 11, 0));
 
-        assertEquals(converterFor(KEYWORD, INTERVAL_YEAR).convert("P200Y"), Period.of(200, 0, 0));
-        assertEquals(converterFor(KEYWORD, INTERVAL_MONTH).convert("P11M"), Period.of(0, 11, 0));
-        assertEquals(converterFor(KEYWORD, INTERVAL_YEAR_TO_MONTH).convert("P200Y11M"), Period.of(200, 11, 0));
+            assertEquals(converterFor(KEYWORD, INTERVAL_DAY).convert("P20D"), Duration.ofDays(20));
+            assertEquals(converterFor(KEYWORD, INTERVAL_HOUR).convert("PT20H"), Duration.ofHours(20));
+            assertEquals(converterFor(KEYWORD, INTERVAL_MINUTE).convert("PT20M"), Duration.ofMinutes(20));
+            assertEquals(converterFor(KEYWORD, INTERVAL_SECOND).convert("PT20S"), Duration.ofSeconds(20));
 
-        assertEquals(converterFor(KEYWORD, INTERVAL_DAY).convert("P20D"), Duration.ofDays(20));
-        assertEquals(converterFor(KEYWORD, INTERVAL_HOUR).convert("PT20H"), Duration.ofHours(20));
-        assertEquals(converterFor(KEYWORD, INTERVAL_MINUTE).convert("PT20M"), Duration.ofMinutes(20));
-        assertEquals(converterFor(KEYWORD, INTERVAL_SECOND).convert("PT20S"), Duration.ofSeconds(20));
+            assertEquals(converterFor(KEYWORD, INTERVAL_DAY_TO_HOUR).convert("P1DT1H"), Duration.ofHours(24 + 1));
+            assertEquals(converterFor(KEYWORD, INTERVAL_DAY_TO_MINUTE).convert("P1DT1H1M"), Duration.ofMinutes((24 + 1) * 60 + 1));
+            assertEquals(converterFor(KEYWORD, INTERVAL_DAY_TO_SECOND).convert("P1DT1.1S"), Duration.ofSeconds(24 * 3600 + 1, 100_000_000));
 
-        assertEquals(converterFor(KEYWORD, INTERVAL_DAY_TO_HOUR).convert("P1DT1H"), Duration.ofHours(24 + 1));
-        assertEquals(converterFor(KEYWORD, INTERVAL_DAY_TO_MINUTE).convert("P1DT1H1M"), Duration.ofMinutes((24 + 1) * 60 + 1));
-        assertEquals(converterFor(KEYWORD, INTERVAL_DAY_TO_SECOND).convert("P1DT1.1S"), Duration.ofSeconds(24 * 3600 + 1, 100_000_000  ));
-
-        assertEquals(converterFor(KEYWORD, INTERVAL_MINUTE_TO_SECOND).convert("PT1M1S"), Duration.ofSeconds(60 + 1));
+            assertEquals(converterFor(KEYWORD, INTERVAL_MINUTE_TO_SECOND).convert("PT1M1S"), Duration.ofSeconds(60 + 1));
+        }
+        {
+            Converter conversion = converterFor(KEYWORD, INTERVAL_YEAR);
+            final String duration = "PT1S";
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(duration));
+            assertEquals("cannot cast [" + duration + "] to [INTERVAL]: Text cannot be parsed to a Period", e.getMessage());
+        }
     }
 
     public void testConversionToNull() {

@@ -47,4 +47,12 @@ public class RestSqlIT extends RestSqlTestCase {
             containsString("Invalid parameter data type [invalid]")
         );
     }
+
+    public void testErrorMessageForInvalidParamSpec() throws IOException {
+        expectBadRequest(() -> runTranslateSql(
+            "{\"query\":\"SELECT null WHERE 0 = ? \", \"mode\": \"odbc\", \"params\":[{\"type\":\"SHAPE\", \"value\":false}]}"
+            ),
+            containsString("Cannot cast value [false] of type [BOOLEAN] to parameter type [SHAPE]")
+        );
+    }
 }

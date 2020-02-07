@@ -721,7 +721,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
             if (SqlDataTypeConverter.canConvert(sourceType, dataType) == false) {
-                throw new ParsingException(source, "Can not cast value [{}] as [{}]", param.value, dataType);
+                throw new ParsingException(source, "Cannot cast value [{}] of type [{}] to parameter type [{}]", param.value, sourceType,
+                    dataType);
             }
             return new Literal(source, SqlDataTypeConverter.converterFor(sourceType, dataType).convert(param.value), dataType);
         } catch (QlIllegalArgumentException ex) {

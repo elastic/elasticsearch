@@ -86,7 +86,7 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
                 .toArray() :
             null;
 
-        return new Ensemble(featureNames,
+        return new Ensemble(randomBoolean() ? featureNames : Collections.emptyList(),
             models,
             outputAggregator,
             targetType,

@@ -627,10 +627,7 @@ public class XPackLicenseState {
      *         {@code false}.
      */
     public boolean isIndexLifecycleAllowed() {
-        // status is volatile
-        Status localStatus = status;
-        // Should work on all active licenses
-        return localStatus.active;
+        return isActive();
     }
 
     /**
@@ -640,10 +637,7 @@ public class XPackLicenseState {
      *         {@code false}.
      */
     public boolean isEnrichAllowed() {
-        // status is volatile
-        Status localStatus = status;
-        // Should work on all active licenses
-        return localStatus.active;
+        return isActive();
     }
 
     /**
@@ -692,10 +686,7 @@ public class XPackLicenseState {
      *         {@code false}.
      */
     public boolean isSpatialAllowed() {
-        // status is volatile
-        Status localStatus = status;
-        // Should work on all active licenses
-        return localStatus.active;
+        return isActive();
     }
 
     /**
@@ -811,7 +802,7 @@ public class XPackLicenseState {
     }
 
     /**
-     * Test whether a feature is allowed by the status of current license and security config.
+     * Test whether a feature is allowed by the status of current license and security configuration.
      *
      * @param minimumMode  The minimum license to meet or exceed
      * @param needSecurity Whether security is required for feature to be allowed
@@ -823,14 +814,13 @@ public class XPackLicenseState {
     private synchronized boolean isAllowedByLicenseAndSecurity(
         OperationMode minimumMode, boolean needSecurity, boolean needActive, boolean allowTrial) {
 
-        final Status localStatus = status;
-        if (needSecurity && false == isSecurityEnabled(localStatus.mode, isSecurityExplicitlyEnabled, isSecurityEnabled)) {
+        if (needSecurity && false == isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled)) {
             return false;
         }
-        if (needActive && false == localStatus.active) {
+        if (needActive && false == status.active) {
             return false;
         }
-        return isAllowedByOperationMode(localStatus.mode, minimumMode, allowTrial);
+        return isAllowedByOperationMode(status.mode, minimumMode, allowTrial);
     }
 
 }

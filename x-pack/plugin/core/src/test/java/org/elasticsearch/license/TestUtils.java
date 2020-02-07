@@ -274,7 +274,7 @@ public class TestUtils {
                 .version(version)
                 .expiryDate(System.currentTimeMillis() + expiryDuration.getMillis())
                 .issueDate(issue)
-                .type(licenseType )
+                .type(licenseType)
                 .issuedTo("customer")
                 .issuer("elasticsearch")
                 .maxNodes(5);
@@ -283,8 +283,7 @@ public class TestUtils {
             builder.feature(randomAlphaOfLength(10));
         }
         if ("enterprise".equals(licenseType)) {
-            builder
-                .version(License.VERSION_ENTERPRISE)
+            builder.version(License.VERSION_ENTERPRISE)
                 .maxResourceUnits(randomIntBetween(5, 500))
                 .maxNodes(-1);
         }

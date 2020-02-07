@@ -360,7 +360,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("platinum-cluster", platinumLicence);
         final AssertionError e = expectThrows(
                 AssertionError.class,
-                () -> RemoteClusterLicenseChecker.buildErrorMessage("", info, RemoteClusterLicenseChecker::isAllowedByLicenseInfo));
+                () -> RemoteClusterLicenseChecker.buildErrorMessage("", info, RemoteClusterLicenseChecker::isAllowedByLicense));
         assertThat(e, hasToString(containsString("license must be incompatible to build error message")));
     }
 
@@ -369,7 +369,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("basic-cluster", basicLicense);
         assertThat(
-                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isAllowedByLicenseInfo),
+                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isAllowedByLicense),
                 equalTo("the license mode [BASIC] on cluster [basic-cluster] does not enable [Feature]"));
     }
 
@@ -378,7 +378,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("expired-cluster", expiredLicense);
         assertThat(
-                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isAllowedByLicenseInfo),
+                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isAllowedByLicense),
                 equalTo("the license on cluster [expired-cluster] is not active"));
     }
 

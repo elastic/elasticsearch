@@ -55,9 +55,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.binaryCommunication = binaryCommunication;
     }
 
-    public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo,
+    public SqlQueryRequest(String cursor, ZoneId zoneId, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo,
                            boolean binaryCommunication) {
-        this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
+        this("", Collections.emptyList(), zoneId, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
                 null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication);
     }
 

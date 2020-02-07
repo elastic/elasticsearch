@@ -83,7 +83,7 @@ public class HttpClient {
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
         // method called only from CLI
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, Protocol.TIME_ZONE, TimeValue.timeValueMillis(cfg.queryTimeout()),
                 TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.CLI), cfg.binaryCommunication());
         return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }

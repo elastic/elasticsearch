@@ -75,7 +75,7 @@ class JdbcHttpClient {
      * the scroll id to use to fetch the next page.
      */
     Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(meta.timeoutInMs()),
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, conCfg.zoneId(), TimeValue.timeValueMillis(meta.timeoutInMs()),
                 TimeValue.timeValueMillis(meta.queryTimeoutInMs()), new RequestInfo(Mode.JDBC), conCfg.binaryCommunication());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new Tuple<>(response.cursor(), response.rows());

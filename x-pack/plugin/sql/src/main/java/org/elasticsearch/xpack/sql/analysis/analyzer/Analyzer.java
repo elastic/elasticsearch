@@ -345,10 +345,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
 
                     //if all we're selecting are functions or literals, even if we're giving them aliases.
-                    if(a.aggregates().stream().filter(s -> s.children().size()>0
-                        && (s.children().get(0) instanceof Literal) == false
-                        && (s.children().get(0) instanceof Function) == false)
-                        .collect(toSet()).isEmpty()){
+                    final boolean[] updateResolved = {true};
+                    a.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                        if (e instanceof Alias
+                            && ((Alias) e).child() instanceof Function == false
+                            && ((Alias) e).child() instanceof Literal == false) {
+                            updateResolved[0] = false;
+                        }
+                    }));
+                    if(updateResolved[0]){
                         var allFields = plan.inputSet().stream().map(NamedExpression.class::cast)
                             .collect(toList());
                         allFields.addAll(a.aggregates());

@@ -1,47 +1,36 @@
 {
-  "cat.ml.trained_models":{
+  "cat.ml_jobs":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html"
     },
     "stability":"stable",
     "url":{
       "paths":[
         {
-          "path":"/_cat/ml/trained_models",
+          "path":"/_cat/ml/anomaly_detectors",
           "methods":[
             "GET"
           ]
         },
         {
-          "path":"/_cat/ml/trained_models/{model_id}",
+          "path":"/_cat/ml/anomaly_detectors/{job_id}",
           "methods":[
             "GET"
           ],
           "parts":{
-            "model_id":{
+            "job_id":{
               "type":"string",
-              "description":"The ID of the trained models stats to fetch"
+              "description":"The ID of the jobs stats to fetch"
             }
           }
         }
       ]
     },
     "params":{
-      "allow_no_match":{
+      "allow_no_jobs":{
         "type":"boolean",
         "required":false,
-        "description":"Whether to ignore if a wildcard expression matches no trained models. (This includes `_all` string or when no trained models have been specified)",
-        "default":true
-      },
-      "from":{
-        "type":"int",
-        "description":"skips a number of trained models",
-        "default":0
-      },
-      "size":{
-        "type":"int",
-        "description":"specifies a max number of trained models to get",
-        "default":100
+        "description":"Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)"
       },
       "bytes":{
         "type":"enum",

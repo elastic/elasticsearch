@@ -51,7 +51,8 @@ public final class IndexMetaDataGenerations {
     public static final IndexMetaDataGenerations EMPTY = new IndexMetaDataGenerations(Collections.emptyMap(), Collections.emptyMap());
 
     /**
-     * Map of a tuple of {@link SnapshotId} and {@link IndexId} to metadata hash.
+     * Map of {@link SnapshotId} to a map of the indices in a snapshot mapping {@link IndexId} to metadata hash.
+     * The hashes in the nested map can be mapped to the relevant blob uuid via {@link #getIndexMetaBlobId}.
      */
     final Map<SnapshotId, Map<IndexId, String>> lookup;
 
@@ -73,7 +74,7 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Get the blob id by the hash of {@link IndexMetaData} computed via {@link #hashIndexMetaData} or {@code null} if none is
+     * Gets the blob id by the hash of {@link IndexMetaData} (computed via {@link #hashIndexMetaData}) or {@code null} if none is
      * tracked for the hash.
      *
      * @param metaHash hash of {@link IndexMetaData}
@@ -87,7 +88,8 @@ public final class IndexMetaDataGenerations {
     /**
      * Get the blob id by {@link SnapshotId} and {@link IndexId} and fall back to the value of {@link SnapshotId#getUUID()} if none is
      * known to enable backwards compatibility with versions older than
-     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
+     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} which used the snapshot uuid as index metadata
+     * blob uuid.
      *
      * @param snapshotId Snapshot Id
      * @param indexId    Index Id
@@ -103,7 +105,7 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Create a new instance with the snapshot and index metadata uuids and hashes added.
+     * Create a new instance with the given snapshot and index metadata uuids and hashes added.
      *
      * @param snapshotId SnapshotId
      * @param newLookup new mappings of index + snapshot to index metadata hash
@@ -180,7 +182,7 @@ public final class IndexMetaDataGenerations {
             normalized.primaryTerm(i, 1L);
         }
         // IndexMetaData is serialized as a number of nested maps without any ordering guarantees. To get a consistent hash we first turn
-        // it into a nested tree-map to get ordering across all fields and then hash the nested tree-map
+        // it into a nested tree-map to get deterministic ordering across all fields and then hash the nested tree-map
         // TODO: Do the conversion of metadata to map more efficiently without the serialization round-trip
         final Map<String, Object> normalizedMap = deepSort(
             XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(normalized.build()), true));

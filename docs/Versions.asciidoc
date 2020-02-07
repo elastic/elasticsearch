@@ -59,6 +59,21 @@ endif::[]
 :javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
 
 ///////
+Permanently unreleased branches (master, n.X)
+///////
+ifeval::["{release-state}"=="unreleased"]
+
+ifeval::["{source_branch}"=="master"]
+:permanently-unreleased-branch:
+endif::[]
+
+ifeval::["{source_branch}"=="{major-version}"]
+:permanently-unreleased-branch:
+endif::[]
+
+endif::[]
+
+///////
 Shared attribute values are pulled from elastic/docs
 ///////
 

@@ -57,24 +57,6 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
         );
     }
 
-    public static TransformIndexerStats randomBatchStats() {
-        return new TransformIndexerStats(
-            randomLongBetween(10L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            null,
-            null,
-            null
-        );
-    }
-
     public void testExpAvgIncrement() {
         TransformIndexerStats stats = new TransformIndexerStats();
 
@@ -93,22 +75,5 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
         assertThat(stats.getExpAvgCheckpointDurationMs(), closeTo(109.090909, 0.0000001));
         assertThat(stats.getExpAvgDocumentsIndexed(), closeTo(20.54545454, 0.0000001));
         assertThat(stats.getExpAvgDocumentsProcessed(), closeTo(59.0909090, 0.0000001));
-    }
-
-    public void testOmitContinuousStatsForBatch() throws IOException {
-        TransformIndexerStats stats = randomBatchStats();
-        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            XContentBuilder content = stats.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            Map<String, Object> statsAsMapAfterXContent = XContentHelper.convertToMap(
-                BytesReference.bytes(content),
-                true,
-                XContentType.JSON
-            ).v2();
-            assertFalse(
-                statsAsMapAfterXContent.containsKey(TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName())
-            );
-            assertFalse(statsAsMapAfterXContent.containsKey(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName()));
-            assertFalse(statsAsMapAfterXContent.containsKey(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName()));
-        }
     }
 }

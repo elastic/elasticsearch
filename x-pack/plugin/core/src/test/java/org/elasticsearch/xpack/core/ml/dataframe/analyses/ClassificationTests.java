@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;

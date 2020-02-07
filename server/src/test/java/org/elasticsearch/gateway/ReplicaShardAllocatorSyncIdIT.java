@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -70,6 +71,7 @@ import static org.hamcrest.Matchers.hasSize;
  * TODO: Remove this test in 9.0
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51926")
 public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
 
     private static class SyncedFlushEngine extends InternalEngine {
@@ -88,7 +90,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         void syncFlush(String syncId) throws IOException {
             assertNotNull(indexWriter);
             try (ReleasableLock ignored = writeLock.acquire()) {
-                assertThat(getTranslogStats().getUncommittedOperations(), equalTo(0));
+                assertFalse(indexWriter.hasUncommittedChanges());
                 Map<String, String> userData = new HashMap<>(getLastCommittedSegmentInfos().userData);
                 userData.put(Engine.SYNC_COMMIT_ID, syncId);
                 indexWriter.setLiveCommitData(userData.entrySet());

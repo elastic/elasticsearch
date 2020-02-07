@@ -27,13 +27,10 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.invoke.MethodType;
@@ -46,25 +43,15 @@ import java.util.Map;
 
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.BITSET_TYPE;
-import static org.elasticsearch.painless.WriterConstants.BOOTSTRAP_METHOD_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.COLLECTIONS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.CONVERT_TO_SCRIPT_EXCEPTION_METHOD;
 import static org.elasticsearch.painless.WriterConstants.DEFINITION_TYPE;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_METHOD;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_METHOD;
-import static org.elasticsearch.painless.WriterConstants.EMPTY_MAP_METHOD;
-import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
 import static org.elasticsearch.painless.WriterConstants.FUNCTION_TABLE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
-import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
-import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.STACK_OVERFLOW_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
 
 public class ClassNode extends IRNode {
@@ -73,7 +60,6 @@ public class ClassNode extends IRNode {
 
     private final List<FieldNode> fieldNodes = new ArrayList<>();
     private final List<FunctionNode> functionNodes = new ArrayList<>();
-    private final List<StatementNode> statementNodes = new ArrayList<>();
 
     public void addFieldNode(FieldNode fieldNode) {
         fieldNodes.add(fieldNode);
@@ -90,14 +76,6 @@ public class ClassNode extends IRNode {
     public List<FunctionNode> getFunctionsNodes() {
         return functionNodes;
     }
-
-    public void addStatementNode(StatementNode statementNode) {
-        statementNodes.add(statementNode);
-    }
-
-    public List<StatementNode> getStatementsNodes() {
-        return statementNodes;
-    }
     
     /* ---- end tree structure, begin node data ---- */
 
@@ -106,7 +84,6 @@ public class ClassNode extends IRNode {
     private String sourceText;
     private Printer debugStream;
     private ScriptRoot scriptRoot;
-    private boolean doesMethodEscape;
 
     public void setScriptClassInfo(ScriptClassInfo scriptClassInfo) {
         this.scriptClassInfo = scriptClassInfo;
@@ -146,14 +123,6 @@ public class ClassNode extends IRNode {
 
     public ScriptRoot getScriptRoot() {
         return scriptRoot;
-    }
-
-    public void setMethodEscape(boolean doesMethodEscape) {
-        this.doesMethodEscape = doesMethodEscape;
-    }
-
-    public boolean doesMethodEscape() {
-        return doesMethodEscape;
     }
 
     /* ---- end node data ---- */
@@ -245,12 +214,6 @@ public class ClassNode extends IRNode {
         statementsMethod.returnValue();
         statementsMethod.endMethod();
 
-        // Write the method defined in the interface:
-        MethodWriter executeMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, scriptClassInfo.getExecuteMethod());
-        executeMethod.visitCode();
-        write(classWriter, executeMethod, globals, new ScopeTable());
-        executeMethod.endMethod();
-
         // Write all fields:
         for (FieldNode fieldNode : fieldNodes) {
             fieldNode.write(classWriter, null, null, null);
@@ -304,117 +267,5 @@ public class ClassNode extends IRNode {
         }
 
         return statics;
-    }
-
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
-        // We wrap the whole method in a few try/catches to handle and/or convert other exceptions to ScriptException
-        Label startTry = new Label();
-        Label endTry = new Label();
-        Label startExplainCatch = new Label();
-        Label startOtherCatch = new Label();
-        Label endCatch = new Label();
-        methodWriter.mark(startTry);
-
-        scopeTable.defineInternalVariable(Object.class, "this");
-
-        // Method arguments
-        for (ScriptClassInfo.MethodArgument arg : scriptClassInfo.getExecuteArguments()) {
-            scopeTable.defineVariable(arg.getClazz(), arg.getName());
-        }
-
-        if (scriptRoot.getCompilerSettings().getMaxLoopCounter() > 0) {
-            // if there is infinite loop protection, we do this once:
-            // int #loop = settings.getMaxLoopCounter()
-
-            Variable loop = scopeTable.defineInternalVariable(int.class, "loop");
-
-            methodWriter.push(scriptRoot.getCompilerSettings().getMaxLoopCounter());
-            methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
-        }
-
-        for (int getMethodIndex = 0; getMethodIndex < scriptClassInfo.getGetMethods().size(); ++getMethodIndex) {
-            Method method = scriptClassInfo.getGetMethods().get(getMethodIndex);
-            Class<?> returnType = scriptClassInfo.getGetReturns().get(getMethodIndex);
-
-            String name = method.getName().substring(3);
-            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-
-            if (scriptRoot.getUsedVariables().contains(name)) {
-                Variable variable = scopeTable.defineVariable(returnType, name);
-
-                methodWriter.loadThis();
-                methodWriter.invokeVirtual(Type.getType(scriptClassInfo.getBaseClass()), method);
-                methodWriter.visitVarInsn(method.getReturnType().getOpcode(Opcodes.ISTORE), variable.getSlot());
-            }
-        }
-
-        for (StatementNode statementNode : statementNodes) {
-            statementNode.write(classWriter, methodWriter, globals, scopeTable);
-        }
-
-        if (doesMethodEscape == false) {
-            switch (scriptClassInfo.getExecuteMethod().getReturnType().getSort()) {
-                case org.objectweb.asm.Type.VOID:
-                    break;
-                case org.objectweb.asm.Type.BOOLEAN:
-                    methodWriter.push(false);
-                    break;
-                case org.objectweb.asm.Type.BYTE:
-                    methodWriter.push(0);
-                    break;
-                case org.objectweb.asm.Type.SHORT:
-                    methodWriter.push(0);
-                    break;
-                case org.objectweb.asm.Type.INT:
-                    methodWriter.push(0);
-                    break;
-                case org.objectweb.asm.Type.LONG:
-                    methodWriter.push(0L);
-                    break;
-                case org.objectweb.asm.Type.FLOAT:
-                    methodWriter.push(0f);
-                    break;
-                case org.objectweb.asm.Type.DOUBLE:
-                    methodWriter.push(0d);
-                    break;
-                default:
-                    methodWriter.visitInsn(Opcodes.ACONST_NULL);
-            }
-            methodWriter.returnValue();
-        }
-
-        methodWriter.mark(endTry);
-        methodWriter.goTo(endCatch);
-        // This looks like:
-        // } catch (PainlessExplainError e) {
-        //   throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
-        // }
-        methodWriter.visitTryCatchBlock(startTry, endTry, startExplainCatch, PAINLESS_EXPLAIN_ERROR_TYPE.getInternalName());
-        methodWriter.mark(startExplainCatch);
-        methodWriter.loadThis();
-        methodWriter.swap();
-        methodWriter.dup();
-        methodWriter.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
-        methodWriter.invokeVirtual(PAINLESS_EXPLAIN_ERROR_TYPE, PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD);
-        methodWriter.invokeInterface(BASE_INTERFACE_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
-        methodWriter.throwException();
-        // This looks like:
-        // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
-        //   throw this.convertToScriptException(e, e.getHeaders())
-        // }
-        // We *think* it is ok to catch OutOfMemoryError and StackOverflowError because Painless is stateless
-        methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, PAINLESS_ERROR_TYPE.getInternalName());
-        methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, BOOTSTRAP_METHOD_ERROR_TYPE.getInternalName());
-        methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, OUT_OF_MEMORY_ERROR_TYPE.getInternalName());
-        methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, STACK_OVERFLOW_ERROR_TYPE.getInternalName());
-        methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, EXCEPTION_TYPE.getInternalName());
-        methodWriter.mark(startOtherCatch);
-        methodWriter.loadThis();
-        methodWriter.swap();
-        methodWriter.invokeStatic(COLLECTIONS_TYPE, EMPTY_MAP_METHOD);
-        methodWriter.invokeInterface(BASE_INTERFACE_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
-        methodWriter.throwException();
-        methodWriter.mark(endCatch);
     }
 }

@@ -32,13 +32,14 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
  * A processor that breaks line from CSV file into separate fields.
  * If there's more fields requested than there is in the CSV, extra field will not be present in the document after processing.
  * In the same way this processor will skip any field that is empty in CSV.
- *
+ * <p>
  * By default it uses rules according to <a href="https://tools.ietf.org/html/rfc4180">RCF 4180</a> with one exception: whitespaces are
  * allowed before or after quoted field. Processor can be tweaked with following parameters:
- *
+ * <p>
  * quote: set custom quote character (defaults to ")
  * separator: set custom separator (defaults to ,)
  * trim: trim leading and trailing whitespaces in unquoted fields
+ * empty_value: sets custom value to use for empty fields (field is skipped if null)
  */
 public final class CsvProcessor extends AbstractProcessor {
 
@@ -50,8 +51,10 @@ public final class CsvProcessor extends AbstractProcessor {
     private final char quote;
     private final char separator;
     private final boolean ignoreMissing;
+    private final Object emptyValue;
 
-    CsvProcessor(String tag, String field, String[] headers, boolean trim, char separator, char quote, boolean ignoreMissing) {
+    CsvProcessor(String tag, String field, String[] headers, boolean trim, char separator, char quote, boolean ignoreMissing,
+                 Object emptyValue) {
         super(tag);
         this.field = field;
         this.headers = headers;
@@ -59,6 +62,7 @@ public final class CsvProcessor extends AbstractProcessor {
         this.quote = quote;
         this.separator = separator;
         this.ignoreMissing = ignoreMissing;
+        this.emptyValue = emptyValue;
     }
 
     @Override
@@ -73,7 +77,7 @@ public final class CsvProcessor extends AbstractProcessor {
         } else if (line == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
-        new CsvParser(ingestDocument, quote, separator, trim, headers).process(line);
+        new CsvParser(ingestDocument, quote, separator, trim, headers, emptyValue).process(line);
         return ingestDocument;
     }
 
@@ -96,13 +100,17 @@ public final class CsvProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "separator", "separator has to be single character like , or ;");
             }
             boolean trim = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trim", false);
+            Object emptyValue = null;
+            if(config.containsKey("emptyValue")){
+                emptyValue = ConfigurationUtils.readObject(TYPE, processorTag, config, "empty_value");
+            }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             List<String> targetFields = ConfigurationUtils.readList(TYPE, processorTag, config, "target_fields");
             if (targetFields.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "target_fields", "target fields list can't be empty");
             }
             return new CsvProcessor(processorTag, field, targetFields.toArray(String[]::new), trim, separator.charAt(0), quote.charAt(0),
-                ignoreMissing);
+                ignoreMissing, emptyValue);
         }
     }
 }

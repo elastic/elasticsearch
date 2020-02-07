@@ -4,7 +4,12 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-/**
- * Package containing usage information for features that are exposed in OSS.
- */
-package org.elasticsearch.xpack.oss;
+package org.elasticsearch.xpack.eql.expression.function;
+
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+
+public class EqlFunctionRegistry extends FunctionRegistry {
+
+    public EqlFunctionRegistry() {
+    }
+}

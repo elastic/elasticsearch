@@ -52,6 +52,27 @@ import java.util.stream.StreamSupport;
  */
 final class JvmOptionsParser {
 
+    private static class JvmOptionsFileParserException extends Exception {
+
+        private final Path jvmOptionsFile;
+
+        Path jvmOptionsFile() {
+            return jvmOptionsFile;
+        }
+
+        private final SortedMap<Integer, String> invalidLines;
+
+        SortedMap<Integer, String> invalidLines() {
+            return invalidLines;
+        }
+
+        JvmOptionsFileParserException(final Path jvmOptionsFile, final SortedMap<Integer, String> invalidLines) {
+            this.jvmOptionsFile = jvmOptionsFile;
+            this.invalidLines = invalidLines;
+        }
+
+    }
+
     /**
      * The main entry point. The exit code is 0 if the JVM options were successfully parsed, otherwise the exit code is 1. If an improperly
      * formatted line is discovered, the line is output to standard error.
@@ -63,14 +84,60 @@ final class JvmOptionsParser {
             throw new IllegalArgumentException("expected one argument specifying path to ES_PATH_CONF but was " + Arrays.toString(args));
         }
 
-        final ArrayList<Path> jvmOptionsFiles = new ArrayList<>();
-        jvmOptionsFiles.add(Paths.get(args[0], "jvm.options"));
+        final JvmOptionsParser parser = new JvmOptionsParser();
 
-        final Path jvmOptionsDirectory = Paths.get(args[0], "jvm.options.d");
+        final Map<String, String> substitutions = new HashMap<>();
+        substitutions.put("ES_TMPDIR", System.getenv("ES_TMPDIR"));
+        final String environmentPathConf = System.getenv("ES_PATH_CONF");
+        if (environmentPathConf != null) {
+            substitutions.put("ES_PATH_CONF", environmentPathConf);
+        }
+
+        try {
+            final List<String> jvmOptions = parser.jvmOptions(Paths.get(args[0]), System.getenv("ES_JAVA_OPTS"), substitutions);
+            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
+            Launchers.outPrintln(spaceDelimitedJvmOptions);
+        } catch (final JvmOptionsFileParserException e) {
+            final String errorMessage = String.format(
+                Locale.ROOT,
+                "encountered [%d] error%s parsing [%s]",
+                e.invalidLines().size(),
+                e.invalidLines().size() == 1 ? "" : "s",
+                e.jvmOptionsFile()
+            );
+            Launchers.errPrintln(errorMessage);
+            int count = 0;
+            for (final Map.Entry<Integer, String> entry : e.invalidLines().entrySet()) {
+                count++;
+                final String message = String.format(
+                    Locale.ROOT,
+                    "[%d]: encountered improperly formatted JVM option in [%s] on line number [%d]: [%s]",
+                    count,
+                    e.jvmOptionsFile(),
+                    entry.getKey(),
+                    entry.getValue()
+                );
+                Launchers.errPrintln(message);
+            }
+            Launchers.exit(1);
+        }
+
+        Launchers.exit(0);
+    }
+
+    private List<String> jvmOptions(
+        final Path config,
+        final String esJavaOpts,
+        final Map<String, String> substitutions
+    ) throws InterruptedException, IOException, JvmOptionsFileParserException {
+        final ArrayList<Path> jvmOptionsFiles = new ArrayList<>();
+        jvmOptionsFiles.add(config.resolve("jvm.options"));
+
+        final Path jvmOptionsDirectory = config.resolve("jvm.options.d");
 
         if (Files.isDirectory(jvmOptionsDirectory)) {
             try (
-                DirectoryStream<Path> jvmOptionsDirectoryStream = Files.newDirectoryStream(Paths.get(args[0], "jvm.options.d"), "*.options")
+                DirectoryStream<Path> jvmOptionsDirectoryStream = Files.newDirectoryStream(config.resolve("jvm.options.d"), "*.options")
             ) {
                 // collect the matching JVM options files after sorting them by Path::compareTo
                 StreamSupport.stream(jvmOptionsDirectoryStream.spliterator(), false).sorted().forEach(jvmOptionsFiles::add);
@@ -89,45 +156,18 @@ final class JvmOptionsParser {
                 parse(JavaVersion.majorVersion(JavaVersion.CURRENT), br, jvmOptions::add, invalidLines::put);
             }
             if (invalidLines.isEmpty() == false) {
-                final String errorMessage = String.format(
-                    Locale.ROOT,
-                    "encountered [%d] error%s parsing [%s]",
-                    invalidLines.size(),
-                    invalidLines.size() == 1 ? "" : "s",
-                    jvmOptionsFile
-                );
-                Launchers.errPrintln(errorMessage);
-                int count = 0;
-                for (final Map.Entry<Integer, String> entry : invalidLines.entrySet()) {
-                    count++;
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "[%d]: encountered improperly formatted JVM option in [%s] on line number [%d]: [%s]",
-                        count,
-                        jvmOptionsFile,
-                        entry.getKey(),
-                        entry.getValue()
-                    );
-                    Launchers.errPrintln(message);
-                }
-                Launchers.exit(1);
+                throw new JvmOptionsFileParserException(jvmOptionsFile, invalidLines);
             }
         }
 
-        // now append the JVM options from ES_JAVA_OPTS
-        final String environmentJvmOptions = System.getenv("ES_JAVA_OPTS");
-        if (environmentJvmOptions != null) {
+        if (esJavaOpts != null) {
             jvmOptions.addAll(
-                Arrays.stream(environmentJvmOptions.split("\\s+"))
+                Arrays.stream(esJavaOpts.split("\\s+"))
                     .filter(Predicate.not(String::isBlank))
                     .collect(Collectors.toUnmodifiableList())
             );
         }
-        final Map<String, String> substitutions = new HashMap<>();
-        substitutions.put("ES_TMPDIR", System.getenv("ES_TMPDIR"));
-        if (null != System.getenv("ES_PATH_CONF")) {
-            substitutions.put("ES_PATH_CONF", System.getenv("ES_PATH_CONF"));
-        }
+
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
@@ -137,9 +177,8 @@ final class JvmOptionsParser {
         finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
         finalJvmOptions.addAll(substitutedJvmOptions);
         finalJvmOptions.addAll(ergonomicJvmOptions);
-        final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(finalJvmOptions);
-        Launchers.outPrintln(spaceDelimitedJvmOptions);
-        Launchers.exit(0);
+
+        return finalJvmOptions;
     }
 
     static List<String> substitutePlaceholders(final List<String> jvmOptions, final Map<String, String> substitutions) {

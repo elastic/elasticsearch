@@ -170,7 +170,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject(fieldName).field("type", "percolator").endObject().endObject()
                 .endObject().endObject());
         mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
-        fieldType = (PercolatorFieldMapper.FieldType) mapperService.fullName(fieldName);
+        fieldType = (PercolatorFieldMapper.FieldType) mapperService.fieldType(fieldName);
     }
 
     public void testExtractTerms() throws Exception {
@@ -229,10 +229,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     public void testExtractRanges() throws Exception {
         addQueryFieldMappings();
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        Query rangeQuery1 = mapperService.fullName("number_field1")
+        Query rangeQuery1 = mapperService.fieldType("number_field1")
             .rangeQuery(10, 20, true, true, null, null, null, null);
         bq.add(rangeQuery1, Occur.MUST);
-        Query rangeQuery2 = mapperService.fullName("number_field1")
+        Query rangeQuery2 = mapperService.fieldType("number_field1")
             .rangeQuery(15, 20, true, true, null, null, null, null);
         bq.add(rangeQuery2, Occur.MUST);
 
@@ -264,7 +264,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         // Range queries on different fields:
         bq = new BooleanQuery.Builder();
         bq.add(rangeQuery1, Occur.MUST);
-        rangeQuery2 = mapperService.fullName("number_field2")
+        rangeQuery2 = mapperService.fieldType("number_field2")
             .rangeQuery(15, 20, true, true, null, null, null, null);
         bq.add(rangeQuery2, Occur.MUST);
 

@@ -158,10 +158,10 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
         KeyedFlatObjectFieldType fieldType1 = new KeyedFlatObjectFieldType("key1");
-        when(mapperService.fullName("json.key1")).thenReturn(fieldType1);
+        when(mapperService.fieldType("json.key1")).thenReturn(fieldType1);
 
         KeyedFlatObjectFieldType fieldType2 = new KeyedFlatObjectFieldType( "key2");
-        when(mapperService.fullName("json.key2")).thenReturn(fieldType2);
+        when(mapperService.fieldType("json.key2")).thenReturn(fieldType2);
 
         Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {
             KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) fieldType;

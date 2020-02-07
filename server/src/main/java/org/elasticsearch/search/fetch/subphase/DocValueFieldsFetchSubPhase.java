@@ -93,7 +93,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
         for (FieldAndFormat fieldAndFormat : context.docValueFieldsContext().fields()) {
             String field = fieldAndFormat.field;
-            MappedFieldType fieldType = context.mapperService().fullName(field);
+            MappedFieldType fieldType = context.mapperService().fieldType(field);
             if (fieldType != null) {
                 final IndexFieldData<?> indexFieldData = context.getForField(fieldType);
                 final boolean isNanosecond;

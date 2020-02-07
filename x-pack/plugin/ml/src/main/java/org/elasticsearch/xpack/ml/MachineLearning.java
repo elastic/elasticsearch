@@ -59,7 +59,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -231,7 +230,6 @@ import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
-import org.elasticsearch.xpack.ml.inference.search.InferenceQueryBuilder;
 import org.elasticsearch.xpack.ml.inference.search.InferenceRescorerBuilder;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
@@ -366,21 +364,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
     };
 
-    public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-//        return Collections.singletonList(new InferenceFetchSubPhase());
-        return Collections.emptyList();
-    }
-
     @Override
     public List<RescorerSpec<?>> getRescorers() {
         return Collections.singletonList(
                 new RescorerSpec<>(InferenceRescorerBuilder.NAME, InferenceRescorerBuilder::new, InferenceRescorerBuilder::fromXContent));
-    }
-
-    @Override
-    public List<QuerySpec<?>> getQueries() {
-        return Collections.singletonList(
-                new QuerySpec<>(InferenceQueryBuilder.NAME, InferenceQueryBuilder::new, InferenceQueryBuilder::fromXContent));
     }
 
     @Override

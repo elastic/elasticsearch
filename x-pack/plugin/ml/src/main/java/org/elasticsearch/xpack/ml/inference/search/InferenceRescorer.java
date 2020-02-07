@@ -121,47 +121,6 @@ public class InferenceRescorer implements Rescorer {
             }
         }
 
-
-        /*
-        for (int i=0; i<sortedHits.length; i++) {
-            ScoreDoc scoreDoc = sortedHits[i];
-
-            LeafReaderContext leafContext = leaves.get(ReaderUtil.subIndex(scoreDoc.doc, leaves));
-
-            for (String field : fieldsToRead) {
-                SortedNumericDocValues docValuesIter = DocValues.getSortedNumeric(leafContext.reader(), field);
-                SortedNumericDoubleValues doubles = FieldData.sortableLongBitsToDoubles(docValuesIter);
-                if (doubles.advanceExact(scoreDoc.doc)) {
-                    double val = doubles.nextValue();
-                    fields.put(fieldMap.getOrDefault(field, field), val);
-                } else if (docValuesIter.docID() == DocIdSetIterator.NO_MORE_DOCS) {
-                    logger.warn("No more docs for field {}, doc {}", field, scoreDoc.doc);
-                    fields.remove(field);
-                } else {
-                    logger.warn("no value for field {}, doc {}", field, scoreDoc.doc);
-                    fields.remove(field);
-                }
-            }
-
-
-
-            InferenceResults infer = model.infer(fields, inferenceConfig);
-            if (infer instanceof WarningInferenceResults) {
-                logger.warn("inference error: " + ((WarningInferenceResults) infer).getWarning());
-                // TODO how to propagate this error
-            } else {
-                SingleValueInferenceResults regressionResult = (SingleValueInferenceResults) infer;
-
-                float combinedScore = scoreModeSettings.scoreMode.combine(
-                        scoreDoc.score * scoreModeSettings.queryWeight,
-                        regressionResult.value().floatValue() * scoreModeSettings.modelWeight);
-
-                sortedHits[i] = new ScoreDoc(scoreDoc.doc, combinedScore);
-            }
-        }
-
-         */
-
         return new TopDocs(topDocs.totalHits, sortedHits);
     }
 

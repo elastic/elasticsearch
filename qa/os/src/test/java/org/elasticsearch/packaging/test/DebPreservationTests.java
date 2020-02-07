@@ -54,12 +54,11 @@ public class DebPreservationTests extends PackagingTestCase {
     }
 
     public void test20Remove() throws Exception {
+        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
+
         remove(distribution());
 
         // some config files were not removed
-
-        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
-
         assertPathsExist(
             installation.config,
             installation.config("elasticsearch.yml"),

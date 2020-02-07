@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  * Tests failure capturing and abort-on-failure behavior of reindex.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52021")
 public class ReindexFailureTests extends ReindexTestCase {
     public void testFailuresCauseAbortDefault() throws Exception {
         /*

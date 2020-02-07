@@ -5652,8 +5652,8 @@ public class InternalEngineTests extends EngineTestCase {
                 for (Engine.Operation op : operations) {
                     applyOperation(engine, op);
                     if (randomBoolean()) {
-                        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getProcessedLocalCheckpoint()));
                         engine.syncTranslog();
+                        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
                     }
                     if (randomInt(100) < 10) {
                         engine.refresh("test");

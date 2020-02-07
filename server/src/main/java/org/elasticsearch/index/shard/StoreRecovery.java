@@ -50,7 +50,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -475,33 +474,24 @@ final class StoreRecovery {
             translogState.totalOperationsOnStart(0);
             indexShard.prepareForIndexRecovery();
             final ShardId snapshotShardId;
-            final IndexId indexIdFromCS = restoreSource.index();
-            if (shardId.getIndexName().equals(indexIdFromCS.getName())) {
+            final IndexId indexId = restoreSource.index();
+            if (shardId.getIndexName().equals(indexId.getName())) {
                 snapshotShardId = shardId;
             } else {
-                snapshotShardId = new ShardId(indexIdFromCS.getName(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
+                snapshotShardId = new ShardId(indexId.getName(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
-            // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it buy index name
-            final boolean indexUUIDUnavailable = indexIdFromCS.getId().equals(IndexMetaData.INDEX_UUID_NA_VALUE);
-            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-            repositoryDataListener.whenComplete(repositoryData -> {
-                final IndexId indexId;
-                if (indexUUIDUnavailable) {
-                    indexId = repositoryData.resolveIndexId(indexIdFromCS.getName());
-                } else {
-                    assert repositoryData == null: "Shouldn't have loaded RepositoryData but saw [" + repositoryData + "]";
-                    indexId = indexIdFromCS;
-                }
-                assert indexShard.getEngineOrNull() == null;
-                repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
-                    indexShard.recoveryState(), restoreListener);
-            }, restoreListener::onFailure);
-            if (indexUUIDUnavailable) {
+            final StepListener<IndexId> indexIdListener = new StepListener<>();
+            // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
+            if (indexId.getId().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
                 // BwC path, running against an old version master that did not add the IndexId to the recovery source
-                repository.getRepositoryData(repositoryDataListener);
+                repository.getRepositoryData(ActionListener.map(
+                    indexIdListener, repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
             } else {
-                repositoryDataListener.onResponse(null);
+                indexIdListener.onResponse(indexId);
             }
+            assert indexShard.getEngineOrNull() == null;
+            indexIdListener.whenComplete(idx -> repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(),
+                idx, snapshotShardId, indexShard.recoveryState(), restoreListener), restoreListener::onFailure);
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }

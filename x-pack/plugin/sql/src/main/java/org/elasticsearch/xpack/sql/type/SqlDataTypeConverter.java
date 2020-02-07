@@ -404,7 +404,7 @@ public final class SqlDataTypeConverter {
         STRING_ISO8601_PERIOD_TO_TEMPORAL(fromString(Period::parse, SqlConverter.INTERVAL_TYPE_NAME)),
         STRING_ISO8601_DURATION_TO_TEMPORAL(fromString(Duration::parse, SqlConverter.INTERVAL_TYPE_NAME));
 
-        private static final String INTERVAL_TYPE_NAME = "INTERVAL(period)";
+        private static final String INTERVAL_TYPE_NAME = "INTERVAL";
         public static final String NAME = "dtc-sql";
 
         private final Function<Object, Object> converter;

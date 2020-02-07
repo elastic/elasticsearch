@@ -392,11 +392,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             }
             return a;
         }
-        
+
         static EsQueryExec fold(AggregateExec a, EsQueryExec exec) {
-            
+
             QueryContainer queryC = exec.queryContainer();
-            
+
             // track aliases defined in the SELECT and used inside GROUP BY
             // SELECT x AS a ... GROUP BY a
             Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
@@ -405,7 +405,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
                 }
             }
-            
+
             if (aliasMap.isEmpty() == false) {
                 Map<Attribute, Expression> newAliases = new LinkedHashMap<>(queryC.aliases());
                 newAliases.putAll(aliasMap);
@@ -455,6 +455,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // literal
                 if (target.foldable()) {
                     queryC = queryC.addColumn(ne.toAttribute());
+                    if(a.groupings().isEmpty() == false){
+                        for (Expression grouping : a.groupings()) {
+                            GroupByKey matchingGroup = groupingContext.groupFor(grouping);
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id);
+                        }
+                    }
                 }
 
                 // look at functions

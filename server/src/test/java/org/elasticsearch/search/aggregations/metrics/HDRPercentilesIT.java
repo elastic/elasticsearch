@@ -70,7 +70,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
     private static double[] randomPercentiles() {
         final int length = randomIntBetween(1, 20);
         final Set<Double> uniquedPercentiles = new HashSet<>();
-        for (int i = 0; i < length; ++i) {
+        while (uniquedPercentiles.size() < length) {
             switch (randomInt(20)) {
             case 0:
                 uniquedPercentiles.add(0.0);

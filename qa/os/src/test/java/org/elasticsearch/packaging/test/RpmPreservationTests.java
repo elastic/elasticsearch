@@ -28,6 +28,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
@@ -60,13 +62,13 @@ public class RpmPreservationTests extends PackagingTestCase {
         remove(distribution());
 
         // config was removed
-        assertFalse(Files.exists(installation.config));
+        assertThat(installation.config, fileDoesNotExist());
 
         // sysvinit service file was removed
-        assertFalse(Files.exists(SYSVINIT_SCRIPT));
+        assertThat(SYSVINIT_SCRIPT, fileDoesNotExist());
 
         // defaults file was removed
-        assertFalse(Files.exists(installation.envFile));
+        assertThat(installation.envFile, fileDoesNotExist());
     }
 
     public void test30PreserveConfig() throws Exception {
@@ -115,8 +117,8 @@ public class RpmPreservationTests extends PackagingTestCase {
             SYSTEMD_SERVICE
         );
 
-        assertTrue(Files.exists(installation.config));
-        assertTrue(Files.exists(installation.config("elasticsearch.keystore")));
+        assertThat(installation.config, fileExists());
+        assertThat(installation.config("elasticsearch.keystore"), fileExists());
 
         Stream.of(
             "elasticsearch.yml",

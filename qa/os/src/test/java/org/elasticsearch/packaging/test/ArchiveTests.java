@@ -34,6 +34,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
@@ -342,7 +344,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         if (distribution().isDefault()) {
-            assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
             final Platforms.PlatformAction action = () -> {
                 Result result = sh.run(bin.certutilTool + " --help");
                 assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
@@ -355,7 +357,7 @@ public class ArchiveTests extends PackagingTestCase {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         } else {
-            assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileDoesNotExist());
         }
     }
 

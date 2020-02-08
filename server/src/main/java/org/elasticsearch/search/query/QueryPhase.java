@@ -420,7 +420,7 @@ public class QueryPhase implements SearchPhase {
         String fieldName = sortField.getField();
         if (fieldName == null) return null; // happens when _score or _doc is the 1st sort field
         if (searchContext.mapperService() == null) return null; // mapperService can be null in tests
-        final MappedFieldType fieldType = searchContext.mapperService().fullName(fieldName);
+        final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
         if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
@@ -435,7 +435,7 @@ public class QueryPhase implements SearchPhase {
                 if (SortField.FIELD_DOC.equals(sField) == false) return null;
             } else {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchContext.mapperService().fullName(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (searchContext.mapperService().fieldType(sFieldName) == null) return null; // could be _script sort that uses _score
             }
         }
 

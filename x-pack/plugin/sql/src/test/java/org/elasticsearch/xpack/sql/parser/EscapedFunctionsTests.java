@@ -62,6 +62,21 @@ public class EscapedFunctionsTests extends ESTestCase {
         return (Literal) exp;
     }
 
+    private String buildSecsAndFractional() {
+        boolean hasSecs = randomBoolean();
+        String secs = "";
+        if (hasSecs) {
+            secs = ":55";
+        }
+
+        String fractionalSecs = "";
+        if (hasSecs) {
+            fractionalSecs = randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
+                    ".1234567", ".12345678", ".123456789");
+        }
+        return secs + fractionalSecs;
+    }
+
     private Literal guidLiteral(String guid) {
         Expression exp = parser.createExpression(buildExpression("guid", "'%s'", guid));
         assertThat(exp, instanceOf(Expression.class));
@@ -197,7 +212,7 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testTimeLiteral() {
-        Literal l = timeLiteral("12:23:56");
+        Literal l = timeLiteral("12:23" + buildSecsAndFractional());
         assertThat(l.dataType(), is(TIME));
     }
 
@@ -209,11 +224,10 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testTimestampLiteral() {
-        String fractionalSecs = randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
-                ".1234567", ".12345678", ".123456789");
-        Literal l = timestampLiteral("2012-01-01 10:01:02" + fractionalSecs);
+
+        Literal l = timestampLiteral("2012-01-01 10:01" + buildSecsAndFractional());
         assertThat(l.dataType(), is(DATETIME));
-        l = timestampLiteral("2012-01-01T10:01:02" + fractionalSecs);
+        l = timestampLiteral("2012-01-01T10:01" + buildSecsAndFractional());
         assertThat(l.dataType(), is(DATETIME));
     }
 

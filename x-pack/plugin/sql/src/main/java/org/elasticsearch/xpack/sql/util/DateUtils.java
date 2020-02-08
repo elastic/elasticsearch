@@ -20,7 +20,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.DateTimeParseException;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
@@ -35,12 +34,12 @@ public final class DateUtils {
 
     private static final DateTimeFormatter DATE_TIME_ESCAPED_LITERAL_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder()
             .append(ISO_LOCAL_DATE)
-            .appendLiteral(" ")
+            .appendLiteral(' ')
             .append(ISO_LOCAL_TIME)
             .toFormatter().withZone(UTC);
     private static final DateTimeFormatter DATE_TIME_ESCAPED_LITERAL_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder()
             .append(ISO_LOCAL_DATE)
-            .appendLiteral("T")
+            .appendLiteral('T')
             .append(ISO_LOCAL_TIME)
             .toFormatter().withZone(UTC);
 
@@ -111,9 +110,10 @@ public final class DateUtils {
     }
 
     public static ZonedDateTime ofEscapedLiteral(String dateFormat) {
-        try {
+        int separatorIdx = dateFormat.lastIndexOf('-') + 3;
+        if (dateFormat.charAt(separatorIdx) == 'T') {
             return ZonedDateTime.parse(dateFormat, DATE_TIME_ESCAPED_LITERAL_FORMATTER_T_LITERAL.withZone(UTC));
-        } catch (DateTimeParseException e) {
+        } else {
             return ZonedDateTime.parse(dateFormat, DATE_TIME_ESCAPED_LITERAL_FORMATTER_WHITESPACE.withZone(UTC));
         }
     }

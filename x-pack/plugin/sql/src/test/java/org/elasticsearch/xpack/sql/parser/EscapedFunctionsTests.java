@@ -62,6 +62,25 @@ public class EscapedFunctionsTests extends ESTestCase {
         return (Literal) exp;
     }
 
+    private String buildDate() {
+        StringBuilder sb = new StringBuilder();
+        int length = randomIntBetween(4, 9);
+
+        if (randomBoolean()) {
+            sb.append('-');
+        } else {
+            if (length > 4) {
+                sb.append('-');
+            }
+        }
+
+        for (int i = 1; i <= length; i++) {
+            sb.append(i);
+        }
+        sb.append("-05-10");
+        return sb.toString();
+    }
+
     private String buildSecsAndFractional() {
         boolean hasSecs = randomBoolean();
         String secs = "";
@@ -200,7 +219,7 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testDateLiteral() {
-        Literal l = dateLiteral("2012-01-01");
+        Literal l = dateLiteral(buildDate());
         assertThat(l.dataType(), is(DATE));
     }
 
@@ -224,10 +243,9 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testTimestampLiteral() {
-
-        Literal l = timestampLiteral("2012-01-01 10:01" + buildSecsAndFractional());
+        Literal l = timestampLiteral(buildDate() + " 10:20" + buildSecsAndFractional());
         assertThat(l.dataType(), is(DATETIME));
-        l = timestampLiteral("2012-01-01T10:01" + buildSecsAndFractional());
+        l = timestampLiteral(buildDate() + "T11:22" + buildSecsAndFractional());
         assertThat(l.dataType(), is(DATETIME));
     }
 
@@ -235,6 +253,10 @@ public class EscapedFunctionsTests extends ESTestCase {
         ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral("2012-01-01_AB 10:01:02.3456"));
         assertEquals(
                 "line 1:2: Invalid timestamp received; Text '2012-01-01_AB 10:01:02.3456' could not be parsed at index 10",
+                ex.getMessage());
+        ex = expectThrows(ParsingException.class, () -> timestampLiteral("20120101_AB 10:01:02.3456"));
+        assertEquals(
+                "line 1:2: Invalid timestamp received; Text '20120101_AB 10:01:02.3456' could not be parsed at index 0",
                 ex.getMessage());
     }
 

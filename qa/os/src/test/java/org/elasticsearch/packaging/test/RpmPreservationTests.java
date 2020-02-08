@@ -23,7 +23,6 @@ import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 

@@ -24,8 +24,6 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
-import java.nio.file.Files;
-
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.hamcrest.CoreMatchers.anyOf;

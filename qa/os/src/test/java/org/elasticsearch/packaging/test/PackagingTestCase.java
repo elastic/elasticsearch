@@ -56,6 +56,7 @@ import java.util.List;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.anyOf;
@@ -326,7 +327,7 @@ public abstract class PackagingTestCase extends Assert {
 
             // If log file exists, then we have bootstrapped our logging and the
             // error should be in the logs
-            assertTrue("log file exists", Files.exists(installation.logs.resolve("elasticsearch.log")));
+            assertThat(installation.logs.resolve("elasticsearch.log"), fileExists());
             String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
 
             assertThat(logfile, anyOf(stringMatchers));

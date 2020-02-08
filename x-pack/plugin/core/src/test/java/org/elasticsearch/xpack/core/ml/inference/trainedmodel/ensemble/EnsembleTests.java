@@ -92,7 +92,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .toArray() :
             null;
 
-        return new Ensemble(featureNames,
+        return new Ensemble(randomBoolean() ? featureNames : Collections.emptyList(),
             models,
             outputAggregator,
             targetType,

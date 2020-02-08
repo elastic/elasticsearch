@@ -24,6 +24,7 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
@@ -84,6 +85,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         )
             .map(each -> installation.config(each))
             .forEach(path -> append(path, "# foo"));
+        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
         if (distribution().isDefault()) {
             Stream.of(
                 "role_mapping.yml",
@@ -122,6 +124,7 @@ public class RpmPreservationTests extends PackagingTestCase {
             "jvm.options",
             "log4j2.properties"
         ).forEach(this::assertConfFilePreserved);
+        assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
 
         if (distribution().isDefault()) {
             Stream.of(
@@ -136,7 +139,12 @@ public class RpmPreservationTests extends PackagingTestCase {
     private void assertConfFilePreserved(String configFile) {
         final Path original = installation.config(configFile);
         final Path saved = installation.config(configFile + ".rpmsave");
+        assertConfFilePreserved(original ,saved);
+    }
+
+    private void assertConfFilePreserved(final Path original, final Path saved) {
         assertThat(original, fileDoesNotExist());
         assertThat(saved, fileExists());
     }
+
 }

@@ -23,14 +23,13 @@ import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
+import static org.elasticsearch.packaging.util.FileUtils.assertPathsDoNotExist;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
@@ -103,7 +102,7 @@ public class RpmPreservationTests extends PackagingTestCase {
             assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode, is(1));
         }
 
-        assertPathsDontExist(
+        assertPathsDoNotExist(
             installation.bin,
             installation.lib,
             installation.modules,
@@ -137,7 +136,7 @@ public class RpmPreservationTests extends PackagingTestCase {
     private void assertConfFilePreserved(String configFile) {
         final Path original = installation.config(configFile);
         final Path saved = installation.config(configFile + ".rpmsave");
-        assertFalse(original + " should not exist", Files.exists(original));
-        assertTrue(saved + " should exist", Files.exists(saved));
+        assertThat(original, fileDoesNotExist());
+        assertThat(saved, fileExists());
     }
 }

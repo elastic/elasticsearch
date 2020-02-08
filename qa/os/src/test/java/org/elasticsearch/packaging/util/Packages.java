@@ -32,6 +32,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
@@ -164,7 +165,7 @@ public class Packages {
 
         final Result passwdResult = sh.run("getent passwd elasticsearch");
         final Path homeDir = Paths.get(passwdResult.stdout.trim().split(":")[5]);
-        assertFalse("elasticsearch user home directory must not exist", Files.exists(homeDir));
+        assertThat("elasticsearch user home directory must not exist", homeDir, fileDoesNotExist());
 
         Stream.of(
             es.home,

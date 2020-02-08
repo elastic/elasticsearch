@@ -38,7 +38,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
+import static org.elasticsearch.packaging.util.FileUtils.assertPathsDoNotExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
 import static org.elasticsearch.packaging.util.FileUtils.fileWithGlobExist;
@@ -205,7 +205,7 @@ public class PackageTests extends PackagingTestCase {
 
         }
 
-        assertPathsDontExist(
+        assertPathsDoNotExist(
             installation.bin,
             installation.lib,
             installation.modules,

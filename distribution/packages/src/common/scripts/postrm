@@ -28,6 +28,7 @@ case "$1" in
     ;;
 
     purge)
+        REMOVE_DIRS=true
         REMOVE_JVM_OPTIONS_DIRECTORY=true
         REMOVE_USER_AND_GROUP=true
     ;;

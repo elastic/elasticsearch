@@ -209,14 +209,18 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testTimestampLiteral() {
-        Literal l = timestampLiteral("2012-01-01 10:01:02.3456");
+        String fractionalSecs = randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
+                ".1234567", ".12345678", ".123456789");
+        Literal l = timestampLiteral("2012-01-01 10:01:02" + fractionalSecs);
+        assertThat(l.dataType(), is(DATETIME));
+        l = timestampLiteral("2012-01-01T10:01:02" + fractionalSecs);
         assertThat(l.dataType(), is(DATETIME));
     }
 
     public void testTimestampLiteralValidation() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral("2012-01-01T10:01:02.3456"));
+        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral("2012-01-01_AB 10:01:02.3456"));
         assertEquals(
-                "line 1:2: Invalid timestamp received; Text '2012-01-01T10:01:02.3456' could not be parsed at index 10",
+                "line 1:2: Invalid timestamp received; Text '2012-01-01_AB 10:01:02.3456' could not be parsed at index 10",
                 ex.getMessage());
     }
 

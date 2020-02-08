@@ -79,9 +79,9 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
       mkdir "${packagingFiles}/var/lib/elasticsearch"
       mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
 
-      // bare empty dir for /etc/elasticsearch
+      // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
       mkdir "${packagingFiles}/elasticsearch"
-      mkdir "${packagingFiles}/etc/elasticsearch/jvm.options.d"
+      mkdir "${packagingFiles}/elasticsearch/jvm.options.d"
     }
   }
 }
@@ -198,6 +198,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       includeEmptyDirs true
       createDirectoryEntry true
       include("elasticsearch") // empty dir, just to add directory entry
+      include("elasticsearch/jvm.options.d") // empty dir, just to add directory entry
     }
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')
@@ -262,7 +263,6 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
     copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
-    copyEmptyDir('/etc/elasticsearch/jvm.options.d', 'root', 'elasticsearch', 02750)
 
     // the oss package conflicts with the default distribution and vice versa
     conflicts('elasticsearch' + (oss ? '' : '-oss'))

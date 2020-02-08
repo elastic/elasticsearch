@@ -124,9 +124,7 @@ public class RpmPreservationTests extends PackagingTestCase {
             "jvm.options",
             "log4j2.properties"
         ).forEach(this::assertConfFilePreserved);
-        assertConfFilePreserved(
-            installation.config(Paths.get("jvm.options.d", "heap.options")),
-            installation.config(Paths.get("jvm.options.d.rpmsave", "heap.options")));
+        assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
 
         if (distribution().isDefault()) {
             Stream.of(

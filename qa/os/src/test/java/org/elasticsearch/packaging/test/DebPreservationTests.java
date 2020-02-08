@@ -26,7 +26,7 @@ import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
+import static org.elasticsearch.packaging.util.FileUtils.assertPathsDoNotExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
@@ -79,14 +79,14 @@ public class DebPreservationTests extends PackagingTestCase {
 
         // keystore was removed
 
-        assertPathsDontExist(
+        assertPathsDoNotExist(
             installation.config("elasticsearch.keystore"),
             installation.config(".elasticsearch.keystore.initial_md5sum")
         );
 
         // doc files were removed
 
-        assertPathsDontExist(
+        assertPathsDoNotExist(
             Paths.get("/usr/share/doc/" + distribution().flavor.name),
             Paths.get("/usr/share/doc/" + distribution().flavor.name + "/copyright")
         );
@@ -105,7 +105,7 @@ public class DebPreservationTests extends PackagingTestCase {
 
         assertRemoved(distribution());
 
-        assertPathsDontExist(
+        assertPathsDoNotExist(
             installation.config,
             installation.envFile,
             SYSVINIT_SCRIPT

@@ -22,9 +22,9 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.packaging.util.Distribution;
 import org.junit.BeforeClass;
 
-import java.nio.file.Files;
 import java.nio.file.Paths;
 
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
@@ -89,10 +89,10 @@ public class DebPreservationTests extends PackagingTestCase {
         );
 
         // sysvinit service file was not removed
-        assertTrue(Files.exists(SYSVINIT_SCRIPT));
+        assertThat(SYSVINIT_SCRIPT, fileExists());
 
         // defaults file was not removed
-        assertTrue(Files.exists(installation.envFile));
+        assertThat(installation.envFile, fileExists());
     }
 
     public void test30Purge() throws Exception {

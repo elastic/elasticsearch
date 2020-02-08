@@ -125,7 +125,7 @@ public class ArchiveTests extends PackagingTestCase {
             ? "gc.log.0.current"
             : "gc.log";
 
-        assertTrue("gc logs exist", Files.exists(installation.logs.resolve(gcLogName)));
+        assertThat(installation.logs.resolve(gcLogName), fileExists());
         ServerUtils.runElasticsearchTests();
 
         stopElasticsearch();

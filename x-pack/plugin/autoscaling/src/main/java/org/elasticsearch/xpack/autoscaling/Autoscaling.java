@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  */
 public class Autoscaling extends Plugin implements ActionPlugin {
 
-    private static boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
+    private static final boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
 
     static {
         final String property = System.getProperty("es.autoscaling_feature_flag_registered");

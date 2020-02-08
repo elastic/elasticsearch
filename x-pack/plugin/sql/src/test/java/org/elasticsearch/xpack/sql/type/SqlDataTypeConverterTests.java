@@ -172,13 +172,19 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Converter conversion = converterFor(KEYWORD, to);
             assertNull(conversion.convert(null));
 
-            assertEquals(date(0L), conversion.convert("1970-01-01"));
-            assertEquals(date(1483228800000L), conversion.convert("2017-01-01"));
-            assertEquals(date(-1672531200000L), conversion.convert("1917-01-01"));
-            assertEquals(date(18000000L), conversion.convert("1970-01-01"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10T10:20:30.123"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20:30.123456789"));
+
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10 10:20:30.123"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20:30.123456789"));
+
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20+05:00"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10T10:20:30.123-06:00"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20:30.123456789+03:00"));
 
             // double check back and forth conversion
-
             ZonedDateTime zdt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATE, KEYWORD);
             Converter back = converterFor(KEYWORD, DATE);
@@ -285,7 +291,6 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
 
             // double check back and forth conversion
-
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATETIME, KEYWORD);
             Converter back = converterFor(KEYWORD, DATETIME);

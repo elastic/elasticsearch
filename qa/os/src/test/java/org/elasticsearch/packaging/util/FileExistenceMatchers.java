@@ -72,7 +72,7 @@ public class FileExistenceMatchers {
             if (Files.isDirectory(path)) {
                 mismatchDescription.appendText("path " + path + " is a directory with contents\n");
                 try {
-                    Files.walkFileTree(path, new SimpleFileVisitor<>() {
+                    Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
 
                         @Override
                         public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {

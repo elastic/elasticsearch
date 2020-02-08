@@ -372,6 +372,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     if (rewritten.canReturnNullResponseIfMatchNoDocs()
                             && canRewriteToMatchNone(rewritten.source())
                             && rewritten.source().query() instanceof MatchNoneQueryBuilder) {
+                        assert request.scroll() == null : "must always create search context for scroll requests";
                         onMatchNoDocs(context, listener);
                     } else {
                         // fork the execution in the search thread pool and wraps the searcher

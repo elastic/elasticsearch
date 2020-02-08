@@ -111,7 +111,8 @@ public final class DateUtils {
 
     public static ZonedDateTime ofEscapedLiteral(String dateFormat) {
         int separatorIdx = dateFormat.lastIndexOf('-') + 3;
-        if (dateFormat.charAt(separatorIdx) == 'T') {
+        // Avoid index out of bounds - it will lead to DateTimeParseException anyways
+        if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
             return ZonedDateTime.parse(dateFormat, DATE_TIME_ESCAPED_LITERAL_FORMATTER_T_LITERAL.withZone(UTC));
         } else {
             return ZonedDateTime.parse(dateFormat, DATE_TIME_ESCAPED_LITERAL_FORMATTER_WHITESPACE.withZone(UTC));

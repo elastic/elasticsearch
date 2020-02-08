@@ -250,13 +250,20 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testTimestampLiteralValidation() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral("2012-01-01_AB 10:01:02.3456"));
+        String date = buildDate();
+        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral(date+ "_AB 10:01:02.3456"));
         assertEquals(
-                "line 1:2: Invalid timestamp received; Text '2012-01-01_AB 10:01:02.3456' could not be parsed at index 10",
+                "line 1:2: Invalid timestamp received; Text '" + date + "_AB 10:01:02.3456' could not be parsed at index " +
+                        date.length(),
                 ex.getMessage());
         ex = expectThrows(ParsingException.class, () -> timestampLiteral("20120101_AB 10:01:02.3456"));
         assertEquals(
                 "line 1:2: Invalid timestamp received; Text '20120101_AB 10:01:02.3456' could not be parsed at index 0",
+                ex.getMessage());
+
+        ex = expectThrows(ParsingException.class, () -> timestampLiteral(date));
+        assertEquals(
+                "line 1:2: Invalid timestamp received; Text '" + date + "' could not be parsed at index " + date.length(),
                 ex.getMessage());
     }
 

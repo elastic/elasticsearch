@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor.Property;
+import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -49,15 +50,23 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(((Map) result.get("realm")).get("name"), equalTo("_name"));
         assertThat(((Map) result.get("realm")).get("type"), equalTo("_type"));
         assertThat(result.get("authentication_type"), equalTo("REALM"));
+    }
 
-        // test when user holds no data:
-        threadContext = new ThreadContext(Settings.EMPTY);
-        user = new User(null, null, null);
-        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
-        ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
-        processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.allOf(Property.class));
+    public void testProcessorWithEmptyUserData() throws Exception {
+        // test when user returns null for all values (need a mock, because a real user cannot have a null username)
+        User user = Mockito.mock(User.class);
+        Authentication authentication = Mockito.mock(Authentication.class);
+        Mockito.when(authentication.getUser()).thenReturn(user);
+        Mockito.when(authentication.getSourceRealm()).thenReturn(new Authentication.RealmRef("_name", "_type", "_node_name"));
+        Mockito.when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.REALM);
+
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+
+        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
-        result = ingestDocument.getFieldValue("_field", Map.class);
+        Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         // Still holds data for realm and authentication type
         assertThat(result.size(), equalTo(2));
         assertThat(((Map) result.get("realm")).get("name"), equalTo("_name"));
@@ -91,7 +100,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testRolesProperties() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        User user = new User(null, "role1", "role2");
+        User user = new User(randomAlphaOfLengthBetween(4, 12), "role1", "role2");
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
@@ -107,7 +116,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testFullNameProperties() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        User user = new User(null, null, "_full_name", null, Map.of(), true);
+        User user = new User(randomAlphaOfLengthBetween(4, 12), null, "_full_name", null, Map.of(), true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
@@ -123,7 +132,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testEmailProperties() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        User user = new User(null, null, null, "_email", Map.of(), true);
+        User user = new User(randomAlphaOfLengthBetween(4, 12), null, null, "_email", Map.of(), true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
@@ -139,7 +148,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testMetadataProperties() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        User user = new User(null, null, null, null, Map.of("key", "value"), true);
+        User user = new User(randomAlphaOfLengthBetween(4, 12), null, null, null, Map.of("key", "value"), true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
@@ -184,7 +193,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     }
 
     public void testApiKeyPopulation() throws Exception {
-        User user = new User(null, null, null);
+        User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
             ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, "_node_name");
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -203,7 +212,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(4));
         assertThat(((Map) result.get("api_key")).get("name"), equalTo("api_key_name"));
         assertThat(((Map) result.get("api_key")).get("id"), equalTo("api_key_id"));
         assertThat(((Map) result.get("realm")).get("name"), equalTo("creator_realm_name"));
@@ -212,7 +221,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     }
 
     public void testWillNotOverwriteExistingApiKeyAndRealm() throws Exception {
-        User user = new User(null, null, null);
+        User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
             ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, "_node_name");
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -233,13 +242,13 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(4));
         assertThat(((Map) result.get("api_key")).get("version"), equalTo(42));
         assertThat(((Map) result.get("realm")).get("id"), equalTo(7));
     }
 
     public void testWillSetRunAsRealmForNonApiAuth() throws Exception {
-        User user = new User(null, null, null);
+        User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef authRealmRef = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
         Authentication.RealmRef lookedUpRealmRef = new Authentication.RealmRef(
@@ -256,7 +265,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result.size(), equalTo(2));
+        assertThat(result.size(), equalTo(3));
         assertThat(((Map) result.get("realm")).get("name"), equalTo(lookedUpRealmRef.getName()));
         assertThat(((Map) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
     }

@@ -144,6 +144,9 @@ countDistinctAlias
 SELECT COUNT(DISTINCT hire_date) AS count FROM test_emp;
 countDistinctAndCountSimpleWithAlias
 SELECT COUNT(*) cnt, COUNT(DISTINCT first_name) as names, gender FROM test_emp GROUP BY gender ORDER BY gender;
+countWithFunctionFilterAndGroupBy
+SELECT COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 GROUP BY gender ORDER BY gender;
+
 
 aggCountAliasAndWhereClauseMultiGroupBy
 SELECT gender g, languages l, COUNT(*) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages;
@@ -348,7 +351,7 @@ SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING MAX(emp_no) > 1
 aggMaxWithHavingOnAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 ORDER BY g ;
 aggMaxWithMultipleHaving
-SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND m < 99999 ORDER BY gender; 
+SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND m < 99999 ORDER BY gender;
 aggMaxWithMultipleHavingBetween
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999 ORDER BY g ;
 aggMaxWithMultipleHavingWithLimit
@@ -435,7 +438,7 @@ SELECT 1 FROM test_emp HAVING COUNT(*) > 0;
 implicitGroupingWithLiteralAliasAndFiltering
 SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
 implicitGroupingWithLiteralAndFilteringOnAlias
-SELECT 1, COUNT(*) AS c FROM test_emp HAVING c > 0; 
+SELECT 1, COUNT(*) AS c FROM test_emp HAVING c > 0;
 implicitGroupingWithLiteralAliasAndFilteringOnAlias
 SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
 implicitGroupingWithAggs
@@ -497,7 +500,7 @@ SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_
 
 
 //
-// Mixture of aggs that get promoted plus filtering on one of them 
+// Mixture of aggs that get promoted plus filtering on one of them
 //
 aggMultiWithHaving
 SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max > 74600 ORDER BY gender;
@@ -563,5 +566,7 @@ SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM 
 // group by with literal
 implicitGroupByWithLiteral
 SELECT 10, MAX("salary") FROM test_emp;
+literalWithGroupBy
+SELECT 1 FROM test_emp GROUP BY gender;
 groupByWithLiteralAndCount
 SELECT 20, COUNT(*) from test_emp GROUP BY gender ORDER BY 2;

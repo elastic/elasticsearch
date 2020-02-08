@@ -455,9 +455,13 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // literal
                 if (target.foldable()) {
                     queryC = queryC.addColumn(ne.toAttribute());
-                    for (Expression grouping : a.groupings()) {
-                        GroupByKey matchingGroup = groupingContext.groupFor(grouping);
-                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id);
+                    //If we have groupings, and we're only selecting literals, we have to fix the row count
+                    if(a.groupings().isEmpty() == false &&
+                        a.aggregates().stream().allMatch(s -> s.children().get(0) instanceof Literal)) {
+                        for (Expression grouping : a.groupings()) {
+                            GroupByKey matchingGroup = groupingContext.groupFor(grouping);
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id);
+                        }
                     }
                 }
 

@@ -75,9 +75,11 @@ public class SourceOnlySnapshot {
     public synchronized SegmentInfos syncSnapshot(IndexCommit commit) throws IOException {
         Map<BytesRef, SegmentCommitInfo> existingSegments;
         Map<BytesRef, Iterable<StoreFileMetaData>> existingFileSets;
+        final List<SegmentInfos> knownSegmentInfos = knownSegmentCommitsProvider.get().stream()
+            .map(SourceOnlySnapshotRepository::segmentInfosFromMeta).collect(Collectors.toList());
         existingSegments = new HashMap<>();
-        for (SegmentCommitInfo info : knownSegmentCommitsProvider.get().stream()
-            .flatMap(infos -> SourceOnlySnapshotRepository.segmentInfosFromMeta(infos).asList().stream()).collect(Collectors.toList())) {
+        for (SegmentCommitInfo info : knownSegmentInfos.stream()
+            .flatMap(infos -> infos.asList().stream()).collect(Collectors.toList())) {
             existingSegments.put(new BytesRef(info.info.getId()), info);
         }
         List<String> createdFiles = new ArrayList<>();
@@ -99,8 +101,8 @@ public class SourceOnlySnapshot {
                 }
             }
             if (existingSegments.values().containsAll(newInfos)) {
-                return knownSegmentCommitsProvider.get().stream().filter(segmentCommitInfos ->
-                    segmentCommitInfos.asList().containsAll(newInfos)).findFirst().get();
+                return knownSegmentInfos
+                    .stream().filter(segmentCommitInfos -> segmentCommitInfos.asList().containsAll(newInfos)).findFirst().get();
             }
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);

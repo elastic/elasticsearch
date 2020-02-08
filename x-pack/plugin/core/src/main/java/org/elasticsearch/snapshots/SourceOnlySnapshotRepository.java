@@ -164,6 +164,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 }
             };
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
+            // TODO: Fix contains call obviously
             if (segmentInfosInRepo.contains(newFiles) == false) {
                 final long maxDoc = newFiles.totalMaxDoc();
                 tempStore.bootstrapNewHistory(maxDoc, maxDoc);

@@ -77,7 +77,7 @@ public class SourceOnlySnapshot {
         Map<BytesRef, Iterable<StoreFileMetaData>> existingFileSets;
         existingSegments = new HashMap<>();
         for (SegmentCommitInfo info : knownSegmentCommitsProvider.get().stream()
-            .flatMap(infos -> infos.asList().stream()).collect(Collectors.toList())) {
+            .flatMap(infos -> SourceOnlySnapshotRepository.segmentInfosFromMeta(infos).asList().stream()).collect(Collectors.toList())) {
             existingSegments.put(new BytesRef(info.info.getId()), info);
         }
         List<String> createdFiles = new ArrayList<>();

@@ -184,7 +184,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         }
     }
 
-    private static SegmentInfos segmentInfosFromMeta(Iterable<StoreFileMetaData> files) {
+    public static SegmentInfos segmentInfosFromMeta(Iterable<StoreFileMetaData> files) {
         final Directory dir = new ByteBuffersDirectory();
         for (StoreFileMetaData m : files) {
             if (m.length() != m.hash().length) {

@@ -100,7 +100,7 @@ final class ServerTransportFilter {
         }
 
         final Version version = transportChannel.getVersion();
-        authcService.authenticate(securityAction, request, (User)null, ActionListener.wrap((authentication) -> {
+        authcService.authenticate(securityAction, request, (User) null, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
                     SystemUser.is(authentication.getUser()) == false) {

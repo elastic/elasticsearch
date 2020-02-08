@@ -115,11 +115,27 @@ public class AuthenticationService {
      * Authenticates the user that is associated with the given request. If the user was authenticated successfully (i.e.
      * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
      * the user and that user is then "attached" to the request's context.
+     * This method will authenticate as the anonymous user if the service is configured to allow anonymous access.
      *
      * @param request The request to be authenticated
      */
     public void authenticate(RestRequest request, ActionListener<Authentication> authenticationListener) {
-        createAuthenticator(request, authenticationListener).authenticateAsync();
+        authenticate(request, true, authenticationListener);
+    }
+
+    /**
+     * Authenticates the user that is associated with the given request. If the user was authenticated successfully (i.e.
+     * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
+     * the user and that user is then "attached" to the request's context.
+     * This method will optionally, authenticate as the anonymous user if the service is configured to allow anonymous access.
+     *
+     * @param request The request to be authenticated
+     * @param supportAnonymousAccess If {@code false}, then authentication will <em>not</em> fallback to anonymous.
+     *                               If {@code true}, then authentication <em>will</em> fallback to anonymous, if this service is
+     *                               configured to allow anonymous access (see {@link #isAnonymousUserEnabled}).
+     */
+    public void authenticate(RestRequest request, boolean supportAnonymousAccess, ActionListener<Authentication> authenticationListener) {
+        createAuthenticator(request, supportAnonymousAccess, authenticationListener).authenticateAsync();
     }
 
     /**
@@ -135,8 +151,9 @@ public class AuthenticationService {
      *                     authentication will be based on the whether there's an attached user to in the message and
      *                     if there is, whether its credentials are valid.
      */
-    public void authenticate(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
-        createAuthenticator(action, message, fallbackUser, listener).authenticateAsync();
+    public void authenticate(String action, TransportMessage message, User fallbackUser,
+                             boolean allowAnonymous, ActionListener<Authentication> listener) {
+        createAuthenticator(action, message, fallbackUser, allowAnonymous, listener).authenticateAsync();
     }
 
     /**
@@ -149,7 +166,7 @@ public class AuthenticationService {
      */
     public void authenticate(String action, TransportMessage message,
                              AuthenticationToken token, ActionListener<Authentication> listener) {
-        new Authenticator(action, message, null, listener).authenticateToken(token);
+        new Authenticator(action, message, null, isAnonymousUserEnabled, listener).authenticateToken(token);
     }
 
     public void expire(String principal) {
@@ -175,13 +192,14 @@ public class AuthenticationService {
     }
 
     // pkg private method for testing
-    Authenticator createAuthenticator(RestRequest request, ActionListener<Authentication> listener) {
-        return new Authenticator(request, listener);
+    Authenticator createAuthenticator(RestRequest request, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
+        return new Authenticator(request, fallbackToAnonymous && isAnonymousUserEnabled, listener);
     }
 
     // pkg private method for testing
-    Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
-        return new Authenticator(action, message, fallbackUser, listener);
+    Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser, boolean allowAnonymous,
+                                      ActionListener<Authentication> listener) {
+        return new Authenticator(action, message, fallbackUser, allowAnonymous && isAnonymousUserEnabled, listener);
     }
 
     // pkg private method for testing
@@ -197,6 +215,7 @@ public class AuthenticationService {
 
         private final AuditableRequest request;
         private final User fallbackUser;
+        private final boolean fallbackToAnonymous;
         private final List<Realm> defaultOrderedRealmList;
         private final ActionListener<Authentication> listener;
 
@@ -205,18 +224,21 @@ public class AuthenticationService {
         private AuthenticationToken authenticationToken = null;
         private AuthenticationResult authenticationResult = null;
 
-        Authenticator(RestRequest request, ActionListener<Authentication> listener) {
-            this(new AuditableRestRequest(auditTrail, failureHandler, threadContext, request), null, listener);
+        Authenticator(RestRequest request, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
+            this(new AuditableRestRequest(auditTrail, failureHandler, threadContext, request), null, fallbackToAnonymous, listener);
         }
 
-        Authenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
-            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message
-            ), fallbackUser, listener);
+        Authenticator(String action, TransportMessage message, User fallbackUser, boolean fallbackToAnonymous,
+                      ActionListener<Authentication> listener) {
+            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message),
+                fallbackUser, fallbackToAnonymous, listener);
         }
 
-        private Authenticator(AuditableRequest auditableRequest, User fallbackUser, ActionListener<Authentication> listener) {
+        private Authenticator(AuditableRequest auditableRequest, User fallbackUser, boolean fallbackToAnonymous,
+                              ActionListener<Authentication> listener) {
             this.request = auditableRequest;
             this.fallbackUser = fallbackUser;
+            this.fallbackToAnonymous = fallbackToAnonymous && shouldFallbackToAnonymous();
             this.defaultOrderedRealmList = realms.asList();
             this.listener = listener;
         }
@@ -476,7 +498,7 @@ public class AuthenticationService {
                 RealmRef authenticatedBy = new RealmRef("__fallback", "__fallback", nodeName);
                 authentication = new Authentication(fallbackUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.INTERNAL,
                     Collections.emptyMap());
-            } else if (isAnonymousUserEnabled && shouldFallbackToAnonymous()) {
+            } else if (fallbackToAnonymous) {
                 logger.trace("No valid credentials found in request [{}], using anonymous [{}]", request, anonymousUser.principal());
                 RealmRef authenticatedBy = new RealmRef("__anonymous", "__anonymous", nodeName);
                 authentication = new Authentication(anonymousUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.ANONYMOUS,

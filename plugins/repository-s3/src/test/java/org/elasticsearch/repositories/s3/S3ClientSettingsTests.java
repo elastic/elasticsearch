@@ -158,4 +158,20 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.get("default").disableChunkedEncoding, is(false));
         assertThat(settings.get("other").disableChunkedEncoding, is(true));
     }
+
+    public void testRegionCanBeSet() {
+        final String region = randomAlphaOfLength(5);
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.region", region).build());
+        assertThat(settings.get("default").region, is(""));
+        assertThat(settings.get("other").region, is(region));
+    }
+
+    public void testSignerOverrideCanBeSet() {
+        final String signerOverride = randomAlphaOfLength(5);
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.signer_override", signerOverride).build());
+        assertThat(settings.get("default").region, is(""));
+        assertThat(settings.get("other").signerOverride, is(signerOverride));
+    }
 }

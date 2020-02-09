@@ -161,15 +161,20 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
 
-        final License license = License.builder()
-                                        .uid(UUID.randomUUID().toString())
-                                        .type(mode.name().toLowerCase(Locale.ROOT))
-                                        .issuer("elasticsearch")
-                                        .issuedTo("elastic")
-                                        .issueDate(System.currentTimeMillis())
-                                        .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(24L).getMillis())
-                                        .maxNodes(2)
-                                        .build();
+        final License.Builder licenseBuilder = License.builder()
+                .uid(UUID.randomUUID().toString())
+                .type(mode.name().toLowerCase(Locale.ROOT))
+                .issuer("elasticsearch")
+                .issuedTo("elastic")
+                .issueDate(System.currentTimeMillis())
+                .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(24L).getMillis())
+                .maxNodes(2);
+        if (License.OperationMode.ENTERPRISE == mode) {
+            licenseBuilder
+                .maxResourceUnits(randomIntBetween(10, 99))
+                .maxNodes(-1);
+        }
+        final License license = licenseBuilder.build();
         when(licenseService.getLicense()).thenReturn(license);
 
         final ClusterStatsResponse mockClusterStatsResponse = mock(ClusterStatsResponse.class);

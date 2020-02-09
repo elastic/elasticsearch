@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingDecisionAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetAutoscalingDecisionHandler extends BaseRestHandler {

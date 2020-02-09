@@ -21,7 +21,7 @@ public class RestGetAutoscalingDecisionHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_autoscaling/decision"));
+        return List.of(new Route(GET, "/_autoscaling/decision"));
     }
 
     @Override

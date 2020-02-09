@@ -131,6 +131,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
                 case STANDARD:
                 case GOLD:
                 case PLATINUM:
+                case ENTERPRISE:
                     transportTLSEnabled = true;
                     break;
                 default:

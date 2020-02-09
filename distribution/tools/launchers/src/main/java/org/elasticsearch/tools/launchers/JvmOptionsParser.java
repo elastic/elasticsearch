@@ -125,20 +125,17 @@ final class JvmOptionsParser {
         Launchers.exit(0);
     }
 
-    private List<String> jvmOptions(
-        final Path config,
-        final String esJavaOpts,
-        final Map<String, String> substitutions
-    ) throws InterruptedException, IOException, JvmOptionsFileParserException {
+    private List<String> jvmOptions(final Path config, final String esJavaOpts, final Map<String, String> substitutions)
+        throws InterruptedException,
+        IOException,
+        JvmOptionsFileParserException {
         final ArrayList<Path> jvmOptionsFiles = new ArrayList<>();
         jvmOptionsFiles.add(config.resolve("jvm.options"));
 
         final Path jvmOptionsDirectory = config.resolve("jvm.options.d");
 
         if (Files.isDirectory(jvmOptionsDirectory)) {
-            try (
-                DirectoryStream<Path> jvmOptionsDirectoryStream = Files.newDirectoryStream(config.resolve("jvm.options.d"), "*.options")
-            ) {
+            try (DirectoryStream<Path> jvmOptionsDirectoryStream = Files.newDirectoryStream(config.resolve("jvm.options.d"), "*.options")) {
                 // collect the matching JVM options files after sorting them by Path::compareTo
                 StreamSupport.stream(jvmOptionsDirectoryStream.spliterator(), false).sorted().forEach(jvmOptionsFiles::add);
             }
@@ -162,9 +159,7 @@ final class JvmOptionsParser {
 
         if (esJavaOpts != null) {
             jvmOptions.addAll(
-                Arrays.stream(esJavaOpts.split("\\s+"))
-                    .filter(Predicate.not(String::isBlank))
-                    .collect(Collectors.toUnmodifiableList())
+                Arrays.stream(esJavaOpts.split("\\s+")).filter(Predicate.not(String::isBlank)).collect(Collectors.toUnmodifiableList())
             );
         }
 

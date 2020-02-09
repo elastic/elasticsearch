@@ -82,18 +82,11 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     private String buildSecsAndFractional() {
-        boolean hasSecs = randomBoolean();
-        String secs = "";
-        if (hasSecs) {
-            secs = ":55";
-        }
-
-        String fractionalSecs = "";
-        if (hasSecs) {
-            fractionalSecs = randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
+        if (randomBoolean()) {
+            return ":55" + randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
                     ".1234567", ".12345678", ".123456789");
         }
-        return secs + fractionalSecs;
+        return "";
     }
 
     private Literal guidLiteral(String guid) {

@@ -182,6 +182,10 @@ public class Packages {
         assertThat(es.config, file(Directory, "root", "elasticsearch", p750));
         assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
+        final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
+        assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
+        assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+
         Stream.of(
             "elasticsearch.keystore",
             "elasticsearch.yml",

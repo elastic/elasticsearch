@@ -3,17 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.querydsl.query;
+package org.elasticsearch.xpack.ql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.sql.expression.Foldables;
 
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -24,15 +18,10 @@ public class TermsQuery extends LeafQuery {
     private final String term;
     private final Set<Object> values;
 
-    public TermsQuery(Source source, String term, List<Expression> values) {
+    public TermsQuery(Source source, String term, Set<Object> values) {
         super(source);
         this.term = term;
-        values.removeIf(e -> DataTypes.isNull(e.dataType()));
-        if (values.isEmpty()) {
-            this.values = Collections.emptySet();
-        } else {
-            this.values = new LinkedHashSet<>(Foldables.valuesOf(values, values.get(0).dataType()));
-        }
+        this.values = values;
     }
 
     @Override

@@ -192,18 +192,15 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         String cursor = null;
         for (int i = 0; i <= datetimes.length; i += 2) {
+            Map<String, Object> expected = new HashMap<>();
             Map<String, Object> response;
+
             if (i == 0) {
+                expected.put("columns", singletonList(columnInfo(mode, "tz", "integer", JDBCType.INTEGER, 11)));
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "", mode);
             } else {
                 response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
                         ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode);
-            }
-
-            Map<String, Object> expected = new HashMap<>();
-            if (i == 0) {
-                expected.put("columns", singletonList(
-                        columnInfo(mode, "tz", "integer", JDBCType.INTEGER, 11)));
             }
 
             List<Object> values = new ArrayList<>(2);
@@ -220,7 +217,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expected.put("rows", emptyList());
         assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
                 ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
-
     }
 
     @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")

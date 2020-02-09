@@ -708,8 +708,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return searchContext;
         } finally {
             if (success == false) {
-                // we handle the case where the DefaultSearchContext constructor throws an exception since we would otherwise
-                // leak a searcher and this can have severe implications (unable to obtain shard lock exceptions).
+                // we handle the case where `IndicesService#indexServiceSafe`or `IndexService#getShard`, or the DefaultSearchContext
+                // constructor throws an exception since we would otherwise leak a searcher and this can have severe implications
+                // (unable to obtain shard lock exceptions).
                 IOUtils.closeWhileHandlingException(rewriteContext.searcher);
             }
         }

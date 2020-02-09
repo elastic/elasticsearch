@@ -27,6 +27,7 @@ import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +50,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
         int lastReaderId = -1;
+        Object obj = null;
         FieldScript[] leafScripts = null;
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();
         final IndexReader reader = context.searcher().getIndexReader();
@@ -64,8 +66,15 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 leafScripts[i].setDocument(docId);
                 final Object value;
                 try {
-                    value = leafScripts[i].execute();
-                    CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsFetchSubPhase leaf script " + i);
+                    obj = leafScripts[i].execute();
+                    CollectionUtils.ensureNoSelfReferences(obj, "ScriptFieldsFetchSubPhase leaf script " + i);
+
+                    if (obj instanceof SourceLookup) {
+                        value = ((SourceLookup)obj).source();
+                    }
+                    else {
+                        value = obj;
+                    }
                 } catch (RuntimeException e) {
                     if (scriptFields.get(i).ignoreException()) {
                         continue;

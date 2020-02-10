@@ -36,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -177,14 +176,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         long globalCheckpoint = populateRandomData(shard).getGlobalCheckpoint();
         Optional<SequenceNumbers.CommitInfo> safeCommit = shard.store().findSafeIndexCommit(globalCheckpoint);
         assertTrue(safeCommit.isPresent());
-        final Translog.TranslogGeneration recoveringTranslogGeneration;
-        try (Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit()) {
-            recoveringTranslogGeneration = new Translog.TranslogGeneration(
-                commitRef.getIndexCommit().getUserData().get(Translog.TRANSLOG_UUID_KEY),
-                Long.parseLong(commitRef.getIndexCommit().getUserData().get(Translog.TRANSLOG_GENERATION_KEY)));
-        }
         int expectedTotalLocal = 0;
-        try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshotFromGen(recoveringTranslogGeneration, globalCheckpoint)) {
+        try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot(safeCommit.get().localCheckpoint + 1, globalCheckpoint)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 if (op.seqNo() <= globalCheckpoint) {

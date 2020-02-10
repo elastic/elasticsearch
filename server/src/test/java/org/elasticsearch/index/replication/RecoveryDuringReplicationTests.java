@@ -803,7 +803,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.assertAllEqual(initDocs + inFlightOpsOnNewPrimary + moreDocsAfterRollback);
             done.set(true);
             thread.join();
-
+            shards.syncGlobalCheckpoint();
             for (IndexShard shard : shards) {
                 shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
                 assertThat(shard.translogStats().getUncommittedOperations(), equalTo(0));

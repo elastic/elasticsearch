@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -21,6 +20,9 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -30,29 +32,36 @@ public class RestGetBucketsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestGetBucketsAction.class));
 
-    public RestGetBucketsAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
 
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets", deprecationLogger);
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        // TODO: remove deprecated endpoint in 8.0.0
+        return Collections.unmodifiableList(Arrays.asList(
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}",
+                deprecationLogger),
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}",
+                deprecationLogger),
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets",
+                deprecationLogger),
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                + "}/results/buckets",
+                deprecationLogger)
+        ));
     }
 
     @Override

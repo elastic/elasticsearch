@@ -155,8 +155,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new PainlessExecuteAction.RestAction(restController));
-        handlers.add(new PainlessContextAction.RestAction(restController));
+        handlers.add(new PainlessExecuteAction.RestAction());
+        handlers.add(new PainlessContextAction.RestAction());
         return handlers;
     }
 }

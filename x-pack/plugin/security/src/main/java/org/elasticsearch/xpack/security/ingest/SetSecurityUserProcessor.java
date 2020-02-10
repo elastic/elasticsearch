@@ -11,6 +11,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -85,6 +86,54 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         userObject.put("metadata", user.metadata());
                     }
                     break;
+                case API_KEY:
+                    final String apiKey = "api_key";
+                    final Object existingApiKeyField = userObject.get(apiKey);
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> apiKeyField =
+                        existingApiKeyField instanceof Map ? (Map<String, Object>) existingApiKeyField : new HashMap<>();
+                    Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
+                    if (apiKeyName != null) {
+                        apiKeyField.put("name", apiKeyName);
+                    }
+                    Object apiKeyId = authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                    if (apiKeyId != null) {
+                        apiKeyField.put("id", apiKeyId);
+                    }
+                    if (false == apiKeyField.isEmpty()) {
+                        userObject.put(apiKey, apiKeyField);
+                    }
+                    break;
+                case REALM:
+                    final String realmKey = "realm";
+                    final Object existingRealmField = userObject.get(realmKey);
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> realmField =
+                        existingRealmField instanceof Map ? (Map<String, Object>) existingRealmField : new HashMap<>();
+
+                    final Object realmName, realmType;
+                    if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+                        realmName = authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
+                        realmType = authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_TYPE);
+                    } else {
+                        realmName = authentication.getSourceRealm().getName();
+                        realmType = authentication.getSourceRealm().getType();
+                    }
+                    if (realmName != null) {
+                        realmField.put("name", realmName);
+                    }
+                    if (realmType != null) {
+                        realmField.put("type", realmType);
+                    }
+                    if (false == realmField.isEmpty()) {
+                        userObject.put(realmKey, realmField);
+                    }
+                    break;
+                case AUTHENTICATION_TYPE:
+                    if (authentication.getAuthenticationType() != null) {
+                        userObject.put("authentication_type", authentication.getAuthenticationType().toString());
+                    }
+                    break;
                 default:
                     throw new UnsupportedOperationException("unsupported property [" + property + "]");
             }
@@ -138,7 +187,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         FULL_NAME,
         EMAIL,
         ROLES,
-        METADATA;
+        METADATA,
+        API_KEY,
+        REALM,
+        AUTHENTICATION_TYPE;
 
         static Property parse(String tag, String value) {
             try {

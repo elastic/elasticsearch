@@ -10,7 +10,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -19,6 +18,9 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -27,14 +29,22 @@ public class RestGetFiltersAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestGetFiltersAction.class));
 
-    public RestGetFiltersAction(RestController controller) {
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "filters/", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "filters/", deprecationLogger);
+        return Collections.unmodifiableList(Arrays.asList(
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}",
+                deprecationLogger),
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "filters/",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "filters/",
+                deprecationLogger)
+        ));
     }
 
     @Override

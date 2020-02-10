@@ -159,7 +159,7 @@
       },
       "scroll_size":{
         "type":"number",
-        "defaut_value":100,
+        "default":100,
         "description":"Size on the scroll request powering the delete by query"
       },
       "wait_for_completion":{

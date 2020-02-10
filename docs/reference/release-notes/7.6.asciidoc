@@ -225,7 +225,7 @@ License::
 
 Machine Learning::
 * Add audit warning for 1000 categories found early in job {pull}51146[#51146] (issue: {issue}50749[#50749])
-* Add num_top_feature_importance_values param to regression and classi… {pull}50914[#50914]
+* Add num_top_feature_importance_values param to regression and classification {pull}50914[#50914]
 * Implement force deleting a data frame analytics job {pull}50553[#50553] (issue: {issue}48124[#48124])
 * Delete unused data frame analytics state {pull}50243[#50243]
 * Make each analysis report desired field mappings to be copied {pull}50219[#50219] (issue: {issue}50119[#50119])

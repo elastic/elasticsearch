@@ -37,10 +37,8 @@ import org.apache.lucene.store.TrackingDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -52,7 +50,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_EXTENSION;
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.INDEX_EXTENSION_PREFIX;
@@ -65,36 +62,34 @@ public class SourceOnlySnapshot {
     private static final String FIELDS_META_EXTENSION = INDEX_EXTENSION_PREFIX + FIELDS_META_EXTENSION_SUFFIX;
     private final Directory targetDirectory;
     private final Supplier<Query> deleteByQuerySupplier;
-    private final CheckedSupplier<List<Iterable<StoreFileMetaData>>, IOException> knownSegmentCommitsProvider;
 
-    public SourceOnlySnapshot(Directory targetDirectory, Supplier<Query> deleteByQuerySupplier,
-                              CheckedSupplier<List<Iterable<StoreFileMetaData>>, IOException> knownSegmentCommitsProvider) {
+    public SourceOnlySnapshot(Directory targetDirectory, Supplier<Query> deleteByQuerySupplier) {
         this.targetDirectory = targetDirectory;
         this.deleteByQuerySupplier = deleteByQuerySupplier;
-        this.knownSegmentCommitsProvider = knownSegmentCommitsProvider;
     }
 
-    public SourceOnlySnapshot(Directory targetDirectory, CheckedSupplier<List<Iterable<StoreFileMetaData>>, IOException> knownSegmentCommitsProvider) {
-        this(targetDirectory, null, knownSegmentCommitsProvider);
+    public SourceOnlySnapshot(Directory targetDirectory) {
+        this(targetDirectory, null);
     }
 
-    public synchronized SegmentInfos syncSnapshot(IndexCommit commit) throws IOException {
-        Map<BytesRef, SegmentCommitInfo> existingSegments;
-        Map<BytesRef, Iterable<StoreFileMetaData>> existingFileSets;
-        final List<SegmentInfos> knownSegmentInfos = knownSegmentCommitsProvider.get().stream()
-            .map(SourceOnlySnapshotRepository::segmentInfosFromMeta).collect(Collectors.toList());
-        existingSegments = new HashMap<>();
-        for (SegmentCommitInfo info : knownSegmentInfos.stream()
-            .flatMap(infos -> infos.asList().stream()).collect(Collectors.toList())) {
-            existingSegments.put(new BytesRef(info.info.getId()), info);
+    public synchronized List<String> syncSnapshot(IndexCommit commit) throws IOException {
+        long generation;
+        Map<BytesRef, SegmentCommitInfo> existingSegments = new HashMap<>();
+        if (Lucene.indexExists(targetDirectory)) {
+            SegmentInfos existingsSegmentInfos = Lucene.readSegmentInfos(targetDirectory);
+            for (SegmentCommitInfo info : existingsSegmentInfos) {
+                existingSegments.put(new BytesRef(info.info.getId()), info);
+            }
+            generation = existingsSegmentInfos.getGeneration();
+        } else {
+            generation = 1;
         }
         List<String> createdFiles = new ArrayList<>();
         String segmentFileName;
-        SegmentInfos segmentInfos;
         try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
              StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit,
                  Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()))) {
-            segmentInfos = reader.getSegmentInfos().clone();
+            SegmentInfos segmentInfos = reader.getSegmentInfos().clone();
             DirectoryReader wrappedReader = wrapReader(reader);
             List<SegmentCommitInfo> newInfos = new ArrayList<>();
             for (LeafReaderContext ctx : wrappedReader.leaves()) {
@@ -106,13 +101,9 @@ public class SourceOnlySnapshot {
                     newInfos.add(newInfo);
                 }
             }
-            if (existingSegments.values().containsAll(newInfos)) {
-                return knownSegmentInfos
-                    .stream().filter(segmentCommitInfos -> segmentCommitInfos.asList().containsAll(newInfos)).findFirst().get();
-            }
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);
-            segmentInfos.setNextWriteGeneration(segmentInfos.getGeneration());
+            segmentInfos.setNextWriteGeneration(Math.max(segmentInfos.getGeneration(), generation) + 1);
             String pendingSegmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.PENDING_SEGMENTS,
                 "", segmentInfos.getGeneration());
             try (IndexOutput segnOutput = targetDirectory.createOutput(pendingSegmentFileName, IOContext.DEFAULT)) {
@@ -125,7 +116,7 @@ public class SourceOnlySnapshot {
         }
         Lucene.pruneUnreferencedFiles(segmentFileName, targetDirectory);
         assert assertCheckIndex();
-        return SegmentInfos.readLatestCommit(targetDirectory);
+        return Collections.unmodifiableList(createdFiles);
     }
 
     private LiveDocs getLiveDocs(LeafReader reader) throws IOException {

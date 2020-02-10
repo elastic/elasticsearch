@@ -135,23 +135,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             totalFileCount = copy.getTotalFileCount();
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
-        try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            SnapshotId snapshotId = new SnapshotId("test_1", "test");
-            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
-            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
-                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, true, Collections.emptyMap(), future));
-            shardGeneration = future.actionGet();
-            IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
-            assertEquals(0, copy.getIncrementalFileCount());
-            assertEquals(totalFileCount, copy.getTotalFileCount());
-            assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
-        }
 
         indexDoc(shard, "_doc", Integer.toString(10));
         indexDoc(shard, "_doc", Integer.toString(11));
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
-            SnapshotId snapshotId = new SnapshotId("test_2", "test_1");
+            SnapshotId snapshotId = new SnapshotId("test_1", "test_1");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
             final PlainActionFuture<String> future = PlainActionFuture.newFuture();
@@ -167,7 +155,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
         deleteDoc(shard, Integer.toString(10));
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
-            SnapshotId snapshotId = new SnapshotId("test_3", "test_2");
+            SnapshotId snapshotId = new SnapshotId("test_2", "test_2");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
             final PlainActionFuture<String> future = PlainActionFuture.newFuture();

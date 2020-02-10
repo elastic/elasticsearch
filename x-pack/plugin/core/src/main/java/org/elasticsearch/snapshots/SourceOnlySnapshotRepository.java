@@ -5,17 +5,15 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -32,7 +30,6 @@ import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
@@ -45,7 +42,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -135,46 +132,34 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
         }
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
+        // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
         final List<Closeable> toClose = new ArrayList<>(3);
-        toClose.add(() -> IOUtils.rm(snapPath));
         try {
-            final List<Iterable<StoreFileMetaData>> segmentInfosInRepo =
-                segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation());
             FSDirectory directory = new SimpleFSDirectory(snapPath);
-            toClose.add(0, directory);
-            Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
-            // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
-            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(directory, querySupplier,
-                () -> segmentInfosInRepo);
-            SegmentInfos newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
+            toClose.add(directory);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {
                     // do nothing;
                 }
-            }, Store.OnClose.EMPTY) {
-
-                @Override
-                public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
-                    // TODO: craft metadata ourselves here instead of physically reading it from the store
-                    final MetadataSnapshot metadataSnapshot = super.getMetadata(commit);
-                    return new MetadataSnapshot(metadataSnapshot.asMap(),
-                        metadataSnapshot.getCommitUserData(), metadataSnapshot.getNumDocs());
-                }
-            };
+            }, Store.OnClose.EMPTY);
+            Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
+            // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
+            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
+            snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
-            // TODO: Fix contains call obviously
-            if (segmentInfosInRepo.contains(newFiles) == false) {
-                final long maxDoc = newFiles.totalMaxDoc();
-                tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-                newFiles = tempStore.readLastCommittedSegmentsInfo();
-            }
+            SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
+            final long maxDoc = segmentInfos.totalMaxDoc();
+            tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
-            toClose.add(1, store::decRef);
-            super.snapshotShard(tempStore, mapperService, snapshotId, indexId,
-                new SourceOnlyIndexCommit(newFiles, tempStore.directory()), snapshotStatus, writeShardGens, userMetadata,
-                ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
+            toClose.add(store::decRef);
+            DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
+                Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
+            toClose.add(reader);
+            IndexCommit indexCommit = reader.getIndexCommit();
+            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, writeShardGens,
+                userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {
                 IOUtils.close(toClose);
@@ -182,26 +167,6 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 e.addSuppressed(ex);
             }
             listener.onFailure(e);
-        }
-    }
-
-    public static SegmentInfos segmentInfosFromMeta(Iterable<StoreFileMetaData> files) {
-        final Directory dir = new ByteBuffersDirectory();
-        for (StoreFileMetaData m : files) {
-            if (m.length() != m.hash().length) {
-                continue;
-            }
-            try (IndexOutput indexOutput = dir.createOutput(m.name(), IOContext.DEFAULT)) {
-                final BytesRef fileContent = m.hash();
-                indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        try {
-            return SegmentInfos.readLatestCommit(dir);
-        } catch (IOException e) {
-            throw new AssertionError(e);
         }
     }
 
@@ -241,55 +206,5 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     delegateType, metaData.settings()), typeLookup));
             }
         };
-    }
-
-    private static final class SourceOnlyIndexCommit extends IndexCommit {
-        private final SegmentInfos newFiles;
-        private final Directory directory;
-
-        SourceOnlyIndexCommit(SegmentInfos newFiles, Directory directory) {
-            this.newFiles = newFiles;
-            this.directory = directory;
-        }
-
-        @Override
-        public String getSegmentsFileName() {
-            return "segments_" + getGeneration(); // TODO: gotta implement crafting a segments info into the store
-        }
-
-        @Override
-        public Collection<String> getFileNames() throws IOException {
-            return new HashSet<>(newFiles.files(true));
-        }
-
-        @Override
-        public Directory getDirectory() {
-            return directory;
-        }
-
-        @Override
-        public void delete() {
-            throw new UnsupportedOperationException("not supported");
-        }
-
-        @Override
-        public boolean isDeleted() {
-            return false;
-        }
-
-        @Override
-        public int getSegmentCount() {
-            return 0;
-        }
-
-        @Override
-        public long getGeneration() {
-            return newFiles.getLastGeneration();
-        }
-
-        @Override
-        public Map<String, String> getUserData() {
-            throw new UnsupportedOperationException("not supported");
-        }
     }
 }

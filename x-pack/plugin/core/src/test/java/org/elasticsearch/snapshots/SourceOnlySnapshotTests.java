@@ -44,8 +44,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 public class SourceOnlySnapshotTests extends ESTestCase {
@@ -59,8 +57,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 // we either use the soft deletes directly or manually delete them to test the additional delete functionality
                 boolean modifyDeletedDocs = softDeletesField != null && randomBoolean();
                 SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir,
-                    modifyDeletedDocs ? () -> new DocValuesFieldExistsQuery(softDeletesField) : null,
-                    () -> Collections.emptyList()) { //TODO: Fix
+                    modifyDeletedDocs ? () -> new DocValuesFieldExistsQuery(softDeletesField) : null) {
                     @Override
                     DirectoryReader wrapReader(DirectoryReader reader) throws IOException {
                         return modifyDeletedDocs ? reader : super.wrapReader(reader);
@@ -170,7 +167,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             Directory targetDir = newDirectory();
             IndexCommit snapshot = deletionPolicy.snapshot();
-            SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, Collections::emptyList);
+            SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir);
             snapshoter.syncSnapshot(snapshot);
 
             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(snapshot);
@@ -185,8 +182,8 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 assertEquals(0, id.totalHits.value);
             }
 
-            snapshoter = new SourceOnlySnapshot(targetDir, Collections::emptyList);
-            Collection<String> createdFiles = snapshoter.syncSnapshot(snapshot).files(false);
+            snapshoter = new SourceOnlySnapshot(targetDir);
+            List<String> createdFiles = snapshoter.syncSnapshot(snapshot);
             assertEquals(0, createdFiles.size());
             deletionPolicy.release(snapshot);
             // now add another doc
@@ -231,8 +228,8 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             {
                 snapshot = deletionPolicy.snapshot();
-                snapshoter = new SourceOnlySnapshot(targetDir, Collections::emptyList);
-                createdFiles = snapshoter.syncSnapshot(snapshot).files(false);
+                snapshoter = new SourceOnlySnapshot(targetDir);
+                createdFiles = snapshoter.syncSnapshot(snapshot);
                 assertEquals(1, createdFiles.size());
                 for (String file : createdFiles) {
                     String extension = IndexFileNames.getExtension(file);

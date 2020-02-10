@@ -26,6 +26,9 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -294,6 +297,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             IndexMetaData::fromXContent, namedXContentRegistry, compress);
         snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
             SnapshotInfo::fromXContentInternal, namedXContentRegistry, compress);
+    }
+
+    public static SegmentInfos segmentInfosFromMeta(Iterable<StoreFileMetaData> files) {
+        final Directory dir = new ByteBuffersDirectory();
+        for (StoreFileMetaData m : files) {
+            if (m.length() != m.hash().length) {
+                continue;
+            }
+            try (IndexOutput indexOutput = dir.createOutput(m.name(), IOContext.DEFAULT)) {
+                final BytesRef fileContent = m.hash();
+                indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+        try {
+            return SegmentInfos.readLatestCommit(dir);
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     @Override

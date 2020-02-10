@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.rest.dataframe;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -15,12 +14,17 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteDataFrameAnalyticsAction extends BaseRestHandler {
 
-    public RestDeleteDataFrameAnalyticsAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE, MachineLearning.BASE_PATH + "data_frame/analytics/{"
-            + DataFrameAnalyticsConfig.ID.getPreferredName() + "}", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(
+            new Route(DELETE, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}"));
     }
 
     @Override

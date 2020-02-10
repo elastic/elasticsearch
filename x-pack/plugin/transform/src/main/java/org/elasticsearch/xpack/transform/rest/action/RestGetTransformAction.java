@@ -8,20 +8,26 @@ package org.elasticsearch.xpack.transform.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
 public class RestGetTransformAction extends BaseRestHandler {
 
-    public RestGetTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS, this);
-        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS),
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID)));
     }
 
     @Override

@@ -10,7 +10,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -86,7 +85,8 @@ public class IndexingStateProcessorTests extends ESTestCase {
     }
 
     public void testExtractDocId() throws IOException {
-        assertThat(IndexingStateProcessor.extractDocId(new BytesArray(STATE_SAMPLE.getBytes(StandardCharsets.UTF_8))), equalTo("1"));
+        assertThat(IndexingStateProcessor.extractDocId("{ \"index\": {\"_index\": \"test\", \"_id\": \"1\" } }\n"), equalTo("1"));
+        assertThat(IndexingStateProcessor.extractDocId("{ \"index\": {\"_id\": \"2\" } }\n"), equalTo("2"));
     }
 
     private void testStateRead(SearchHits searchHits, String expectedIndexOrAlias) throws IOException {

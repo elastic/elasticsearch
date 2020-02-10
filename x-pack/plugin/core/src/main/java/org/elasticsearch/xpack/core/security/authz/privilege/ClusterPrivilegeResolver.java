@@ -108,6 +108,10 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege("manage_pipeline", Set.of("cluster:admin" +
         "/ingest/pipeline/*"));
+    public static final NamedClusterPrivilege MANAGE_AUTOSCALING = new ActionClusterPrivilege(
+        "manage_autoscaling",
+        Set.of("cluster:admin/autoscaling/*")
+    );
     public static final NamedClusterPrivilege MANAGE_CCR =            new ActionClusterPrivilege("manage_ccr", MANAGE_CCR_PATTERN);
     public static final NamedClusterPrivilege READ_CCR = new ActionClusterPrivilege("read_ccr", READ_CCR_PATTERN);
     public static final NamedClusterPrivilege CREATE_SNAPSHOT = new ActionClusterPrivilege("create_snapshot", CREATE_SNAPSHOT_PATTERN);
@@ -146,6 +150,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_API_KEY,
         MANAGE_PIPELINE,
         MANAGE_ROLLUP,
+        MANAGE_AUTOSCALING,
         MANAGE_CCR,
         READ_CCR,
         CREATE_SNAPSHOT,

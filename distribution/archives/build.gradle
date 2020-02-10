@@ -44,6 +44,11 @@ task createPluginsDir(type: EmptyDirTask) {
   dir = "${pluginsDir}"
   dirMode = 0755
 }
+ext.jvmOptionsDir = new File(buildDir, 'jvm-options-hack/jvm.options.d')
+task createJvmOptionsDir(type: EmptyDirTask) {
+  dir = "${jvmOptionsDir}"
+  dirMode = 0750
+}
 
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, boolean oss, boolean jdk) {
   return copySpec {
@@ -55,6 +60,10 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         dirMode 0750
         fileMode 0660
         with configFiles(distributionType, oss, jdk)
+        from {
+          dirMode 0750
+          jvmOptionsDir.getParent()
+        }
       }
       into('bin') {
         with binFiles(distributionType, oss, jdk)
@@ -94,7 +103,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 
 // common config across all zip/tar
 tasks.withType(AbstractArchiveTask) {
-  dependsOn createLogsDir, createPluginsDir
+  dependsOn createLogsDir, createPluginsDir, createJvmOptionsDir
   String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
   destinationDir = file("${subdir}/build/distributions")
   baseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"

@@ -6,16 +6,17 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BoostedTreeParamsTests extends AbstractSerializingTestCase<BoostedTreeParams> {
+public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<BoostedTreeParams> {
 
     @Override
     protected BoostedTreeParams doParseInstance(XContentParser parser) throws IOException {
@@ -42,6 +43,14 @@ public class BoostedTreeParamsTests extends AbstractSerializingTestCase<BoostedT
             .setFeatureBagFraction(randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false))
             .setNumTopFeatureImportanceValues(randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE))
             .build();
+    }
+
+    public static BoostedTreeParams mutateForVersion(BoostedTreeParams instance, Version version) {
+        BoostedTreeParams.Builder builder = new BoostedTreeParams.Builder(instance);
+        if (version.before(Version.V_7_6_0)) {
+            builder.setNumTopFeatureImportanceValues(null);
+        }
+        return builder.build();
     }
 
     @Override
@@ -110,5 +119,10 @@ public class BoostedTreeParamsTests extends AbstractSerializingTestCase<BoostedT
             () -> BoostedTreeParams.builder().setNumTopFeatureImportanceValues(-1).build());
 
         assertThat(e.getMessage(), equalTo("[num_top_feature_importance_values] must be a non-negative integer"));
+    }
+
+    @Override
+    protected BoostedTreeParams mutateInstanceForVersion(BoostedTreeParams instance, Version version) {
+        return mutateForVersion(instance, version);
     }
 }

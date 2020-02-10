@@ -22,6 +22,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -85,6 +86,9 @@ import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -97,6 +101,7 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
@@ -651,6 +656,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
+        ThreadPool threadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
+        Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
+        final RepositoryData repositoryData = PlainActionFuture.get(f ->
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(f, repository::getRepositoryData)));
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
             assertThat(indexRecoveryStates.getKey(), equalTo(INDEX_NAME));
@@ -661,7 +670,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                     ((SnapshotRecoverySource)recoveryState.getRecoverySource()).restoreUUID(),
                     new Snapshot(REPO_NAME, createSnapshotResponse.getSnapshotInfo().snapshotId()),
-                    Version.CURRENT, INDEX_NAME);
+                    Version.CURRENT, repositoryData.resolveIndexId(INDEX_NAME));
                 assertRecoveryState(recoveryState, 0, recoverySource, true, Stage.DONE, null, nodeA);
                 validateIndexRecoveryState(recoveryState.getIndex());
             }

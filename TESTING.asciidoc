@@ -340,7 +340,8 @@ zip, and deb packages and all the plugins.  It will then run the tests on every
 available system. This will take a very long time.
 +
 Fortunately, the various systems under test have their own Gradle tasks under
-`qa/os`. To find out what packaging combinations can be tested on a system, run
+`qa/os`. To find the systems tested, do a listing of the `qa/os` directory.
+To find out what packaging combinations can be tested on a system, run
 the `tasks` task.  For example:
 +
 ----------------------------------
@@ -360,28 +361,7 @@ will remain running and you'll have to stop them manually with `./gradlew --stop
 
 All the regular vagrant commands should just work so you can get a shell in a
 VM running trusty by running
-`vagrant up ubuntu-1604 --provider virtualbox && vagrant ssh ubuntu-1604`.
-
-These are the linux flavors supported, all of which we provide images for
-
-* ubuntu-1604 aka xenial
-* ubuntu-1804 aka bionic beaver
-* debian-8 aka jessie
-* debian-9 aka stretch, the current debian stable distribution
-* centos-6
-* centos-7
-* rhel-8
-* fedora-28
-* fedora-29
-* oel-6 aka Oracle Enterprise Linux 6
-* oel-7 aka Oracle Enterprise Linux 7
-* sles-12
-* opensuse-42 aka Leap
-
-We're missing the following from the support matrix because there aren't high
-quality boxes available in vagrant atlas:
-
-* sles-11
+`vagrant up ubuntu-1804 --provider virtualbox && vagrant ssh ubuntu-1804`.
 
 === Testing packaging on Windows
 

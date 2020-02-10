@@ -1,0 +1,89 @@
+{
+  "cat.ml_jobs":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_cat/ml/anomaly_detectors",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_cat/ml/anomaly_detectors/{job_id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the jobs stats to fetch"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "allow_no_jobs":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)"
+      },
+      "bytes":{
+        "type":"enum",
+        "description":"The unit in which to display byte values",
+        "options":[
+          "b",
+          "k",
+          "kb",
+          "m",
+          "mb",
+          "g",
+          "gb",
+          "t",
+          "tb",
+          "p",
+          "pb"
+        ]
+      },
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      },
+      "h":{
+        "type":"list",
+        "description":"Comma-separated list of column names to display"
+      },
+      "help":{
+        "type":"boolean",
+        "description":"Return help information",
+        "default":false
+      },
+      "s":{
+        "type":"list",
+        "description":"Comma-separated list of column names or column aliases to sort by"
+      },
+      "time":{
+        "type":"enum",
+        "description":"The unit in which to display time values",
+        "options":[
+          "d (Days)",
+          "h (Hours)",
+          "m (Minutes)",
+          "s (Seconds)",
+          "ms (Milliseconds)",
+          "micros (Microseconds)",
+          "nanos (Nanoseconds)"
+        ]
+      },
+      "v":{
+        "type":"boolean",
+        "description":"Verbose mode. Display column headers",
+        "default":false
+      }
+    }
+  }
+}

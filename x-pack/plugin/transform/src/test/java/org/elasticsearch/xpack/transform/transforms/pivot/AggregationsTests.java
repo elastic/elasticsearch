@@ -27,11 +27,13 @@ public class AggregationsTests extends ESTestCase {
         assertEquals("int", Aggregations.resolveTargetMapping("max", "int"));
         assertEquals("double", Aggregations.resolveTargetMapping("max", "double"));
         assertEquals("half_float", Aggregations.resolveTargetMapping("max", "half_float"));
+        assertEquals("float", Aggregations.resolveTargetMapping("max", "scaled_float"));
 
         // min
         assertEquals("int", Aggregations.resolveTargetMapping("min", "int"));
         assertEquals("double", Aggregations.resolveTargetMapping("min", "double"));
         assertEquals("half_float", Aggregations.resolveTargetMapping("min", "half_float"));
+        assertEquals("float", Aggregations.resolveTargetMapping("min", "scaled_float"));
 
         // sum
         assertEquals("double", Aggregations.resolveTargetMapping("sum", "double"));
@@ -61,5 +63,9 @@ public class AggregationsTests extends ESTestCase {
         // weighted_avg
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", "double"));
+
+        // percentile
+        assertEquals("double", Aggregations.resolveTargetMapping("percentiles", null));
+        assertEquals("double", Aggregations.resolveTargetMapping("percentiles", "int"));
     }
 }

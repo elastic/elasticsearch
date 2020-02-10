@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a boolean expression.
@@ -44,12 +43,6 @@ public final class EBool extends AExpression {
         this.operation = Objects.requireNonNull(operation);
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
     }
 
     @Override

@@ -311,7 +311,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name")
                         .field("field");
-                    expectThrows(AggregationExecutionException.class,
+                    expectThrows(IllegalArgumentException.class,
                         () -> createAggregator(aggregationBuilder, indexSearcher, fieldType));
                 }
             }

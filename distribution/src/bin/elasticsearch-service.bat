@@ -115,7 +115,7 @@ set ES_JVM_OPTIONS=%ES_PATH_CONF%\jvm.options
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
 @setlocal
-for /F "usebackq delims=" %%a in (`"%JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_JVM_OPTIONS!" || echo jvm_options_parser_failed"`) do set ES_JAVA_OPTS=%%a
+for /F "usebackq delims=" %%a in (`"%JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" || echo jvm_options_parser_failed"`) do set ES_JAVA_OPTS=%%a
 @endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%ES_JAVA_OPTS%" & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
 
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
@@ -167,15 +167,15 @@ for %%a in ("%ES_JAVA_OPTS:;=","%") do (
 @endlocal & set JVM_MS=%JVM_MS% & set JVM_MX=%JVM_MX% & set JVM_SS=%JVM_SS% & set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS%
 
 if "%JVM_MS%" == "" (
-  echo minimum heap size not set; configure using -Xms via "%ES_JVM_OPTIONS%" or ES_JAVA_OPTS
+  echo minimum heap size not set; configure using -Xms via "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
   goto:eof
 )
 if "%JVM_MX%" == "" (
-  echo maximum heap size not set; configure using -Xmx via "%ES_JVM_OPTIONS%" or ES_JAVA_OPTS
+  echo maximum heap size not set; configure using -Xmx via "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
   goto:eof
 )
 if "%JVM_SS%" == "" (
-  echo thread stack size not set; configure using -Xss via "%ES_JVM_OPTIONS%" or ES_JAVA_OPTS
+  echo thread stack size not set; configure using -Xss via "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
   goto:eof
 )
 set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:"=%

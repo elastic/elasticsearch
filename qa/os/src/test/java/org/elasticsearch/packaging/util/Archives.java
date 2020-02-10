@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
@@ -48,8 +50,6 @@ import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Installation and verification logic for archive distributions
@@ -268,7 +268,7 @@ public class Archives {
     public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh, String keystorePassword) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
-        assertFalse("Pid file doesn't exist when starting Elasticsearch", Files.exists(pidFile));
+        assertThat(pidFile, fileDoesNotExist());
 
         final Installation.Executables bin = installation.executables();
 
@@ -338,14 +338,14 @@ public class Archives {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         ServerUtils.waitForElasticsearch(installation);
 
-        assertTrue("Starting Elasticsearch produced a pid file at " + pidFile, Files.exists(pidFile));
+        assertThat("Starting Elasticsearch produced a pid file at " + pidFile, pidFile, fileExists());
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
     }
 
     public static void stopElasticsearch(Installation installation) throws Exception {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
-        assertTrue("pid file should exist", Files.exists(pidFile));
+        assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
 

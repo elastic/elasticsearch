@@ -71,7 +71,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     /**
      * Actual implementation of the action. Statically available to support embedded mode.
      */
-    private static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener,
+    static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener,
                                  String username, String clusterName) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)

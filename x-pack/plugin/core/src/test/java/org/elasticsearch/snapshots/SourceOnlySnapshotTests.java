@@ -204,12 +204,13 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 snapshot = deletionPolicy.snapshot();
                 snapshoter = new SourceOnlySnapshot(targetDir);
                 createdFiles = snapshoter.syncSnapshot(snapshot);
-                assertEquals(4, createdFiles.size());
+                assertEquals(5, createdFiles.size());
                 for (String file : createdFiles) {
                     String extension = IndexFileNames.getExtension(file);
                     switch (extension) {
                         case "fdt":
                         case "fdx":
+                        case "fdm":
                         case "fnm":
                         case "si":
                             break;

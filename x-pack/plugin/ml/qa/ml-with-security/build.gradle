@@ -9,11 +9,11 @@ dependencies {
 }
 
 // bring in machine learning rest test suite
-restApiSpec {
-  copyXpackTests true
-  includeXpackSpec "ml"
-  includeXpackSpec "cat"
-  includeXpackTests "ml"
+copyRestApiSpecs {
+  includeXpack 'ml', 'cat'
+}
+copyYamlTests {
+  includeXpack 'ml'
 }
 
 integTest.runner {

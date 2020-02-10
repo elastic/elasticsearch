@@ -2,8 +2,8 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-restApiSpec {
-  includeXpackSpec "enrich"
+copyRestApiSpecs {
+  includeXpack 'enrich'
 }
 
 dependencies {

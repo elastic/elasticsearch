@@ -6,8 +6,8 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
-restApiSpec {
-  copyCoreTests true
+copyYamlTests {
+  includeCore '*'
 }
 
 integTest {

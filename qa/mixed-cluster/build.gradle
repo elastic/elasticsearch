@@ -30,8 +30,8 @@ tasks.register("bwcTest") {
   group = 'verification'
 }
 
-restApiSpec {
-  copyCoreTests true
+copyYamlTests {
+  includeCore '*'
 }
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {

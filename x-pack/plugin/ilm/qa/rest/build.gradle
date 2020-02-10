@@ -8,9 +8,8 @@ dependencies {
   testCompile project(path: xpackModule('ilm'), configuration: 'runtime')
 }
 
-restApiSpec {
-  includeXpackSpec "ilm"
-  includeXpackSpec "slm"
+copyRestApiSpecs {
+  includeXpack 'ilm', 'slm'
 }
 
 def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),

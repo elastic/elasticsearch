@@ -4,8 +4,8 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-restApiSpec {
-  includeXpackSpec "eql"
+copyRestApiSpecs {
+  includeXpack 'eql'
 }
 
 dependencies {

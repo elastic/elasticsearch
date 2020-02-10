@@ -19,8 +19,9 @@ dependencies {
   testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
-restApiSpec {
-  alwaysCopySpec true
+copyRestApiSpecs {
+  includeCore '*'
+  includeXpack '*'
 }
 
 testClusters.integTest {

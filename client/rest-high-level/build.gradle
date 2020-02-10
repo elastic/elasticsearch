@@ -24,7 +24,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 apply plugin: 'com.github.johnrengelman.shadow'
-apply plugin: 'elasticsearch.rest-api-spec-for-testing'
+apply plugin: 'elasticsearch.rest-api-yaml'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
@@ -37,9 +37,10 @@ publishing {
   }
 }
 
-restApiSpec {
+copyRestApiSpecs {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
-  alwaysCopySpec true
+  includeCore '*'
+  includeXpack '*'
 }
 
 dependencies {

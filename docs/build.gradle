@@ -41,8 +41,8 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/ml/anomaly-detection/apis/update-job.asciidoc'
 ]
 
-restApiSpec {
-  alwaysCopySpec true
+copyRestApiSpecs {
+  includeCore '*'
 }
 
 testClusters.integTest {

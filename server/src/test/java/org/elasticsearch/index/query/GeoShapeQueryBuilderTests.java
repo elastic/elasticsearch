@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;

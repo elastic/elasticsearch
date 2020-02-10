@@ -1397,7 +1397,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             }, EsExecutors.newDirectExecutorService(), transportService.getThreadPool().getThreadContext());
         }
 
-        void cancelTimeoutHandlers() {
+        private void cancelTimeoutHandlers() {
             if (timeoutHandler != null) {
                 timeoutHandler.cancel();
             }

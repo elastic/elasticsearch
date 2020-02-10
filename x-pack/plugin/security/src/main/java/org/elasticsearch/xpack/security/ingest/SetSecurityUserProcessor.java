@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
@@ -109,9 +110,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final SecurityContext securityContext;
+        private final Supplier<SecurityContext> securityContext;
 
-        public Factory(SecurityContext securityContext) {
+        public Factory(Supplier<SecurityContext> securityContext) {
             this.securityContext = securityContext;
         }
 
@@ -129,7 +130,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             } else {
                 properties = EnumSet.allOf(Property.class);
             }
-            return new SetSecurityUserProcessor(tag, securityContext, field, properties);
+            return new SetSecurityUserProcessor(tag, securityContext.get(), field, properties);
         }
     }
 

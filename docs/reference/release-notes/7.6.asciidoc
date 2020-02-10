@@ -77,8 +77,8 @@ Features/Ingest::
 Machine Learning::
 * Implement `precision` and `recall` metrics for classification evaluation {pull}49671[#49671] (issue: {issue}48759[#48759])
 * Explain data frame analytics API {pull}49455[#49455]
-* ML model inference ingest processor {pull}49052[#49052]
-* Implement accuracy metric for multiclass classification {pull}47772[#47772] (issue: {issue}48759[#48759])
+* Machine learning model inference ingest processor {pull}49052[#49052]
+* Implement accuracy metric for multi-class classification {pull}47772[#47772] (issue: {issue}48759[#48759])
 * Add feature importance values to classification and regression results (using tree 
 SHapley Additive exPlanation, or SHAP) {ml-pull}857[#857]
 
@@ -225,24 +225,24 @@ License::
 
 Machine Learning::
 * Add audit warning for 1000 categories found early in job {pull}51146[#51146] (issue: {issue}50749[#50749])
-* Add num_top_feature_importance_values param to regression and classification {pull}50914[#50914]
+* Add `num_top_feature_importance_values` param to regression and classification {pull}50914[#50914]
 * Implement force deleting a data frame analytics job {pull}50553[#50553] (issue: {issue}48124[#48124])
 * Delete unused data frame analytics state {pull}50243[#50243]
 * Make each analysis report desired field mappings to be copied {pull}50219[#50219] (issue: {issue}50119[#50119])
 * Retry bulk indexing of state docs {pull}50149[#50149] (issue: {issue}50143[#50143])
 * Persist/restore state for data frame analytics classification {pull}50040[#50040]
-* Introduce randomize_seed setting for regression and classification {pull}49990[#49990]
+* Introduce `randomize_seed` setting for regression and classification {pull}49990[#49990]
 * Pass `prediction_field_type` to C++ analytics process {pull}49861[#49861] (issue: {issue}49796[#49796])
 * Add optional source filtering during data frame reindexing {pull}49690[#49690] (issue: {issue}49531[#49531])
 * Add default categorization analyzer definition to ML info {pull}49545[#49545]
 * Add graceful retry for anomaly detector result indexing failures {pull}49508[#49508] (issue: {issue}45711[#45711])
-* Lower minimum model memory limit value for data frame analytics jobs from 1MB to 1kB. {pull}49227[#49227] (issue: {issue}49168[#49168])
-* Improve model_memory_limit user experience for data frame analytics jobs {pull}44699[#44699]
+* Lower minimum model memory limit value for data frame analytics jobs from 1MB to 1kB {pull}49227[#49227] (issue: {issue}49168[#49168])
+* Improve `model_memory_limit` user experience for data frame analytics jobs {pull}44699[#44699]
 * Improve performance of boosted tree training for both classification and regression {ml-pull}775[#775]
 * Reduce the peak memory used by boosted tree training and fix an overcounting bug
 estimating maximum memory usage {ml-pull}781[#781]
 * Stratified fractional cross validation for regression {ml-pull}784[#784]
-* Added `geo_point` supported output for `lat_long` function records {ml-pull}809[#809], {pull}47a050[#47050]
+* Added `geo_point` supported output for `lat_long` function records {ml-pull}809[#809], {pull}47050[#47050]
 * Use a random bag of the data to compute the loss function derivatives for each 
 new tree which is trained for both regression and classification {ml-pull}811[#811]
 * Emit `prediction_probability` field alongside prediction field in ml results {ml-pull}818[#818]
@@ -250,8 +250,8 @@ new tree which is trained for both regression and classification {ml-pull}811[#8
 * Reduce runtime of classification and regression {ml-pull}863[#863]
 * Stop early training a classification and regression forest when the validation 
 error is no longer decreasing {ml-pull}875[#875]
-* Emit `prediction_field_name` in data frame analytics results using the type provided as
-`prediction_field_type` parameter {ml-pull}877[#877]
+* Emit `prediction_field_name` in data frame analytics results using the type 
+provided as `prediction_field_type` parameter {ml-pull}877[#877]
 * Improve performance updating quantile estimates {ml-pull}881[#881]
 * Migrate to use Bayesian optimisation for initial hyperparameter value line 
 searches and stop early if the expected improvement is too small {ml-pull}903[#903]
@@ -323,7 +323,7 @@ Transform::
 * Add actual timeout in message {pull}50140[#50140]
 * Automatic deletion of old checkpoints {pull}49496[#49496]
 * Improve error handling of script errors {pull}48887[#48887] (issue: {issue}48467[#48467])
-* Add wait_for_checkpoint flag to stop {pull}47935[#47935] (issue: {issue}45293[#45293])
+* Add `wait_for_checkpoint` flag to stop {pull}47935[#47935] (issue: {issue}45293[#45293])
 
 
 
@@ -470,19 +470,19 @@ Infra/REST API::
 
 Machine Learning::
 * Fix 2 digit year regex in find_file_structure {pull}51469[#51469]
-* Validate classification dependent_variable cardinality is at lea… {pull}51232[#51232]
+* Validate classification `dependent_variable` cardinality is at least two {pull}51232[#51232]
 * Do not copy mapping from dependent variable to prediction field in regression analysis {pull}51227[#51227]
-* Handle nested and aliased fields correctly when copying mapping. {pull}50918[#50918] (issue: {issue}50787[#50787])
-* Fix off-by-one error in ml_classic tokenizer end offset {pull}50655[#50655]
+* Handle nested and aliased fields correctly when copying mapping {pull}50918[#50918] (issue: {issue}50787[#50787])
+* Fix off-by-one error in `ml_classic` tokenizer end offset {pull}50655[#50655]
 * Improve uniqueness of result document IDs {pull}50644[#50644] (issue: {issue}50613[#50613])
 * Fix accuracy metric in multi-class confusion matrix {pull}50310[#50310] (issue: {issue}48759[#48759])
 * Fix race condition when stopping a data frame analytics jobs immediately after starting it {pull}50276[#50276] (issues: {issue}49680[#49680], {issue}50177[#50177])
 * Apply source query on data frame analytics memory estimation {pull}49517[#49517] (issue: {issue}49454[#49454])
 * Fix r_squared eval when variance is 0 {pull}49439[#49439]
-* Blacklist a number of prediction field names. {pull}49371[#49371] (issue: {issue}48808[#48808])
+* Blacklist a number of prediction field names {pull}49371[#49371] (issue: {issue}48808[#48808])
 * Make data frame analytics more robust for very short-lived analyses {pull}49282[#49282] (issue: {issue}49095[#49095])
 * Fixes potential memory corruption when determining seasonality {ml-pull}852[#852]
-* Prevent prediction_field_name clashing with other fields in {ml} results {ml-pull}861[#861]
+* Prevent `prediction_field_name` clashing with other fields in {ml} results {ml-pull}861[#861]
 * Include out-of-order as well as in-order terms in categorization reverse searches {ml-pull}950[#950] (issue:{ml-issue}949[#949])
 
 Mapping::

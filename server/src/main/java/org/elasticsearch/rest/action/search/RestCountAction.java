@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
@@ -36,7 +35,10 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
@@ -44,11 +46,13 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 
 public class RestCountAction extends BaseRestHandler {
 
-    public RestCountAction(RestController controller) {
-        controller.registerHandler(POST, "/_count", this);
-        controller.registerHandler(GET, "/_count", this);
-        controller.registerHandler(POST, "/{index}/_count", this);
-        controller.registerHandler(GET, "/{index}/_count", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_count"),
+            new Route(POST, "/_count"),
+            new Route(GET, "/{index}/_count"),
+            new Route(POST, "/{index}/_count")));
     }
 
     @Override

@@ -213,6 +213,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                     switch (extension) {
                         case "fdt":
                         case "fdx":
+                        case "fdm":
                         case "fnm":
                         case "si":
                             break;

@@ -8,17 +8,20 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSqlStatsAction extends BaseRestHandler {
 
-    protected RestSqlStatsAction(RestController controller) {
-        controller.registerHandler(GET, Protocol.SQL_STATS_REST_ENDPOINT, this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, Protocol.SQL_STATS_REST_ENDPOINT));
     }
 
     @Override

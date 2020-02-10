@@ -12,6 +12,7 @@ dependencies {
 restApiSpec {
   copyXpackTests true
   includeXpackSpec "ml"
+  includeXpackSpec "cat"
   includeXpackTests "ml"
 }
 

@@ -279,7 +279,8 @@ public class RestoreService implements ClusterStateApplier {
                                     // Index doesn't exist - create it and start recovery
                                     // Make sure that the index we are about to create has a validate name
                                     boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(snapshotIndexMetaData.getSettings());
-                                    createIndexService.validateIndexName(renamedIndexName, currentState, isHidden);
+                                    createIndexService.validateIndexName(renamedIndexName, currentState);
+                                    createIndexService.validateDotIndex(renamedIndexName, currentState, isHidden);
                                     createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), false);
                                     IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
                                         .state(IndexMetaData.State.OPEN)

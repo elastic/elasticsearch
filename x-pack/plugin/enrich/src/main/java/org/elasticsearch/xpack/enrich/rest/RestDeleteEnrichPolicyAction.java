@@ -7,17 +7,21 @@ package org.elasticsearch.xpack.enrich.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 
 import java.io.IOException;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteEnrichPolicyAction extends BaseRestHandler {
 
-    public RestDeleteEnrichPolicyAction(final RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE, "/_enrich/policy/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(DELETE, "/_enrich/policy/{name}"));
     }
 
     @Override

@@ -200,8 +200,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         totalPartitionFieldCount = in.readVLong();
         bucketAllocationFailuresCount = in.readVLong();
         memoryStatus = MemoryStatus.readFromStream(in);
-        // TODO change to 7.7.0 on backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             categorizedDocCount = in.readVLong();
             totalCategoryCount = in.readVLong();
             frequentCategoryCount = in.readVLong();
@@ -243,8 +242,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         out.writeVLong(totalPartitionFieldCount);
         out.writeVLong(bucketAllocationFailuresCount);
         memoryStatus.writeTo(out);
-        // TODO change to 7.7.0 on backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeVLong(categorizedDocCount);
             out.writeVLong(totalCategoryCount);
             out.writeVLong(frequentCategoryCount);

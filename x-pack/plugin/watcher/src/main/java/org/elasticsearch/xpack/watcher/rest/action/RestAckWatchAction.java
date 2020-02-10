@@ -10,7 +10,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -21,6 +20,10 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -29,11 +32,13 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestAckWatchAction extends BaseRestHandler {
 
-    public RestAckWatchAction(RestController controller) {
-        controller.registerHandler(POST, "/_watcher/watch/{id}/_ack", this);
-        controller.registerHandler(PUT, "/_watcher/watch/{id}/_ack", this);
-        controller.registerHandler(POST, "/_watcher/watch/{id}/_ack/{actions}", this);
-        controller.registerHandler(PUT, "/_watcher/watch/{id}/_ack/{actions}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/_watcher/watch/{id}/_ack"),
+            new Route(PUT, "/_watcher/watch/{id}/_ack"),
+            new Route(POST, "/_watcher/watch/{id}/_ack/{actions}"),
+            new Route(PUT, "/_watcher/watch/{id}/_ack/{actions}")));
     }
 
     @Override

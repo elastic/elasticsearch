@@ -128,7 +128,8 @@ public class RestIndicesActionTests extends ESTestCase {
         }
 
         final RestController restController = new RestController(Collections.emptySet(), null, null, null, new UsageService());
-        final RestIndicesAction action = new RestIndicesAction(restController);
+        final RestIndicesAction action = new RestIndicesAction();
+        restController.registerHandler(action);
         final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetaDatas);
 
         // now, verify the table is correct

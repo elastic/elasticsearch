@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -26,6 +25,8 @@ import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -63,12 +64,21 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
     }
 
-    public RestInvalidateTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
+    public RestInvalidateTokenAction(Settings settings, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, "/_security/oauth2/token", this,
-            DELETE, "/_xpack/security/oauth2/token", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRoute(DELETE, "/_security/oauth2/token", DELETE, "/_xpack/security/oauth2/token", deprecationLogger)
+        );
     }
 
     @Override

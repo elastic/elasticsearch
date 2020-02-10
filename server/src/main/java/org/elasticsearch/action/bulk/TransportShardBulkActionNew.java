@@ -171,7 +171,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         private final ShardOpListener listener;
 
         public ShardOp(BulkShardRequest request, IndexShard indexShard,
-                        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
+                       ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
             this.request = request;
             this.indexShard = indexShard;
             this.context = new BulkPrimaryExecutionContext(request, indexShard);
@@ -239,36 +239,32 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         ShardId shardId = shardOp.request.shardId();
         ShardQueue shardQueue = getOrCreateShardQueue(shardId);
         if (shardQueue.attemptEnqueue(shardOp, allowReject)) {
-            try {
-                threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+            threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // TODO: Ensure this cannot happen
-                        assert false;
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    // TODO: Ensure this cannot happen
+                    assert false;
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        performShardOperations(shardOp.indexShard);
-                    }
+                @Override
+                protected void doRun() throws Exception {
+                    performShardOperations(shardOp.indexShard);
+                }
 
-                    @Override
-                    public boolean isForceExecution() {
-                        return allowReject == false;
-                    }
-                });
-            } catch (EsRejectedExecutionException e) {
-                // TODO: Currently if we are on a mapping callback, we need a way to handle this exception the existing implementation may
-                //  FSYNC on this thread!
-                if (shardQueue.remove(shardOp)) {
-                    if (allowReject) {
-                        throw e;
-                    } else {
+                @Override
+                public boolean isForceExecution() {
+                    return allowReject == false;
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    assert allowReject;
+                    if (shardQueue.remove(shardOp)) {
                         shardOp.getListener().onFailure(e);
                     }
                 }
-            }
+            });
         } else {
             throw new EsRejectedExecutionException("rejected execution of shard operation", false);
         }

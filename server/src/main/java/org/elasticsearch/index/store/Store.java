@@ -1453,10 +1453,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
                 throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
             }
-            final Map<String, String> map = new HashMap<>();
-            map.put(Translog.TRANSLOG_GENERATION_KEY, "1");
-            map.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-            updateCommitData(writer, map);
+            updateCommitData(writer, Collections.singletonMap(Translog.TRANSLOG_UUID_KEY, translogUUID));
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1517,7 +1514,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (indexVersionCreated.before(org.elasticsearch.Version.V_6_2_0)) {
                 final List<IndexCommit> recoverableCommits = new ArrayList<>();
                 for (IndexCommit commit : existingCommits) {
-                    if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
+                    final String translogGeneration = commit.getUserData().get("translog_generation");
+                    if (translogGeneration == null || minRetainedTranslogGen <= Long.parseLong(translogGeneration)) {
                         recoverableCommits.add(commit);
                     }
                 }

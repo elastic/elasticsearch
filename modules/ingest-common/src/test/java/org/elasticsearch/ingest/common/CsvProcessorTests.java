@@ -287,8 +287,9 @@ public class CsvProcessorTests extends ESTestCase {
     private IngestDocument processDocument(String[] headers, String csv, boolean trim, Object emptyValue) {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Arrays.stream(headers).filter(ingestDocument::hasField).forEach(ingestDocument::removeField);
+        String fieldName = randomAlphaOfLength(11);
+        ingestDocument.setFieldValue(fieldName, csv);
 
-        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, csv);
         char quoteChar = quote.isEmpty() ? '"' : quote.charAt(0);
         CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), fieldName, headers, trim, separator, quoteChar, false,
             emptyValue);

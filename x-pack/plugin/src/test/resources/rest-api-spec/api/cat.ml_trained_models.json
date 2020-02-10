@@ -1,0 +1,100 @@
+{
+  "cat.ml_trained_models":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_cat/ml/trained_models",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_cat/ml/trained_models/{model_id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The ID of the trained models stats to fetch"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "allow_no_match":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no trained models. (This includes `_all` string or when no trained models have been specified)",
+        "default":true
+      },
+      "from":{
+        "type":"int",
+        "description":"skips a number of trained models",
+        "default":0
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of trained models to get",
+        "default":100
+      },
+      "bytes":{
+        "type":"enum",
+        "description":"The unit in which to display byte values",
+        "options":[
+          "b",
+          "k",
+          "kb",
+          "m",
+          "mb",
+          "g",
+          "gb",
+          "t",
+          "tb",
+          "p",
+          "pb"
+        ]
+      },
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      },
+      "h":{
+        "type":"list",
+        "description":"Comma-separated list of column names to display"
+      },
+      "help":{
+        "type":"boolean",
+        "description":"Return help information",
+        "default":false
+      },
+      "s":{
+        "type":"list",
+        "description":"Comma-separated list of column names or column aliases to sort by"
+      },
+      "time":{
+        "type":"enum",
+        "description":"The unit in which to display time values",
+        "options":[
+          "d (Days)",
+          "h (Hours)",
+          "m (Minutes)",
+          "s (Seconds)",
+          "ms (Milliseconds)",
+          "micros (Microseconds)",
+          "nanos (Nanoseconds)"
+        ]
+      },
+      "v":{
+        "type":"boolean",
+        "description":"Verbose mode. Display column headers",
+        "default":false
+      }
+    }
+  }
+}

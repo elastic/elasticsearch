@@ -24,13 +24,15 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
@@ -38,15 +40,19 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 public class RestCancelTasksAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestCancelTasksAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
+    public RestCancelTasksAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
-        controller.registerHandler(POST, "/_tasks/_cancel", this);
-        controller.registerHandler(POST, "/_tasks/{task_id}/_cancel", this);
     }
 
     @Override
     public String getName() {
         return "cancel_tasks_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(new Route(POST, "/_tasks/_cancel"),
+            new Route(POST, "/_tasks/{task_id}/_cancel")));
     }
 
     @Override

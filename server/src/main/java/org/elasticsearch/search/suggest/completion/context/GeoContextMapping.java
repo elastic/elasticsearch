@@ -146,7 +146,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     @Override
     public Set<String> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
         if (fieldName != null) {
-            MappedFieldType fieldType = parseContext.mapperService().fullName(fieldName);
+            MappedFieldType fieldType = parseContext.mapperService().fieldType(fieldName);
             if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }

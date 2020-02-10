@@ -230,7 +230,7 @@ Machine Learning::
 * Delete unused data frame analytics state {pull}50243[#50243]
 * Make each analysis report desired field mappings to be copied {pull}50219[#50219] (issue: {issue}50119[#50119])
 * Retry bulk indexing of state docs {pull}50149[#50149] (issue: {issue}50143[#50143])
-* Persist/restore state for DFA classification {pull}50040[#50040]
+* Persist/restore state for data frame analytics classification {pull}50040[#50040]
 * Introduce randomize_seed setting for regression and classification {pull}49990[#49990]
 * Pass `prediction_field_type` to C++ analytics process {pull}49861[#49861] (issue: {issue}49796[#49796])
 * Add optional source filtering during data frame reindexing {pull}49690[#49690] (issue: {issue}49531[#49531])

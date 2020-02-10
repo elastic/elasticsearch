@@ -8,6 +8,9 @@ setup:
 
 ---
 "Test open old jobs":
+  - skip:
+      version: "7.7.0 - "
+      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/52009
   - do:
       ml.open_job:
         job_id: old-cluster-job
@@ -111,6 +114,9 @@ setup:
 
 ---
 "Test get old cluster job's timing stats":
+  - skip:
+      version: "7.7.0 - "
+      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/52009
   - do:
       ml.get_job_stats:
         job_id: old-cluster-job-with-ts
@@ -135,7 +141,9 @@ setup:
 
 ---
 "Test job with pre 6.4 rules":
-
+  - skip:
+      version: "7.7.0 - "
+      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/52009
   - do:
       ml.get_jobs:
         job_id: job-with-old-rules
@@ -145,7 +153,9 @@ setup:
 
 ---
 "Test get job with function shortcut should expand":
-
+  - skip:
+      version: "7.7.0 - "
+      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/52009
   - do:
       ml.get_jobs:
         job_id: old-cluster-function-shortcut-expansion

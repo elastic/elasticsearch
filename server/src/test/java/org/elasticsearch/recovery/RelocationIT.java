@@ -47,6 +47,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -86,6 +87,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -456,7 +458,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    public void testIndexAndRelocateConcurrently() throws Exception {
+    public void testIndexSearchAndRelocateConcurrently() throws Exception {
         int halfNodes = randomIntBetween(1, 3);
         Settings[] nodeSettings = Stream.concat(
             Stream.generate(() -> Settings.builder().put("node.attr.color", "blue").build()).limit(halfNodes),
@@ -473,8 +475,21 @@ public class RelocationIT extends ESIntegTestCase {
                 .put("index.routing.allocation.exclude.color", "blue")
                 .put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1));
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), randomIntBetween(1, 10) + "s");
+        }
         assertAcked(prepareCreate("test", settings));
         assertAllShardsOnNodes("test", redNodes);
+        AtomicBoolean stopped = new AtomicBoolean(false);
+        Thread[] searchThreads = randomBoolean() ? new Thread[0] : new Thread[randomIntBetween(1, 4)];
+        for (int i = 0; i < searchThreads.length; i++) {
+            searchThreads[i] = new Thread(() -> {
+                while (stopped.get() == false) {
+                    assertNoFailures(client().prepareSearch("test").setRequestCache(false).get());
+                }
+            });
+            searchThreads[i].start();
+        }
         int numDocs = randomIntBetween(100, 150);
         ArrayList<String> ids = new ArrayList<>();
         logger.info(" --> indexing [{}] docs", numDocs);
@@ -512,7 +527,10 @@ public class RelocationIT extends ESIntegTestCase {
             assertNoFailures(afterRelocation);
             assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
         }
-
+        stopped.set(true);
+        for (Thread searchThread : searchThreads) {
+            searchThread.join();
+        }
     }
 
     public void testRelocateWhileWaitingForRefresh() {

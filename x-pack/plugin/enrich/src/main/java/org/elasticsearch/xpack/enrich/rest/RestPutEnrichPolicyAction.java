@@ -8,17 +8,21 @@ package org.elasticsearch.xpack.enrich.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
 import java.io.IOException;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutEnrichPolicyAction extends BaseRestHandler {
 
-    public RestPutEnrichPolicyAction(final RestController controller) {
-        controller.registerHandler(RestRequest.Method.PUT, "/_enrich/policy/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(PUT, "/_enrich/policy/{name}"));
     }
 
     @Override

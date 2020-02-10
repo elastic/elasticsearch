@@ -65,7 +65,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.license.XPackLicenseState.FIPS_ALLOWED_LICENSE_OPERATION_MODES;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
@@ -245,7 +244,9 @@ public class SecurityTests extends ESTestCase {
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
         MetaData.Builder builder = MetaData.builder();
         License license =
-            TestUtils.generateSignedLicense(randomFrom(FIPS_ALLOWED_LICENSE_OPERATION_MODES).toString(), TimeValue.timeValueHours(24));
+            TestUtils.generateSignedLicense(
+                randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM, License.OperationMode.TRIAL).toString(),
+                TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
         new Security.ValidateLicenseForFIPS(false).accept(node, state);
@@ -260,7 +261,7 @@ public class SecurityTests extends ESTestCase {
         MetaData.Builder builder = MetaData.builder();
         final String forbiddenLicenseType =
             randomFrom(List.of(License.OperationMode.values()).stream()
-                .filter(l -> FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(l) == false).collect(Collectors.toList())).toString();
+                .filter(l -> XPackLicenseState.isFipsAllowedForOperationMode(l) == false).collect(Collectors.toList())).toString();
         License license = TestUtils.generateSignedLicense(forbiddenLicenseType, TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();

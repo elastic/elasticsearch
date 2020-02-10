@@ -438,6 +438,19 @@ The API returns the following response:
          "fixed_bit_set_memory_in_bytes": 0,
          "max_unsafe_auto_id_timestamp" : -9223372036854775808,
          "file_sizes": {}
+      },
+      "mappings": {
+        "field_types": []
+      },
+      "analysis": {
+        "char_filter_types": [],
+        "tokenizer_types": [],
+        "filter_types": [],
+        "analyzer_types": [],
+        "built_in_char_filters": [],
+        "built_in_tokenizers": [],
+        "built_in_filters": [],
+        "built_in_analyzers": []
       }
    },
    "nodes": {
@@ -554,6 +567,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"processor_stats": \{[^\}]*\}/"processor_stats": $body.$_path/]
 // TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
+// TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]
 // TESTRESPONSE[s/: true|false/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]

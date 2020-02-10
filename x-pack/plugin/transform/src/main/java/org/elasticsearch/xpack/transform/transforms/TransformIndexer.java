@@ -484,28 +484,30 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             handleIrrecoverableBulkIndexingException((BulkIndexingException) unwrappedException);
         } else if (unwrappedException instanceof IndexNotFoundException
             || unwrappedException instanceof AggregationResultUtils.AggregationExtractionException
-            || unwrappedException instanceof TransformConfigReloadingException) {
-            failIndexer("task encountered irrecoverable failure: " + e.getMessage());
-        } else if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
-            failIndexer(
-                "task encountered more than "
-                    + context.getNumFailureRetries()
-                    + " failures; latest failure: "
-                    + ExceptionRootCauseFinder.getDetailedMessage(unwrappedException)
-            );
-        } else {
-            // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
-            // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
-            if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
-
-                auditor.warning(
-                    getJobId(),
-                    "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
+            || unwrappedException instanceof TransformConfigReloadingException
+            || unwrappedException instanceof ResourceNotFoundException
+            || unwrappedException instanceof IllegalArgumentException) {
+                failIndexer("task encountered irrecoverable failure: " + e.getMessage());
+            } else if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
+                failIndexer(
+                    "task encountered more than "
+                        + context.getNumFailureRetries()
+                        + " failures; latest failure: "
+                        + ExceptionRootCauseFinder.getDetailedMessage(unwrappedException)
                 );
-                lastAuditedExceptionMessage = message;
+            } else {
+                // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
+                // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
+                if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
+                    String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
+
+                    auditor.warning(
+                        getJobId(),
+                        "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
+                    );
+                    lastAuditedExceptionMessage = message;
+                }
             }
-        }
     }
 
     /**

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.transform.utils;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -63,10 +64,13 @@ public final class ExceptionRootCauseFinder {
      * @param failures a collection of bulk item responses
      * @return The first exception considered irrecoverable if there are any, null if no irrecoverable exception found
      */
-    public static Exception getFirstIrrecoverableExceptionFromBulkResponses(Collection<BulkItemResponse> failures) {
+    public static Throwable getFirstIrrecoverableExceptionFromBulkResponses(Collection<BulkItemResponse> failures) {
         for (BulkItemResponse failure : failures) {
-            if (failure.getFailure().getCause() instanceof MapperParsingException) {
-                return failure.getFailure().getCause();
+            Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(failure.getFailure().getCause());
+            if (unwrappedThrowable instanceof MapperParsingException
+                || unwrappedThrowable instanceof IllegalArgumentException
+                || unwrappedThrowable instanceof ResourceNotFoundException) {
+                return unwrappedThrowable;
             }
         }
 

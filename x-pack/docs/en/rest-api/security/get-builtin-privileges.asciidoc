@@ -66,6 +66,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "delegate_pki",
     "manage",
     "manage_api_key",
+    "manage_autoscaling",
     "manage_ccr",
     "manage_data_frame_transforms",
     "manage_enrich",

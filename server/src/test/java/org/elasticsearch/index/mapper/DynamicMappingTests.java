@@ -190,7 +190,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     public void testDynamicMappingOnEmptyString() throws Exception {
         IndexService service = createIndex("test");
         client().prepareIndex("test").setSource("empty_field", "").get();
-        MappedFieldType fieldType = service.mapperService().fullName("empty_field");
+        MappedFieldType fieldType = service.mapperService().fieldType("empty_field");
         assertNotNull(fieldType);
     }
 
@@ -672,7 +672,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject();
         IndexService index = createIndex("test", Settings.EMPTY, mapping);
         client().prepareIndex("test").setId("1").setSource("foo", "abc").get();
-        assertThat(index.mapperService().fullName("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(index.mapperService().fieldType("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
     public void testMappingVersionAfterDynamicMappingUpdate() {

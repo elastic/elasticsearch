@@ -58,8 +58,15 @@ public class LoggingOutputStreamTests extends ESTestCase {
         printStream = new PrintStream(loggingStream, false, StandardCharsets.UTF_8);
     }
 
-    public void testEmptyLine() {
-        printStream.println("");
+    public void testEmptyLineUnix() {
+        printStream.print("\n");
+        assertTrue(loggingStream.lines.isEmpty());
+        printStream.flush();
+        assertTrue(loggingStream.lines.isEmpty());
+    }
+
+    public void testEmptyLineWindows() {
+        printStream.print("\r\n");
         assertTrue(loggingStream.lines.isEmpty());
         printStream.flush();
         assertTrue(loggingStream.lines.isEmpty());

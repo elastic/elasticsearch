@@ -174,7 +174,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 when(mapperService.searchAnalyzer())
                         .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
             }
-            when(mapperService.fullName(any(String.class))).thenReturn(fieldType);
+            when(mapperService.fieldType(any(String.class))).thenReturn(fieldType);
             when(mapperService.getNamedAnalyzer(any(String.class))).then(
                     invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(

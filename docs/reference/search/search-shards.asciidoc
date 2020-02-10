@@ -184,5 +184,5 @@ The API returns the following result:
 // TESTRESPONSE[s/0TvkCyF7TAmM1wHP4a42-A/$body.shards.1.0.allocation_id.id/]
 // TESTRESPONSE[s/fMju3hd1QHWmWrIgFnI4Ww/$body.shards.0.0.allocation_id.id/]
 
-The search will only be executed against two of the shards, because outing 
-values have been specified.
+Because of the specified routing values, 
+the search is only executed against two of the shards.

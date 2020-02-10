@@ -8,16 +8,21 @@ package org.elasticsearch.xpack.transform.rest.action;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestStopTransformAction extends BaseRestHandler {
 
-    public RestStopTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stop", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stop"));
     }
 
     @Override

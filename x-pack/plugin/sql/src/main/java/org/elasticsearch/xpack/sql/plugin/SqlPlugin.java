@@ -115,10 +115,10 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             return emptyList();
         }
 
-        return Arrays.asList(new RestSqlQueryAction(restController),
-                new RestSqlTranslateAction(restController),
-                new RestSqlClearCursorAction(restController),
-                new RestSqlStatsAction(restController));
+        return Arrays.asList(new RestSqlQueryAction(),
+                new RestSqlTranslateAction(),
+                new RestSqlClearCursorAction(),
+                new RestSqlStatsAction());
     }
 
     @Override

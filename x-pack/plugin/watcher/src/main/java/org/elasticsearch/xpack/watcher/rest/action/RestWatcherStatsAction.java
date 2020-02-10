@@ -12,24 +12,28 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestWatcherStatsAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestWatcherStatsAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    public RestWatcherStatsAction(RestController controller) {
-        controller.registerHandler(GET, "/_watcher/stats", this);
-        controller.registerHandler(GET, "/_watcher/stats/{metric}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_watcher/stats"),
+            new Route(GET, "/_watcher/stats/{metric}")));
     }
 
     @Override

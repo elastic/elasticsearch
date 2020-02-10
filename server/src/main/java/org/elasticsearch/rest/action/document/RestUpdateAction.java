@@ -26,20 +26,22 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
 
-    public RestUpdateAction(RestController controller) {
-        controller.registerHandler(POST, "/{index}/_update/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(POST, "/{index}/_update/{id}"));
     }
 
     @Override

@@ -41,7 +41,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build());
         ensureYellow(indexName);
-        final String replicaNode = internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
         ensureGreen(indexName);
         for (int j = 0; j < randomIntBetween(1, 10); ++j) {
             final BulkRequest bulkRequest = new BulkRequest();

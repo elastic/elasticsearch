@@ -121,7 +121,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
 
     private static AtomicBoolean wasRegistered = new AtomicBoolean(false);
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        if (wasRegistered.compareAndSet(false, true) == true) {
+        if (wasRegistered.compareAndSet(false, true)) {
             PercentilesAggregatorFactory.registerAggregators(valuesSourceRegistry);
         }
     }

@@ -208,7 +208,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             // TODO: This is nonsense.  We allow the value to be null (via constructor), but don't allow it to be set to null.  This means
             //       thing looking to copy settings (like RollupRequestTranslator) need to check if userValueTypeHint is not null, and then
             //       set it if and only if it is non-null.
-            throw new IllegalArgumentException("[valueType] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[userValueTypeHint] must not be null: [" + name + "]");
         }
         this.userValueTypeHint = valueType;
         return (AB) this;
@@ -286,8 +286,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     /**
-     * Provide a hook for aggregations to have finer grained control of the {@link ValuesSourceType } when {@link ValuesSourceConfig}
-     * can't resolve a type (i.e.  this will be called before falling back to CoreValuesSourceType.ANY.)
+     * Aggregations should use this method to define a {@link ValuesSourceType} of last resort.  This will only be used when the resolver
+     * can't find a field and the user hasn't provided a value type hint.
      *
      * @return The CoreValuesSourceType we expect this script to yield.
      */

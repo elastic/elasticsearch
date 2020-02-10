@@ -78,7 +78,8 @@ public final class IndexLifecycleTransition {
                 "], currently: [" + realKey + "]");
         }
 
-        if (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false) {
+        // Always allow moving to the terminal step, even if it doesn't exist in the policy
+        if (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false) {
             throw new IllegalArgumentException("step [" + newStepKey + "] for index [" + idxMeta.getIndex().getName() +
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }

@@ -35,7 +35,6 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Lambda expression node.
@@ -89,13 +88,6 @@ public final class ELambda extends AExpression implements ILambda {
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.statements = Collections.unmodifiableList(statements);
 
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
     }
 
     @Override
@@ -194,7 +186,7 @@ public final class ELambda extends AExpression implements ILambda {
 
         // desugar lambda body into a synthetic method
         name = scriptRoot.getNextSyntheticName("lambda");
-        scriptRoot.getFunctionTable().addFunction(name, returnType, this.typeParameters, true);
+        scriptRoot.getFunctionTable().addFunction(name, returnType, this.typeParameters, true, true);
 
         // setup method reference to synthetic method
         if (expected == null) {
@@ -220,7 +212,9 @@ public final class ELambda extends AExpression implements ILambda {
         functionNode.setReturnType(returnType);
         functionNode.getTypeParameters().addAll(typeParameters);
         functionNode.getParameterNames().addAll(parameterNames);
+        functionNode.setStatic(true);
         functionNode.setSynthetic(true);
+        functionNode.setAutoReturnEnabled(false);
         functionNode.setMethodEscape(methodEscape);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 

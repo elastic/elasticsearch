@@ -341,6 +341,10 @@ public final class Intervals {
                                             + ": negative value [{}] not allowed (negate the entire interval instead)",
                                     v);
                         }
+                        if (units.get(unitIndex) == TimeUnit.MILLISECOND && number.length() < 3) {
+                            // normalize the number past DOT to millis
+                            v *= number.length() < 2 ? 100 : 10;
+                        }
                         values[unitIndex++] = v;
                     } catch (QlIllegalArgumentException siae) {
                         throw new ParsingException(source, invalidIntervalMessage(string), siae.getMessage());

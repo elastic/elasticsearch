@@ -111,8 +111,8 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
             statisticsList.get(9).longValue(), // searchFailures
             statisticsList.get(10), // exponential_avg_checkpoint_duration_ms
             statisticsList.get(11), // exponential_avg_documents_indexed
-            statisticsList.get(12)
-        ); // exponential_avg_documents_processed
+            statisticsList.get(12)  // exponential_avg_documents_processed
+        );
     }
 
     static void getStatisticSummations(Client client, ActionListener<TransformIndexerStats> statsListener) {

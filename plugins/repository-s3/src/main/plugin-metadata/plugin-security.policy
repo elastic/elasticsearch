@@ -39,5 +39,8 @@ grant {
   // s3 client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
 
-
+  permission javax.management.MBeanServerPermission "findMBeanServer";
+  permission javax.management.MBeanServerPermission "createMBeanServer";
+  permission javax.management.MBeanTrustPermission "register";
+  permission javax.management.MBeanPermission "*", "registerMBean";
 };

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.metrics.AwsSdkMetrics;
 import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -58,6 +59,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
+            AwsSdkMetrics.disableMetrics();
             return null;
         });
     }

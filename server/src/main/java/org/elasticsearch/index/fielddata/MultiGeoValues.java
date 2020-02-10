@@ -20,7 +20,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.spatial.util.GeoRelationUtils;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.CentroidCalculator;
@@ -111,8 +110,8 @@ public abstract class MultiGeoValues {
 
         @Override
         public GeoRelation relate(Rectangle rectangle) {
-            if (GeoRelationUtils.pointInRectPrecise(geoPoint.lat(), geoPoint.lon(),
-                rectangle.getMinLat(), rectangle.getMaxLat(), rectangle.getMinLon(), rectangle.getMaxLon())) {
+            if (geoPoint.lat() >= rectangle.getMinLat() && geoPoint.lat() <= rectangle.getMaxLat()
+                    && geoPoint.lon() >= rectangle.getMinLon() && geoPoint.lon() <= rectangle.getMaxLon()) {
                 return GeoRelation.QUERY_CROSSES;
             }
             return GeoRelation.QUERY_DISJOINT;

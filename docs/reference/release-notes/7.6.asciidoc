@@ -236,7 +236,7 @@ Machine Learning::
 * Add optional source filtering during data frame reindexing {pull}49690[#49690] (issue: {issue}49531[#49531])
 * Add default categorization analyzer definition to ML info {pull}49545[#49545]
 * Add graceful retry for anomaly detector result indexing failures {pull}49508[#49508] (issue: {issue}45711[#45711])
-* Lower minimum model memory limit value from 1MB to 1kB. {pull}49227[#49227] (issue: {issue}49168[#49168])
+* Lower minimum model memory limit value for data frame analytics jobs from 1MB to 1kB. {pull}49227[#49227] (issue: {issue}49168[#49168])
 * Improve model_memory_limit user experience for data frame analytics jobs {pull}44699[#44699]
 * Improve performance of boosted tree training for both classification and regression {ml-pull}775[#775]
 * Reduce the peak memory used by boosted tree training and fix an overcounting bug

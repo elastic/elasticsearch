@@ -127,7 +127,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 
-        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.getInstance().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.getInstance().getAggregator(valuesSource.getValuesSourceType(),
             HistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof HistogramAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +

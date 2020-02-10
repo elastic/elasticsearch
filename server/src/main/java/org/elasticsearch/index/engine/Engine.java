@@ -170,15 +170,10 @@ public abstract class Engine implements Closeable {
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
 
-
-    final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
-
     /**
      * Returns the {@link CompletionStats} for this engine
      */
-    public CompletionStats completionStats(String... fieldNamePatterns) {
-        return completionStatsCache.get(fieldNamePatterns);
-    }
+    public abstract CompletionStats completionStats(String... fieldNamePatterns);
 
     /**
      * Returns the {@link DocsStats} for this engine

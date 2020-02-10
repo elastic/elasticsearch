@@ -32,6 +32,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
@@ -164,7 +165,7 @@ public class Packages {
 
         final Result passwdResult = sh.run("getent passwd elasticsearch");
         final Path homeDir = Paths.get(passwdResult.stdout.trim().split(":")[5]);
-        assertFalse("elasticsearch user home directory must not exist", Files.exists(homeDir));
+        assertThat("elasticsearch user home directory must not exist", homeDir, fileDoesNotExist());
 
         Stream.of(
             es.home,
@@ -180,6 +181,10 @@ public class Packages {
         // we shell out here because java's posix file permission view doesn't support special modes
         assertThat(es.config, file(Directory, "root", "elasticsearch", p750));
         assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+
+        final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
+        assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
+        assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
         Stream.of(
             "elasticsearch.keystore",

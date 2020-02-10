@@ -3,41 +3,39 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.querydsl.query;
+package org.elasticsearch.xpack.ql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 
-public class RegexQuery extends LeafQuery {
+public class ScriptQuery extends LeafQuery {
 
-    private final String field, regex;
+    private final ScriptTemplate script;
 
-    public RegexQuery(Source source, String field, String regex) {
+    public ScriptQuery(Source source, ScriptTemplate script) {
         super(source);
-        this.field = field;
-        this.regex = regex;
+        // make script null safe
+        this.script = Scripts.nullSafeFilter(script);
     }
 
-    public String field() {
-        return field;
-    }
-
-    public String regex() {
-        return regex;
+    public ScriptTemplate script() {
+        return script;
     }
 
     @Override
     public QueryBuilder asBuilder() {
-        return regexpQuery(field, regex);
+        return scriptQuery(script.toPainless());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, regex);
+        return Objects.hash(script);
     }
 
     @Override
@@ -50,13 +48,12 @@ public class RegexQuery extends LeafQuery {
             return false;
         }
 
-        RegexQuery other = (RegexQuery) obj;
-        return Objects.equals(field, other.field)
-                && Objects.equals(regex, other.regex);
+        ScriptQuery other = (ScriptQuery) obj;
+        return Objects.equals(script, other.script);
     }
 
     @Override
     protected String innerToString() {
-        return field + "~ /" + regex + "/";
+        return script.toString();
     }
 }

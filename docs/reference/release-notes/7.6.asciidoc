@@ -482,7 +482,7 @@ Machine Learning::
 * Blacklist a number of prediction field names. {pull}49371[#49371] (issue: {issue}48808[#48808])
 * Make data frame analytics more robust for very short-lived analyses {pull}49282[#49282] (issue: {issue}49095[#49095])
 * Fixes potential memory corruption when determining seasonality {ml-pull}852[#852]
-* Prevent prediction_field_name clashing with other fields in ml results {ml-pull}861[#861]
+* Prevent prediction_field_name clashing with other fields in {ml} results {ml-pull}861[#861]
 * Include out-of-order as well as in-order terms in categorization reverse searches {ml-pull}950[#950] (issue:{ml-issue}949[#949])
 
 Mapping::

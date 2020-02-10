@@ -32,6 +32,24 @@ import java.util.function.Supplier;
  */
 public class Autoscaling extends Plugin implements ActionPlugin {
 
+    private static final boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
+
+    static {
+        final String property = System.getProperty("es.autoscaling_feature_flag_registered");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException("es.autoscaling_feature_flag_registered is only supported in non-snapshot builds");
+        }
+        if ("true".equals(property)) {
+            AUTOSCALING_FEATURE_FLAG_REGISTERED = true;
+        } else if ("false".equals(property) || property == null) {
+            AUTOSCALING_FEATURE_FLAG_REGISTERED = false;
+        } else {
+            throw new IllegalArgumentException(
+                "expected es.autoscaling_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
+            );
+        }
+    }
+
     public static final Setting<Boolean> AUTOSCALING_ENABLED_SETTING = Setting.boolSetting(
         "xpack.autoscaling.enabled",
         false,
@@ -51,7 +69,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        if (isSnapshot()) {
+        if (isSnapshot() || AUTOSCALING_FEATURE_FLAG_REGISTERED) {
             return List.of(AUTOSCALING_ENABLED_SETTING);
         } else {
             return List.of();

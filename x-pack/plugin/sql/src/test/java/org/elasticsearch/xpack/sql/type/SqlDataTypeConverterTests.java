@@ -191,6 +191,8 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(asDateOnly(zdt), back.convert(forward.convert(zdt)));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [date]: Text '0xff' could not be parsed at index 0", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("2020-02-"));
+            assertEquals("cannot cast [2020-02-] to [date]: Text '0xff' could not be parsed at index 8", e.getMessage());
         }
     }
 

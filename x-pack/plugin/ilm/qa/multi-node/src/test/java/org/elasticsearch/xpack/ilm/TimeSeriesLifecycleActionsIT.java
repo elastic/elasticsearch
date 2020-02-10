@@ -1120,17 +1120,17 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // {@link org.elasticsearch.xpack.core.ilm.ErrorStep} in order to retry the failing step. As {@link #assertBusy}
         // increases the wait time between calls exponentially, we might miss the window where the policy is on
         // {@link WaitForRolloverReadyStep} and the move to `attempt-rollover` request will not be successful.
-        assertThat(waitUntil(() -> {
+        assertTrue(waitUntil(() -> {
             try {
                 return client().performRequest(moveToStepRequest).getStatusLine().getStatusCode() == 200;
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS), is(true));
+        }, 30, TimeUnit.SECONDS));
 
         // Similar to above, using {@link #waitUntil} as we want to make sure the `attempt-rollover` step started failing and is being
         // retried (which means ILM moves back and forth between the `attempt-rollover` step and the `error` step)
-        assertThat("ILM did not start retrying the attempt-rollover step", waitUntil(() -> {
+        assertTrue("ILM did not start retrying the attempt-rollover step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
                 String failedStep = (String) explainIndexResponse.get("failed_step");
@@ -1139,7 +1139,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS), is(true));
+        }, 30, TimeUnit.SECONDS));
 
         deleteIndex(rolledIndex);
 
@@ -1181,7 +1181,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}");
         client().performRequest(moveToStepRequest);
 
-        assertThat("ILM did not start retrying the update-rollover-lifecycle-date step", waitUntil(() -> {
+        assertTrue("ILM did not start retrying the update-rollover-lifecycle-date step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
                 String failedStep = (String) explainIndexResponse.get("failed_step");
@@ -1191,7 +1191,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS), is(true));
+        }, 30, TimeUnit.SECONDS));
 
         index(client(), index, "1", "foo", "bar");
         Request refreshIndex = new Request("POST", "/" + index + "/_refresh");
@@ -1377,7 +1377,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(startReq));
 
         // Wait until an error has occurred.
-        assertThat("ILM did not start retrying the init step", waitUntil(() -> {
+        assertTrue("ILM did not start retrying the init step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
                 String failedStep = (String) explainIndexResponse.get("failed_step");
@@ -1387,7 +1387,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS), is(true));
+        }, 30, TimeUnit.SECONDS));
 
         // Turn origination date parsing back off
         updateIndexSettings(index, Settings.builder()

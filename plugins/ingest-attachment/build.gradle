@@ -88,7 +88,7 @@ thirdPartyAudit {
   ignoreMissingClasses()
 }
 
-thirdPartyAudit.onlyIf {
+jarHell.onlyIf {
   // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
   // rather than provide a long list of exclusions, disable the check on FIPS.
   BuildParams.inFipsJvm == false

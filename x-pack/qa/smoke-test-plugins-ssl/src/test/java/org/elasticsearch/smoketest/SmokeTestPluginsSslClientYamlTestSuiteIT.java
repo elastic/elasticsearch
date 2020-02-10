@@ -17,6 +17,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.net.URISyntaxException;
@@ -41,6 +42,11 @@ public class SmokeTestPluginsSslClientYamlTestSuiteIT extends ESClientYamlSuiteT
     }
 
     static Path keyStore;
+
+    @BeforeClass
+    public static void muteInFips() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
+    }
 
     @BeforeClass
     public static void getKeyStore() {

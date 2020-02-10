@@ -443,7 +443,12 @@ public final class DateFieldMapper extends FieldMapper {
             return isFieldWithinQuery(reader, fromInclusive, toInclusive, context);
         }
 
-        @Override
+        /**
+         * Return whether all values of the given {@link IndexReader} are within the range,
+         * outside the range or cross the range.
+         * @param fromInclusive start date in milliseconds since epoch, including the start millisecond
+         * @param toInclusive end date in milliseconds since epoch, including the end millisecond
+         */
         public Relation isFieldWithinQuery(IndexReader reader, long fromInclusive, long toInclusive, QueryRewriteContext context)
                 throws IOException {
             // This check needs to be done after fromInclusive and toInclusive

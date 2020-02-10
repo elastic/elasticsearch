@@ -426,23 +426,6 @@ public abstract class MappedFieldType extends FieldType {
         return Relation.INTERSECTS;
     }
 
-    /**
-     * Return whether all values of the given {@link IndexReader} are within the range,
-     * outside the range or cross the range. The default implementation returns
-     * {@link Relation#INTERSECTS}, which is always fine to return when there is
-     * no way to check whether values are actually within bounds.
-     *
-     * Use this instead of
-     * {@link #isFieldWithinQuery(IndexReader, Object, Object, boolean, boolean, ZoneId, DateMathParser, QueryRewriteContext)}
-     * when you *know* the {@code fromInclusive} and {@code toInclusive} are always
-     * longs.
-     */
-    public Relation isFieldWithinQuery(
-            IndexReader reader,
-            long fromInclusive, long toInclusive, QueryRewriteContext context) throws IOException {
-        return Relation.INTERSECTS;
-    }
-
     /** @throws IllegalArgumentException if the fielddata is not supported on this type.
      *  An IllegalArgumentException is needed in order to return an http error 400
      *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}

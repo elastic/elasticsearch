@@ -6,11 +6,14 @@ setup:
             settings:
               number_of_replicas: 0
             mappings:
-              "properties":
-                "number":
-                   "type" : "integer"
-                "date":
-                   "type" : "date"
+              properties:
+                number:
+                  type: integer
+                date:
+                  type: date
+                  fields:
+                    nanos:
+                      type: date_nanos
   - do:
       cluster.health:
         wait_for_status: green
@@ -156,7 +159,10 @@ setup:
             mappings:
               properties:
                 date:
-                  type : date
+                  type: date
+                  fields:
+                    nanos:
+                      type: date_nanos
 
   - do:
       bulk:
@@ -181,7 +187,24 @@ setup:
               date_histogram:
                 field: date
                 calendar_interval: month
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2016-01-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2016-02-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 1 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2016-03-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
 
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: date.nanos
+                calendar_interval: month
   - match: { hits.total.value: 4 }
   - length: { aggregations.histo.buckets: 3 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2016-01-01T00:00:00.000Z" }
@@ -372,6 +395,22 @@ setup:
             histo:
               date_histogram:
                 field: date
+                fixed_interval: 1ms
+                time_zone: America/Phoenix
+
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.histo.buckets: 1 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2015-12-31T17:00:00.000-07:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: date.nanos
                 fixed_interval: 1ms
                 time_zone: America/Phoenix
 

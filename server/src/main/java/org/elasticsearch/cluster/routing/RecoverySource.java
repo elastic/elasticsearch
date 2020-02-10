@@ -229,7 +229,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             restoreUUID = in.readString();
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                 index = new IndexId(in);
             } else {
                 index = new IndexId(in.readString(), IndexMetaData.INDEX_UUID_NA_VALUE);
@@ -263,7 +263,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 index.writeTo(out);
             } else {
                 out.writeString(index.getName());

@@ -111,6 +111,6 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         if (isEnabled(settings) == false) {
             return Collections.emptyList();
         }
-        return Arrays.asList(new RestEqlSearchAction(restController), new RestEqlStatsAction(restController));
+        return Arrays.asList(new RestEqlSearchAction(), new RestEqlStatsAction());
     }
 }

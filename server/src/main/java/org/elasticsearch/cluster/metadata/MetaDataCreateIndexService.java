@@ -720,7 +720,6 @@ public class MetaDataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
-        boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings());
         validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }

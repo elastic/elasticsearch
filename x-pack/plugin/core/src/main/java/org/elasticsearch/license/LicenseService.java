@@ -256,6 +256,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                         "] license unless TLS is configured or security is disabled");
                 } else if (XPackSettings.FIPS_MODE_ENABLED.get(settings)
                     && newLicense.operationMode() != License.OperationMode.PLATINUM
+                    && newLicense.operationMode() != License.OperationMode.ENTERPRISE
                     && newLicense.operationMode() != License.OperationMode.TRIAL) {
                     throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +
                         "] license unless FIPS mode is disabled");

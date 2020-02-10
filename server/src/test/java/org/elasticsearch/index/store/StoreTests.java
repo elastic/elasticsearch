@@ -67,7 +67,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -842,9 +841,7 @@ public class StoreTests extends ESTestCase {
         writer.addDocument(doc);
         Map<String, String> commitData = new HashMap<>(2);
         String syncId = "a sync id";
-        String translogId = "a translog id";
         commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-        commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogId);
         writer.setLiveCommitData(commitData.entrySet());
         writer.commit();
         writer.close();
@@ -853,7 +850,6 @@ public class StoreTests extends ESTestCase {
         assertFalse(metadata.asMap().isEmpty());
         // do not check for correct files, we have enough tests for that above
         assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
-        assertThat(metadata.getCommitUserData().get(Translog.TRANSLOG_GENERATION_KEY), equalTo(translogId));
         TestUtil.checkIndex(store.directory());
         assertDeleteContent(store, store.directory());
         IOUtils.close(store);

@@ -17,6 +17,7 @@
  * under the License.
  */
 
+import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
@@ -592,10 +593,12 @@ if (System.properties.get("build.compare") != null) {
 
 allprojects {
   task resolveAllDependencies {
-      dependsOn tasks.matching { it.name == "pullFixture"}
-      doLast {
-        configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
-      }
+    if (project.path.contains("fixture")) {
+      dependsOn tasks.withType(ComposePull)
+    }
+    doLast {
+      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+    }
   }
 }
 

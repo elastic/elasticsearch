@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.InOrder;
 
@@ -65,6 +66,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     private DataFrameAnalyticsConfig dataFrameAnalyticsConfig;
     private DataFrameDataExtractorFactory dataExtractorFactory;
     private DataFrameDataExtractor dataExtractor;
+    private ResultsPersisterService resultsPersisterService;
     private AnalyticsProcessManager processManager;
 
     @SuppressWarnings("unchecked")
@@ -97,8 +99,10 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(dataExtractorFactory.newExtractor(anyBoolean())).thenReturn(dataExtractor);
         when(dataExtractorFactory.getExtractedFields()).thenReturn(mock(ExtractedFields.class));
 
-        processManager = new AnalyticsProcessManager(
-            client, executorServiceForJob, executorServiceForProcess, processFactory, auditor, trainedModelProvider);
+        resultsPersisterService = mock(ResultsPersisterService.class);
+
+        processManager = new AnalyticsProcessManager(client, executorServiceForJob, executorServiceForProcess, processFactory, auditor,
+            trainedModelProvider, resultsPersisterService);
     }
 
     public void testRunJob_TaskIsStopping() {

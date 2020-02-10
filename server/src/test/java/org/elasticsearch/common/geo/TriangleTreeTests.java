@@ -60,8 +60,14 @@ public class TriangleTreeTests extends ESTestCase {
         assertDimensionalShapeType(randomMultiPoint(false), DimensionalShapeType.MULTIPOINT);
         assertDimensionalShapeType(randomLine(false), DimensionalShapeType.LINESTRING);
         assertDimensionalShapeType(randomMultiLine(false), DimensionalShapeType.MULTILINESTRING);
-        Geometry randoPoly = randomValueOtherThanMany(g -> g.type() != ShapeType.POLYGON,
-            () -> indexer.prepareForIndexing(randomPolygon(false)));
+        Geometry randoPoly = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
+            try {
+                Geometry newGeo = indexer.prepareForIndexing(g);
+                return newGeo.type() != ShapeType.POLYGON;
+            } catch (Exception e) {
+                return true;
+            }
+        }, () -> randomPolygon(false)));
         assertDimensionalShapeType(randoPoly, DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(indexer.prepareForIndexing(randomMultiPolygon(false)), DimensionalShapeType.MULTIPOLYGON);
         assertDimensionalShapeType(randomRectangle(), DimensionalShapeType.POLYGON);
@@ -270,7 +276,7 @@ public class TriangleTreeTests extends ESTestCase {
             assertRelation(GeoRelation.QUERY_CROSSES, reader, lineExtent);
 
             if (lineExtent.minX() != Integer.MIN_VALUE && lineExtent.maxX() != Integer.MAX_VALUE
-                && lineExtent.minY() != Integer.MIN_VALUE && lineExtent.maxY() != Integer.MAX_VALUE) {
+                    && lineExtent.minY() != Integer.MIN_VALUE && lineExtent.maxY() != Integer.MAX_VALUE) {
                 assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(lineExtent.minX() - 1, lineExtent.minY() - 1,
                     lineExtent.maxX() + 1, lineExtent.maxY() + 1));
             }

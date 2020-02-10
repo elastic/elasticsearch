@@ -299,7 +299,7 @@ public class TriangleTreeReader {
             int tMaxY = StrictMath.max(aY, bY);
 
             // 2. check bounding boxes are disjoint
-            if (tMaxX < minX || tMinX > maxX || tMinY > maxY || tMaxY < minY) {
+            if (tMaxX <= minX || tMinX > maxX || tMinY > maxY || tMaxY <= minY) {
                 return false;
             }
 

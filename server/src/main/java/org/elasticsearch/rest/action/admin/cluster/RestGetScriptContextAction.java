@@ -22,20 +22,21 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetScriptContextAction extends BaseRestHandler {
-    @Inject
-    public RestGetScriptContextAction(RestController controller) {
-        controller.registerHandler(GET, "/_script_context", this);
+
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "/_script_context"));
     }
 
     @Override public String getName() {

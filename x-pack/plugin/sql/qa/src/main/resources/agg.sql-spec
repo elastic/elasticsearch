@@ -563,8 +563,12 @@ SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM 
 // group by with literal
 implicitGroupByWithLiteral
 SELECT 10, MAX("salary") FROM test_emp;
-groupByWithLiteralAndCount
+implicitGroupByWithLiterals
+SELECT 10, 'foo', MAX("salary"), 20, 'bar' FROM test_emp;
+groupByWithLiteral
 SELECT 20, COUNT(*) from test_emp GROUP BY gender ORDER BY 2;
+groupByWithLiterals
+SELECT 10, 'foo', COUNT(*), '20', 'bar' from test_emp GROUP BY gender ORDER BY 3;
 groupByNumberWithLiteral
 SELECT emp_no e, 5 FROM "test_emp" GROUP BY emp_no ORDER BY e DESC;
 groupByNumberWithWhereWithLiteral
@@ -573,20 +577,24 @@ groupByMulScalarWithLiterals
 SELECT emp_no * 2 AS e , 5, TRUE FROM test_emp GROUP BY e ORDER BY e;
 groupByMulScalarWithWhereWithLiterals
 SELECT emp_no * 2 AS e, 5, TRUE FROM test_emp WHERE emp_no < 10020 GROUP BY e ORDER BY e;
-aggMaxImplicitWithLiteral
-SELECT MAX(salary) AS max, 5 FROM test_emp;
 aggMaxImplicitWithCastWithLiteral
-SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 FROM "test_emp";
+SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 FROM test_emp;
 aggMaxImplicitWithCastWithWhereWithLiteral
-SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 FROM "test_emp" WHERE emp_no > 10000;
+SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 FROM test_emp WHERE emp_no > 10000;
 aggSumWithCastWithLiteral
-SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s, TRUE FROM "test_emp" GROUP BY gender ORDER BY gender;
+SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s, TRUE FROM test_emp GROUP BY gender ORDER BY gender;
 aggSumWithCastWithAliasWithLiteral
-SELECT TRUE, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM "test_emp" GROUP BY g ORDER BY g DESC;
+SELECT TRUE, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp GROUP BY g ORDER BY g DESC;
 aggSumWithWhereWithLiteral
-SELECT TRUE, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM "test_emp" WHERE emp_no > 10000 GROUP BY gender ORDER BY gender;
+SELECT TRUE, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp WHERE emp_no > 10000 GROUP BY gender ORDER BY gender;
 
 // group by with aliased literal
+implicitGroupByWithLiteralWithAlias
+SELECT 10 AS a, MAX("salary") AS max FROM test_emp;
+implicitGroupByWithLiteralsWithAliases
+SELECT 10 AS a, 'foo', MAX("salary") AS max, 20, 'bar' AS d FROM test_emp;
+groupByWithLiteralsWithAliases
+SELECT 10 AS a, 'foo', COUNT(*) AS cnt, '20', 'bar' AS d from test_emp GROUP BY gender ORDER BY 3;
 groupByNumberWithLiteralWithAlias
 SELECT emp_no e, 5 department FROM "test_emp" GROUP BY emp_no ORDER BY e DESC;
 groupByNumberWithWhereWithLiteralWithAlias
@@ -595,15 +603,13 @@ groupByMulScalarWithLiteralsWithAliases
 SELECT emp_no * 2 AS e, 5 department, TRUE as employed FROM test_emp GROUP BY e ORDER BY e;
 groupByMulScalarWithWhereWithLiteralsWithAliases
 SELECT emp_no * 2 AS e, 5 department, TRUE as employed FROM test_emp WHERE emp_no < 10020 GROUP BY e ORDER BY e;
-aggMaxImplicitWithLiteralWithAlias
-SELECT MAX(salary) AS max, 5 department FROM test_emp;
 aggMaxImplicitWithCastWithLiteralWithAlias
-SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 department FROM "test_emp";
+SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 department FROM test_emp;
 aggMaxImplicitWithCastWithWhereWithLiteralWithAlias
-SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 department FROM "test_emp" WHERE emp_no > 10000;
+SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 department FROM test_emp WHERE emp_no > 10000;
 aggSumWithCastWithLiteralWithAlias
-SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s, TRUE as employed FROM "test_emp" GROUP BY gender ORDER BY gender;
+SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s, TRUE as employed FROM test_emp GROUP BY gender ORDER BY gender;
 aggSumWithCastWithAliasWithLiteralWithAlias
-SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM "test_emp" GROUP BY g ORDER BY g DESC;
+SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp GROUP BY g ORDER BY g DESC;
 aggSumWithWhereWithLiteralWithAlias
-SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM "test_emp" WHERE emp_no > 10000 GROUP BY gender ORDER BY gender;
+SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp WHERE emp_no > 10000 GROUP BY gender ORDER BY gender;

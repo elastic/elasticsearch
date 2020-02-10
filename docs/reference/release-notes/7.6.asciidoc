@@ -237,9 +237,6 @@ Machine Learning::
 * Add default categorization analyzer definition to ML info {pull}49545[#49545]
 * Add graceful retry for anomaly detector result indexing failures {pull}49508[#49508] (issue: {issue}45711[#45711])
 * Lower minimum model memory limit value from 1MB to 1kB. {pull}49227[#49227] (issue: {issue}49168[#49168])
-* Throw an exception when memory usage estimation endpoint encounters empty data frame. {pull}49143[#49143] (issue: {issue}49140[#49140])
-* Change format of MulticlassConfusionMatrix result to be more self-explanatory {pull}48174[#48174] (issue: {issue}46735[#46735])
-* Make num_top_classes parameter's default value equal to 2 {pull}48119[#48119] (issue: {issue}46735[#46735])
 * Improve model_memory_limit UX for data frame analytics jobs {pull}44699[#44699]
 * Improve performance of boosted tree training for both classification and regression {ml-pull}775[#775]
 * Reduce the peak memory used by boosted tree training and fix an overcounting bug
@@ -481,19 +478,11 @@ Machine Learning::
 * Synchronize processInStream.close() call {pull}50581[#50581] (issue: {issue}49680[#49680])
 * Fix accuracy metric {pull}50310[#50310] (issue: {issue}48759[#48759])
 * Fix race condition when stopping a data frame analytics jobs immediately after starting it {pull}50276[#50276] (issues: {issue}49680[#49680], {issue}50177[#50177])
-* Use query in cardinality check {pull}49939[#49939]
 * Make only a part of `stop()` method a critical section. {pull}49756[#49756] (issue: {issue}49680[#49680])
-* Fix expired job results deletion audit message {pull}49560[#49560] (issue: {issue}49549[#49549])
 * Apply source query on data frame analytics memory estimation {pull}49517[#49517] (issue: {issue}49454[#49454])
-* Stop timing stats failure propagation {pull}49495[#49495]
 * Fix r_squared eval when variance is 0 {pull}49439[#49439]
 * Blacklist a number of prediction field names. {pull}49371[#49371] (issue: {issue}48808[#48808])
 * Make AnalyticsProcessManager class more robust {pull}49282[#49282] (issue: {issue}49095[#49095])
-* Fixes for stop datafeed edge cases {pull}49191[#49191] (issues: {issue}43670[#43670], {issue}48931[#48931])
-* Avoid NPE when node load is calculated on job assignment {pull}49186[#49186] (issue: {issue}49150[#49150])
-* Do not throw exceptions resulting from persisting datafeed timing stats. {pull}49044[#49044] (issue: {issue}49032[#49032])
-* Deduplicate multi-fields for data frame analytics {pull}48799[#48799] (issues: {issue}48756[#48756], {issue}48770[#48770])
-* Prevent fetching multi-field from source {pull}48770[#48770] (issue: {issue}48756[#48756])
 * Fixes potential memory corruption when determining seasonality {ml-pull}852[#852]
 * Prevent prediction_field_name clashing with other fields in ml results {ml-pull}861[#861]
 * Include out-of-order as well as in-order terms in categorization reverse searches {ml-pull}950[#950] (issue:{ml-issue}949[#949])

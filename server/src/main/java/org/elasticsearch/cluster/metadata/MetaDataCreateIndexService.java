@@ -340,7 +340,9 @@ public class MetaDataCreateIndexService {
         final Boolean isHiddenFromRequest = IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
             IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings()) : null;
         final List<IndexTemplateMetaData> templates = sourceMetaData == null ?
-            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index(), isHiddenFromRequest)) :
+            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(),
+                request.index(),
+                isHiddenFromRequest)) :
             List.of();
 
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(), templates, xContentRegistry));

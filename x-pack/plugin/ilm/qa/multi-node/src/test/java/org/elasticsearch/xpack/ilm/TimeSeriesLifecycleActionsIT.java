@@ -614,7 +614,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createNewSingletonPolicy("warm", new ShrinkAction(expectedFinalShards));
         updatePolicy(index, policy);
 
-        assertThat("ILM did not start retrying the set-single-node-allocation step", waitUntil(() -> {
+        assertTrue("ILM did not start retrying the set-single-node-allocation step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
                 if (explainIndexResponse == null) {
@@ -626,7 +626,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS), is(true));
+        }, 30, TimeUnit.SECONDS));
 
         Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
         resetAllocationForIndex.setJsonEntity("{\n" +

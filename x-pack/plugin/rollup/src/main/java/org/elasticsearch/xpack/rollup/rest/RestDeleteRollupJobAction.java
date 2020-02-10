@@ -9,20 +9,23 @@ package org.elasticsearch.xpack.rollup.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteRollupJobAction extends BaseRestHandler {
 
     public static final ParseField ID = new ParseField("id");
 
-    public RestDeleteRollupJobAction(RestController controller) {
-        controller.registerHandler(DELETE, "/_rollup/job/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(DELETE, "/_rollup/job/{id}"));
     }
 
     @Override

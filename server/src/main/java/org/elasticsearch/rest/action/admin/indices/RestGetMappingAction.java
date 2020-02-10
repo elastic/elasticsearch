@@ -27,23 +27,27 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetMappingAction extends BaseRestHandler {
 
-    public RestGetMappingAction(final RestController controller) {
-        controller.registerHandler(GET, "/_mapping", this);
-        controller.registerHandler(GET, "/_mappings", this);
-        controller.registerHandler(GET, "/{index}/_mappings", this);
-        controller.registerHandler(GET, "/{index}/_mapping", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_mapping"),
+            new Route(GET, "/_mappings"),
+            new Route(GET, "/{index}/_mapping"),
+            new Route(GET, "/{index}/_mappings")));
     }
 
     @Override

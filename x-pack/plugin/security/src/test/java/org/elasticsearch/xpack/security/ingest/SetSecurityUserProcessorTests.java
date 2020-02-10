@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.ingest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.IngestDocument;
@@ -201,12 +202,12 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null, Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(
-                ApiKeyService.API_KEY_ID_KEY, "api_key_id",
-                ApiKeyService.API_KEY_NAME_KEY, "api_key_name",
-                ApiKeyService.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
-                ApiKeyService.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type"
-            )));
+            new MapBuilder<String, Object>()
+                .put(ApiKeyService.API_KEY_ID_KEY, "api_key_id")
+                .put(ApiKeyService.API_KEY_NAME_KEY, "api_key_name")
+                .put(ApiKeyService.API_KEY_CREATOR_REALM_NAME, "creator_realm_name")
+                .put(ApiKeyService.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type")
+                .immutableMap()));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.allOf(Property.class));
@@ -229,16 +230,20 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null, Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(
-                ApiKeyService.API_KEY_ID_KEY, "api_key_id",
-                ApiKeyService.API_KEY_NAME_KEY, "api_key_name",
-                ApiKeyService.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
-                ApiKeyService.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type"
-            )));
+            new MapBuilder<String, Object>()
+                .put(ApiKeyService.API_KEY_ID_KEY, "api_key_id")
+                .put(ApiKeyService.API_KEY_NAME_KEY, "api_key_name")
+                .put(ApiKeyService.API_KEY_CREATOR_REALM_NAME, "creator_realm_name")
+                .put(ApiKeyService.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type")
+                .immutableMap()
+            ));
 
-        IngestDocument ingestDocument = new IngestDocument(IngestDocument.deepCopyMap(Map.of(
-            "_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7))
-        )), new HashMap<>());
+        IngestDocument ingestDocument = new IngestDocument(IngestDocument.deepCopyMap(
+            new MapBuilder<String, Object>().put("_field",
+                new MapBuilder<>()
+                    .put("api_key", new MapBuilder<>().put("version", 42).immutableMap())
+                    .put("realm", new MapBuilder<>().put("id", 7).immutableMap()).immutableMap()
+            ).immutableMap()), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
 

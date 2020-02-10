@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -19,6 +18,12 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
 
+import java.util.Collections;
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
 public class RestGetTransformActionDeprecated extends BaseRestHandler {
@@ -26,11 +31,18 @@ public class RestGetTransformActionDeprecated extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestGetTransformActionDeprecated.class));
 
-    public RestGetTransformActionDeprecated(RestController controller) {
-        controller.registerAsDeprecatedHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED, this,
-                TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger);
-        controller.registerAsDeprecatedHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED, this,
-                TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return unmodifiableList(asList(
+            new DeprecatedRoute(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED,
+                    TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger),
+            new DeprecatedRoute(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED,
+                    TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger)));
     }
 
     @Override

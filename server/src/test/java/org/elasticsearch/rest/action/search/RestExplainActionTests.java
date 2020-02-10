@@ -28,7 +28,7 @@ public class RestExplainActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestExplainAction(controller());
+        controller().registerHandler(new RestExplainAction());
     }
 
     public void testTypeInPath() {

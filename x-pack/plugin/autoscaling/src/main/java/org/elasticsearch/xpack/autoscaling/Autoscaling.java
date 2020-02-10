@@ -99,7 +99,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
         if (enabled) {
-            return Collections.singletonList(new RestGetAutoscalingDecisionHandler(controller));
+            return Collections.singletonList(new RestGetAutoscalingDecisionHandler());
         } else {
             return Collections.emptyList();
         }

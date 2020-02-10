@@ -8,27 +8,30 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
+import java.util.List;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestWatchServiceAction extends WatcherRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestWatchServiceAction.class));
 
-    public RestWatchServiceAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/_start", this,
-            POST, URI_BASE + "/watcher/_start", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/_stop", new StopRestHandler(),
-            POST, URI_BASE + "/watcher/_stop", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return singletonList(new ReplacedRoute(POST, "/_watcher/_start", POST, URI_BASE + "/watcher/_start", deprecationLogger));
     }
 
     @Override
@@ -41,9 +44,16 @@ public class RestWatchServiceAction extends WatcherRestHandler {
         return channel -> client.watcherService(new WatcherServiceRequest().start(), new RestToXContentListener<>(channel));
     }
 
-    private static class StopRestHandler extends WatcherRestHandler {
+    public static class StopRestHandler extends WatcherRestHandler {
 
-        StopRestHandler() {
+        @Override
+        public List<Route> routes() {
+            return emptyList();
+        }
+
+        @Override
+        public List<ReplacedRoute> replacedRoutes() {
+            return singletonList(new ReplacedRoute(POST, "/_watcher/_stop", POST, URI_BASE + "/watcher/_stop", deprecationLogger));
         }
 
         @Override

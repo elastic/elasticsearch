@@ -9,15 +9,20 @@ package org.elasticsearch.xpack.ccr.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestFollowStatsAction extends BaseRestHandler {
 
-    public RestFollowStatsAction(final RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/{index}/_ccr/stats", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "/{index}/_ccr/stats"));
     }
 
     @Override

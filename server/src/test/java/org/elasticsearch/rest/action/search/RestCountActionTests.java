@@ -32,7 +32,7 @@ public class RestCountActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestCountAction(controller());
+        controller().registerHandler(new RestCountAction());
     }
 
     public void testTypeInPath() {

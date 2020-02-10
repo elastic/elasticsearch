@@ -18,7 +18,6 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
@@ -27,8 +26,12 @@ import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -62,23 +65,22 @@ public class RestGraphAction extends XPackRestHandler {
     public static final ParseField BOOST_FIELD = new ParseField("boost");
     public static final ParseField TERM_FIELD = new ParseField("term");
 
-    public RestGraphAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, "/{index}/_graph/explore", this,
-                GET, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/{index}/_graph/explore", this,
-                POST, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, "/{index}/{type}/_graph/explore", this,
-                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/{index}/{type}/_graph/explore", this,
-                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return unmodifiableList(asList(
+            new ReplacedRoute(GET, "/{index}/_graph/explore", GET, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger),
+            new ReplacedRoute(POST, "/{index}/_graph/explore", POST, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger),
+            new ReplacedRoute(
+                GET, "/{index}/{type}/_graph/explore",
+                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger),
+            new ReplacedRoute(
+                POST, "/{index}/{type}_graph/explore",
+                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger)));
     }
 
     @Override

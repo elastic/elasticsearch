@@ -322,6 +322,8 @@ import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestGetSourceAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
+import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
+import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
@@ -565,148 +567,151 @@ public class ActionModule extends AbstractModule {
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
-        Consumer<RestHandler> registerHandler = a -> {
-            if (a instanceof AbstractCatAction) {
-                catActions.add((AbstractCatAction) a);
+        Consumer<RestHandler> registerHandler = handler -> {
+            if (handler instanceof AbstractCatAction) {
+                catActions.add((AbstractCatAction) handler);
             }
+            restController.registerHandler(handler);
         };
-        registerHandler.accept(new RestAddVotingConfigExclusionAction(restController));
-        registerHandler.accept(new RestClearVotingConfigExclusionsAction(restController));
-        registerHandler.accept(new RestMainAction(restController));
-        registerHandler.accept(new RestNodesInfoAction(restController, settingsFilter));
-        registerHandler.accept(new RestRemoteClusterInfoAction(restController));
-        registerHandler.accept(new RestNodesStatsAction(restController));
-        registerHandler.accept(new RestNodesUsageAction(restController));
-        registerHandler.accept(new RestNodesHotThreadsAction(restController));
-        registerHandler.accept(new RestClusterAllocationExplainAction(restController));
-        registerHandler.accept(new RestClusterStatsAction(restController));
-        registerHandler.accept(new RestClusterStateAction(restController, settingsFilter));
-        registerHandler.accept(new RestClusterHealthAction(restController));
-        registerHandler.accept(new RestClusterUpdateSettingsAction(restController));
-        registerHandler.accept(new RestClusterGetSettingsAction(settings, restController, clusterSettings, settingsFilter));
-        registerHandler.accept(new RestClusterRerouteAction(restController, settingsFilter));
-        registerHandler.accept(new RestClusterSearchShardsAction(restController));
-        registerHandler.accept(new RestPendingClusterTasksAction(restController));
-        registerHandler.accept(new RestPutRepositoryAction(restController));
-        registerHandler.accept(new RestGetRepositoriesAction(restController, settingsFilter));
-        registerHandler.accept(new RestDeleteRepositoryAction(restController));
-        registerHandler.accept(new RestVerifyRepositoryAction(restController));
-        registerHandler.accept(new RestCleanupRepositoryAction(restController));
-        registerHandler.accept(new RestGetSnapshotsAction(restController));
-        registerHandler.accept(new RestCreateSnapshotAction(restController));
-        registerHandler.accept(new RestRestoreSnapshotAction(restController));
-        registerHandler.accept(new RestDeleteSnapshotAction(restController));
-        registerHandler.accept(new RestSnapshotsStatusAction(restController));
-        registerHandler.accept(new RestGetIndicesAction(restController));
-        registerHandler.accept(new RestIndicesStatsAction(restController));
-        registerHandler.accept(new RestIndicesSegmentsAction(restController));
-        registerHandler.accept(new RestIndicesShardStoresAction(restController));
-        registerHandler.accept(new RestGetAliasesAction(restController));
-        registerHandler.accept(new RestIndexDeleteAliasesAction(restController));
-        registerHandler.accept(new RestIndexPutAliasAction(restController));
-        registerHandler.accept(new RestIndicesAliasesAction(restController));
-        registerHandler.accept(new RestCreateIndexAction(restController));
-        registerHandler.accept(new RestResizeHandler.RestShrinkIndexAction(restController));
-        registerHandler.accept(new RestResizeHandler.RestSplitIndexAction(restController));
-        registerHandler.accept(new RestResizeHandler.RestCloneIndexAction(restController));
-        registerHandler.accept(new RestRolloverIndexAction(restController));
-        registerHandler.accept(new RestDeleteIndexAction(restController));
-        registerHandler.accept(new RestCloseIndexAction(restController));
-        registerHandler.accept(new RestOpenIndexAction(restController));
+        registerHandler.accept(new RestAddVotingConfigExclusionAction());
+        registerHandler.accept(new RestClearVotingConfigExclusionsAction());
+        registerHandler.accept(new RestMainAction());
+        registerHandler.accept(new RestNodesInfoAction(settingsFilter));
+        registerHandler.accept(new RestRemoteClusterInfoAction());
+        registerHandler.accept(new RestNodesStatsAction());
+        registerHandler.accept(new RestNodesUsageAction());
+        registerHandler.accept(new RestNodesHotThreadsAction());
+        registerHandler.accept(new RestClusterAllocationExplainAction());
+        registerHandler.accept(new RestClusterStatsAction());
+        registerHandler.accept(new RestClusterStateAction(settingsFilter));
+        registerHandler.accept(new RestClusterHealthAction());
+        registerHandler.accept(new RestClusterUpdateSettingsAction());
+        registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
+        registerHandler.accept(new RestClusterRerouteAction(settingsFilter));
+        registerHandler.accept(new RestClusterSearchShardsAction());
+        registerHandler.accept(new RestPendingClusterTasksAction());
+        registerHandler.accept(new RestPutRepositoryAction());
+        registerHandler.accept(new RestGetRepositoriesAction(settingsFilter));
+        registerHandler.accept(new RestDeleteRepositoryAction());
+        registerHandler.accept(new RestVerifyRepositoryAction());
+        registerHandler.accept(new RestCleanupRepositoryAction());
+        registerHandler.accept(new RestGetSnapshotsAction());
+        registerHandler.accept(new RestCreateSnapshotAction());
+        registerHandler.accept(new RestRestoreSnapshotAction());
+        registerHandler.accept(new RestDeleteSnapshotAction());
+        registerHandler.accept(new RestSnapshotsStatusAction());
+        registerHandler.accept(new RestGetIndicesAction());
+        registerHandler.accept(new RestIndicesStatsAction());
+        registerHandler.accept(new RestIndicesSegmentsAction());
+        registerHandler.accept(new RestIndicesShardStoresAction());
+        registerHandler.accept(new RestGetAliasesAction());
+        registerHandler.accept(new RestIndexDeleteAliasesAction());
+        registerHandler.accept(new RestIndexPutAliasAction());
+        registerHandler.accept(new RestIndicesAliasesAction());
+        registerHandler.accept(new RestCreateIndexAction());
+        registerHandler.accept(new RestResizeHandler.RestShrinkIndexAction());
+        registerHandler.accept(new RestResizeHandler.RestSplitIndexAction());
+        registerHandler.accept(new RestResizeHandler.RestCloneIndexAction());
+        registerHandler.accept(new RestRolloverIndexAction());
+        registerHandler.accept(new RestDeleteIndexAction());
+        registerHandler.accept(new RestCloseIndexAction());
+        registerHandler.accept(new RestOpenIndexAction());
 
-        registerHandler.accept(new RestUpdateSettingsAction(restController));
-        registerHandler.accept(new RestGetSettingsAction(restController));
+        registerHandler.accept(new RestUpdateSettingsAction());
+        registerHandler.accept(new RestGetSettingsAction());
 
-        registerHandler.accept(new RestAnalyzeAction(restController));
-        registerHandler.accept(new RestGetIndexTemplateAction(restController));
-        registerHandler.accept(new RestPutIndexTemplateAction(restController));
-        registerHandler.accept(new RestDeleteIndexTemplateAction(restController));
+        registerHandler.accept(new RestAnalyzeAction());
+        registerHandler.accept(new RestGetIndexTemplateAction());
+        registerHandler.accept(new RestPutIndexTemplateAction());
+        registerHandler.accept(new RestDeleteIndexTemplateAction());
 
-        registerHandler.accept(new RestPutMappingAction(restController));
-        registerHandler.accept(new RestGetMappingAction(restController));
-        registerHandler.accept(new RestGetFieldMappingAction(restController));
+        registerHandler.accept(new RestPutMappingAction());
+        registerHandler.accept(new RestGetMappingAction());
+        registerHandler.accept(new RestGetFieldMappingAction());
 
-        registerHandler.accept(new RestRefreshAction(restController));
-        registerHandler.accept(new RestFlushAction(restController));
-        registerHandler.accept(new RestSyncedFlushAction(restController));
-        registerHandler.accept(new RestForceMergeAction(restController));
-        registerHandler.accept(new RestUpgradeActionDeprecated(restController));
-        registerHandler.accept(new RestUpgradeStatusActionDeprecated(restController));
-        registerHandler.accept(new RestClearIndicesCacheAction(restController));
+        registerHandler.accept(new RestRefreshAction());
+        registerHandler.accept(new RestFlushAction());
+        registerHandler.accept(new RestSyncedFlushAction());
+        registerHandler.accept(new RestForceMergeAction());
+        registerHandler.accept(new RestUpgradeActionDeprecated());
+        registerHandler.accept(new RestUpgradeStatusActionDeprecated());
+        registerHandler.accept(new RestClearIndicesCacheAction());
 
-        registerHandler.accept(new RestIndexAction(restController, clusterService));
-        registerHandler.accept(new RestGetAction(restController));
-        registerHandler.accept(new RestGetSourceAction(restController));
-        registerHandler.accept(new RestMultiGetAction(settings, restController));
-        registerHandler.accept(new RestDeleteAction(restController));
-        registerHandler.accept(new RestCountAction(restController));
-        registerHandler.accept(new RestTermVectorsAction(restController));
-        registerHandler.accept(new RestMultiTermVectorsAction(restController));
-        registerHandler.accept(new RestBulkAction(settings, restController));
-        registerHandler.accept(new RestUpdateAction(restController));
+        registerHandler.accept(new RestIndexAction());
+        registerHandler.accept(new CreateHandler());
+        registerHandler.accept(new AutoIdHandler(clusterService));
+        registerHandler.accept(new RestGetAction());
+        registerHandler.accept(new RestGetSourceAction());
+        registerHandler.accept(new RestMultiGetAction(settings));
+        registerHandler.accept(new RestDeleteAction());
+        registerHandler.accept(new RestCountAction());
+        registerHandler.accept(new RestTermVectorsAction());
+        registerHandler.accept(new RestMultiTermVectorsAction());
+        registerHandler.accept(new RestBulkAction(settings));
+        registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(new RestSearchAction(restController));
-        registerHandler.accept(new RestSearchScrollAction(restController));
-        registerHandler.accept(new RestClearScrollAction(restController));
-        registerHandler.accept(new RestMultiSearchAction(settings, restController));
+        registerHandler.accept(new RestSearchAction());
+        registerHandler.accept(new RestSearchScrollAction());
+        registerHandler.accept(new RestClearScrollAction());
+        registerHandler.accept(new RestMultiSearchAction(settings));
 
-        registerHandler.accept(new RestValidateQueryAction(restController));
+        registerHandler.accept(new RestValidateQueryAction());
 
-        registerHandler.accept(new RestExplainAction(restController));
+        registerHandler.accept(new RestExplainAction());
 
-        registerHandler.accept(new RestRecoveryAction(restController));
+        registerHandler.accept(new RestRecoveryAction());
 
-        registerHandler.accept(new RestReloadSecureSettingsAction(restController));
+        registerHandler.accept(new RestReloadSecureSettingsAction());
 
         // Scripts API
-        registerHandler.accept(new RestGetStoredScriptAction(restController));
-        registerHandler.accept(new RestPutStoredScriptAction(restController));
-        registerHandler.accept(new RestDeleteStoredScriptAction(restController));
-        registerHandler.accept(new RestGetScriptContextAction(restController));
-        registerHandler.accept(new RestGetScriptLanguageAction(restController));
+        registerHandler.accept(new RestGetStoredScriptAction());
+        registerHandler.accept(new RestPutStoredScriptAction());
+        registerHandler.accept(new RestDeleteStoredScriptAction());
+        registerHandler.accept(new RestGetScriptContextAction());
+        registerHandler.accept(new RestGetScriptLanguageAction());
 
-        registerHandler.accept(new RestFieldCapabilitiesAction(restController));
+        registerHandler.accept(new RestFieldCapabilitiesAction());
 
         // Tasks API
-        registerHandler.accept(new RestListTasksAction(restController, nodesInCluster));
-        registerHandler.accept(new RestGetTaskAction(restController));
-        registerHandler.accept(new RestCancelTasksAction(restController, nodesInCluster));
+        registerHandler.accept(new RestListTasksAction(nodesInCluster));
+        registerHandler.accept(new RestGetTaskAction());
+        registerHandler.accept(new RestCancelTasksAction(nodesInCluster));
 
         // Ingest API
-        registerHandler.accept(new RestPutPipelineAction(restController));
-        registerHandler.accept(new RestGetPipelineAction(restController));
-        registerHandler.accept(new RestDeletePipelineAction(restController));
-        registerHandler.accept(new RestSimulatePipelineAction(restController));
+        registerHandler.accept(new RestPutPipelineAction());
+        registerHandler.accept(new RestGetPipelineAction());
+        registerHandler.accept(new RestDeletePipelineAction());
+        registerHandler.accept(new RestSimulatePipelineAction());
 
         // CAT API
-        registerHandler.accept(new RestAllocationAction(restController));
-        registerHandler.accept(new RestShardsAction(restController));
-        registerHandler.accept(new RestMasterAction(restController));
-        registerHandler.accept(new RestNodesAction(restController));
-        registerHandler.accept(new RestTasksAction(restController, nodesInCluster));
-        registerHandler.accept(new RestIndicesAction(restController));
-        registerHandler.accept(new RestSegmentsAction(restController));
+        registerHandler.accept(new RestAllocationAction());
+        registerHandler.accept(new RestShardsAction());
+        registerHandler.accept(new RestMasterAction());
+        registerHandler.accept(new RestNodesAction());
+        registerHandler.accept(new RestTasksAction(nodesInCluster));
+        registerHandler.accept(new RestIndicesAction());
+        registerHandler.accept(new RestSegmentsAction());
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
-        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(restController));
+        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction());
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
-        registerHandler.accept(new RestCatRecoveryAction(restController));
-        registerHandler.accept(new RestHealthAction(restController));
-        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction(restController));
-        registerHandler.accept(new RestAliasAction(restController));
-        registerHandler.accept(new RestThreadPoolAction(restController));
-        registerHandler.accept(new RestPluginsAction(restController));
-        registerHandler.accept(new RestFielddataAction(restController));
-        registerHandler.accept(new RestNodeAttrsAction(restController));
-        registerHandler.accept(new RestRepositoriesAction(restController));
-        registerHandler.accept(new RestSnapshotAction(restController));
-        registerHandler.accept(new RestTemplatesAction(restController));
+        registerHandler.accept(new RestCatRecoveryAction());
+        registerHandler.accept(new RestHealthAction());
+        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction());
+        registerHandler.accept(new RestAliasAction());
+        registerHandler.accept(new RestThreadPoolAction());
+        registerHandler.accept(new RestPluginsAction());
+        registerHandler.accept(new RestFielddataAction());
+        registerHandler.accept(new RestNodeAttrsAction());
+        registerHandler.accept(new RestRepositoriesAction());
+        registerHandler.accept(new RestSnapshotAction());
+        registerHandler.accept(new RestTemplatesAction());
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
                     settingsFilter, indexNameExpressionResolver, nodesInCluster)) {
                 registerHandler.accept(handler);
             }
         }
-        registerHandler.accept(new RestCatAction(restController, catActions));
+        registerHandler.accept(new RestCatAction(catActions));
     }
 
     @Override

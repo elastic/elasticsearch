@@ -83,7 +83,19 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
             return new CompletionStats(sizeInBytes, new FieldMemoryStats(completionFields));
         });
 
-        return filterCompletionStatsByFieldName(fieldNamePatterns, newFuture.actionGet());
+        boolean success = false;
+        final CompletionStats completionStats;
+        try {
+            completionStats = newFuture.actionGet();
+            success = true;
+        } finally {
+            if (success == false) {
+                // invalidate the cache (if not already invalidated) so that future calls will retry
+                completionStatsFutureRef.compareAndSet(newFuture, null);
+            }
+        }
+
+        return filterCompletionStatsByFieldName(fieldNamePatterns, completionStats);
     }
 
     private static CompletionStats filterCompletionStatsByFieldName(String[] fieldNamePatterns, CompletionStats fullCompletionStats) {

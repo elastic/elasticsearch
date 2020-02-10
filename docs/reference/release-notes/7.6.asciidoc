@@ -477,7 +477,6 @@ Machine Learning::
 * Improve uniqueness of result document IDs {pull}50644[#50644] (issue: {issue}50613[#50613])
 * Fix accuracy metric in multi-class confusion matrix {pull}50310[#50310] (issue: {issue}48759[#48759])
 * Fix race condition when stopping a data frame analytics jobs immediately after starting it {pull}50276[#50276] (issues: {issue}49680[#49680], {issue}50177[#50177])
-* Make only a part of `stop()` method a critical section. {pull}49756[#49756] (issue: {issue}49680[#49680])
 * Apply source query on data frame analytics memory estimation {pull}49517[#49517] (issue: {issue}49454[#49454])
 * Fix r_squared eval when variance is 0 {pull}49439[#49439]
 * Blacklist a number of prediction field names. {pull}49371[#49371] (issue: {issue}48808[#48808])

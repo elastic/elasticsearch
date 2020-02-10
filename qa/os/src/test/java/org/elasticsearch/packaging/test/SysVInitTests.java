@@ -19,13 +19,10 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.BeforeClass;
-
-import java.nio.file.Files;
+import org.junit.BeforeClass;   
 
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.elasticsearch.packaging.util.FileUtils.fileWithGlobExist;

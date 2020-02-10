@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 import java.nio.file.Files;
 
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
+import static org.elasticsearch.packaging.util.FileUtils.fileWithGlobExist;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assume.assumeFalse;
@@ -60,25 +61,7 @@ public class SysVInitTests extends PackagingTestCase {
 
     public void test20Start() throws Exception {
         startElasticsearch();
-        boolean gcLogExists = Files.exists(installation.logs.resolve("gc.log"));
-        if (gcLogExists == false) {
-            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
-                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
-                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
-                sh.runIgnoreExitCode("jstack " + pid);
-            }
-            if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
-                logger.warn("Elasticsearch log:\n" +
-                    FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
-            }
-            if (Files.exists(installation.logs.resolve("output.out"))) {
-                logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
-            }
-            if (Files.exists(installation.logs.resolve("output.err"))) {
-                logger.warn("Stderr:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.err")));
-            }
-        }
-        assertTrue("gc logs exist", gcLogExists);
+        assertThat(installation.logs, fileWithGlobExist("gc.log*"));
         ServerUtils.runElasticsearchTests();
         sh.run("service elasticsearch status"); // returns 0 exit status when ok
     }

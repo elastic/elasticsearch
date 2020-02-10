@@ -146,10 +146,12 @@ public abstract class AbstractObjectParser<Value, Context>
         declareField(consumer, (p, c) -> objectParser.parse(p, c), field, ValueType.OBJECT);
     }
 
+    /**
+     * Declare a field that can bee an object or an explicit {@code null}.
+     */
     public <T> void declareObjectOrNull(BiConsumer<Value, T> consumer, ContextParser<Context, T> objectParser, ParseField field) {
         declareField(consumer, (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : objectParser.parse(p, c),
                 field, ValueType.OBJECT_OR_NULL);
-        // NOCOMMIT test
     }
 
     public void declareFloat(BiConsumer<Value, Float> consumer, ParseField field) {
@@ -163,12 +165,11 @@ public abstract class AbstractObjectParser<Value, Context>
     }
 
     /**
-     * Declare a double field that supports null. If the field is null this will call the consumer with {@code nullValue}. 
+     * Declare a double field that parses explicit {@code null}s in the json to a default value.
      */
     public void declareDoubleOrNull(BiConsumer<Value, Double> consumer, double nullValue, ParseField field) {
         declareField(consumer, p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : p.doubleValue(),
                 field, ValueType.DOUBLE_OR_NULL);
-        // NOCOMMIT test
     }
 
     public void declareLong(BiConsumer<Value, Long> consumer, ParseField field) {
@@ -181,10 +182,12 @@ public abstract class AbstractObjectParser<Value, Context>
         declareField(consumer, p -> p.intValue(), field, ValueType.INT);
     }
 
+    /**
+     * Declare a double field that parses explicit {@code null}s in the json to a default value.
+     */
     public void declareIntOrNull(BiConsumer<Value, Integer> consumer, int nullValue, ParseField field) {
         declareField(consumer, p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : p.intValue(),
                 field, ValueType.INT_OR_NULL);
-        // NOCOMMIT test
     }
 
 

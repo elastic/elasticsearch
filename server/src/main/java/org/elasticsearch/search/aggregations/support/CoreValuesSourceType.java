@@ -57,19 +57,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
 
-            if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
-                // TODO: Is this the correct exception type here?
-                throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
-            }
-
-            ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData(NUMERIC,
-                (IndexNumericFieldData) fieldContext.indexFieldData());
-            if (script != null) {
-                // Value script case
-                dataSource = new ValuesSource.Numeric.WithScript(dataSource, script);
-            }
-            return dataSource;
+            return getNumericFieldValuesSource(fieldContext, script, NUMERIC);
         }
 
         @Override
@@ -91,17 +79,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
-            ValuesSource dataSource;
-            if (indexFieldData instanceof IndexOrdinalsFieldData) {
-                dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData(BYTES, (IndexOrdinalsFieldData) indexFieldData);
-            } else {
-                dataSource = new ValuesSource.Bytes.FieldData(BYTES, indexFieldData);
-            }
-            if (script != null) {
-                dataSource = new ValuesSource.Bytes.WithScript(dataSource, script);
-            }
-            return dataSource;
+            return getBytesFieldValuesSource(fieldContext, script, BYTES);
         }
 
         @Override
@@ -205,21 +183,20 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     },
-    // TODO: Ordinal Numbering sync with types from master
     IP(EquivalenceType.STRING) {
         @Override
         public ValuesSource getEmpty() {
-            return BYTES.getEmpty();
+            return new ValuesSource.Bytes.WithOrdinals.Empty(IP);
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return BYTES.getScript(script, scriptValueType);
+            return new ValuesSource.Bytes.Script(IP, script);
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            return BYTES.getField(fieldContext, script);
+            return getBytesFieldValuesSource(fieldContext, script, IP);
         }
 
         @Override
@@ -235,17 +212,17 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     DATE(EquivalenceType.NUMBER) {
         @Override
         public ValuesSource getEmpty() {
-            return NUMERIC.getEmpty();
+            return new ValuesSource.Numeric.Empty(DATE);
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return NUMERIC.getScript(script, scriptValueType);
+            return new ValuesSource.Numeric.Script(DATE, script, scriptValueType);
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            return NUMERIC.getField(fieldContext, script);
+            return getNumericFieldValuesSource(fieldContext, script, DATE);
         }
 
         @Override
@@ -266,17 +243,17 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     BOOLEAN(EquivalenceType.NUMBER) {
         @Override
         public ValuesSource getEmpty() {
-            return NUMERIC.getEmpty();
+            return new ValuesSource.Numeric.Empty(BOOLEAN);
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return NUMERIC.getScript(script, scriptValueType);
+            return new ValuesSource.Numeric.Script(BOOLEAN, script, scriptValueType);
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            return NUMERIC.getField(fieldContext, script);
+            return getNumericFieldValuesSource(fieldContext, script, BOOLEAN);
         }
 
         @Override
@@ -317,4 +294,39 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Helper method for BYTES and IP, which have the same logic for constructing {@link ValuesSource} instances, but need to specify
+     * different {@link ValuesSourceType}s
+     */
+    private static ValuesSource getBytesFieldValuesSource(FieldContext fieldContext, AggregationScript.LeafFactory script,
+                                                          CoreValuesSourceType valuesSourceType) {
+        final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
+        ValuesSource dataSource;
+        if (indexFieldData instanceof IndexOrdinalsFieldData) {
+            dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData(valuesSourceType, (IndexOrdinalsFieldData) indexFieldData);
+        } else {
+            dataSource = new ValuesSource.Bytes.FieldData(valuesSourceType, indexFieldData);
+        }
+        if (script != null) {
+            dataSource = new ValuesSource.Bytes.WithScript(dataSource, script);
+        }
+        return dataSource;
+    }
+
+    private static ValuesSource getNumericFieldValuesSource(FieldContext fieldContext, AggregationScript.LeafFactory script,
+                                                            CoreValuesSourceType valuesSourceType) {
+        if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
+            // TODO: Is this the correct exception type here?
+            throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
+                "], but got [" + fieldContext.fieldType().typeName() + "]");
+        }
+
+        ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData(valuesSourceType,
+            (IndexNumericFieldData) fieldContext.indexFieldData());
+        if (script != null) {
+            // Value script case
+            dataSource = new ValuesSource.Numeric.WithScript(dataSource, script);
+        }
+        return dataSource;
+    }
 }

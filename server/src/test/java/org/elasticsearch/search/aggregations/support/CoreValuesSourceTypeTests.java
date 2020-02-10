@@ -19,9 +19,19 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class CoreValuesSourceTypeTests extends ESTestCase {
 
@@ -36,5 +46,48 @@ public class CoreValuesSourceTypeTests extends ESTestCase {
         assertThat(e.getMessage(),
             equalTo("No enum constant org.elasticsearch.search.aggregations.support.CoreValuesSourceType.DOES_NOT_EXIST"));
         expectThrows(NullPointerException.class, () -> CoreValuesSourceType.fromString(null));
+    }
+
+    public void testSetValuesSourceTypeOnEmpty() {
+        assertThat(CoreValuesSourceType.NUMERIC.getEmpty().getValuesSourceType(), equalTo(CoreValuesSourceType.NUMERIC));
+        assertThat(CoreValuesSourceType.BYTES.getEmpty().getValuesSourceType(), equalTo(CoreValuesSourceType.BYTES));
+        assertThat(CoreValuesSourceType.GEOPOINT.getEmpty().getValuesSourceType(), equalTo(CoreValuesSourceType.GEOPOINT));
+        // RANGE doesn't currently have an empty case...
+        //assertThat(CoreValuesSourceType.RANGE.getEmpty().getValuesSourceType(), equalTo(CoreValuesSourceType.RANGE));
+        assertThat(CoreValuesSourceType.IP.getEmpty().getValuesSourceType(), equalTo(CoreValuesSourceType.IP));
+        assertThat(CoreValuesSourceType.DATE.getEmpty().getValuesSourceType(), equalTo(CoreValuesSourceType.DATE));
+        assertThat(CoreValuesSourceType.BOOLEAN.getEmpty().getValuesSourceType(), equalTo(CoreValuesSourceType.BOOLEAN));
+    }
+
+    public void testSetValuesSourceTypeOnScript() {
+        assertThat(CoreValuesSourceType.NUMERIC.getScript(null, null).getValuesSourceType(), equalTo(CoreValuesSourceType.NUMERIC));
+        assertThat(CoreValuesSourceType.BYTES.getScript(null, null).getValuesSourceType(), equalTo(CoreValuesSourceType.BYTES));
+        // GEOPOINT, RANGE, and HISTOGRAM don't support scripts.
+        //assertThat(CoreValuesSourceType.GEOPOINT.getScript(null, null).getValuesSourceType(), equalTo(CoreValuesSourceType.GEOPOINT));
+        //assertThat(CoreValuesSourceType.RANGE.getScript(null, null).getValuesSourceType(), equalTo(CoreValuesSourceType.RANGE));
+        assertThat(CoreValuesSourceType.IP.getScript(null, null).getValuesSourceType(), equalTo(CoreValuesSourceType.IP));
+        assertThat(CoreValuesSourceType.DATE.getScript(null, null).getValuesSourceType(), equalTo(CoreValuesSourceType.DATE));
+        assertThat(CoreValuesSourceType.BOOLEAN.getScript(null, null).getValuesSourceType(), equalTo(CoreValuesSourceType.BOOLEAN));
+    }
+
+    public void testSetValuesSourceTypeOnField() {
+        FieldContext numeric = new FieldContext("number", mock(IndexNumericFieldData.class),
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
+        assertThat(CoreValuesSourceType.NUMERIC.getField(numeric, null).getValuesSourceType(), equalTo(CoreValuesSourceType.NUMERIC));
+
+        FieldContext bytes = new FieldContext("keyword", mock(IndexOrdinalsFieldData.class), new KeywordFieldMapper.KeywordFieldType());
+        assertThat(CoreValuesSourceType.BYTES.getField(bytes, null).getValuesSourceType(), equalTo(CoreValuesSourceType.BYTES));
+
+        FieldContext geo = new FieldContext("Geopoint", mock(IndexGeoPointFieldData.class), new GeoPointFieldMapper.GeoPointFieldType());
+        assertThat(CoreValuesSourceType.GEOPOINT.getField(geo, null).getValuesSourceType(), equalTo(CoreValuesSourceType.GEOPOINT));
+
+        FieldContext range = new FieldContext("Range", mock(IndexFieldData.class),
+            new RangeFieldMapper.Builder("Range", RangeType.LONG).fieldType());
+        assertThat(CoreValuesSourceType.RANGE.getField(range, null).getValuesSourceType(), equalTo(CoreValuesSourceType.RANGE));
+
+        assertThat(CoreValuesSourceType.IP.getField(bytes, null).getValuesSourceType(), equalTo(CoreValuesSourceType.IP));
+        assertThat(CoreValuesSourceType.DATE.getField(numeric, null).getValuesSourceType(), equalTo(CoreValuesSourceType.DATE));
+        assertThat(CoreValuesSourceType.BOOLEAN.getField(numeric, null).getValuesSourceType(), equalTo(CoreValuesSourceType.BOOLEAN));
+
     }
 }

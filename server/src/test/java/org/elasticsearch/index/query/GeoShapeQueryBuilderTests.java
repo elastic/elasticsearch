@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -82,9 +83,8 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     }
 
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
-        // LatLonShape does not support MultiPoint queries
         RandomShapeGenerator.ShapeType shapeType =
-            randomFrom(ShapeType.POINT, ShapeType.LINESTRING, ShapeType.MULTILINESTRING, ShapeType.POLYGON);
+            randomFrom(ShapeType.POINT, ShapeType.MULTIPOINT, ShapeType.LINESTRING, ShapeType.MULTILINESTRING, ShapeType.POLYGON);
         ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         GeoShapeQueryBuilder builder;
         clearShapeFields();
@@ -108,11 +108,20 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             }
         }
         if (randomBoolean()) {
-            if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
-                builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS));
+            QueryShardContext context = createShardContext();
+            if (context.indexVersionCreated().onOrAfter(Version.V_7_5_0)) { // CONTAINS is only supported from version 7.5
+                if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
+                    builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS));
+                } else {
+                    builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS,
+                        ShapeRelation.WITHIN, ShapeRelation.CONTAINS));
+                }
             } else {
-                // LatLonShape does not support CONTAINS:
-                builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN));
+                if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
+                    builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS));
+                } else {
+                    builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN));
+                }
             }
         }
 

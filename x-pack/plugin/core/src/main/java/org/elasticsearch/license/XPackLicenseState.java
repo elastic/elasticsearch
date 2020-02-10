@@ -645,8 +645,8 @@ public class XPackLicenseState {
      * <p>
      *  EQL is available for all license types except {@link OperationMode#MISSING}
      */
-    public synchronized boolean isEqlAllowed() {
-        return status.active;
+    public boolean isEqlAllowed() {
+        return allowForAllLicenses();
     }
 
     /**
@@ -705,10 +705,6 @@ public class XPackLicenseState {
      */
     public boolean isDataScienceAllowed() {
         return allowForAllLicenses();
-    }
-
-    public synchronized boolean isTrialLicense() {
-        return status.mode == OperationMode.TRIAL;
     }
 
     /**

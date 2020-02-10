@@ -21,6 +21,7 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +45,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         assertBusy(() -> {
             Response response = client().performRequest(new Request("GET", "_watcher/stats"));
             Map<String, Object> responseBody = entityAsMap(response);
-            assertThat(responseBody.get("watcher_state"), equalTo("started"));
+            List<?> stats = (List<?>) responseBody.get("stats");
+            for (Object stat : stats) {
+                Map<?, ?> statAsMap = (Map<?, ?>) stat;
+                assertThat(statAsMap.get("watcher_state"), equalTo("started"));
+            }
         });
     }
 

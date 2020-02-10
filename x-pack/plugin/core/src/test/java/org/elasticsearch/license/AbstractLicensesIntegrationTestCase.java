@@ -88,7 +88,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
     protected void assertLicenseActive(boolean active) throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getDataNodeInstances(XPackLicenseState.class)) {
-                if (licenseState.isActive() == active) {
+                if (licenseState.allowForAllLicenses() == active) {
                     return;
                 }
             }

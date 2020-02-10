@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -44,6 +46,11 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNA
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -307,53 +314,61 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
 
     public void testIsAvailableWithLicense() {
         TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
-
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isActive()).thenReturn(false);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
 
+        // Reject everything
+        when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
+            invocationOnMock -> {
+                final Object[] arguments = invocationOnMock.getArguments();
+                assertTrue((boolean) arguments[1]); // ensure the call is made to require active license
+                return false;
+            }
+        );
         assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
         assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(true);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.ENTERPRISE);
-        assertTrue(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(false);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
         assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(true);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.PLATINUM);
-        assertTrue(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
+        // Basic license always works not matter what
         assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(false);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(true);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.GOLD);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(false);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
     }
 
+    public void testActivePlatinumLicenseAlwaysWorks() {
+        TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        // Active Platinum license is considered as highest and should always work
+        when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
+            invocationOnMock -> {
+                final Object[] arguments = invocationOnMock.getArguments();
+                assertEquals(License.OperationMode.PLATINUM, arguments[0]);
+                assertTrue((boolean) arguments[1]); // ensure the call is made to require active license
+                assertTrue((boolean) arguments[2]);
+                return true;
+            }
+        );
+        assertTrue(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+    }
+
+    public void testActiveGoldLicenseWillWorkWhenRequiredLevelIsGold() {
+        TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        // Active Gold license should work when required level is gold
+        when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
+            invocationOnMock -> {
+                final Object[] arguments = invocationOnMock.getArguments();
+                assertTrue((boolean) arguments[1]); // ensure the call is made to require active license
+                if (License.OperationMode.PLATINUM == arguments[0] && Boolean.TRUE.equals(arguments[2])) {
+                    return false;
+                } else
+                    return License.OperationMode.GOLD == arguments[0] && Boolean.FALSE.equals(arguments[2]);
+            }
+        );
+        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
+        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+    }
 }

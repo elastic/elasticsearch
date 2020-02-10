@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -22,6 +21,9 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -33,15 +35,22 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutRoleAction.class));
 
-    public RestPutRoleAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestPutRoleAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/role/{name}", this,
-            POST, "/_xpack/security/role/{name}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_security/role/{name}", this,
-            PUT, "/_xpack/security/role/{name}", deprecationLogger);
+        return Collections.unmodifiableList(Arrays.asList(
+            new ReplacedRoute(POST, "/_security/role/{name}", POST, "/_xpack/security/role/{name}", deprecationLogger),
+            new ReplacedRoute(PUT, "/_security/role/{name}", PUT, "/_xpack/security/role/{name}", deprecationLogger)
+        ));
     }
 
     @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -136,7 +137,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DATETIME;
+        return DataTypes.DATETIME;
     }
 
     @Override

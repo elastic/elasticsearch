@@ -331,6 +331,11 @@ See <<slm-api-delete-policy>>.
 
 See <<slm-api-execute-lifecycle>>.
 
+[role="exclude",id="slm-api-execute-policy"]
+=== {slm-init} execute lifecycle API
+
+See <<slm-api-execute-lifecycle>>.
+
 [role="exclude",id="slm-api-get"]
 === {slm-init} get policy API
 
@@ -341,7 +346,27 @@ See <<slm-api-get-policy>>.
 
 See <<slm-api-get-stats>>.
 
+[role="exclude",id="slm-get-status"]
+=== {slm-init} status API
+
+See <<slm-api-get-status>>.
+
 [role="exclude",id="slm-api-put"]
 === {slm-init} put policy API
 
 See <<slm-api-put-policy>>.
+
+[role="exclude",id="slm-start"]
+=== Start {slm} API
+
+See <<slm-api-start>>.
+
+[role="exclude",id="slm-stop"]
+=== Stop {slm} API
+
+See <<slm-api-stop>>.
+
+[role="exclude",id="eql-search"]
+=== EQL search  API
+
+See <<eql>>.

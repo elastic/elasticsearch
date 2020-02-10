@@ -20,16 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BinaryMathNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -55,47 +55,41 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         originallyExplicit = explicit;
 
         if (operation == Operation.MUL) {
-            analyzeMul(scriptRoot, locals);
+            analyzeMul(scriptRoot, scope);
         } else if (operation == Operation.DIV) {
-            analyzeDiv(scriptRoot, locals);
+            analyzeDiv(scriptRoot, scope);
         } else if (operation == Operation.REM) {
-            analyzeRem(scriptRoot, locals);
+            analyzeRem(scriptRoot, scope);
         } else if (operation == Operation.ADD) {
-            analyzeAdd(scriptRoot, locals);
+            analyzeAdd(scriptRoot, scope);
         } else if (operation == Operation.SUB) {
-            analyzeSub(scriptRoot, locals);
+            analyzeSub(scriptRoot, scope);
         } else if (operation == Operation.FIND) {
-            analyzeRegexOp(scriptRoot, locals);
+            analyzeRegexOp(scriptRoot, scope);
         } else if (operation == Operation.MATCH) {
-            analyzeRegexOp(scriptRoot, locals);
+            analyzeRegexOp(scriptRoot, scope);
         } else if (operation == Operation.LSH) {
-            analyzeLSH(scriptRoot, locals);
+            analyzeLSH(scriptRoot, scope);
         } else if (operation == Operation.RSH) {
-            analyzeRSH(scriptRoot, locals);
+            analyzeRSH(scriptRoot, scope);
         } else if (operation == Operation.USH) {
-            analyzeUSH(scriptRoot, locals);
+            analyzeUSH(scriptRoot, scope);
         } else if (operation == Operation.BWAND) {
-            analyzeBWAnd(scriptRoot, locals);
+            analyzeBWAnd(scriptRoot, scope);
         } else if (operation == Operation.XOR) {
-            analyzeXor(scriptRoot, locals);
+            analyzeXor(scriptRoot, scope);
         } else if (operation == Operation.BWOR) {
-            analyzeBWOr(scriptRoot, locals);
+            analyzeBWOr(scriptRoot, scope);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeMul(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeMul(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -138,7 +132,7 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeDiv(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeDiv(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -186,7 +180,7 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeRem(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeRem(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -234,7 +228,7 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeAdd(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeAdd(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -293,7 +287,7 @@ public final class EBinary extends AExpression {
 
     }
 
-    private void analyzeSub(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeSub(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -337,7 +331,7 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeRegexOp(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeRegexOp(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -351,7 +345,7 @@ public final class EBinary extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeLSH(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeLSH(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -399,7 +393,7 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeRSH(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeRSH(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -447,7 +441,7 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeUSH(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeUSH(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -495,7 +489,7 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeBWAnd(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeBWAnd(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -535,7 +529,7 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeXor(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeXor(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -576,7 +570,7 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeBWOr(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeBWOr(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -616,11 +610,11 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    BinaryMathNode write() {
+    BinaryMathNode write(ClassNode classNode) {
         BinaryMathNode binaryMathNode = new BinaryMathNode();
 
-        binaryMathNode.setLeftNode(left.write());
-        binaryMathNode.setRightNode(right.write());
+        binaryMathNode.setLeftNode(left.write(classNode));
+        binaryMathNode.setRightNode(right.write(classNode));
 
         binaryMathNode.setLocation(location);
         binaryMathNode.setExpressionType(actual);

@@ -22,20 +22,21 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetScriptLanguageAction extends BaseRestHandler {
-    @Inject
-    public RestGetScriptLanguageAction(RestController controller) {
-        controller.registerHandler(GET, "/_script_language", this);
+
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "/_script_language"));
     }
 
     @Override public String getName() {

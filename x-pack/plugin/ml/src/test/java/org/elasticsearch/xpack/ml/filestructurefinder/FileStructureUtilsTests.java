@@ -18,6 +18,8 @@ import java.util.SortedMap;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides.EMPTY_OVERRIDES;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FileStructureUtilsTests extends FileStructureTestCase {
 
@@ -346,21 +348,22 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNull(fieldStats.get("nothing"));
     }
 
-    public void testMakeIngestPipelineDefinitionGivenStructuredWithoutTimestamp() {
+    public void testMakeIngestPipelineDefinitionGivenNdJsonWithoutTimestamp() {
 
-        assertNull(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null, null, false));
+        assertNull(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null, Collections.emptyMap(), null, null,
+            false));
     }
 
     @SuppressWarnings("unchecked")
-    public void testMakeIngestPipelineDefinitionGivenStructuredWithTimestamp() {
+    public void testMakeIngestPipelineDefinitionGivenNdJsonWithTimestamp() {
 
         String timestampField = randomAlphaOfLength(10);
         List<String> timestampFormats = randomFrom(Collections.singletonList("ISO8601"),
             Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
         boolean needClientTimezone = randomBoolean();
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), timestampField,
-            timestampFormats, needClientTimezone);
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null,
+            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -380,6 +383,144 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenDelimitedWithoutTimestamp() {
+
+        Map<String, Object> csvProcessorSettings = DelimitedFileStructureFinderTests.randomCsvProcessorSettings();
+
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+            Collections.emptyMap(), null, null, false);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(2, processors.size());
+
+        Map<String, Object> csvProcessor = (Map<String, Object>) processors.get(0).get("csv");
+        assertNotNull(csvProcessor);
+        assertThat(csvProcessor.get("field"), instanceOf(String.class));
+        assertThat(csvProcessor.get("target_fields"), instanceOf(List.class));
+
+        Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(1).get("remove");
+        assertNotNull(removeProcessor);
+        assertThat(csvProcessor.get("field"), equalTo(csvProcessorSettings.get("field")));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenDelimitedWithFieldInTargetFields() {
+
+        Map<String, Object> csvProcessorSettings = new HashMap<>(DelimitedFileStructureFinderTests.randomCsvProcessorSettings());
+        // Hack it so the field to be parsed is also one of the column names
+        String firstTargetField = ((List<String>) csvProcessorSettings.get("target_fields")).get(0);
+        csvProcessorSettings.put("field", firstTargetField);
+
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+            Collections.emptyMap(), null, null, false);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(1, processors.size()); // 1 because there's no "remove" processor this time
+
+        Map<String, Object> csvProcessor = (Map<String, Object>) processors.get(0).get("csv");
+        assertNotNull(csvProcessor);
+        assertThat(csvProcessor.get("field"), equalTo(firstTargetField));
+        assertThat(csvProcessor.get("target_fields"), instanceOf(List.class));
+        assertThat(csvProcessor.get("ignore_missing"), equalTo(false));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenDelimitedWithConversion() {
+
+        Map<String, Object> csvProcessorSettings = DelimitedFileStructureFinderTests.randomCsvProcessorSettings();
+        boolean expectConversion = randomBoolean();
+        String mappingType = expectConversion ? randomFrom("long", "double", "boolean") : randomFrom("keyword", "text", "date");
+        String firstTargetField = ((List<String>) csvProcessorSettings.get("target_fields")).get(0);
+        Map<String, Object> mappingsForConversions =
+            Collections.singletonMap(firstTargetField, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType));
+
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+            mappingsForConversions, null, null, false);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(expectConversion ? 3 : 2, processors.size());
+
+        Map<String, Object> csvProcessor = (Map<String, Object>) processors.get(0).get("csv");
+        assertNotNull(csvProcessor);
+        assertThat(csvProcessor.get("field"), instanceOf(String.class));
+        assertThat(csvProcessor.get("target_fields"), instanceOf(List.class));
+        assertThat(csvProcessor.get("ignore_missing"), equalTo(false));
+
+        if (expectConversion) {
+            Map<String, Object> convertProcessor = (Map<String, Object>) processors.get(1).get("convert");
+            assertNotNull(convertProcessor);
+            assertThat(convertProcessor.get("field"), equalTo(firstTargetField));
+            assertThat(convertProcessor.get("type"), equalTo(mappingType));
+            assertThat(convertProcessor.get("ignore_missing"), equalTo(true));
+        }
+
+        Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(processors.size() - 1).get("remove");
+        assertNotNull(removeProcessor);
+        assertThat(removeProcessor.get("field"), equalTo(csvProcessorSettings.get("field")));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenDelimitedWithTimestamp() {
+
+        Map<String, Object> csvProcessorSettings = DelimitedFileStructureFinderTests.randomCsvProcessorSettings();
+
+        String timestampField = randomAlphaOfLength(10);
+        List<String> timestampFormats = randomFrom(Collections.singletonList("ISO8601"),
+            Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
+        boolean needClientTimezone = randomBoolean();
+
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(3, processors.size());
+
+        Map<String, Object> csvProcessor = (Map<String, Object>) processors.get(0).get("csv");
+        assertNotNull(csvProcessor);
+        assertThat(csvProcessor.get("field"), instanceOf(String.class));
+        assertThat(csvProcessor.get("target_fields"), instanceOf(List.class));
+        assertThat(csvProcessor.get("ignore_missing"), equalTo(false));
+
+        Map<String, Object> dateProcessor = (Map<String, Object>) processors.get(1).get("date");
+        assertNotNull(dateProcessor);
+        assertEquals(timestampField, dateProcessor.get("field"));
+        assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
+        assertEquals(timestampFormats, dateProcessor.get("formats"));
+
+        Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(2).get("remove");
+        assertNotNull(removeProcessor);
+        assertThat(removeProcessor.get("field"), equalTo(csvProcessorSettings.get("field")));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    @SuppressWarnings("unchecked")
     public void testMakeIngestPipelineDefinitionGivenSemiStructured() {
 
         String grokPattern = randomAlphaOfLength(100);
@@ -388,8 +529,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
         boolean needClientTimezone = randomBoolean();
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(grokPattern, Collections.emptyMap(), timestampField,
-            timestampFormats, needClientTimezone);
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(grokPattern, Collections.emptyMap(), null,
+            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));

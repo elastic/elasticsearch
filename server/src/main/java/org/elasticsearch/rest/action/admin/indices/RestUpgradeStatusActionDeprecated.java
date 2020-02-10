@@ -26,12 +26,15 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDeprecated.UPGRADE_API_DEPRECATION_MESSAGE;
 
@@ -40,11 +43,16 @@ public class RestUpgradeStatusActionDeprecated extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestUpgradeStatusActionDeprecated.class));
 
-    public RestUpgradeStatusActionDeprecated(RestController controller) {
-        controller.registerAsDeprecatedHandler(GET, "/_upgrade", this,
-            UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger);
-        controller.registerAsDeprecatedHandler(GET, "/{index}/_upgrade", this,
-            UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger);
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return unmodifiableList(asList(
+            new DeprecatedRoute(GET, "/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger),
+            new DeprecatedRoute(GET, "/{index}/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger)));
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
     }
 
     @Override

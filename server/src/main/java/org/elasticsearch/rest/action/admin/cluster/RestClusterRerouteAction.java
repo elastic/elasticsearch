@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
@@ -39,7 +38,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClusterRerouteAction extends BaseRestHandler {
     private static final ObjectParser<ClusterRerouteRequest, Void> PARSER = new ObjectParser<>("cluster_reroute");
@@ -54,9 +57,13 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    public RestClusterRerouteAction(RestController controller, SettingsFilter settingsFilter) {
+    public RestClusterRerouteAction(SettingsFilter settingsFilter) {
         this.settingsFilter = settingsFilter;
-        controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(POST, "/_cluster/reroute"));
     }
 
     @Override

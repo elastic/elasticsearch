@@ -438,7 +438,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         builder.field(Job.ID.getPreferredName(), jobId);
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == true) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
         builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
@@ -461,7 +461,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (chunkingConfig != null) {
             builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
         }
-        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == true) {
+        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
         if (delayedDataCheckConfig != null) {

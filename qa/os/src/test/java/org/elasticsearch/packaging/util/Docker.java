@@ -26,7 +26,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.common.CheckedRunnable;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -39,6 +38,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
@@ -61,6 +61,8 @@ public class Docker {
 
     private static final Shell sh = new Shell();
     private static final DockerShell dockerShell = new DockerShell();
+    public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
+    public static final int STARTUP_ATTEMPTS_MAX = 10;
 
     /**
      * Tracks the currently running Docker image. An earlier implementation used a fixed container name,
@@ -154,7 +156,7 @@ public class Docker {
         // Bind-mount any volumes
         if (volumes != null) {
             volumes.forEach((localPath, containerPath) -> {
-                assertTrue(localPath + " doesn't exist", Files.exists(localPath));
+                assertThat(localPath, fileExists());
 
                 if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root")) {
                     // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),
@@ -186,18 +188,18 @@ public class Docker {
         do {
             try {
                 // Give the container a chance to crash out
-                Thread.sleep(1000);
+                Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
-                psOutput = dockerShell.run("ps -w ax").stdout;
+                psOutput = dockerShell.run("ps -ww ax").stdout;
 
-                if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java")) {
+                if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
                     isElasticsearchRunning = true;
                     break;
                 }
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to start", e);
             }
-        } while (attempt++ < 5);
+        } while (attempt++ < STARTUP_ATTEMPTS_MAX);
 
         if (isElasticsearchRunning == false) {
             final Shell.Result dockerLogs = getContainerLogs();
@@ -511,6 +513,13 @@ public class Docker {
             logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
             throw e;
         }
+    }
+
+    /**
+     * @return The ID of the container that this class will be operating on.
+     */
+    public static String getContainerId() {
+        return containerId;
     }
 
     public static JsonNode getJson(String path) throws Exception {

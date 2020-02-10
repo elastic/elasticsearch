@@ -35,7 +35,7 @@ import java.util.Objects;
 /**
  * All the required context to pull a field from the doc values.
  */
-public class DocValueFieldsContext {
+public class FetchDocValuesContext {
 
     /**
      * Wrapper around a field name and the format that should be used to
@@ -106,7 +106,7 @@ public class DocValueFieldsContext {
 
     private final List<FieldAndFormat> fields;
 
-    public DocValueFieldsContext(List<FieldAndFormat> fields) {
+    public FetchDocValuesContext(List<FieldAndFormat> fields) {
         this.fields = fields;
     }
 

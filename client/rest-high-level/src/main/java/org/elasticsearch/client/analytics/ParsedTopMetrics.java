@@ -35,6 +35,9 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Results of the {@code top_metrics} aggregation.
+ */
 public class ParsedTopMetrics extends ParsedAggregation {
     private static final ParseField TOP_FIELD = new ParseField("top");
 
@@ -77,6 +80,9 @@ public class ParsedTopMetrics extends ParsedAggregation {
         ParsedAggregation.declareAggregationFields(PARSER);
     }
 
+    /**
+     * The metrics belonging to the document with the "top" sort key.
+     */
     public static class TopMetrics implements ToXContent {
         private static final ParseField SORT_FIELD = new ParseField("sort");
         private static final ParseField METRICS_FIELD = new ParseField("metrics");

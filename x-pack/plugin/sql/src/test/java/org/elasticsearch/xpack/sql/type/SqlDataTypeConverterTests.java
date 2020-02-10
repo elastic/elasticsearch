@@ -184,6 +184,10 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10T10:20:30.123-06:00"));
             assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20:30.123456789+03:00"));
 
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20+05:00"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10 10:20:30.123-06:00"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20:30.123456789+03:00"));
+
             // double check back and forth conversion
             ZonedDateTime zdt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATE, KEYWORD);
@@ -192,7 +196,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [date]: Text '0xff' could not be parsed at index 0", e.getMessage());
             e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("2020-02-"));
-            assertEquals("cannot cast [2020-02-] to [date]: Text '0xff' could not be parsed at index 8", e.getMessage());
+            assertEquals("cannot cast [2020-02-] to [date]: Text '2020-02-' could not be parsed at index 8", e.getMessage());
         }
     }
 

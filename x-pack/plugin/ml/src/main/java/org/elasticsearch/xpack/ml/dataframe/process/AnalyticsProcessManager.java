@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFact
 import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessor;
 import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -146,7 +147,7 @@ public class AnalyticsProcessManager {
         AnalyticsResultProcessor resultProcessor = processContext.resultProcessor.get();
         try {
             writeHeaderRecord(dataExtractor, process);
-            writeDataRows(dataExtractor, process, config.getAnalysis(), task.getProgressTracker());
+            writeDataRows(dataExtractor, process, config.getAnalysis(), task.getStatsHolder().getProgressTracker());
             process.writeEndOfDataMessage();
             process.flushStream();
 
@@ -193,7 +194,7 @@ public class AnalyticsProcessManager {
     }
 
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
-                               DataFrameAnalysis analysis, DataFrameAnalyticsTask.ProgressTracker progressTracker) throws IOException {
+                               DataFrameAnalysis analysis, ProgressTracker progressTracker) throws IOException {
 
         CustomProcessor customProcessor = new CustomProcessorFactory(dataExtractor.getFieldNames()).create(analysis);
 
@@ -421,7 +422,7 @@ public class AnalyticsProcessManager {
             DataFrameRowsJoiner dataFrameRowsJoiner =
                 new DataFrameRowsJoiner(config.getId(), client, dataExtractorFactory.newExtractor(true));
             return new AnalyticsResultProcessor(
-                config, dataFrameRowsJoiner, task.getProgressTracker(), trainedModelProvider, auditor, dataExtractor.get().getFieldNames());
+                config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, dataExtractor.get().getFieldNames());
         }
     }
 }

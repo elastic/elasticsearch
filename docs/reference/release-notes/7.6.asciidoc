@@ -250,7 +250,7 @@ new tree which is trained for both regression and classification {ml-pull}811[#8
 * Reduce runtime of classification and regression {ml-pull}863[#863]
 * Stop early training a classification and regression forest when the validation 
 error is no longer decreasing {ml-pull}875[#875]
-* Emit `prediction_field_name` in ml results using the type provided as
+* Emit `prediction_field_name` in data frame analytics results using the type provided as
 `prediction_field_type` parameter {ml-pull}877[#877]
 * Improve performance updating quantile estimates {ml-pull}881[#881]
 * Migrate to use Bayesian optimisation for initial hyperparameter value line 
@@ -566,5 +566,4 @@ Engine::
 
 Infra/Packaging::
 * Upgrade the bundled JDK to JDK 13.0.2 {pull}51511[#51511]
-
 

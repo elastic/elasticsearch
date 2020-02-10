@@ -24,6 +24,7 @@ setup:
   - do:
       cluster.health:
         wait_for_no_relocating_shards: true
+        wait_for_events: languid
 
   - do:
       index:

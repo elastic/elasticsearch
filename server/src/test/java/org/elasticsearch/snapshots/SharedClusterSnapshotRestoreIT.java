@@ -1035,7 +1035,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final String indexName = "unrestorable-files";
         final int maxRetries = randomIntBetween(1, 10);
 
-        Settings createIndexSettings = Settings.builder().put(SETTING_ALLOCATION_MAX_RETRY.getKey(), maxRetries).build();
+        Settings createIndexSettings = Settings.builder().put(SETTING_ALLOCATION_MAX_RETRY.getKey(), maxRetries)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).build();
 
         Settings repositorySettings = Settings.builder()
                                                 .put("random", randomAlphaOfLength(10))

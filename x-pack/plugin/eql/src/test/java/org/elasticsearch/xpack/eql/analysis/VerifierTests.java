@@ -38,7 +38,7 @@ public class VerifierTests extends ESTestCase {
     private String error(IndexResolution resolution, String eql) {
         VerificationException e = expectThrows(VerificationException.class, () -> accept(resolution, eql));
         assertTrue(e.getMessage().startsWith("Found "));
-        String header = "Found 1 problem(s)\nline ";
+        String header = "Found 1 problem\nline ";
         return e.getMessage().substring(header.length());
     }
 

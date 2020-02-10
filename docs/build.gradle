@@ -45,8 +45,11 @@ testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
+    if (BuildParams.isSnapshotBuild() == false) {
+      systemProperty 'es.autoscaling_feature_flag_registered', 'true'
+    }
+    setting 'xpack.autoscaling.enabled', 'true'
     if (BuildParams.isSnapshotBuild()) {
-      setting 'xpack.autoscaling.enabled', 'true'
       setting 'xpack.eql.enabled', 'true'
     }
   }
@@ -937,7 +940,7 @@ buildRestTests.setups['farequote_index'] = '''
                   airline:
                      type: keyword
                   doc_count:
-                     type: integer       
+                     type: integer
 '''
 buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index'] + '''
   - do:
@@ -949,7 +952,7 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
             {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000", "doc_count": 5}
             {"index": {"_id":"2"}}
             {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000", "doc_count": 23}
-            {"index": {"_id":"3"}}            
+            {"index": {"_id":"3"}}
             {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
 '''
 buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
@@ -1108,7 +1111,7 @@ buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_
 buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
   - do:
       raw:
-        method: POST 
+        method: POST
         path: _ml/anomaly_detectors/total-requests/_open
 '''
 buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
@@ -1333,7 +1336,7 @@ buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + 
         id: "loganalytics"
         body:  >
           {
-            "source": { 
+            "source": {
               "index": "logdata"
               },
             "dest": {

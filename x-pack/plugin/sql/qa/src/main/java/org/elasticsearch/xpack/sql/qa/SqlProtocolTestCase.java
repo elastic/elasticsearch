@@ -95,22 +95,22 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     public void testDateTimeIntervals() throws IOException {
         assertQuery("SELECT INTERVAL '326' YEAR", "INTERVAL '326' YEAR", "interval_year", "P326Y", "+326-0", 7);
         assertQuery("SELECT INTERVAL '50' MONTH", "INTERVAL '50' MONTH", "interval_month", "P50M", "+0-50", 7);
-        assertQuery("SELECT INTERVAL '520' DAY", "INTERVAL '520' DAY", "interval_day", "PT12480H", "+520 00:00:00.0", 23);
-        assertQuery("SELECT INTERVAL '163' HOUR", "INTERVAL '163' HOUR", "interval_hour", "PT163H", "+6 19:00:00.0", 23);
-        assertQuery("SELECT INTERVAL '163' MINUTE", "INTERVAL '163' MINUTE", "interval_minute", "PT2H43M", "+0 02:43:00.0", 23);
-        assertQuery("SELECT INTERVAL '223.16' SECOND", "INTERVAL '223.16' SECOND", "interval_second", "PT3M43.016S", "+0 00:03:43.16", 23);
+        assertQuery("SELECT INTERVAL '520' DAY", "INTERVAL '520' DAY", "interval_day", "PT12480H", "+520 00:00:00", 23);
+        assertQuery("SELECT INTERVAL '163' HOUR", "INTERVAL '163' HOUR", "interval_hour", "PT163H", "+6 19:00:00", 23);
+        assertQuery("SELECT INTERVAL '163' MINUTE", "INTERVAL '163' MINUTE", "interval_minute", "PT2H43M", "+0 02:43:00", 23);
+        assertQuery("SELECT INTERVAL '223.16' SECOND", "INTERVAL '223.16' SECOND", "interval_second", "PT3M43.16S", "+0 00:03:43.16", 23);
         assertQuery("SELECT INTERVAL '163-11' YEAR TO MONTH", "INTERVAL '163-11' YEAR TO MONTH", "interval_year_to_month", "P163Y11M",
                 "+163-11", 7);
         assertQuery("SELECT INTERVAL '163 12' DAY TO HOUR", "INTERVAL '163 12' DAY TO HOUR", "interval_day_to_hour", "PT3924H",
-                "+163 12:00:00.0", 23);
+                "+163 12:00:00", 23);
         assertQuery("SELECT INTERVAL '163 12:39' DAY TO MINUTE", "INTERVAL '163 12:39' DAY TO MINUTE", "interval_day_to_minute",
-                "PT3924H39M", "+163 12:39:00.0", 23);
+                "PT3924H39M", "+163 12:39:00", 23);
         assertQuery("SELECT INTERVAL '163 12:39:59.163' DAY TO SECOND", "INTERVAL '163 12:39:59.163' DAY TO SECOND",
                 "interval_day_to_second", "PT3924H39M59.163S", "+163 12:39:59.163", 23);
         assertQuery("SELECT INTERVAL -'163 23:39:56.23' DAY TO SECOND", "INTERVAL -'163 23:39:56.23' DAY TO SECOND",
-                "interval_day_to_second", "PT-3935H-39M-56.023S", "-163 23:39:56.23", 23);
+                "interval_day_to_second", "PT-3935H-39M-56.23S", "-163 23:39:56.23", 23);
         assertQuery("SELECT INTERVAL '163:39' HOUR TO MINUTE", "INTERVAL '163:39' HOUR TO MINUTE", "interval_hour_to_minute",
-                "PT163H39M", "+6 19:39:00.0", 23);
+                "PT163H39M", "+6 19:39:00", 23);
         assertQuery("SELECT INTERVAL '163:39:59.163' HOUR TO SECOND", "INTERVAL '163:39:59.163' HOUR TO SECOND", "interval_hour_to_second",
                 "PT163H39M59.163S", "+6 19:39:59.163", 23);
         assertQuery("SELECT INTERVAL '163:59.163' MINUTE TO SECOND", "INTERVAL '163:59.163' MINUTE TO SECOND", "interval_minute_to_second",

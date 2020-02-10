@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import com.amazonaws.services.s3.AmazonS3Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -165,6 +166,10 @@ public class S3ClientSettingsTests extends ESTestCase {
             Settings.builder().put("s3.client.other.region", region).build());
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
+        try (S3Service s3Service = new S3Service()) {
+            AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other"));
+            assertThat(other.getSignerRegionOverride(), is(region));
+        }
     }
 
     public void testSignerOverrideCanBeSet() {
@@ -173,5 +178,9 @@ public class S3ClientSettingsTests extends ESTestCase {
             Settings.builder().put("s3.client.other.signer_override", signerOverride).build());
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
+        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"));
+        assertThat(defaultConfiguration.getSignerOverride(), nullValue());
+        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"));
+        assertThat(configuration.getSignerOverride(), is(signerOverride));
     }
 }

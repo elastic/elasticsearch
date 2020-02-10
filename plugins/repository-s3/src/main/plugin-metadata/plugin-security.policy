@@ -39,6 +39,7 @@ grant {
   // s3 client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
 
+  // s3 SDK needs these so it can disable its internal metrics collection
   permission javax.management.MBeanServerPermission "findMBeanServer";
   permission javax.management.MBeanServerPermission "createMBeanServer";
   permission javax.management.MBeanTrustPermission "register";

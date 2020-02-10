@@ -202,9 +202,9 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             {
                 snapshot = deletionPolicy.snapshot();
-                snapshoter = new SourceOnlySnapshot(targetDir, Collections::emptyList);
-                createdFiles = snapshoter.syncSnapshot(snapshot).files(false);
-                assertEquals(4, createdFiles.size());
+                snapshoter = new SourceOnlySnapshot(targetDir);
+                createdFiles = snapshoter.syncSnapshot(snapshot);
+                assertEquals(5, createdFiles.size());
                 for (String file : createdFiles) {
                     String extension = IndexFileNames.getExtension(file);
                     switch (extension) {
@@ -286,7 +286,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             try (Directory targetDir = newDirectory()) {
                 IndexCommit snapshot = deletionPolicy.snapshot();
-                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, Collections::emptyList);
+                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir);
                 snapshoter.syncSnapshot(snapshot);
 
                 try (DirectoryReader snapReader = DirectoryReader.open(targetDir)) {

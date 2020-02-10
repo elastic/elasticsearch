@@ -378,7 +378,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, (Consumer<InternalGlobal>) global -> {
-            assertEquals(1.0, global.getDocCount(), 2);
+            assertEquals(2, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
             assertNotNull(global.getAggregations().asMap().get("min"));
 

@@ -285,6 +285,7 @@ GET latency/_search
 
 <1> Compression controls memory usage and approximation error
 
+// tag::[t-digest]
 The TDigest algorithm uses a number of "nodes" to approximate percentiles -- the
 more nodes available, the higher the accuracy (and large memory footprint) proportional
 to the volume of data.  The `compression` parameter limits the maximum number of
@@ -300,6 +301,7 @@ A "node" uses roughly 32 bytes of memory, so under worst-case scenarios (large a
 of data which arrives sorted and in-order) the default settings will produce a
 TDigest roughly 64KB in size.  In practice data tends to be more random and
 the TDigest will use less memory.
+// tag::[t-digest]
 
 ==== HDR Histogram
 

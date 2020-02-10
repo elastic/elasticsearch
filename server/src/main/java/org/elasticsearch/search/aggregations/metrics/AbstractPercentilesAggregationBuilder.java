@@ -69,27 +69,35 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
          *
          * This is a compromise, in that it is a ConstructingOP which accepts all optional arguments, and then we sort
          * out the behavior from there
+         *
+         * `args` are provided from the ConstructingObjectParser in-order they are defined in the parser.  So:
+         *  - args[0]: values
+         *  - args[1]: tdigest config options
+         *  - args[2]: hdr config options
+         *
+         *  If `args` is null or empty, it means all were omitted.  This is usually an anti-pattern for
+         *  ConstructingObjectParser, but we're allowing it because of the above-mentioned reasons
          */
-        ConstructingObjectParser<T, String> parser = new ConstructingObjectParser<>(aggName, false, (objects, name) -> {
+        ConstructingObjectParser<T, String> parser = new ConstructingObjectParser<>(aggName, false, (args, name) -> {
 
-            if (objects == null || objects.length == 0) {
+            if (args == null || args.length == 0) {
                 // Note: if this is a Percentiles agg, the null `values` will be converted into a default,
                 // whereas a Ranks agg will throw an exception due to missing a required param
                 return fn.apply(name, null, new PercentilesConfig.TDigest());
             }
 
-            double[] values = objects[0] != null ? ((List<Double>) objects[0]).stream().mapToDouble(Double::doubleValue).toArray() : null;
+            double[] values = args[0] != null ? ((List<Double>) args[0]).stream().mapToDouble(Double::doubleValue).toArray() : null;
             PercentilesConfig percentilesConfig;
 
-            if (objects[1] != null && objects[2] != null) {
+            if (args[1] != null && args[2] != null) {
                 throw new IllegalArgumentException("Only one percentiles method should be declared.");
-            } else if (objects[1] == null && objects[2] == null) {
+            } else if (args[1] == null && args[2] == null) {
                 // Default is tdigest
                 percentilesConfig = new PercentilesConfig.TDigest();
-            } else if (objects[1] != null) {
-                percentilesConfig = (PercentilesConfig) objects[1];
+            } else if (args[1] != null) {
+                percentilesConfig = (PercentilesConfig) args[1];
             } else {
-                percentilesConfig = (PercentilesConfig) objects[2];
+                percentilesConfig = (PercentilesConfig) args[2];
             }
 
             return fn.apply(name, values, percentilesConfig);

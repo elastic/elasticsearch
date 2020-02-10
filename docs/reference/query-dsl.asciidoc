@@ -28,8 +28,8 @@ Query clauses behave differently depending on whether they are used in
 
 [[query-dsl-allow-expensive-queries]]
 Allow expensive queries::
-Execution of certain types of queries have usually slow performance, which can affect the cluster performance.
-Those queries can be categorised as follows:
+Certain types of queries will generally execute slowly due to the way they are implemented, which can affect
+the stability of the cluster. Those queries can be categorised as follows:
 * Queries that need to do linear scans to identify matches:
 ** <<query-dsl-script-query, `script queries`>>
 ** <<query-dsl-script-score-query, `script score queries`>>

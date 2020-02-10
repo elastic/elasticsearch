@@ -269,7 +269,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     public void testDisallowExpensiveQueries() {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(false);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
 
         HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder(
                 CHILD_DOC, new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), false);

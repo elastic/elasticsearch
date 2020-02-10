@@ -159,7 +159,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     public void testDisallowExpensiveQueries() {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(false);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
 
         ParentIdQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class,

@@ -704,7 +704,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDisallowExpensiveQueries() throws IOException {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(false);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")

@@ -255,7 +255,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         return queryShardContext;
     }
 

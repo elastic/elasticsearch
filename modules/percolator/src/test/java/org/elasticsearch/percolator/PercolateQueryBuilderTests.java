@@ -346,7 +346,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testDisallowExpensiveQueries() {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(false);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
 
         PercolateQueryBuilder queryBuilder = doCreateTestQueryBuilder(true);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,

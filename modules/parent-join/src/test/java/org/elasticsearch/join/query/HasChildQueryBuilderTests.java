@@ -368,7 +368,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     public void testDisallowExpensiveQueries() {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(false);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
 
         HasChildQueryBuilder queryBuilder =
                 hasChildQuery(CHILD_DOC, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);

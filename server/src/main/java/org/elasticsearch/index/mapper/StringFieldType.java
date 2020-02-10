@@ -66,7 +66,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
             boolean transpositions, QueryShardContext context) {
-        if (context.isAllowExpensiveQueries() == false) {
+        if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[fuzzy] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
@@ -77,7 +77,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        if (context.isAllowExpensiveQueries() == false) {
+        if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
                     "fields please enable [index_prefixes].");
@@ -97,7 +97,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             return termQuery;
         }
 
-        if (context.isAllowExpensiveQueries() == false) {
+        if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
@@ -111,7 +111,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
             MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        if (context.isAllowExpensiveQueries() == false) {
+        if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[regexp] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
@@ -125,7 +125,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-        if (context.isAllowExpensiveQueries() == false) {
+        if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[range] queries on [text] or [keyword] fields cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }

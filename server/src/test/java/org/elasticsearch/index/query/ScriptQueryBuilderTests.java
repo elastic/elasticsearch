@@ -134,7 +134,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
 
     public void testDisallowExpensiveQueries() {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(false);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
 
         ScriptQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class,

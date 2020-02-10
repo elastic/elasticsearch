@@ -130,7 +130,7 @@ public final class IndexModule {
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
     private final AtomicBoolean frozen = new AtomicBoolean(false);
-    private final BooleanSupplier isAllowExpensiveQueries;
+    private final BooleanSupplier allowExpensiveQueries;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -146,14 +146,14 @@ public final class IndexModule {
             final AnalysisRegistry analysisRegistry,
             final EngineFactory engineFactory,
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
-            final BooleanSupplier isAllowExpensiveQueries) {
+            final BooleanSupplier allowExpensiveQueries) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
-        this.isAllowExpensiveQueries = isAllowExpensiveQueries;
+        this.allowExpensiveQueries = allowExpensiveQueries;
     }
 
     /**
@@ -427,7 +427,7 @@ public final class IndexModule {
                 new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
                 engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
                 directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
-                indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, isAllowExpensiveQueries);
+                indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries);
             success = true;
             return indexService;
         } finally {

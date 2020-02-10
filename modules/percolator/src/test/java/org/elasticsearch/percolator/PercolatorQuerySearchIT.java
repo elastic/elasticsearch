@@ -879,7 +879,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         assertThat(item.getFailureMessage(), containsString("[test/6] couldn't be found"));
     }
 
-    public void testDisallowExpensiveQueries() throws IOException {
+    public void testDallowExpensiveQueries() throws IOException {
         try {
             assertAcked(client().admin().indices().prepareCreate("test")
                     .setMapping("id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")

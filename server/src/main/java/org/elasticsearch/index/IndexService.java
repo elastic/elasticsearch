@@ -126,7 +126,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexSettings indexSettings;
     private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexingOperationListeners;
-    private final BooleanSupplier isAllowExpensiveQueries;
+    private final BooleanSupplier allowExpensiveQueries;
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
@@ -168,9 +168,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             List<IndexingOperationListener> indexingOperationListeners,
             NamedWriteableRegistry namedWriteableRegistry,
             BooleanSupplier idFieldDataEnabled,
-            BooleanSupplier isAllowExpensiveQueries) {
+            BooleanSupplier allowExpensiveQueries) {
         super(indexSettings);
-        this.isAllowExpensiveQueries = isAllowExpensiveQueries;
+        this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
@@ -571,7 +571,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return new QueryShardContext(
             shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
             similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-            indexNameMatcher, isAllowExpensiveQueries);
+            indexNameMatcher, allowExpensiveQueries);
     }
 
     /**

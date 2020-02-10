@@ -360,7 +360,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     public void testDisallowExpensiveQueries() {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(false);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
 
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,

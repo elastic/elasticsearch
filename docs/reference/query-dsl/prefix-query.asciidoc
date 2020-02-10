@@ -69,7 +69,5 @@ efficiently at the cost of a larger index.
 [[prefix-query-allow-expensive-queries]]
 ===== Allow expensive queries
 Prefix queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
-is set to false. If <<index-prefixes, `index_prefixes`>> are enabled though, an optimised query is
-built, which is not considered slow and is executed despite of the fact that the
-<<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> set to false.
-
+is set to false. However, if <<index-prefixes, `index_prefixes`>> are enabled, an optimised query is built which
+is not considered slow, and will be executed in spite of this setting.

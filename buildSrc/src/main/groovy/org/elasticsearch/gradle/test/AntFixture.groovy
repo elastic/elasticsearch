@@ -25,9 +25,7 @@ import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.GradleException
 import org.gradle.api.Task
 import org.gradle.api.tasks.Exec
-import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
-
 /**
  * A fixture for integration tests which runs in a separate process launched by Ant.
  */

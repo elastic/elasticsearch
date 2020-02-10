@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -54,6 +55,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -88,6 +90,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -112,6 +115,19 @@ public class MetaDataCreateIndexService {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
+
+    /**
+     * These index patterns will be converted to hidden indices, at which point they should be removed from this list.
+     */
+    private static final CharacterRunAutomaton DOT_INDICES_EXCLUSIONS = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(
+        ".slm-history-*",
+        ".watch-history-*",
+        ".ml-anomalies-*",
+        ".ml-notifications-*",
+        ".ml-annotations*",
+        ".data-frame-notifications-*",
+        ".transform-notifications-*"
+    ));
 
     private final Settings settings;
     private final ClusterService clusterService;
@@ -163,7 +179,11 @@ public class MetaDataCreateIndexService {
             List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
                 .collect(toList());
-            if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
+            if (DOT_INDICES_EXCLUSIONS.run(index)) {
+                assert Objects.isNull(isHidden) || Boolean.FALSE.equals(isHidden) : "when converting a special-cased index to be a " +
+                    "hidden index, it must be removed from the exclusions list";
+                logger.debug("not emitting deprecation warning about index [{}] because it is in the exclusions list", index);
+            } else if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
                 DEPRECATION_LOGGER.deprecated("index name [{}] starts with a dot '.', in the next major version, index names " +
                     "starting with a dot are reserved for hidden indices and system indices", index);
             } else if (matchingDescriptors.size() > 1) {

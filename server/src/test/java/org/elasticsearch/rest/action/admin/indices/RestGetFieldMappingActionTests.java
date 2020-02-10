@@ -37,7 +37,7 @@ public class RestGetFieldMappingActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGetFieldMappingAction(controller());
+        controller().registerHandler(new RestGetFieldMappingAction());
     }
 
     public void testIncludeTypeName() {

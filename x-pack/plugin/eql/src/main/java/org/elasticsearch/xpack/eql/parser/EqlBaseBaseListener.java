@@ -64,6 +64,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterSequenceParams(EqlBaseParser.SequenceParamsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSequenceParams(EqlBaseParser.SequenceParamsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSequence(EqlBaseParser.SequenceContext ctx) { }
   /**
    * {@inheritDoc}
@@ -112,37 +124,49 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterSpan(EqlBaseParser.SpanContext ctx) { }
+  @Override public void enterJoinTerm(EqlBaseParser.JoinTermContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitSpan(EqlBaseParser.SpanContext ctx) { }
+  @Override public void exitJoinTerm(EqlBaseParser.JoinTermContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatch(EqlBaseParser.MatchContext ctx) { }
+  @Override public void enterSequenceTerm(EqlBaseParser.SequenceTermContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitMatch(EqlBaseParser.MatchContext ctx) { }
+  @Override public void exitSequenceTerm(EqlBaseParser.SequenceTermContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterCondition(EqlBaseParser.ConditionContext ctx) { }
+  @Override public void enterSubquery(EqlBaseParser.SubqueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitCondition(EqlBaseParser.ConditionContext ctx) { }
+  @Override public void exitSubquery(EqlBaseParser.SubqueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterEventQuery(EqlBaseParser.EventQueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEventQuery(EqlBaseParser.EventQueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -184,6 +208,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterProcessCheck(EqlBaseParser.ProcessCheckContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitProcessCheck(EqlBaseParser.ProcessCheckContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLogicalBinary(EqlBaseParser.LogicalBinaryContext ctx) { }
   /**
    * {@inheritDoc}
@@ -191,30 +227,6 @@ class EqlBaseBaseListener implements EqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitLogicalBinary(EqlBaseParser.LogicalBinaryContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterPredicated(EqlBaseParser.PredicatedContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitPredicated(EqlBaseParser.PredicatedContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterPredicate(EqlBaseParser.PredicateContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitPredicate(EqlBaseParser.PredicateContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -263,6 +275,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPredicate(EqlBaseParser.PredicateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPredicate(EqlBaseParser.PredicateContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -400,18 +424,6 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterQualifiedNames(EqlBaseParser.QualifiedNamesContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitQualifiedNames(EqlBaseParser.QualifiedNamesContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterQualifiedName(EqlBaseParser.QualifiedNameContext ctx) { }
   /**
    * {@inheritDoc}
@@ -436,37 +448,13 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterQuotedIdentifier(EqlBaseParser.QuotedIdentifierContext ctx) { }
+  @Override public void enterTimeUnit(EqlBaseParser.TimeUnitContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitQuotedIdentifier(EqlBaseParser.QuotedIdentifierContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterUnquotedIdentifier(EqlBaseParser.UnquotedIdentifierContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitUnquotedIdentifier(EqlBaseParser.UnquotedIdentifierContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterDigitIdentifier(EqlBaseParser.DigitIdentifierContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitDigitIdentifier(EqlBaseParser.DigitIdentifierContext ctx) { }
+  @Override public void exitTimeUnit(EqlBaseParser.TimeUnitContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -31,3 +31,37 @@ loggers in the `org.elasticsearch.action.*` hierarchy emitted log messages at
 log noise. From 7.7 onwards the default log level for logger in this hierarchy
 is now `INFO`, in line with most other loggers. If needed, you can recover the
 pre-7.7 default behaviour by adjusting your <<logging>>.
+
+[discrete]
+[[breaking_77_settings_changes]]
+=== Settings changes
+
+[discrete]
+[[deprecate-missing-realm-order]]
+==== Authentication realm `order` will be a required config in version 8.0.0.
+
+The `order` config will be required in version 8.0.0 for authentication realm
+configuration of any type. If the `order` config is missing for a realm, the node
+will fail to start.
+
+[discrete]
+[[deprecate-duplicated-realm-orders]]
+==== Authentication realm `order` uniqueness will be enforced in version 8.0.0.
+
+The `order` config of authentication realms must be unique in version 8.0.0.
+If you configure more than one realm of any type with the same order, the node will fail to start.
+
+[discrete]
+[[breaking_77_search_changes]]
+=== Search changes
+
+[discrete]
+==== Consistent rounding of range queries on `date_range` fields
+`range` queries on `date_range` field currently can have slightly differently
+boundaries than their equivalent query on a pure `date` field. This can e.g.
+happen when using date math or dates that don't specify up to the last
+millisecond. While queries on `date` field round up to the latest millisecond
+for `gt` and `lte` boundaries, the same queries on `date_range` fields didn't
+do this. The behavior is now the same for both field types like documented in
+<<range-query-date-math-rounding>>.
+

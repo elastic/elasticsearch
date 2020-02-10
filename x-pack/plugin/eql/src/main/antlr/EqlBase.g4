@@ -6,9 +6,6 @@
 
 grammar EqlBase;
 
-tokens {
-    DELIMITER
-}
 
 singleStatement
     : statement EOF
@@ -19,45 +16,54 @@ singleExpression
     ;
 
 statement
-    : query (PIPE pipe)*
+    : query pipe*
     ;
- 
+
 query
     : sequence
     | join
-    | condition
+    | eventQuery
     ;
-    
+
+sequenceParams
+    : WITH (MAXSPAN EQ timeUnit)
+    ;
+
 sequence
-    : SEQUENCE (by=joinKeys)? (span)?
-      match+
-      (UNTIL match)?
+    : SEQUENCE  (by=joinKeys sequenceParams? | sequenceParams by=joinKeys?)?
+      sequenceTerm sequenceTerm+
+      (UNTIL sequenceTerm)?
     ;
 
 join
     : JOIN (by=joinKeys)?
-      match+
-      (UNTIL match)?
+      joinTerm joinTerm+
+      (UNTIL joinTerm)?
     ;
 
 pipe
-    : kind=IDENTIFIER (booleanExpression (COMMA booleanExpression)*)?
+    : PIPE kind=IDENTIFIER (booleanExpression (COMMA booleanExpression)*)?
     ;
+
 
 joinKeys
-    : BY qualifiedNames
-    ;
-    
-span
-    : WITH MAXSPAN EQ DIGIT_IDENTIFIER
+    : BY expression (COMMA expression)*
     ;
 
-match
-    : LB condition RB (by=joinKeys)?
+joinTerm
+   : subquery (by=joinKeys)?
+   ;
+
+sequenceTerm
+   : subquery (FORK (EQ booleanValue)?)? (by=joinKeys)?
+   ;
+
+subquery
+    : LB eventQuery RB
     ;
 
-condition
-    : event=qualifiedName WHERE expression
+eventQuery
+    : event=identifier WHERE expression
     ;
 
 expression
@@ -66,32 +72,26 @@ expression
 
 booleanExpression
     : NOT booleanExpression                                               #logicalNot
-    | predicated                                                          #booleanDefault
+    | relationship=IDENTIFIER OF subquery                                 #processCheck
+    | valueExpression                                                     #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression         #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression          #logicalBinary
     ;
 
-// workaround for:
-//  https://github.com/antlr/antlr4/issues/780
-//  https://github.com/antlr/antlr4/issues/781
-predicated
-    : valueExpression predicate?
-    ;
-
-// dedicated calls for each branch are not used to reuse the NOT handling across them
-// instead the property kind is used for differentiation
-predicate
-    : NOT? kind=BETWEEN lower=valueExpression AND upper=valueExpression
-    | NOT? kind=IN LP valueExpression (COMMA valueExpression)* RP
-    | NOT? kind=IN LP query RP
-    ;
 
 valueExpression
-    : primaryExpression                                                                 #valueExpressionDefault
+    : primaryExpression predicate?                                                      #valueExpressionDefault
     | operator=(MINUS | PLUS) valueExpression                                           #arithmeticUnary
     | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
     | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
     | left=valueExpression comparisonOperator right=valueExpression                     #comparison
+    ;
+
+// workaround for
+//   https://github.com/antlr/antlr4/issues/780
+//   https://github.com/antlr/antlr4/issues/781
+predicate
+    : NOT? kind=IN LP expression (COMMA expression)* RP
     ;
 
 primaryExpression
@@ -102,14 +102,14 @@ primaryExpression
     ;
 
 functionExpression
-    : identifier LP (expression (COMMA expression)*)? RP
+    : name=IDENTIFIER LP (expression (COMMA expression)*)? RP
     ;
 
 constant
     : NULL                                                                              #nullLiteral
     | number                                                                            #numericLiteral
     | booleanValue                                                                      #booleanLiteral
-    | STRING+                                                                           #stringLiteral
+    | string                                                                            #stringLiteral
     ;
 
 comparisonOperator
@@ -120,26 +120,17 @@ booleanValue
     : TRUE | FALSE
     ;
 
-qualifiedNames
-    : qualifiedName (COMMA qualifiedName)*
-    ;
-
 qualifiedName
-    : (identifier DOT)* identifier
+    : identifier (DOT identifier | LB INTEGER_VALUE+ RB)*
     ;
 
 identifier
-    : quoteIdentifier
-    | unquoteIdentifier
+    : IDENTIFIER
+    | ESCAPED_IDENTIFIER
     ;
 
-quoteIdentifier
-    : QUOTED_IDENTIFIER      #quotedIdentifier
-    ;
-
-unquoteIdentifier
-    : IDENTIFIER             #unquotedIdentifier
-    | DIGIT_IDENTIFIER       #digitIdentifier
+timeUnit
+    : number unit=IDENTIFIER?
     ;
 
 number
@@ -151,31 +142,26 @@ string
     : STRING
     ;
 
-AND: 'AND';
-ANY: 'ANY';
-ASC: 'ASC';
-BETWEEN: 'BETWEEN';
-BY: 'BY';
-CHILD: 'CHILD';
-DESCENDANT: 'DESCENDANT';
-EVENT: 'EVENT';
-FALSE: 'FALSE';
-IN: 'IN';
-JOIN: 'JOIN';
-MAXSPAN: 'MAXSPAN';
-NOT: 'NOT';
-NULL: 'NULL';
-OF: 'OF';
-OR: 'OR';
-SEQUENCE: 'SEQUENCE';
-TRUE: 'TRUE';
-UNTIL: 'UNTIL';
-WHERE: 'WHERE';
-WITH: 'WITH';
+AND: 'and';
+BY: 'by';
+FALSE: 'false';
+FORK: 'fork';
+IN: 'in';
+JOIN: 'join';
+MAXSPAN: 'maxspan';
+NOT: 'not';
+NULL: 'null';
+OF: 'of';
+OR: 'or';
+SEQUENCE: 'sequence';
+TRUE: 'true';
+UNTIL: 'until';
+WHERE: 'where';
+WITH: 'with';
 
 // Operators
 EQ  : '=' | '==';
-NEQ : '<>' | '!=';
+NEQ : '!=';
 LT  : '<';
 LTE : '<=';
 GT  : '>';
@@ -194,9 +180,16 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 
+
+ESCAPED_IDENTIFIER
+    : '`' (~'`')* '`'
+    ;
+
 STRING
-    : '\'' ( ~'\'')* '\''
-    | '"' ( ~'"' )* '"'
+    : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
+    | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
+    | '?"'  ('\\"' |~["\r\n])* '"'
+    | '?\'' ('\\\'' |~['\r\n])* '\''
     ;
 
 INTEGER_VALUE
@@ -210,20 +203,13 @@ DECIMAL_VALUE
     | DOT DIGIT+ EXPONENT
     ;
 
+// make @timestamp not require escaping, since @ has no other meaning
 IDENTIFIER
-    : (LETTER | '_') (LETTER | DIGIT | '_' | '@' )*
+    : (LETTER | '_' | '@') (LETTER | DIGIT | '_')*
     ;
 
-DIGIT_IDENTIFIER
-    : DIGIT (LETTER | DIGIT | '_' | '@')+
-    ;
-
-QUOTED_IDENTIFIER
-    : '"' ( ~'"' | '""' )* '"'
-    ;
-   
 fragment EXPONENT
-    : 'E' [+-]? DIGIT+
+    : [Ee] [+-]? DIGIT+
     ;
 
 fragment DIGIT
@@ -231,10 +217,10 @@ fragment DIGIT
     ;
 
 fragment LETTER
-    : [A-Z]
+    : [A-Za-z]
     ;
 
-SIMPLE_COMMENT
+LINE_COMMENT
     : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
     ;
 
@@ -246,9 +232,12 @@ WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
 
+
 // Catch-all for anything we can't recognize.
 // We use this to be able to ignore and recover all the text
 // when splitting statements with DelimiterLexer
+/*
 UNRECOGNIZED
     : .
     ;
+*/

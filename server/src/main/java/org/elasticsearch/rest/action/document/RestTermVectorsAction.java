@@ -28,15 +28,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -50,17 +52,18 @@ public class RestTermVectorsAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying types in term vector requests is deprecated.";
 
-    public RestTermVectorsAction(RestController controller) {
-        controller.registerHandler(GET, "/{index}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/_termvectors/{id}", this);
-        controller.registerHandler(POST, "/{index}/_termvectors/{id}", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/{index}/_termvectors"),
+            new Route(POST, "/{index}/_termvectors"),
+            new Route(GET, "/{index}/_termvectors/{id}"),
+            new Route(POST, "/{index}/_termvectors/{id}"),
+            // Deprecated typed endpoints.
+            new Route(GET, "/{index}/{type}/_termvectors"),
+            new Route(POST, "/{index}/{type}/_termvectors"),
+            new Route(GET, "/{index}/{type}/{id}/_termvectors"),
+            new Route(POST, "/{index}/{type}/{id}/_termvectors")));
     }
 
     @Override

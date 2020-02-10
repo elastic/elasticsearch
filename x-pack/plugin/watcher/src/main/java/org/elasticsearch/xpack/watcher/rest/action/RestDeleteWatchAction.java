@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -20,6 +19,10 @@ import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
+import java.util.List;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -28,11 +31,15 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestDeleteWatchAction.class));
 
-    public RestDeleteWatchAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, "/_watcher/watch/{id}", this,
-            DELETE, URI_BASE + "/watcher/watch/{id}", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return singletonList(
+            new ReplacedRoute(DELETE, "/_watcher/watch/{id}", DELETE, URI_BASE + "/watcher/watch/{id}", deprecationLogger));
     }
 
     @Override

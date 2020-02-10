@@ -309,11 +309,8 @@ setup:
 ---
 "date_histogram on range":
   - skip:
-      version: "all"
-      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/51525"
-      # When fixed, reinstate these lines
-      #version: " - 7.1.99"
-      #reason:  calendar_interval introduced in 7.2.0
+      version: " - 7.4.1"
+      reason:  doc values on ranges implemented in 7.4.1
 
   - do:
       indices.create:
@@ -364,11 +361,8 @@ setup:
 ---
 "date_histogram on range with offset":
   - skip:
-      version: "all"
-      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/51525"
-      # When fixed, reinstate these lines
-      #version: " - 7.1.99"
-      #reason:  calendar_interval introduced in 7.2.0
+      version: " - 7.4.1"
+      reason:  doc values on ranges implemented in 7.4.1
 
   - do:
       indices.create:

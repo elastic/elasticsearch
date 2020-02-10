@@ -32,11 +32,16 @@ public final class DateUtils {
     public static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
     public static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
 
-    private static final DateTimeFormatter DATE_TIME_ESCAPED_LITERAL_FORMATTER = new DateTimeFormatterBuilder()
-        .append(ISO_LOCAL_DATE)
-        .appendLiteral(" ")
-        .append(ISO_LOCAL_TIME)
-        .toFormatter().withZone(UTC);
+    private static final DateTimeFormatter DATE_TIME_ESCAPED_LITERAL_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder()
+            .append(ISO_LOCAL_DATE)
+            .appendLiteral(' ')
+            .append(ISO_LOCAL_TIME)
+            .toFormatter().withZone(UTC);
+    private static final DateTimeFormatter DATE_TIME_ESCAPED_LITERAL_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder()
+            .append(ISO_LOCAL_DATE)
+            .appendLiteral('T')
+            .append(ISO_LOCAL_TIME)
+            .toFormatter().withZone(UTC);
 
     private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
     private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
@@ -105,7 +110,13 @@ public final class DateUtils {
     }
 
     public static ZonedDateTime ofEscapedLiteral(String dateFormat) {
-        return ZonedDateTime.parse(dateFormat, DATE_TIME_ESCAPED_LITERAL_FORMATTER.withZone(UTC));
+        int separatorIdx = dateFormat.lastIndexOf('-') + 3;
+        // Avoid index out of bounds - it will lead to DateTimeParseException anyways
+        if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
+            return ZonedDateTime.parse(dateFormat, DATE_TIME_ESCAPED_LITERAL_FORMATTER_T_LITERAL.withZone(UTC));
+        } else {
+            return ZonedDateTime.parse(dateFormat, DATE_TIME_ESCAPED_LITERAL_FORMATTER_WHITESPACE.withZone(UTC));
+        }
     }
 
     public static String toString(ZonedDateTime dateTime) {

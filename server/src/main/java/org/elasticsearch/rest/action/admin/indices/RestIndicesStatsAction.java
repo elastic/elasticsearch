@@ -26,28 +26,32 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesStatsAction extends BaseRestHandler {
 
-    public RestIndicesStatsAction(RestController controller) {
-        controller.registerHandler(GET, "/_stats", this);
-        controller.registerHandler(GET, "/_stats/{metric}", this);
-        controller.registerHandler(GET, "/{index}/_stats", this);
-        controller.registerHandler(GET, "/{index}/_stats/{metric}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_stats"),
+            new Route(GET, "/_stats/{metric}"),
+            new Route(GET, "/{index}/_stats"),
+            new Route(GET, "/{index}/_stats/{metric}")));
     }
 
     @Override

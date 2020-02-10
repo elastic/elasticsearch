@@ -110,7 +110,6 @@ Analysis::
 
 Authentication::
 * Add Debug/Trace logging for authentication {pull}49575[#49575] (issue: {issue}49473[#49473])
-* Change password API authenticating with a bearer token {pull}49694[#49694] (issue: {issue}48752[#48752])
 
 Authorization::
 * Increase Size and lower TTL on DLS BitSet Cache {pull}50535[#50535] (issues: {issue}43669[#43669], {issue}49260[#49260])
@@ -132,7 +131,6 @@ Cluster Coordination::
 * Remove custom metadata tool {pull}50813[#50813] (issue: {issue}48701[#48701])
 
 Distributed::
-* Flush instead of synced-flush inactive shards {pull}49126[#49126] (issues: {issue}31965[#31965], {issue}48430[#48430])
 * Use retention lease in peer recovery of closed indices {pull}48430[#48430] (issue: {issue}45136[#45136])
 
 Engine::
@@ -154,7 +152,6 @@ Features/ILM+SLM::
 
 Features/Ingest::
 * Foreach processor - fork recursive call  {pull}50514[#50514]
-* Add pipeline name to ingest metadata {pull}50467[#50467] (issue: {issue}42106[#42106])
 * Sync grok patterns with logstash patterns {pull}50381[#50381]
 * Replace required pipeline with final pipeline {pull}49470[#49470] (issue: {issue}49247[#49247])
 * Add templating support to enrich processor {pull}49093[#49093]
@@ -268,8 +265,12 @@ Reindex::
 * Reindex sort deprecation warning take 2 {pull}49855[#49855] (issue: {issue}49458[#49458])
 
 SQL::
+* SQL: Handle uberjar scenario where the ES jdbc driver file is bundled in another jar {pull}51856[#51856] (issue: {issue}50201[#50201])
+* SQL: add trace logging for search responses coming from server {pull}50530[#50530]
 * SQL: Add TRUNC alias for TRUNCATE {pull}49571[#49571] (issue: {issue}41195[#41195])
 * SQL: binary communication implementation for drivers and the CLI {pull}48261[#48261] (issue: {issue}47785[#47785])
+* SQL: Verify Full-Text Search functions not allowed in SELECT {pull}51568[#51568] (issue: {issue}47446[#47446])
+
 
 Search::
 * Add Validation for maxQueryTerms to be greater than 0 for MoreLikeThisQuery {pull}49966[#49966] (issue: {issue}49927[#49927])
@@ -309,6 +310,9 @@ Transform::
 === Bug fixes
 
 Aggregations::
+* Use #name() instead of #simpleName() when generating doc values {pull}51920[#51920] (issues: {issue}50307[#50307], {issue}51847[#51847])
+* Fix a sneaky bug in rare_terms {pull}51868[#51868] (issue: {issue}51020[#51020])
+* Support time_zone on composite's date_histogram {pull}51172[#51172] (issues: {issue}45199[#45199], {issue}45200[#45200])
 * Fix format problem in composite of unmapped {pull}50869[#50869] (issue: {issue}50600[#50600])
 * SingleBucket aggs need to reduce their bucket's pipelines first {pull}50103[#50103] (issue: {issue}50054[#50054])
 * Avoid precision loss in DocValueFormat.RAW#parseLong {pull}49063[#49063] (issue: {issue}38692[#38692])
@@ -321,6 +325,7 @@ Allocation::
 * Handle negative free disk space in deciders {pull}48392[#48392] (issue: {issue}48380[#48380])
 
 Analysis::
+* Fix caching for PreConfiguredTokenFilter {pull}50912[#50912] (issue: {issue}50734[#50734])
 * Throw Error on deprecated nGram and edgeNGram custom filters {pull}50376[#50376] (issue: {issue}50360[#50360])
 * _analyze api does not correctly use normalizers when specified {pull}48866[#48866] (issue: {issue}48650[#48650])
 
@@ -328,6 +333,7 @@ Audit::
 * Audit log filter and marker {pull}45456[#45456] (issue: {issue}47251[#47251])
 
 Authentication::
+* Preserve ApiKey credentials for async verification {pull}51244[#51244]
 * Don't fallback to anonymous for tokens/apikeys {pull}51042[#51042] (issue: {issue}50171[#50171])
 * Populate User metadata with OpenIDConnect collections {pull}50521[#50521] (issue: {issue}50250[#50250])
 * Always return 401 for not valid tokens {pull}49736[#49736] (issue: {issue}38866[#38866])
@@ -362,10 +368,13 @@ Discovery-Plugins::
 * Make EC2 Discovery Plugin Retry Requests {pull}50550[#50550] (issue: {issue}50462[#50462])
 
 Distributed::
+* Exclude nested documents in LuceneChangesSnapshot {pull}51279[#51279]
 * Closed shard should never open new engine {pull}47186[#47186] (issues: {issue}45263[#45263], {issue}47060[#47060])
 * Fix meta version of task index mapping {pull}50363[#50363] (issue: {issue}48393[#48393])
 
 Engine::
+* Do not wrap soft-deletes reader for segment stats {pull}51331[#51331] (issues: {issue}51192[#51192], {issue}51303[#51303])
+* Account soft-deletes in FrozenEngine {pull}51192[#51192] (issue: {issue}50775[#50775])
 * Account trimAboveSeqNo in committed translog generation {pull}50205[#50205] (issue: {issue}49970[#49970])
 * Greedily advance safe commit on new global checkpoint {pull}48559[#48559] (issue: {issue}48532[#48532])
 * Do not ignore exception when trim unreferenced readers {pull}48470[#48470]
@@ -385,6 +394,8 @@ Features/ILM+SLM::
 * Change policy_id to list type in slm.get_lifecycle {pull}47766[#47766] (issue: {issue}47765[#47765])
 
 Features/Ingest::
+* Fix ignore_missing in CsvProcessor {pull}51600[#51600]
+* Don't overwrite target field with SetSecurityUserProcessor {pull}51454[#51454] (issue: {issue}51428[#51428])
 * Fix ingest simulate response document order if processor executes async {pull}50244[#50244]
 * Allow list of IPs in geoip ingest processor {pull}49573[#49573] (issue: {issue}46193[#46193])
 * Do not wrap ingest processor exception with IAE {pull}48816[#48816] (issue: {issue}48810[#48810])
@@ -417,6 +428,7 @@ Highlighting::
 * Fix invalid break iterator highlighting on keyword field {pull}49566[#49566]
 
 Infra/Core::
+* Ignore virtual ethernet devices that disappear {pull}51581[#51581] (issue: {issue}49914[#49914])
 * Guess root cause support unwrap {pull}50525[#50525] (issue: {issue}50417[#50417])
 * Allow parsing timezone without fully provided time {pull}50178[#50178] (issue: {issue}49351[#49351])
 * [Java.time] Retain prefixed date pattern in formatter {pull}48703[#48703] (issue: {issue}48698[#48698])
@@ -435,6 +447,7 @@ Infra/REST API::
 * Slash missed in indices.put_mapping url {pull}49468[#49468]
 
 Machine Learning::
+* [ML] Fix 2 digit year regex in find_file_structure {pull}51469[#51469]
 * [ML] Validate classification dependent_variable cardinality is at lea… {pull}51232[#51232]
 * Do not copy mapping from dependent variable to prediction field in regression analysis {pull}51227[#51227]
 * Handle nested and aliased fields correctly when copying mapping. {pull}50918[#50918] (issue: {issue}50787[#50787])
@@ -463,6 +476,9 @@ Mapping::
 * Annotated text type should extend TextFieldType {pull}49555[#49555] (issue: {issue}49289[#49289])
 * Ensure parameters are updated when merging flattened mappings. {pull}48971[#48971] (issue: {issue}48907[#48907])
 
+Network::
+* Fix TransportMasterNodeAction not Retrying NodeClosedException {pull}51325[#51325]
+
 Percolator::
 * Correctly handle MSM for nested disjunctions {pull}50669[#50669] (issue: {issue}50305[#50305])
 * Fix query analyzer logic for mixed conjunctions of terms and ranges {pull}49803[#49803] (issue: {issue}49684[#49684])
@@ -476,6 +492,9 @@ Reindex::
 * Reindex and friends fail on RED shards {pull}45830[#45830] (issues: {issue}42612[#42612], {issue}45739[#45739])
 
 SQL::
+* SQL: Fix milliseconds handling in intervals {pull}51675[#51675] (issue: {issue}41635[#41635])
+* SQL: Fix ORDER BY YEAR() function {pull}51562[#51562] (issue: {issue}51224[#51224])
+* SQL: change the way unsupported data types fields are handled {pull}50823[#50823]
 * SQL: Optimisation fixes for conjunction merges {pull}50703[#50703] (issue: {issue}49637[#49637])
 * SQL: Fix issue with CAST and NULL checking. {pull}50371[#50371] (issue: {issue}50191[#50191])
 * SQL: fix NPE for JdbcResultSet.getDate(param, Calendar) calls {pull}50184[#50184] (issue: {issue}50174[#50174])
@@ -513,6 +532,8 @@ Snapshot/Restore::
 * Cleanup Concurrent RepositoryData Loading {pull}48329[#48329] (issue: {issue}48122[#48122])
 
 Transform::
+* [Transform] Fix mapping deduction for scaled_float {pull}51990[#51990] (issue: {issue}51780[#51780])
+* [Transform] Fix stats can return old state information if security is enabled {pull}51732[#51732] (issue: {issue}51728[#51728])
 * [Transform] fail to start/put on missing pipeline {pull}50701[#50701] (issue: {issue}50135[#50135])
 * Fix possible audit logging disappearance after rolling upgrade {pull}49731[#49731] (issue: {issue}49730[#49730])
 * [Transform] do not fail checkpoint creation due to global checkpoint mismatch {pull}48423[#48423] (issue: {issue}48379[#48379])
@@ -525,6 +546,9 @@ Transform::
 
 Engine::
 * Upgrade to Lucene 8.4.0. {pull}50518[#50518]
+
+Infra/Packaging::
+* Upgrade the bundled JDK to JDK 13.0.2 {pull}51511[#51511]
 
 
 

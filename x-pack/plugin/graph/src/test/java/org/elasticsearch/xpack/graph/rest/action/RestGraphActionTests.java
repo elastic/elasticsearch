@@ -17,7 +17,7 @@ public class RestGraphActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGraphAction(controller());
+        controller().registerHandler(new RestGraphAction());
     }
 
     public void testTypeInPath() {

@@ -156,9 +156,7 @@ The cat APIs return information about your cluster and indices in a
 format that's easier to read than raw JSON.
 +
 You can interact directly with your cluster by submitting HTTP requests to
-the {es} REST API. Most of the examples in this guide enable you to copy the
-appropriate cURL command and submit the request to your local {es} instance from
-the command line. If you have Kibana installed and running, you can also
+the {es} REST API. If you have Kibana installed and running, you can also
 open Kibana and submit requests through the Dev Console.
 +
 TIP: You'll want to check out the
@@ -188,6 +186,45 @@ instance of {es}. A single node cluster is fully functional, but data
 cannot be replicated to another node to provide resiliency. Replica shards must
 be available for the cluster status to be green. If the cluster status is red,
 some data is unavailable.
+
+[discrete]
+[[gs-curl]]
+=== Talking to {es} with cURL commands
+
+Most of the examples in this guide enable you to copy the appropriate cURL
+command and submit the request to your local {es} instance from the command line.
+
+A request to Elasticsearch consists of the same parts as any HTTP request:
+
+[source,sh]
+--------------------------------------------------
+curl -X<VERB> '<PROTOCOL>://<HOST>:<PORT>/<PATH>?<QUERY_STRING>' -d '<BODY>'
+--------------------------------------------------
+// NOTCONSOLE
+
+This example uses the following variables:
+
+`<VERB>`:: The appropriate HTTP method or verb. For example, `GET`, `POST`,
+`PUT`, `HEAD`, or `DELETE`.
+`<PROTOCOL>`:: Either `http` or `https`. Use the latter if you have an HTTPS
+proxy in front of {es} or you use {es} {security-features} to encrypt HTTP
+communications.
+`<HOST>`:: The hostname of any node in your {es} cluster. Alternatively, use
++localhost+ for a node on your local machine.
+`<PORT>`:: The port running the {es} HTTP service, which defaults to `9200`.
+`<PATH>`:: The API endpoint, which can contain multiple components, such as
+`_cluster/stats` or `_nodes/stats/jvm`.
+`<QUERY_STRING>`:: Any optional query-string parameters. For example, `?pretty`
+will _pretty-print_  the JSON response to make it easier to read.
+`<BODY>`:: A JSON-encoded request body (if necessary).
+
+If the {es} {security-features} are enabled, you must also provide a valid user
+name (and password) that has authority to run the API. For example, use the
+`-u` or `--u` cURL command parameter. For details about which security
+privileges are required to run each API, see <<rest-apis>>.
+
+{es} responds to each API request with an HTTP status code like `200 OK`. With
+the exception of `HEAD` requests, it also returns a JSON-encoded response body. 
 
 [float]
 [[gs-other-install]]

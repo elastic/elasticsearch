@@ -108,13 +108,13 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BinaryComparisonSimplification;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanLiteralsOnTheRight;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanSimplification;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineBinaryComparisons;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineProjections;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.ConstantFolding;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithExtendedStats;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithStats;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
@@ -1128,6 +1128,32 @@ public class OptimizerTests extends ESTestCase {
         assertFalse(r.includeUpper());
     }
 
+    // 1 < a AND a < 3 AND 2 < b AND b < 4 AND c < 4 -> (1 < a < 3) AND (2 < b < 4) AND c < 4
+    public void testCombineMultipleComparisonsIntoRange() {
+        FieldAttribute fa = getFieldAttribute("a");
+        FieldAttribute fb = getFieldAttribute("b");
+        FieldAttribute fc = getFieldAttribute("c");
+
+        GreaterThan agt1 = new GreaterThan(EMPTY, fa, ONE);
+        LessThan alt3 = new LessThan(EMPTY, fa, THREE);
+        GreaterThan bgt2 = new GreaterThan(EMPTY, fb, TWO);
+        LessThan blt4 = new LessThan(EMPTY, fb, FOUR);
+        LessThan clt4 = new LessThan(EMPTY, fc, FOUR);
+
+        Expression inputAnd = Predicates.combineAnd(Arrays.asList(agt1, alt3, bgt2, blt4, clt4));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression outputAnd = rule.rule(inputAnd);
+
+        Range agt1lt3 = new Range(EMPTY, fa, ONE, false, THREE, false);
+        Range bgt2lt4 = new Range(EMPTY, fb, TWO, false, FOUR, false);
+
+        // The actual outcome is (c < 4) AND (1 < a < 3) AND (2 < b < 4), due to the way the Expression types are combined in the Optimizer
+        Expression expectedAnd = Predicates.combineAnd(Arrays.asList(clt4, agt1lt3, bgt2lt4));
+
+        assertTrue(outputAnd.semanticEquals(expectedAnd));
+    }
+
     // a != NULL AND a > 1 AND a < 5 AND a == 10  -> (a != NULL AND a == 10) AND 1 <= a < 5
     public void testCombineUnbalancedComparisonsMixedWithEqualsIntoRange() {
         FieldAttribute fa = getFieldAttribute();
@@ -1245,6 +1271,173 @@ public class OptimizerTests extends ESTestCase {
         CombineBinaryComparisons rule = new CombineBinaryComparisons();
         Expression exp = rule.rule(and);
         assertEquals(r1, exp);
+    }
+
+    // a != 2 AND 3 < a < 5 -> 3 < a < 5
+    public void testCombineBinaryComparisonsConjunction_Neq2AndRangeGt3Lt5() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, THREE, false, FIVE, false);
+        And and = new And(EMPTY, range, neq);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(THREE, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(FIVE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a != 2 AND 0 < a < 1 -> 0 < a < 1
+    public void testCombineBinaryComparisonsConjunction_Neq2AndRangeGt0Lt1() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, L(0), false, ONE, false);
+        And and = new And(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(L(0), r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(ONE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a != 2 AND 2 <= a < 3 -> 2 < a < 3
+    public void testCombineBinaryComparisonsConjunction_Neq2AndRangeGte2Lt3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, TWO, true, THREE, false);
+        And and = new And(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(TWO, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(THREE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a != 3 AND 2 < a <= 3 -> 2 < a < 3
+    public void testCombineBinaryComparisonsConjunction_Neq3AndRangeGt2Lte3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, THREE);
+        Range range = new Range(EMPTY, fa, TWO, false, THREE, true);
+        And and = new And(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(TWO, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(THREE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a != 2 AND 1 < a < 3
+    public void testCombineBinaryComparisonsConjunction_Neq2AndRangeGt1Lt3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, ONE, false, THREE, false);
+        And and = new And(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(And.class, exp.getClass()); // can't optimize
+    }
+
+    // a != 2 AND a > 3 -> a > 3
+    public void testCombineBinaryComparisonsConjunction_Neq2AndGt3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, THREE);
+        And and = new And(EMPTY, neq, gt);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(gt, exp);
+    }
+
+    // a != 2 AND a >= 2 -> a > 2
+    public void testCombineBinaryComparisonsConjunction_Neq2AndGte2() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, TWO);
+        And and = new And(EMPTY, neq, gte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(GreaterThan.class, exp.getClass());
+        GreaterThan gt = (GreaterThan) exp;
+        assertEquals(TWO, gt.right());
+    }
+
+    // a != 2 AND a >= 1 -> nop
+    public void testCombineBinaryComparisonsConjunction_Neq2AndGte1() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, ONE);
+        And and = new And(EMPTY, neq, gte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(And.class, exp.getClass()); // can't optimize
+    }
+
+    // a != 2 AND a <= 3 -> nop
+    public void testCombineBinaryComparisonsConjunction_Neq2AndLte3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, THREE);
+        And and = new And(EMPTY, neq, lte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(and, exp); // can't optimize
+    }
+
+    // a != 2 AND a <= 2 -> a < 2
+    public void testCombineBinaryComparisonsConjunction_Neq2AndLte2() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, TWO);
+        And and = new And(EMPTY, neq, lte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(LessThan.class, exp.getClass());
+        LessThan lt = (LessThan) exp;
+        assertEquals(TWO, lt.right());
+    }
+
+    // a != 2 AND a <= 1 -> a <= 1
+    public void testCombineBinaryComparisonsConjunction_Neq2AndLte1() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, ONE);
+        And and = new And(EMPTY, neq, lte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(lte, exp);
     }
 
     // Disjunction

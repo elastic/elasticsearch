@@ -481,7 +481,7 @@ public class Node implements Closeable {
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
                 threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry,
-                networkService, restController);
+                networkService, restController, clusterService.getClusterSettings());
             Collection<UnaryOperator<Map<String, IndexTemplateMetaData>>> indexTemplateMetaDataUpgraders =
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .map(Plugin::getIndexTemplateMetaDataUpgrader)
@@ -534,7 +534,7 @@ public class Node implements Closeable {
 
             final SearchService searchService = newSearchService(clusterService, indicesService,
                 threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase(),
-                responseCollectorService);
+                responseCollectorService, circuitBreakerService);
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
                 .filterPlugins(PersistentTaskPlugin.class).stream()
@@ -1035,9 +1035,10 @@ public class Node implements Closeable {
      */
     protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
                                              ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
-                                             FetchPhase fetchPhase, ResponseCollectorService responseCollectorService) {
+                                             FetchPhase fetchPhase, ResponseCollectorService responseCollectorService,
+                                             CircuitBreakerService circuitBreakerService) {
         return new SearchService(clusterService, indicesService, threadPool,
-            scriptService, bigArrays, fetchPhase, responseCollectorService);
+            scriptService, bigArrays, fetchPhase, responseCollectorService, circuitBreakerService);
     }
 
     /**

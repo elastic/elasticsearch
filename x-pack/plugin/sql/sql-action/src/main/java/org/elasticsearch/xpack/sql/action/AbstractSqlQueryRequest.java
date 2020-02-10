@@ -179,7 +179,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                     }
                     
                     currentParam = new SqlTypedParamValue(type, value, false);
-                    if ((previousParam != null && previousParam.hasExplicitType() == true) || result.isEmpty()) {
+                    if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
                         currentParam.tokenLocation(loc);
                     }
                 }
@@ -198,7 +198,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                 throw new XContentParseException(param.tokenLocation(), "[params] must be an array where each entry is an object with a "
                         + "value/type pair");
             }
-            if (Mode.isDriver(mode) == false && param.hasExplicitType() == true) {
+            if (Mode.isDriver(mode) == false && param.hasExplicitType()) {
                 throw new XContentParseException(param.tokenLocation(), "[params] must be an array where each entry is a single field (no "
                         + "objects supported)");
             }

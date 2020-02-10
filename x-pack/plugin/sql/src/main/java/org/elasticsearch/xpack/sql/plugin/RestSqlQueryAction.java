@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -27,7 +26,11 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -35,15 +38,20 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
 
-    public RestSqlQueryAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, Protocol.SQL_QUERY_REST_ENDPOINT, this,
-                GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, Protocol.SQL_QUERY_REST_ENDPOINT, this,
-                POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return unmodifiableList(asList(
+            new ReplacedRoute(
+                GET, Protocol.SQL_QUERY_REST_ENDPOINT,
+                GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger),
+            new ReplacedRoute(
+                POST, Protocol.SQL_QUERY_REST_ENDPOINT,
+                POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger)));
     }
 
     @Override
@@ -67,9 +75,9 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * isn't then we use the {@code Content-Type} header which is required.
          */
         String accept = null;
-        
+
         if ((Mode.isDriver(sqlRequest.requestInfo().mode()) || sqlRequest.requestInfo().mode() == Mode.CLI)
-                && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication() == true)) {
+                && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             accept = XContentType.CBOR.name();
         } else {

@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-
 public class TransformInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     private final boolean enabled;
@@ -58,12 +57,15 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
         TransformIndexerStats.SEARCH_FAILURES.getPreferredName(),
         TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),
         TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(),
-        TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(),
-    };
+        TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), };
 
     @Inject
-    public TransformInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                        Settings settings, XPackLicenseState licenseState) {
+    public TransformInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.TRANSFORM.name(), transportService, actionFilters);
         this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
         this.licenseState = licenseState;
@@ -87,16 +89,17 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
     static TransformIndexerStats parseSearchAggs(SearchResponse searchResponse) {
         List<Double> statisticsList = new ArrayList<>(PROVIDED_STATS.length);
 
-        for(String statName : PROVIDED_STATS) {
+        for (String statName : PROVIDED_STATS) {
             Aggregation agg = searchResponse.getAggregations().get(statName);
 
             if (agg instanceof NumericMetricsAggregation.SingleValue) {
-                statisticsList.add(((NumericMetricsAggregation.SingleValue)agg).value());
+                statisticsList.add(((NumericMetricsAggregation.SingleValue) agg).value());
             } else {
                 statisticsList.add(0.0);
             }
         }
-        return new TransformIndexerStats(statisticsList.get(0).longValue(),  // numPages
+        return new TransformIndexerStats(
+            statisticsList.get(0).longValue(),  // numPages
             statisticsList.get(1).longValue(),  // numInputDocuments
             statisticsList.get(2).longValue(),  // numOutputDocuments
             statisticsList.get(3).longValue(),  // numInvocations
@@ -108,47 +111,48 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
             statisticsList.get(9).longValue(), // searchFailures
             statisticsList.get(10), // exponential_avg_checkpoint_duration_ms
             statisticsList.get(11), // exponential_avg_documents_indexed
-            statisticsList.get(12)); // exponential_avg_documents_processed
+            statisticsList.get(12)
+        ); // exponential_avg_documents_processed
     }
 
     static void getStatisticSummations(Client client, ActionListener<TransformIndexerStats> statsListener) {
-        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(),
-                    TransformStoredDoc.NAME)));
+        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformStoredDoc.NAME))
+        );
 
-        SearchRequestBuilder requestBuilder = client
-            .prepareSearch(
-                TransformInternalIndexConstants.INDEX_NAME_PATTERN,
-                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
-            .setSize(0)
-            .setQuery(queryBuilder);
+        SearchRequestBuilder requestBuilder = client.prepareSearch(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        ).setSize(0).setQuery(queryBuilder);
 
         final String path = TransformField.STATS_FIELD.getPreferredName() + ".";
-        for(String statName : PROVIDED_STATS) {
+        for (String statName : PROVIDED_STATS) {
             requestBuilder.addAggregation(AggregationBuilders.sum(statName).field(path + statName));
         }
 
-        ActionListener<SearchResponse> getStatisticSummationsListener = ActionListener.wrap(
-            searchResponse -> {
-                if (searchResponse.getShardFailures().length > 0) {
-                    logger.error("statistics summations search returned shard failures: {}",
-                        Arrays.toString(searchResponse.getShardFailures()));
-                }
-
-                statsListener.onResponse(parseSearchAggs(searchResponse));
-            },
-            failure -> {
-                if (failure instanceof ResourceNotFoundException) {
-                    statsListener.onResponse(new TransformIndexerStats());
-                } else {
-                    statsListener.onFailure(failure);
-                }
+        ActionListener<SearchResponse> getStatisticSummationsListener = ActionListener.wrap(searchResponse -> {
+            if (searchResponse.getShardFailures().length > 0) {
+                logger.error(
+                    "statistics summations search returned shard failures: {}",
+                    Arrays.toString(searchResponse.getShardFailures())
+                );
             }
-        );
-        ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+
+            statsListener.onResponse(parseSearchAggs(searchResponse));
+        }, failure -> {
+            if (failure instanceof ResourceNotFoundException) {
+                statsListener.onResponse(new TransformIndexerStats());
+            } else {
+                statsListener.onFailure(failure);
+            }
+        });
+        ClientHelper.executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
             ClientHelper.TRANSFORM_ORIGIN,
             requestBuilder.request(),
             getStatisticSummationsListener,
-            client::search);
+            client::search
+        );
     }
 }

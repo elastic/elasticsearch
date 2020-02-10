@@ -36,7 +36,7 @@ import java.util.Map;
 
 /**
  * Builds the Top Metrics aggregation request.
- * 
+ * <p>
  * NOTE: This extends {@linkplain AbstractAggregationBuilder} for compatibility
  * with {@link SearchSourceBuilder#aggregation(AggregationBuilder)} but it
  * doesn't support any "server" side things like

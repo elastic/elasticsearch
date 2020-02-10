@@ -1,8 +1,5 @@
 ---
 "Test get old cluster job":
-  - skip:
-      version: "7.7.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/52009
   - do:
       ml.get_jobs:
         job_id: old-cluster-job
@@ -40,9 +37,6 @@
 
 ---
 "Test get old cluster job's timing stats":
-  - skip:
-      version: "7.7.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/52009
   - do:
       ml.get_job_stats:
         job_id: old-cluster-job-with-ts
@@ -57,9 +51,6 @@
 
 ---
 "Test get old cluster categorization job":
-  - skip:
-      version: "7.7.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/52009
   - do:
       ml.get_jobs:
         job_id: old-cluster-categorization-job
@@ -97,9 +88,6 @@
 
 ---
 "Create a job in the mixed cluster and write some data":
-  - skip:
-      version: "7.7.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/52009
   - do:
       ml.put_job:
         job_id: mixed-cluster-job
@@ -152,9 +140,7 @@
 
 ---
 "Test job with pre 6.4 rules":
-  - skip:
-      version: "7.7.0 - "
-      reason: waiting merge of https://github.com/elastic/elasticsearch/pull/52009
+
   - do:
       ml.get_jobs:
         job_id: job-with-old-rules

@@ -45,7 +45,7 @@ import java.util.function.BiConsumer;
  * 1) the {@link DisruptedLinks} represents the links in the network that are to be disrupted
  * 2) the {@link NetworkLinkDisruptionType} represents the failure mode that is to be applied to the links
  */
-public class NetworkDisruption implements ServiceDisruptionScheme {
+public class  NetworkDisruption implements ServiceDisruptionScheme {
 
     private static final Logger logger = LogManager.getLogger(NetworkDisruption.class);
 

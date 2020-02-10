@@ -428,72 +428,15 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 containsString("user ml_admin lacks permissions on the indices"));
     }
 
-    public void testInsufficientSearchPrivilegesOnPutWithRollup() throws Exception {
+    public void testCreationOnPutWithRollup() throws Exception {
         setupDataAccessRole("airline-data-aggs-rollup");
         String jobId = "privs-put-job-rollup";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("{\n"
-            + "  \"description\": \"Aggs job\",\n"
-            + "  \"analysis_config\": {\n"
-            + "    \"bucket_span\": \"1h\",\n"
-            + "    \"summary_count_field_name\": \"doc_count\",\n"
-            + "    \"detectors\": [\n"
-            + "      {\n"
-            + "        \"function\": \"mean\",\n"
-            + "        \"field_name\": \"responsetime\",\n"
-            + "        \"by_field_name\": \"airline\"\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
-            + "}");
-        client().performRequest(createJobRequest);
-
-        String rollupJobId = "rollup-" + jobId;
-        Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
-        createRollupRequest.setJsonEntity("{\n"
-            + "\"index_pattern\": \"airline-data-aggs\",\n"
-            + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
-            + "    \"cron\": \"*/30 * * * * ?\",\n"
-            + "    \"page_size\" :1000,\n"
-            + "    \"groups\" : {\n"
-            + "      \"date_histogram\": {\n"
-            + "        \"field\": \"time stamp\",\n"
-            + "        \"fixed_interval\": \"2m\",\n"
-            + "        \"delay\": \"7d\"\n"
-            + "      },\n"
-            + "      \"terms\": {\n"
-            + "        \"fields\": [\"airline\"]\n"
-            + "      }"
-            + "    },\n"
-            + "    \"metrics\": [\n"
-            + "        {\n"
-            + "            \"field\": \"responsetime\",\n"
-            + "            \"metrics\": [\"avg\",\"min\",\"max\",\"sum\"]\n"
-            + "        },\n"
-            + "        {\n"
-            + "            \"field\": \"time stamp\",\n"
-            + "            \"metrics\": [\"min\",\"max\"]\n"
-            + "        }\n"
-            + "    ]\n"
-            + "}");
-        client().performRequest(createRollupRequest);
-
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
-            + "\"aggregations\":{"
-            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
-            + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
+        final Response response = createJobAndDataFeed(jobId, datafeedId);
 
-
-        ResponseException e = expectThrows(ResponseException.class, () ->
-            new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup")
-                .setAggregations(aggregations)
-                .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS) //want to search, but no admin access
-                .build());
-        assertThat(e.getMessage(), containsString("Cannot create datafeed"));
-        assertThat(e.getMessage(),
-            containsString("user ml_admin_plus_data lacks permissions on the indices"));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"datafeed_id\":\"" + datafeedId
+            + "\",\"job_id\":\"" + jobId + "\""));
     }
 
     public void testInsufficientSearchPrivilegesOnPreview() throws Exception {
@@ -884,67 +827,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackWithoutPermissionsAndRollup() throws Exception {
         setupFullAccessRole("airline-data-aggs-rollup");
         String jobId = "rollup-permission-test-network-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("{\n"
-            + "  \"description\": \"Aggs job\",\n"
-            + "  \"analysis_config\": {\n"
-            + "    \"bucket_span\": \"1h\",\n"
-            + "    \"summary_count_field_name\": \"doc_count\",\n"
-            + "    \"detectors\": [\n"
-            + "      {\n"
-            + "        \"function\": \"mean\",\n"
-            + "        \"field_name\": \"responsetime\",\n"
-            + "        \"by_field_name\": \"airline\"\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
-            + "}");
-        client().performRequest(createJobRequest);
-
-        String rollupJobId = "rollup-" + jobId;
-        Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
-        createRollupRequest.setJsonEntity("{\n"
-            + "\"index_pattern\": \"airline-data-aggs\",\n"
-            + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
-            + "    \"cron\": \"*/30 * * * * ?\",\n"
-            + "    \"page_size\" :1000,\n"
-            + "    \"groups\" : {\n"
-            + "      \"date_histogram\": {\n"
-            + "        \"field\": \"time stamp\",\n"
-            + "        \"fixed_interval\": \"2m\",\n"
-            + "        \"delay\": \"7d\"\n"
-            + "      },\n"
-            + "      \"terms\": {\n"
-            + "        \"fields\": [\"airline\"]\n"
-            + "      }"
-            + "    },\n"
-            + "    \"metrics\": [\n"
-            + "        {\n"
-            + "            \"field\": \"responsetime\",\n"
-            + "            \"metrics\": [\"avg\",\"min\",\"max\",\"sum\"]\n"
-            + "        },\n"
-            + "        {\n"
-            + "            \"field\": \"time stamp\",\n"
-            + "            \"metrics\": [\"min\",\"max\"]\n"
-            + "        }\n"
-            + "    ]\n"
-            + "}");
-        client().performRequest(createRollupRequest);
-
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
-            + "\"aggregations\":{"
-            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
-            + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
-
-
-        // At the time we create the datafeed the user can access the network-data index that we have access to
-        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup")
-            .setAggregations(aggregations)
-            .setChunkingTimespan("300s")
-            .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)
-            .build();
+        createJobAndDataFeed(jobId, datafeedId);
 
         // Change the role so that the user can no longer access network-data
         setupFullAccessRole("some-other-data");
@@ -959,7 +843,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             new Request("GET", AuditorField.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
-            "action [indices:admin/xpack/rollup/search] is unauthorized for user [ml_admin_plus_data]\""));
+            "action [indices:data/read/xpack/rollup/search] is unauthorized for user [ml_admin_plus_data]\""));
     }
 
     public void testLookbackWithSingleBucketAgg() throws Exception {
@@ -1285,5 +1169,65 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         bulkRequest.addParameter("pretty", null);
         String bulkResponse = EntityUtils.toString(client().performRequest(bulkRequest).getEntity());
         assertThat(bulkResponse, not(containsString("\"errors\": false")));
+    }
+
+    private Response createJobAndDataFeed(String jobId, String datafeedId) throws IOException {
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        createJobRequest.setJsonEntity("{\n"
+            + "  \"description\": \"Aggs job\",\n"
+            + "  \"analysis_config\": {\n"
+            + "    \"bucket_span\": \"1h\",\n"
+            + "    \"summary_count_field_name\": \"doc_count\",\n"
+            + "    \"detectors\": [\n"
+            + "      {\n"
+            + "        \"function\": \"mean\",\n"
+            + "        \"field_name\": \"responsetime\",\n"
+            + "        \"by_field_name\": \"airline\"\n"
+            + "      }\n"
+            + "    ]\n"
+            + "  },\n"
+            + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
+            + "}");
+        client().performRequest(createJobRequest);
+
+        String rollupJobId = "rollup-" + jobId;
+        Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
+        createRollupRequest.setJsonEntity("{\n"
+            + "\"index_pattern\": \"airline-data-aggs\",\n"
+            + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
+            + "    \"cron\": \"*/30 * * * * ?\",\n"
+            + "    \"page_size\" :1000,\n"
+            + "    \"groups\" : {\n"
+            + "      \"date_histogram\": {\n"
+            + "        \"field\": \"time stamp\",\n"
+            + "        \"fixed_interval\": \"2m\",\n"
+            + "        \"delay\": \"7d\"\n"
+            + "      },\n"
+            + "      \"terms\": {\n"
+            + "        \"fields\": [\"airline\"]\n"
+            + "      }"
+            + "    },\n"
+            + "    \"metrics\": [\n"
+            + "        {\n"
+            + "            \"field\": \"responsetime\",\n"
+            + "            \"metrics\": [\"avg\",\"min\",\"max\",\"sum\"]\n"
+            + "        },\n"
+            + "        {\n"
+            + "            \"field\": \"time stamp\",\n"
+            + "            \"metrics\": [\"min\",\"max\"]\n"
+            + "        }\n"
+            + "    ]\n"
+            + "}");
+        client().performRequest(createRollupRequest);
+
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
+            + "\"aggregations\":{"
+            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
+            + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
+
+        return new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup")
+            .setAggregations(aggregations)
+            .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)
+            .build();
     }
 }

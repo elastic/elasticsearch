@@ -400,6 +400,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             // track aliases defined in the SELECT and used inside GROUP BY
             // SELECT x AS a ... GROUP BY a
             Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
+            String literalId = null;
             for (NamedExpression ne : a.aggregates()) {
                 if (ne instanceof Alias) {
                     aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
@@ -455,13 +456,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // literal
                 if (target.foldable()) {
                     queryC = queryC.addColumn(ne.toAttribute());
-                    //If we're only selecting literals, we have to fix the row count
-                    if(a.aggregates().stream().allMatch(s -> s.children().get(0) instanceof Literal)) {
-                        for (Expression grouping : a.groupings()) {
-                            GroupByKey matchingGroup = groupingContext.groupFor(grouping);
-                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id);
-                        }
-                    }
+                    literalId = id;
                 }
 
                 // look at functions
@@ -593,7 +588,13 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
                 }
             }
-
+            //If we're only selecting literals, we have to fix the row count
+            if(a.aggregates().stream().allMatch(s -> s.children().size() > 0 && s.children().get(0) instanceof Literal)) {
+                for (Expression grouping : a.groupings()) {
+                    GroupByKey matchingGroup = groupingContext.groupFor(grouping);
+                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), literalId);
+                }
+            }
             return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
         }
 

@@ -147,13 +147,18 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(((Count) ((Alias) agg.get(0)).child()).functionName(), "COUNT");
     }
     public void testLiteralWithGroupBy(){
-        LogicalPlan p = plan("SELECT 1 as t FROM test GROUP BY int");
+        LogicalPlan p = plan("SELECT 1 as t, 2 FROM test GROUP BY int");
         assertTrue(p instanceof Aggregate);
         List<Expression> groupings = ((Aggregate) p).groupings();
+        assertTrue(groupings.size() == 1);
         assertTrue(groupings.get(0).resolved());
-        var agg = ((Aggregate) p).aggregates();
-        assertEquals((agg.get(0)).name(), "t");
-        assertTrue(((Alias) agg.get(0)).child() instanceof Literal);
+        assertTrue(groupings.get(0) instanceof FieldAttribute);
+        var aggs = ((Aggregate) p).aggregates();
+        assertTrue(aggs.size() == 2);
+        assertEquals((aggs.get(0)).name(), "t");
+        assertTrue(((Alias) aggs.get(0)).child() instanceof Literal);
+        assertEquals(((Alias) aggs.get(0)).child().toString(), "1");
+        assertEquals(((Alias) aggs.get(1)).child().toString(), "2");
     }
 
     public void testTermEqualityNotAnalyzed() {

@@ -144,6 +144,10 @@ countDistinctAlias
 SELECT COUNT(DISTINCT hire_date) AS count FROM test_emp;
 countDistinctAndCountSimpleWithAlias
 SELECT COUNT(*) cnt, COUNT(DISTINCT first_name) as names, gender FROM test_emp GROUP BY gender ORDER BY gender;
+countWithFunctionFilterAndGroupBy
+SELECT COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 GROUP BY gender ORDER BY gender;
+countLiteralAndAliasWithFunctionFilterAndGroupBy
+SELECT 1 as t, gender as g, COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 GROUP BY g ORDER BY gender;
 
 aggCountAliasAndWhereClauseMultiGroupBy
 SELECT gender g, languages l, COUNT(*) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages;
@@ -563,6 +567,8 @@ SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM 
 // group by with literal
 implicitGroupByWithLiteral
 SELECT 10, MAX("salary") FROM test_emp;
+literalWithGroupBy
+SELECT 1 as s, 2 as t FROM test_emp GROUP BY gender;
 implicitGroupByWithLiterals
 SELECT 10, 'foo', MAX("salary"), 20, 'bar' FROM test_emp;
 groupByWithLiteral

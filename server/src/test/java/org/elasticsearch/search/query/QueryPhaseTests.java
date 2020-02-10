@@ -640,8 +640,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         MappedFieldType fieldTypeDate = new DateFieldMapper.Builder(fieldNameDate).fieldType();
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
-        when(mapperService.fullName(fieldNameDate)).thenReturn(fieldTypeDate);
+        when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
+        when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);
 
         final int numDocs = 7000;
         Directory dir = newDirectory();

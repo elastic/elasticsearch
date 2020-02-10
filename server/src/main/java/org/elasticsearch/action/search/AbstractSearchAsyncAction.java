@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -82,6 +83,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, Set<String>> indexRoutings;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
+    private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger skippedOps = new AtomicInteger();
     private final SearchTimeProvider timeProvider;
@@ -467,6 +469,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         successfulOps.incrementAndGet();
         results.consumeResult(result);
+        hasShardResponse.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
@@ -602,8 +605,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         String indexName = shardIt.shardId().getIndex().getName();
         final String[] routings = indexRoutings.getOrDefault(indexName, Collections.emptySet())
             .toArray(new String[0]);
-        return new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
+        ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
             filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings);
+        // if we already received a search result we can inform the shard that it
+        // can return a null response if the request rewrites to match none rather
+        // than creating an empty response in the search thread pool.
+        // Note that, we have to disable this shortcut for scroll queries.
+        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && request.scroll() == null);
+        return shardRequest;
     }
 
     /**

@@ -21,15 +21,20 @@ package org.elasticsearch.http;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class TestResponseHeaderRestAction extends BaseRestHandler {
 
-    public TestResponseHeaderRestAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_protected", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "/_protected"));
     }
 
     @Override

@@ -7,13 +7,17 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+
 public class Results {
 
-    private final TotalHits totalHits;
+    public static final Results EMPTY = new Results(new TotalHits(0, Relation.EQUAL_TO), emptyList());
 
+    private final TotalHits totalHits;
     private final List<Object> results;
 
     public Results(TotalHits totalHits, List<Object> results) {

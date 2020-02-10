@@ -617,7 +617,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     public void testIndexNameExclusionsList() {
         // this test case should be removed when DOT_INDICES_EXCLUSIONS is empty
         List<String> excludedNames = Arrays.asList(
-            ".slm-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             ".watch-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             ".ml-anomalies-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             ".ml-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),

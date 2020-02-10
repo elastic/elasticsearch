@@ -76,9 +76,11 @@ Features/Ingest::
 
 Machine Learning::
 * Implement `precision` and `recall` metrics for classification evaluation {pull}49671[#49671] (issue: {issue}48759[#48759])
-* [ML] Explain data frame analytics API {pull}49455[#49455]
-* [ML] ML Model Inference Ingest Processor {pull}49052[#49052]
+* Explain data frame analytics API {pull}49455[#49455]
+* ML model inference ingest processor {pull}49052[#49052]
 * Implement accuracy metric for multiclass classification {pull}47772[#47772] (issue: {issue}48759[#48759])
+* Add feature importance values to classification and regression results (using tree 
+SHapley Additive exPlanation, or SHAP) {ml-pull}857[#857]
 
 Mapping::
 * Add per-field metadata. {pull}49419[#49419] (issue: {issue}33267[#33267])
@@ -222,23 +224,46 @@ License::
 * Support "enterprise" license types {pull}49223[#49223] (issue: {issue}48510[#48510])
 
 Machine Learning::
-* [ML] Add audit warning for 1000 categories found early in job {pull}51146[#51146] (issue: {issue}50749[#50749])
-* [ML] Add num_top_feature_importance_values param to regression and classi… {pull}50914[#50914]
-* [ML] Implement force deleting a data frame analytics job {pull}50553[#50553] (issue: {issue}48124[#48124])
-* [ML] Delete unused data frame analytics state {pull}50243[#50243]
+* Add audit warning for 1000 categories found early in job {pull}51146[#51146] (issue: {issue}50749[#50749])
+* Add num_top_feature_importance_values param to regression and classi… {pull}50914[#50914]
+* Implement force deleting a data frame analytics job {pull}50553[#50553] (issue: {issue}48124[#48124])
+* Delete unused data frame analytics state {pull}50243[#50243]
 * Make each analysis report desired field mappings to be copied {pull}50219[#50219] (issue: {issue}50119[#50119])
-* [ML] retry bulk indexing of state docs {pull}50149[#50149] (issue: {issue}50143[#50143])
-* [ML] Persist/restore state for DFA classification {pull}50040[#50040]
-* [ML] Introduce randomize_seed setting for regression and classification {pull}49990[#49990]
+* Retry bulk indexing of state docs {pull}50149[#50149] (issue: {issue}50143[#50143])
+* Persist/restore state for DFA classification {pull}50040[#50040]
+* Introduce randomize_seed setting for regression and classification {pull}49990[#49990]
 * Pass `prediction_field_type` to C++ analytics process {pull}49861[#49861] (issue: {issue}49796[#49796])
-* [ML] Add optional source filtering during data frame reindexing {pull}49690[#49690] (issue: {issue}49531[#49531])
-* [ML] Add default categorization analyzer definition to ML info {pull}49545[#49545]
-* [ML] Add graceful retry for anomaly detector result indexing failures {pull}49508[#49508] (issue: {issue}45711[#45711])
+* Add optional source filtering during data frame reindexing {pull}49690[#49690] (issue: {issue}49531[#49531])
+* Add default categorization analyzer definition to ML info {pull}49545[#49545]
+* Add graceful retry for anomaly detector result indexing failures {pull}49508[#49508] (issue: {issue}45711[#45711])
 * Lower minimum model memory limit value from 1MB to 1kB. {pull}49227[#49227] (issue: {issue}49168[#49168])
 * Throw an exception when memory usage estimation endpoint encounters empty data frame. {pull}49143[#49143] (issue: {issue}49140[#49140])
 * Change format of MulticlassConfusionMatrix result to be more self-explanatory {pull}48174[#48174] (issue: {issue}46735[#46735])
 * Make num_top_classes parameter's default value equal to 2 {pull}48119[#48119] (issue: {issue}46735[#46735])
-* [ML] Improve model_memory_limit UX for data frame analytics jobs {pull}44699[#44699]
+* Improve model_memory_limit UX for data frame analytics jobs {pull}44699[#44699]
+* Improve performance of boosted tree training for both classification and regression {ml-pull}775[#775]
+* Reduce the peak memory used by boosted tree training and fix an overcounting bug
+estimating maximum memory usage {ml-pull}781[#781]
+* Stratified fractional cross validation for regression {ml-pull}784[#784]
+* Added `geo_point` supported output for `lat_long` function records {ml-pull}809[#809], {pull}47a050[#47050]
+* Use a random bag of the data to compute the loss function derivatives for each 
+new tree which is trained for both regression and classification {ml-pull}811[#811]
+* Emit `prediction_probability` field alongside prediction field in ml results {ml-pull}818[#818]
+* Reduce memory usage of {ml} native processes on Windows {ml-pull}844[#844]
+* Reduce runtime of classification and regression {ml-pull}863[#863]
+* Stop early training a classification and regression forest when the validation 
+error is no longer decreasing {ml-pull}875[#875]
+* Emit `prediction_field_name` in ml results using the type provided as
+`prediction_field_type` parameter {ml-pull}877[#877]
+* Improve performance updating quantile estimates {ml-pull}881[#881]
+* Migrate to use Bayesian optimisation for initial hyperparameter value line 
+searches and stop early if the expected improvement is too small {ml-pull}903[#903]
+* Stop cross-validation early if the predicted test loss has a small chance of 
+being smaller than for the best parameter values found so far {ml-pull}915[#915]
+* Optimize decision threshold for classification to maximize minimum class recall {ml-pull}926[#926]
+* Include categorization memory usage in the `model_bytes` field in 
+`model_size_stats`, so that it is taken into account in node assignment 
+decisions {ml-pull}927[#927] (issue:{ml-issue}724[#724])
 
 Mapping::
 * Add telemetry for flattened fields. {pull}48972[#48972]
@@ -297,11 +322,11 @@ Store::
 * mmap dim files in HybridDirectory {pull}49272[#49272] (issue: {issue}48509[#48509])
 
 Transform::
-* [Transform] Improve force stop robustness in case of an error {pull}51072[#51072]
-* [Transform] add actual timeout in message {pull}50140[#50140]
-* [Transform] automatic deletion of old checkpoints {pull}49496[#49496]
-* [Transform] improve error handling of script errors {pull}48887[#48887] (issue: {issue}48467[#48467])
-* [ML][Transforms] add wait_for_checkpoint flag to stop {pull}47935[#47935] (issue: {issue}45293[#45293])
+* Improve force stop robustness in case of an error {pull}51072[#51072]
+* Add actual timeout in message {pull}50140[#50140]
+* Automatic deletion of old checkpoints {pull}49496[#49496]
+* Improve error handling of script errors {pull}48887[#48887] (issue: {issue}48467[#48467])
+* Add wait_for_checkpoint flag to stop {pull}47935[#47935] (issue: {issue}45293[#45293])
 
 
 
@@ -447,28 +472,31 @@ Infra/REST API::
 * Slash missed in indices.put_mapping url {pull}49468[#49468]
 
 Machine Learning::
-* [ML] Fix 2 digit year regex in find_file_structure {pull}51469[#51469]
-* [ML] Validate classification dependent_variable cardinality is at lea… {pull}51232[#51232]
+* Fix 2 digit year regex in find_file_structure {pull}51469[#51469]
+* Validate classification dependent_variable cardinality is at lea… {pull}51232[#51232]
 * Do not copy mapping from dependent variable to prediction field in regression analysis {pull}51227[#51227]
 * Handle nested and aliased fields correctly when copying mapping. {pull}50918[#50918] (issue: {issue}50787[#50787])
-* [ML] Fix off-by-one error in ml_classic tokenizer end offset {pull}50655[#50655]
-* [ML] Improve uniqueness of result document IDs {pull}50644[#50644] (issue: {issue}50613[#50613])
-* [7.x] Synchronize processInStream.close() call {pull}50581[#50581] (issue: {issue}49680[#49680])
+* Fix off-by-one error in ml_classic tokenizer end offset {pull}50655[#50655]
+* Improve uniqueness of result document IDs {pull}50644[#50644] (issue: {issue}50613[#50613])
+* Synchronize processInStream.close() call {pull}50581[#50581] (issue: {issue}49680[#49680])
 * Fix accuracy metric {pull}50310[#50310] (issue: {issue}48759[#48759])
 * Fix race condition when stopping a data frame analytics jobs immediately after starting it {pull}50276[#50276] (issues: {issue}49680[#49680], {issue}50177[#50177])
 * Use query in cardinality check {pull}49939[#49939]
 * Make only a part of `stop()` method a critical section. {pull}49756[#49756] (issue: {issue}49680[#49680])
 * Fix expired job results deletion audit message {pull}49560[#49560] (issue: {issue}49549[#49549])
-* [ML] Apply source query on data frame analytics memory estimation {pull}49517[#49517] (issue: {issue}49454[#49454])
+* Apply source query on data frame analytics memory estimation {pull}49517[#49517] (issue: {issue}49454[#49454])
 * Stop timing stats failure propagation {pull}49495[#49495]
-* [ML] Fix r_squared eval when variance is 0 {pull}49439[#49439]
+* Fix r_squared eval when variance is 0 {pull}49439[#49439]
 * Blacklist a number of prediction field names. {pull}49371[#49371] (issue: {issue}48808[#48808])
 * Make AnalyticsProcessManager class more robust {pull}49282[#49282] (issue: {issue}49095[#49095])
-* [ML] Fixes for stop datafeed edge cases {pull}49191[#49191] (issues: {issue}43670[#43670], {issue}48931[#48931])
-* [ML] Avoid NPE when node load is calculated on job assignment {pull}49186[#49186] (issue: {issue}49150[#49150])
+* Fixes for stop datafeed edge cases {pull}49191[#49191] (issues: {issue}43670[#43670], {issue}48931[#48931])
+* Avoid NPE when node load is calculated on job assignment {pull}49186[#49186] (issue: {issue}49150[#49150])
 * Do not throw exceptions resulting from persisting datafeed timing stats. {pull}49044[#49044] (issue: {issue}49032[#49032])
-* [ML] Deduplicate multi-fields for data frame analytics {pull}48799[#48799] (issues: {issue}48756[#48756], {issue}48770[#48770])
-* [ML] Prevent fetching multi-field from source {pull}48770[#48770] (issue: {issue}48756[#48756])
+* Deduplicate multi-fields for data frame analytics {pull}48799[#48799] (issues: {issue}48756[#48756], {issue}48770[#48770])
+* Prevent fetching multi-field from source {pull}48770[#48770] (issue: {issue}48756[#48756])
+* Fixes potential memory corruption when determining seasonality {ml-pull}852[#852]
+* Prevent prediction_field_name clashing with other fields in ml results {ml-pull}861[#861]
+* Include out-of-order as well as in-order terms in categorization reverse searches {ml-pull}950[#950] (issue:{ml-issue}949[#949])
 
 Mapping::
 * Ensure that field collapsing works with field aliases. {pull}50722[#50722] (issues: {issue}32648[#32648], {issue}50121[#50121])
@@ -532,11 +560,11 @@ Snapshot/Restore::
 * Cleanup Concurrent RepositoryData Loading {pull}48329[#48329] (issue: {issue}48122[#48122])
 
 Transform::
-* [Transform] Fix mapping deduction for scaled_float {pull}51990[#51990] (issue: {issue}51780[#51780])
-* [Transform] Fix stats can return old state information if security is enabled {pull}51732[#51732] (issue: {issue}51728[#51728])
-* [Transform] fail to start/put on missing pipeline {pull}50701[#50701] (issue: {issue}50135[#50135])
+* Fix mapping deduction for scaled_float {pull}51990[#51990] (issue: {issue}51780[#51780])
+* Fix stats can return old state information if security is enabled {pull}51732[#51732] (issue: {issue}51728[#51728])
+* Fail to start/put on missing pipeline {pull}50701[#50701] (issue: {issue}50135[#50135])
 * Fix possible audit logging disappearance after rolling upgrade {pull}49731[#49731] (issue: {issue}49730[#49730])
-* [Transform] do not fail checkpoint creation due to global checkpoint mismatch {pull}48423[#48423] (issue: {issue}48379[#48379])
+* Do not fail checkpoint creation due to global checkpoint mismatch {pull}48423[#48423] (issue: {issue}48379[#48379])
 
 
 

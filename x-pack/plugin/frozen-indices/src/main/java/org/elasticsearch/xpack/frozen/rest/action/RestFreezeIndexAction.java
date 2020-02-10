@@ -11,16 +11,23 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public final class RestFreezeIndexAction extends BaseRestHandler {
 
-    public RestFreezeIndexAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_freeze", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_unfreeze", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/{index}/_freeze"),
+            new Route(POST, "/{index}/_unfreeze")));
     }
 
     @Override

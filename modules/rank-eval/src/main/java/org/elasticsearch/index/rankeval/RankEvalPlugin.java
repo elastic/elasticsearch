@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestHandler;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -50,7 +51,7 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return Arrays.asList(new RestRankEvalAction(restController));
+        return Collections.singletonList(new RestRankEvalAction());
     }
 
     @Override

@@ -27,6 +27,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+
 public class ClientYamlSuiteRestApiTests extends ESTestCase {
 
     public void testParseCommonSpec() throws IOException {
@@ -68,11 +71,11 @@ public class ClientYamlSuiteRestApiTests extends ESTestCase {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Set.of("index", "type"));
             assertEquals(3, paths.size());
             assertEquals("/{index}/_mapping/{type}", paths.get(0).getPath());
-            assertFalse(paths.get(0).getDeprecated());
+            assertThat(paths.get(0).getDeprecation(), nullValue());
             assertEquals("/{index}/{type}", paths.get(1).getPath());
-            assertTrue(paths.get(1).getDeprecated());
+            assertThat(paths.get(1).getDeprecation(), equalTo("Specifying types in urls has been deprecated"));
             assertEquals("/{index}/_mappings/{type}", paths.get(2).getPath());
-            assertFalse(paths.get(2).getDeprecated());
+            assertThat(paths.get(2).getDeprecation(), nullValue());
         }
         {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Set.of("index", "type", "id"));

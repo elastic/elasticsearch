@@ -79,7 +79,7 @@ public class ClientYamlSuiteRestApiParser {
                                 String path = null;
                                 Set<String> methods = new HashSet<>();
                                 Set<String> pathParts = new HashSet<>();
-                                boolean deprecated = false;
+                                String deprecation = null;
                                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                                     if ("path".equals(parser.currentName())) {
                                         parser.nextToken();
@@ -118,14 +118,23 @@ public class ClientYamlSuiteRestApiParser {
                                             throw new ParsingException(parser.getTokenLocation(),
                                                 apiName + " API: expected [deprecated] field in rest api definition to hold an object");
                                         }
-                                        deprecated = true;
-                                        parser.skipChildren();
+                                        while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                                            if ("version".equalsIgnoreCase(parser.currentName())) {
+                                                parser.nextToken();
+                                            } else if ("description".equalsIgnoreCase(parser.currentName())) {
+                                                parser.nextToken();
+                                                deprecation = parser.text();
+                                            } else {
+                                                throw new ParsingException(parser.getTokenLocation(), apiName + " API: unexpected field [" +
+                                                    parser.currentName() + "] of type [" + parser.currentToken() + "]");
+                                            }
+                                        }
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(), apiName + " API: unexpected field [" +
                                             parser.currentName() + "] of type [" + parser.currentToken() + "]");
                                     }
                                 }
-                                restApi.addPath(path, methods.toArray(new String[0]), pathParts, deprecated);
+                                restApi.addPath(path, methods.toArray(new String[0]), pathParts, deprecation);
                             }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), apiName +  " API: unsupported field ["

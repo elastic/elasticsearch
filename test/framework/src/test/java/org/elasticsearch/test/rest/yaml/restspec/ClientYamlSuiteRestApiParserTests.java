@@ -45,6 +45,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
             assertThat(next.getMethods()[0], equalTo("POST"));
             assertThat(next.getParts().size(), equalTo(2));
             assertThat(next.getParts(), containsInAnyOrder("index", "type"));
+            assertFalse(next.getDeprecated());
         }
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
@@ -53,6 +54,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
             assertThat(next.getMethods()[0], equalTo("PUT"));
             assertThat(next.getParts().size(), equalTo(3));
             assertThat(next.getParts(), containsInAnyOrder("id", "index", "type"));
+            assertTrue(next.getDeprecated());
         }
         assertThat(restApi.getParams().size(), equalTo(4));
         assertThat(restApi.getParams().keySet(), containsInAnyOrder("wait_for_active_shards", "op_type", "routing", "refresh"));
@@ -74,6 +76,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
             assertThat(next.getMethods().length, equalTo(1));
             assertThat(next.getMethods()[0], equalTo("GET"));
             assertEquals(0, next.getParts().size());
+            assertFalse(next.getDeprecated());
         }
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
@@ -82,6 +85,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
             assertThat(next.getMethods()[0], equalTo("GET"));
             assertThat(next.getParts().size(), equalTo(1));
             assertThat(next.getParts(), contains("name"));
+            assertFalse(next.getDeprecated());
         }
         assertThat(restApi.getParams().size(), equalTo(0));
         assertThat(restApi.isBodySupported(), equalTo(false));
@@ -102,6 +106,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
             assertThat(next.getMethods()[0], equalTo("POST"));
             assertThat(next.getMethods()[1], equalTo("GET"));
             assertEquals(0, next.getParts().size());
+            assertFalse(next.getDeprecated());
         }
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
@@ -111,6 +116,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
             assertThat(next.getMethods()[1], equalTo("GET"));
             assertEquals(1, next.getParts().size());
             assertThat(next.getParts(), contains("index"));
+            assertFalse(next.getDeprecated());
         }
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
@@ -119,6 +125,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
             assertThat(next.getMethods()[0], equalTo("POST"));
             assertThat(next.getMethods()[1], equalTo("GET"));
             assertThat(next.getParts(), containsInAnyOrder("index", "type"));
+            assertFalse(next.getDeprecated());
         }
         assertThat(restApi.getParams().size(), equalTo(1));
         assertThat(restApi.getParams().keySet(), contains("ignore_unavailable"));

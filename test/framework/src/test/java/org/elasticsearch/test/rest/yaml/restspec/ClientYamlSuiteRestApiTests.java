@@ -68,8 +68,11 @@ public class ClientYamlSuiteRestApiTests extends ESTestCase {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Set.of("index", "type"));
             assertEquals(3, paths.size());
             assertEquals("/{index}/_mapping/{type}", paths.get(0).getPath());
+            assertFalse(paths.get(0).getDeprecated());
             assertEquals("/{index}/{type}", paths.get(1).getPath());
+            assertTrue(paths.get(1).getDeprecated());
             assertEquals("/{index}/_mappings/{type}", paths.get(2).getPath());
+            assertFalse(paths.get(2).getDeprecated());
         }
         {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Set.of("index", "type", "id"));

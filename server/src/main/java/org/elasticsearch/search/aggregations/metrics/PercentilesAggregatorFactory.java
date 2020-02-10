@@ -112,8 +112,8 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
 
-        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.getInstance().getAggregator(valuesSource.getValuesSourceType(),
-            PercentilesAggregationBuilder.NAME);
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(
+            valuesSource.getValuesSourceType(), PercentilesAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof PercentilesAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected PercentilesAggregatorSupplier, found [" +

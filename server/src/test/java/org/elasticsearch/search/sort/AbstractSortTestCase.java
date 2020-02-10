@@ -198,7 +198,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
-                () -> randomNonNegativeLong(), null, null) {
+                () -> randomNonNegativeLong(), null, null, null) {
 
             @Override
             public MappedFieldType fieldMapper(String name) {

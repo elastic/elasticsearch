@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, PercentilesAggregationBuilder> {
@@ -119,11 +118,8 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
         return returnedAgg;
     }
 
-    private static AtomicBoolean wasRegistered = new AtomicBoolean(false);
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        if (wasRegistered.compareAndSet(false, true)) {
-            PercentilesAggregatorFactory.registerAggregators(valuesSourceRegistry);
-        }
+        PercentilesAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     private static <T> void setIfNotNull(Consumer<T> consumer, T value) {

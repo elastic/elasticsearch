@@ -249,8 +249,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 
-        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.getInstance().getAggregator(valuesSource.getValuesSourceType(),
-            TermsAggregationBuilder.NAME);
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(
+            valuesSource.getValuesSourceType(), TermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof TermsAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected TermsAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");

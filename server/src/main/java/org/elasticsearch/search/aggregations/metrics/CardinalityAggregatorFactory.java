@@ -84,8 +84,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.getInstance().getAggregator(valuesSource.getValuesSourceType(),
-            CardinalityAggregationBuilder.NAME);
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(
+            valuesSource.getValuesSourceType(), CardinalityAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof CardinalityAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected CardinalityAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");

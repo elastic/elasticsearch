@@ -80,6 +80,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -142,6 +143,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
     private Supplier<Sort> indexSortSupplier;
+    private ValuesSourceRegistry valuesSourceRegistry;
 
     public IndexService(
             IndexSettings indexSettings,
@@ -166,13 +168,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             List<SearchOperationListener> searchOperationListeners,
             List<IndexingOperationListener> indexingOperationListeners,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier idFieldDataEnabled) {
+            BooleanSupplier idFieldDataEnabled,
+            ValuesSourceRegistry valuesSourceRegistry) {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
+        this.valuesSourceRegistry =  valuesSourceRegistry;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
@@ -568,7 +572,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return new QueryShardContext(
             shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
             similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-            indexNameMatcher);
+            indexNameMatcher, valuesSourceRegistry);
     }
 
     /**

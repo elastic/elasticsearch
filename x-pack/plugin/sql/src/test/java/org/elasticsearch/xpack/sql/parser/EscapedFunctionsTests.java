@@ -81,6 +81,13 @@ public class EscapedFunctionsTests extends ESTestCase {
         return sb.toString();
     }
 
+    private String buildTime() {
+        if (randomBoolean()) {
+            return (randomBoolean() ? "T" : " ") + "11:22" + buildSecsAndFractional();
+        }
+        return "";
+    }
+
     private String buildSecsAndFractional() {
         if (randomBoolean()) {
             return ":55" + randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
@@ -212,7 +219,7 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testDateLiteral() {
-        Literal l = dateLiteral(buildDate());
+        Literal l = dateLiteral(buildDate() + buildTime());
         assertThat(l.dataType(), is(DATE));
     }
 

@@ -57,6 +57,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -230,8 +231,10 @@ public class AuthenticationServiceTests extends ESTestCase {
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        final SecurityContext securityContext = new SecurityContext(settings, threadContext);
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService, threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, securityIndex, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
+            clusterService);
         service = new AuthenticationService(settings, realms, auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, new AnonymousUser(settings), tokenService, apiKeyService);
     }

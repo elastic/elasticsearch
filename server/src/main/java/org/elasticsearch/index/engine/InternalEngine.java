@@ -2612,6 +2612,7 @@ public class InternalEngine extends Engine {
             throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
         }
         this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
+        lastOpPrimaryTerm = engineConfig.getPrimaryTermSupplier().getAsLong();
     }
 
     private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {

@@ -175,8 +175,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             Map<String, Object> response;
 
             if (i == 0) {
-                expected.put("columns", singletonList(columnInfo(mode, "date", "keyword", JDBCType.VARCHAR,
-                        Integer.MAX_VALUE)));
+                expected.put("columns", singletonList(columnInfo(mode, "date", "keyword", JDBCType.VARCHAR, 0)));
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "");
             } else {
                 response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + "}",

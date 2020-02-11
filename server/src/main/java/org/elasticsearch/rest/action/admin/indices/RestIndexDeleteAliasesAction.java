@@ -23,19 +23,23 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestIndexDeleteAliasesAction extends BaseRestHandler {
 
-    public RestIndexDeleteAliasesAction(RestController controller) {
-        controller.registerHandler(DELETE, "/{index}/_alias/{name}", this);
-        controller.registerHandler(DELETE, "/{index}/_aliases/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(DELETE, "/{index}/_alias/{name}"),
+            new Route(DELETE, "/{index}/_aliases/{name}")));
     }
 
     @Override

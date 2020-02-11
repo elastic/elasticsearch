@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -63,9 +64,9 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
                 // the index exists, do not clean this persistent task
                 continue;
             }
-            IndexNotFoundException e = new IndexNotFoundException(followerIndex);
+            IndexNotFoundException infe = new IndexNotFoundException(followerIndex);
             CompletionPersistentTaskAction.Request request =
-                new CompletionPersistentTaskAction.Request(persistentTask.getId(), persistentTask.getAllocationId(), e);
+                new CompletionPersistentTaskAction.Request(persistentTask.getId(), persistentTask.getAllocationId(), infe);
             threadPool.generic().submit(() -> {
                 client.execute(CompletionPersistentTaskAction.INSTANCE, request, new ActionListener<>() {
 
@@ -76,7 +77,7 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("failed to clean up task [{}]", persistentTask.getId());
+                        logger.warn(new ParameterizedMessage("failed to clean up task [{}]", persistentTask.getId()), e);
                     }
                 });
             });

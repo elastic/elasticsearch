@@ -246,13 +246,4 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
         assertThat(seenInvalidLines, equalTo(invalidLines));
     }
 
-    public void testSpaceDelimitedJvmOptions() {
-        assertThat(JvmOptionsParser.spaceDelimitJvmOptions(Collections.singletonList("-Xms1g")), equalTo("-Xms1g"));
-        assertThat(JvmOptionsParser.spaceDelimitJvmOptions(Arrays.asList("-Xms1g", "-Xmx1g")), equalTo("-Xms1g -Xmx1g"));
-        assertThat(
-            JvmOptionsParser.spaceDelimitJvmOptions(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:+UseG1GC")),
-            equalTo("-Xms1g -Xmx1g -XX:+UseG1GC")
-        );
-    }
-
 }

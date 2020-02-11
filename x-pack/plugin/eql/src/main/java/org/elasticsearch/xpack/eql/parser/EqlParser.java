@@ -39,26 +39,33 @@ public class EqlParser {
 
     /**
      * Parses an EQL statement into execution plan
-     * @param eql - the EQL statement
      */
     public LogicalPlan createStatement(String eql) {
+        return createStatement(eql, new ParserParams());
+    }
+    
+    public LogicalPlan createStatement(String eql, ParserParams params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", eql);
         }
-        return invokeParser(eql, EqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(eql, params, EqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     public Expression createExpression(String expression) {
+        return createExpression(expression, new ParserParams());
+    }
+
+    public Expression createExpression(String expression, ParserParams params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser(expression, EqlBaseParser::singleExpression, AstBuilder::expression);
+        return invokeParser(expression, params, EqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
-    private <T> T invokeParser(String eql,
+    private <T> T invokeParser(String eql, ParserParams params,
             Function<EqlBaseParser, ParserRuleContext> parseFunction,
-                               BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
+            BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
         try {
             EqlBaseLexer lexer = new EqlBaseLexer(new ANTLRInputStream(eql));
 
@@ -94,7 +101,7 @@ public class EqlParser {
                 log.info("Parse tree {} " + tree.toStringTree());
             }
 
-            return visitor.apply(new AstBuilder(), tree);
+            return visitor.apply(new AstBuilder(params), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("EQL statement is too large, " +
                 "causing stack overflow when generating the parsing tree: [{}]", eql);

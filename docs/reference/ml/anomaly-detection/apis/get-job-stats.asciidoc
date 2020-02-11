@@ -195,6 +195,35 @@ model. It has the following properties:
 processed due to insufficient model memory. This situation is also signified
 by a `hard_limit: memory_status` property value.
 
+`model_size_stats`.`categorized_doc_count`:::
+(long) The number of documents that have had a field categorized.
+
+`model_size_stats`.`categorization_status`:::
+(string) The status of categorization for this job.
+Contains one of the following values.
++
+--
+* `ok`: Categorization is performing acceptably well (or not being
+used at all).
+* `warn`: Categorization is detecting a distribution of categories
+that suggests the input data is inappropriate for categorization.
+Problems could be that there is only one category, more than 90% of
+categories are rare, the number of categories is greater than 50% of
+the number of categorized documents, there are no frequently
+matched categories, or more than 50% of categories are dead.
+
+--
+
+`model_size_stats`.`dead_category_count`:::
+(long) The number of categories created by categorization that will
+never be assigned again because another category's definition
+makes it a superset of the dead category.  (Dead categories are a
+side effect of the way categorization has no prior training.)
+
+`model_size_stats`.`frequent_category_count`:::
+(long) The number of categories that match more than 1% of categorized
+documents.
+
 `model_size_stats`.`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
@@ -226,12 +255,18 @@ this value indicates the latest size.
 `model_size_stats`.`model_bytes_memory_limit`:::
 (long) The upper limit for memory usage, checked on increasing values.
 
+`model_size_stats`.`rare_category_count`:::
+(long) The number of categories that match just one categorized document.
+
 `model_size_stats`.`result_type`:::
 (string) For internal use. The type of result.
 
 `model_size_stats`.`total_by_field_count`:::
 (long) The number of `by` field values that were analyzed by the models. This 
 value is cumulative for all detectors.
+
+`model_size_stats`.`total_category_count`:::
+(long) The number of categories created by categorization.
 
 `model_size_stats`.`total_over_field_count`:::
 (long) The number of `over` field values that were analyzed by the models. This 
@@ -371,6 +406,12 @@ The API returns the following results:
         "total_partition_field_count" : 2,
         "bucket_allocation_failures_count" : 0,
         "memory_status" : "ok",
+        "categorized_doc_count" : 0,
+        "total_category_count" : 0,
+        "frequent_category_count" : 0,
+        "rare_category_count" : 0,
+        "dead_category_count" : 0,
+        "categorization_status" : "ok",
         "log_time" : 1576017596000,
         "timestamp" : 1580410800000
       },

@@ -686,8 +686,8 @@ class BuildPlugin implements Plugin<Project> {
                     test.jvmArgs '-ea', '-esa'
                 }
 
-                // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-                test.systemProperties 'java.io.tmpdir': './temp',
+                // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
+                test.systemProperties 'java.io.tmpdir': test.workingDir.toPath().resolve('temp'),
                         'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,

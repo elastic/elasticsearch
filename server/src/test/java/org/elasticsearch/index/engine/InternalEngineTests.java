@@ -4753,6 +4753,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testShouldPeriodicallyFlushAfterMerge() throws Exception {
+        engine.close();
+        engine = createEngine(copy(engine.config(), newMergePolicy(random(), false)));
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         ParsedDocument doc =
             testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);

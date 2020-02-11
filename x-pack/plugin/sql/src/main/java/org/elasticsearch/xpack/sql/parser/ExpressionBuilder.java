@@ -131,7 +131,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.canConvert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
-import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.dateOfEscapedLiteral;
 import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLiteral;

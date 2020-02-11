@@ -25,6 +25,7 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -48,6 +49,9 @@ public class CertGenCliTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
+        // Muted on Windows see: https://github.com/elastic/elasticsearch/issues/50825
+        Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"));
+
         assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
         assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
     }
@@ -100,7 +104,7 @@ public class CertGenCliTests extends PackagingTestCase {
     public void test40RunWithCert() throws Exception {
         // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
         assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));
-        
+
         append(installation.config("elasticsearch.yml"), String.join("\n",
             "node.name: mynode",
             "xpack.security.transport.ssl.key: " + escapePath(installation.config("certs/mynode/mynode.key")),

@@ -310,6 +310,11 @@ See <<ml-get-bucket>>,
 
 See <<snapshot-restore>>.
 
+[role="exclude", id="_repository_plugins"]
+==== Repository plugins
+
+See <<snapshots-repository-plugins>>.
+
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
 

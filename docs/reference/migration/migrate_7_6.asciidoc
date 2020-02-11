@@ -9,7 +9,6 @@ your application to Elasticsearch 7.6.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming[7.6.0]
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

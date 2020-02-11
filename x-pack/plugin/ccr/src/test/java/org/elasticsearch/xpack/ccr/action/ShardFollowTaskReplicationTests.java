@@ -126,6 +126,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
                     followerGroup.assertAllEqual(indexedDocIds.size() - deleteDocIds.size());
                 });
+                assertNull(shardFollowTask.getStatus().getFatalException());
                 shardFollowTask.markAsCompleted();
                 assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, true);
             }
@@ -170,6 +171,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 assertThat(shardFollowTask.getFailure(), nullValue());
                 int expectedDoc = docCount;
                 assertBusy(() -> followerGroup.assertAllEqual(expectedDoc));
+                assertNull(shardFollowTask.getStatus().getFatalException());
                 shardFollowTask.markAsCompleted();
                 assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, hasPromotion == false);
             }
@@ -325,6 +327,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             equalTo(leadingPrimary.getLastKnownGlobalCheckpoint()));
                         assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, true);
                     });
+                    assertNull(shardFollowTask.getStatus().getFatalException());
                 } finally {
                     shardFollowTask.markAsCompleted();
                 }
@@ -398,6 +401,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     follower.recoverReplica(follower.addReplica());
                 }
                 assertBusy(() -> assertConsistentHistoryBetweenLeaderAndFollower(leader, follower, false));
+                assertNull(followTask.getStatus().getFatalException());
                 followTask.markAsCompleted();
             }
         }
@@ -678,7 +682,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {
-                throw new AssertionError(e);
+                throw new RuntimeException(e);
             }
             listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful));
         }

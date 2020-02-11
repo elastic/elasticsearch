@@ -70,7 +70,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       // some tests rely on the translog not being flushed
-      setting 'indices.memory.shard_inactive_time', '20m'
+      setting 'indices.memory.shard_inactive_time', '60m'
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.license.self_generated.type', 'trial'

@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -25,12 +26,14 @@ import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,7 +70,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     /**
      * Actual implementation of the action. Statically available to support embedded mode.
      */
-    public static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener,
+    static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener,
                                  String username, String clusterName) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
@@ -79,13 +82,14 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             planExecutor.sql(cfg, request.query(), request.params(),
                     wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), listener::onFailure));
         } else {
-            planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    wrap(p -> listener.onResponse(createResponse(request, null, p)),
+            Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
+            planExecutor.nextPage(cfg, decoded.v1(),
+                    wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p)),
                             listener::onFailure));
         }
     }
 
-    static SqlQueryResponse createResponseWithSchema(SqlQueryRequest request, Page page) {
+    private static SqlQueryResponse createResponseWithSchema(SqlQueryRequest request, Page page) {
         RowSet rset = page.rowSet();
         if ((rset instanceof SchemaRowSet) == false) {
             throw new SqlIllegalArgumentException("No schema found inside {}", rset.getClass());
@@ -101,10 +105,10 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             }
         }
         columns = unmodifiableList(columns);
-        return createResponse(request, columns, page);
+        return createResponse(request, request.zoneId(), columns, page);
     }
 
-    static SqlQueryResponse createResponse(SqlQueryRequest request, List<ColumnInfo> header, Page page) {
+    private static SqlQueryResponse createResponse(SqlQueryRequest request, ZoneId zoneId, List<ColumnInfo> header, Page page) {
         List<List<Object>> rows = new ArrayList<>();
         page.rowSet().forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
@@ -113,7 +117,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         });
 
         return new SqlQueryResponse(
-                Cursors.encodeToString(page.next(), request.zoneId()),
+                Cursors.encodeToString(page.next(), zoneId),
                 request.mode(),
                 request.columnar(),
                 header,

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -87,6 +88,7 @@ public class AuthenticationService {
     private final ApiKeyService apiKeyService;
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
+    private final AuthenticationContextSerializer authenticationSerializer;
 
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
@@ -109,6 +111,7 @@ public class AuthenticationService {
             this.lastSuccessfulAuthCache = null;
         }
         this.apiKeyService = apiKeyService;
+        this.authenticationSerializer = new AuthenticationContextSerializer();
     }
 
     /**
@@ -303,7 +306,7 @@ public class AuthenticationService {
         private void lookForExistingAuthentication(Consumer<Authentication> authenticationConsumer) {
             Runnable action;
             try {
-                final Authentication authentication = Authentication.readFromContext(threadContext);
+                final Authentication authentication = authenticationSerializer.readFromContext(threadContext);
                 if (authentication != null && request instanceof AuditableRestRequest) {
                     action = () -> listener.onFailure(request.tamperedRequest());
                 } else {
@@ -611,7 +614,7 @@ public class AuthenticationService {
                 listener.onResponse(authentication);
             };
             try {
-                authentication.writeToContext(threadContext);
+                authenticationSerializer.writeToContext(authentication, threadContext);
             } catch (Exception e) {
                 action = () -> {
                     logger.debug(

@@ -37,8 +37,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -67,21 +69,21 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
 
     private static double[] randomPercentiles() {
         final int length = randomIntBetween(1, 20);
-        final double[] percentiles = new double[length];
-        for (int i = 0; i < percentiles.length; ++i) {
+        final Set<Double> uniquedPercentiles = new HashSet<>();
+        while (uniquedPercentiles.size() < length) {
             switch (randomInt(20)) {
             case 0:
-                percentiles[i] = 0;
+                uniquedPercentiles.add(0.0);
                 break;
             case 1:
-                percentiles[i] = 100;
+                uniquedPercentiles.add(100.0);
                 break;
             default:
-                percentiles[i] = randomDouble() * 100;
+                uniquedPercentiles.add(randomDouble() * 100);
                 break;
             }
         }
-        Arrays.sort(percentiles);
+        double[] percentiles= uniquedPercentiles.stream().mapToDouble(Double::doubleValue).sorted().toArray();
         LogManager.getLogger(HDRPercentilesIT.class).info("Using percentiles={}", Arrays.toString(percentiles));
         return percentiles;
     }

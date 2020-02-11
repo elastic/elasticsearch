@@ -69,6 +69,15 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         assertEquals("[percents] must not be empty: [testAgg]", ex.getMessage());
     }
 
+    public void testOutOfRangePercentilesThrows() throws IOException {
+        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("testAgg");
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> builder.percentiles(-0.4));
+        assertEquals("percent must be in [0,100], got [-0.4]: [testAgg]", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> builder.percentiles(104));
+        assertEquals("percent must be in [0,100], got [104.0]: [testAgg]", ex.getMessage());
+    }
+
     public void testExceptionMultipleMethods() throws IOException {
         final String illegalAgg = "{\n" +
             "       \"percentiles\": {\n" +

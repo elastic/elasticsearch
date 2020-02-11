@@ -629,7 +629,7 @@ public class Querier {
                 if (comparator != null) {
                     int result = comparator.compare(vl, vr);
                     // if things are not equal: return the comparison result,
-                    // or else: move to the next comparator to solve the tie.
+                    // otherwise: move to the next comparator to solve the tie.
                     if (result != 0) {
                         return result > 0;
                     }
@@ -637,7 +637,7 @@ public class Querier {
                 // no comparator means the rows are pre-ordered by ES for the column at
                 // the current index and the existing order needs to be preserved
                 else {
-                    // check the values - if they are equal not equal return the row order
+                    // check the values - if they are not equal return the row order
                     // otherwise: move to the next comparator to solve the tie.
                     if (Objects.equals(vl, vr) == false) {
                         return l.v2().compareTo(r.v2()) > 0;

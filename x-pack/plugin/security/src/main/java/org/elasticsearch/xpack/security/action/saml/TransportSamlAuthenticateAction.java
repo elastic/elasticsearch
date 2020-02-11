@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
@@ -35,15 +36,17 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     private final ThreadPool threadPool;
     private final AuthenticationService authenticationService;
     private final TokenService tokenService;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportSamlAuthenticateAction(ThreadPool threadPool, TransportService transportService,
                                            ActionFilters actionFilters, AuthenticationService authenticationService,
-                                           TokenService tokenService) {
+                                           TokenService tokenService, SecurityContext securityContext) {
         super(SamlAuthenticateAction.NAME, transportService, actionFilters, SamlAuthenticateRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
+        this.securityContext = securityContext;
     }
 
     @Override
@@ -51,7 +54,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
         final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds(), request.getRealm());
         logger.trace("Attempting to authenticate SamlToken [{}]", saml);
         final ThreadContext threadContext = threadPool.getThreadContext();
-        Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
+        Authentication originatingAuthentication = securityContext.getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authenticationService.authenticate(SamlAuthenticateAction.NAME, request, saml, ActionListener.wrap(authentication -> {
                 AuthenticationResult result = threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY);

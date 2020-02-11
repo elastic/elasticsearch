@@ -38,11 +38,21 @@ import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
 public abstract class IdpSamlTestCase extends ESTestCase {
+
+    protected List<X509Credential> readCredentials() throws CertificateException, IOException {
+        List<X509Credential> list = new ArrayList<>(2);
+        list.add(readCredentials("RSA", 1024));
+        list.add(readCredentials("RSA", 2048));
+        Collections.shuffle(list, random());
+        return list;
+    }
 
     protected X509Credential readCredentials(String type, int size) throws CertificateException, IOException {
         Path certPath = getDataPath("/keypair/keypair_" + type + "_" + size + ".crt");

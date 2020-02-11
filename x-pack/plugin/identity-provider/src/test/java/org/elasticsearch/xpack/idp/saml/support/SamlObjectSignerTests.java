@@ -11,11 +11,16 @@ import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
+import org.junit.Before;
 import org.mockito.Mockito;
+import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.NameIDType;
+import org.opensaml.saml.saml2.core.Response;
+import org.opensaml.saml.saml2.core.Status;
+import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.xmlsec.signature.support.SignatureException;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
@@ -26,24 +31,29 @@ import org.w3c.dom.NodeList;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SamlObjectSignerTests extends IdpSamlTestCase {
 
-    public void testSignLogoutRequest() throws Exception {
-        final SamlFactory factory = new SamlFactory();
-        final X509Credential credential;
-        final X509Credential alternateCredential;
-        if (randomBoolean()) {
-            credential = readCredentials("RSA", 1024);
-            alternateCredential = readCredentials("RSA", 2048);
-        } else {
-            credential = readCredentials("RSA", 2048);
-            alternateCredential = readCredentials("RSA", 1024);
-        }
+    private SamlFactory factory;
 
-        final Element signedElement = createSignedElement(factory, credential);
+    @Before
+    public void setupState() {
+        factory = new SamlFactory();
+    }
+
+    public void testSignLogoutRequest() throws Exception {
+        final List<X509Credential> credentials = readCredentials();
+        assertThat(credentials.size(), greaterThanOrEqualTo(2));
+        final X509Credential credential = credentials.get(0);
+        final X509Credential alternateCredential = credentials.get(1);
+
+        final String entityId = "https://" + randomAlphaOfLengthBetween(3, 8) + ".example.com/" + randomAlphaOfLengthBetween(2, 12);
+        final LogoutRequest request = createLogoutRequest(entityId);
+        final Element signedElement = sign(request, entityId, credential);
         verifySignatureExists(signedElement);
 
         final LogoutRequest signedRequest = domElementToXmlObject(signedElement, LogoutRequest.class);
@@ -57,6 +67,28 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
         }
     }
 
+    public void testSignAuthResponse() throws Exception {
+        final List<X509Credential> credentials = readCredentials();
+        assertThat(credentials.size(), greaterThanOrEqualTo(2));
+        final X509Credential credential = credentials.get(0);
+        final X509Credential alternateCredential = credentials.get(1);
+
+        final String entityId = "uri://" + randomAlphaOfLengthBetween(3, 8) + ".example.com/" + randomAlphaOfLengthBetween(2, 12);
+        final Response request = createAuthnResponse(entityId);
+        final Element signedElement = sign(request, entityId, credential);
+        verifySignatureExists(signedElement);
+
+        final Response signedResponse = domElementToXmlObject(signedElement, Response.class);
+        try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
+            // verify with correct credential
+            SignatureValidator.validate(signedResponse.getSignature(), credential);
+            // fail with incorrect credential
+            expectThrows(SignatureException.class,
+                () -> SignatureValidator.validate(signedResponse.getSignature(), alternateCredential)
+            );
+        }
+    }
+
     private void verifySignatureExists(Element signedElement) {
         final NodeList signatures = signedElement.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature");
         assertThat(signatures.getLength(), Matchers.equalTo(1));
@@ -66,14 +98,27 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
         assertThat(sigNode.getLocalName(), Matchers.equalTo("Signature"));
 
         final List<Element> children = getChildren(sigNode, Element.class);
-        assertThat(children, Matchers.iterableWithSize(2));
+        assertThat(children, iterableWithSize(2));
         assertThat(children.get(0).getLocalName(), Matchers.equalTo("SignedInfo"));
         assertThat(children.get(1).getLocalName(), Matchers.equalTo("SignatureValue"));
     }
 
-    private Element createSignedElement(SamlFactory factory, X509Credential credential) {
-        final String entityId = "https://" + randomAlphaOfLengthBetween(3, 8) + ".example.com/" + randomAlphaOfLengthBetween(2, 12);
+    private Element sign(SignableSAMLObject request, String entityId, X509Credential credential) {
+        SamlIdentityProvider idp = buildIdP(entityId, credential);
 
+        SamlObjectSigner signer = new SamlObjectSigner(factory, idp);
+        return signer.sign(request);
+    }
+
+    private SamlIdentityProvider buildIdP(String entityId, X509Credential credential) {
+        SamlIdentityProvider idp = mock(SamlIdentityProvider.class);
+        when(idp.getEntityId()).thenReturn(entityId);
+        Mockito.when(idp.getSigningCredential()).thenReturn(credential);
+        when(idp.getEntityId()).thenReturn(entityId);
+        return idp;
+    }
+
+    private LogoutRequest createLogoutRequest(String entityId) {
         final LogoutRequest request = factory.object(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
         request.setNotOnOrAfter(DateTime.now().plusMinutes(15));
 
@@ -85,14 +130,26 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
         final Issuer issuer = factory.object(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         issuer.setValue(entityId);
         request.setIssuer(issuer);
+        return request;
+    }
 
-        SamlIdentityProvider idp = mock(SamlIdentityProvider.class);
-        when(idp.getEntityId()).thenReturn(entityId);
-        Mockito.when(idp.getSigningCredential()).thenReturn(credential);
-        when(idp.getEntityId()).thenReturn(entityId);
+    private Response createAuthnResponse(String entityId) {
+        final Response response = factory.object(Response.class, Response.DEFAULT_ELEMENT_NAME);
+        final DateTime now = DateTime.now();
+        response.setIssueInstant(now);
+        response.setID(randomAlphaOfLength(24));
 
-        SamlObjectSigner signer = new SamlObjectSigner(factory, idp);
-        return signer.sign(request);
+        final StatusCode code = factory.object(StatusCode.class, StatusCode.DEFAULT_ELEMENT_NAME);
+        code.setValue(StatusCode.AUTHN_FAILED);
+
+        Status status = factory.object(Status.class, Status.DEFAULT_ELEMENT_NAME);
+        status.setStatusCode(code);
+        response.setStatus(status);
+
+        final Issuer issuer = factory.object(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
+        issuer.setValue(entityId);
+        response.setIssuer(issuer);
+        return response;
     }
 
     private <T extends Node> List<T> getChildren(Node node, Class<T> type) {

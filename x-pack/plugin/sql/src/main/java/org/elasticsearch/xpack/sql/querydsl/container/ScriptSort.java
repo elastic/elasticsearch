@@ -25,7 +25,7 @@ public class ScriptSort extends Sort {
 
     @Override
     public int hashCode() {
-        return Objects.hash(direction(), missing(), script());
+        return Objects.hash(direction(), missing(), script);
     }
     
     @Override
@@ -37,10 +37,10 @@ public class ScriptSort extends Sort {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-
+        
         ScriptSort other = (ScriptSort) obj;
         return Objects.equals(direction(), other.direction())
                 && Objects.equals(missing(), other.missing())
-                && Objects.equals(script(), other.script());
+                && Objects.equals(script, other.script);
     }
 }

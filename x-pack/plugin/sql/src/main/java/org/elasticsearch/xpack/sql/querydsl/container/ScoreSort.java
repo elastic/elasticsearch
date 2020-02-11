@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.querydsl.container;
 import java.util.Objects;
 
 public class ScoreSort extends Sort {
-
     public ScoreSort(Direction direction, Missing missing) {
         super(direction, missing);
     }

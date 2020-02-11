@@ -732,16 +732,13 @@ class BuildPlugin implements Plugin<Project> {
                     test.jvmArgs '-ea', '-esa'
                 }
 
-                // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
                 test.systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
-                        'java.io.tmpdir': './temp',
                         'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,
                         'tests.task': test.path,
                         'tests.security.manager': 'true',
                         'jna.nosys': 'true'
-
 
                 // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
                 if (System.getProperty('ignore.tests.seed') != null) {
@@ -753,6 +750,8 @@ class BuildPlugin implements Plugin<Project> {
                 // don't track these as inputs since they contain absolute paths and break cache relocatability
                 nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
                 nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
+                // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
+                nonInputProperties.systemProperty('java.io.tmpdir', test.workingDir.toPath().resolve('temp'))
 
                 nonInputProperties.systemProperty('compiler.java', "${-> BuildParams.compilerJavaVersion.majorVersion}")
 

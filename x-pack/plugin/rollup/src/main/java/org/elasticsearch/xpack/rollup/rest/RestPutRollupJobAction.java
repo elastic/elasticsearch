@@ -8,19 +8,21 @@ package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutRollupJobAction extends BaseRestHandler {
 
-    public RestPutRollupJobAction(RestController controller) {
-        controller.registerHandler(PUT, "/_rollup/job/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(PUT, "/_rollup/job/{id}"));
     }
 
     @Override

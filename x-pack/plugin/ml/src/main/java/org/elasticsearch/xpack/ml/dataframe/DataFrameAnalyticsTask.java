@@ -43,13 +43,13 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
+import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -68,7 +68,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private volatile boolean isReindexingFinished;
     private volatile boolean isStopping;
     private volatile boolean isMarkAsCompletedCalled;
-    private final ProgressTracker progressTracker = new ProgressTracker();
+    private final StatsHolder statsHolder = new StatsHolder();
 
     public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                                   Client client, ClusterService clusterService, DataFrameAnalyticsManager analyticsManager,
@@ -98,8 +98,8 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         return isStopping;
     }
 
-    public ProgressTracker getProgressTracker() {
-        return progressTracker;
+    public StatsHolder getStatsHolder() {
+        return statsHolder;
     }
 
     @Override
@@ -197,7 +197,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             // We set reindexing progress at least to 1 for a running process to be able to
             // distinguish a job that is running for the first time against a job that is restarting.
             reindexTaskProgress -> {
-                progressTracker.reindexingPercent.set(Math.max(1, reindexTaskProgress));
+                statsHolder.getProgressTracker().reindexingPercent.set(Math.max(1, reindexTaskProgress));
                 listener.onResponse(null);
             },
             listener::onFailure
@@ -353,25 +353,4 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         }
     }
 
-    public static class ProgressTracker {
-
-        public static final String REINDEXING = "reindexing";
-        public static final String LOADING_DATA = "loading_data";
-        public static final String ANALYZING = "analyzing";
-        public static final String WRITING_RESULTS = "writing_results";
-
-        public final AtomicInteger reindexingPercent = new AtomicInteger(0);
-        public final AtomicInteger loadingDataPercent = new AtomicInteger(0);
-        public final AtomicInteger analyzingPercent = new AtomicInteger(0);
-        public final AtomicInteger writingResultsPercent = new AtomicInteger(0);
-
-        public List<PhaseProgress> report() {
-            return Arrays.asList(
-                new PhaseProgress(REINDEXING, reindexingPercent.get()),
-                new PhaseProgress(LOADING_DATA, loadingDataPercent.get()),
-                new PhaseProgress(ANALYZING, analyzingPercent.get()),
-                new PhaseProgress(WRITING_RESULTS, writingResultsPercent.get())
-            );
-        }
-    }
 }

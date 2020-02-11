@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -94,8 +93,7 @@ final class JvmOptionsParser {
 
         try {
             final List<String> jvmOptions = parser.jvmOptions(Paths.get(args[0]), System.getenv("ES_JAVA_OPTS"), substitutions);
-            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
-            Launchers.outPrintln(spaceDelimitedJvmOptions);
+            Launchers.outPrintln(String.join(" ", jvmOptions));
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -337,24 +335,6 @@ final class JvmOptionsParser {
                 invalidLineConsumer.accept(lineNumber, line);
             }
         }
-    }
-
-    /**
-     * Delimits the specified JVM options by spaces.
-     *
-     * @param jvmOptions the JVM options
-     * @return a single-line string containing the specified JVM options in the order they appear delimited by spaces
-     */
-    static String spaceDelimitJvmOptions(final List<String> jvmOptions) {
-        final StringBuilder spaceDelimitedJvmOptionsBuilder = new StringBuilder();
-        final Iterator<String> it = jvmOptions.iterator();
-        while (it.hasNext()) {
-            spaceDelimitedJvmOptionsBuilder.append(it.next());
-            if (it.hasNext()) {
-                spaceDelimitedJvmOptionsBuilder.append(" ");
-            }
-        }
-        return spaceDelimitedJvmOptionsBuilder.toString();
     }
 
 }

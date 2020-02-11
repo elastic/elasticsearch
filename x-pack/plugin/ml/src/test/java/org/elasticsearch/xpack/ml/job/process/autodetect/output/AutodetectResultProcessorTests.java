@@ -326,8 +326,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
-
-
+        
         verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
         verify(persister, times(3)).persistModelSizeStats(any(ModelSizeStats.class), any());
         // We should have only fired one notification; only the change from ok to warn should have fired, not the subsequent warn

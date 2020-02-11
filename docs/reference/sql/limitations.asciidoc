@@ -118,6 +118,22 @@ SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
 It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*10000*) is passed,
 an exception will be returned as {es-sql} is unable to track (and sort) all the results returned.
 
+Moreover, if there are aggregation(s) in the `ORDER BY`, they must be the exact the same exact aggregation
+expressions(s), as used in the `SELECT` clause. The same applies for the fields that are defined the `GROUP BY` clause:
+they must be the exact same expressions in the `ORDER BY` as in the `GROUP BY`. No operators or scalar functions can be
+used on top or removed from those expressions. Here are some examples of queries that are not allowed:
+
+[source, sql]
+--------------------------------------------------
+SELECT age, MAX(salary) FROM test GROUP BY gender ORDER BY age % 10, MAX(salary);
+
+SELECT age, MAX(salary) FROM test GROUP BY gender ORDER BY age, CAST(MAX(salary) AS FLOAT);
+
+SELECT age % 10, MAX(salary) FROM test GROUP BY gender ORDER BY age, MAX(salary);
+
+SELECT age, MAX(salary) / 12 AS max_salary FROM test GROUP BY ORDER BY age, MAX(salary);
+--------------------------------------------------
+
 [float]
 === Using aggregation functions on top of scalar functions
 

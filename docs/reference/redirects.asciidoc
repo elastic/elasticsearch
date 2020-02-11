@@ -3,6 +3,21 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="modules-snapshots"]
+=== Snapshot module
+
+See <<snapshot-restore>>.
+
+[role="exclude", id="_read_only_url_repository"]
+==== Read only URL repository
+
+See <<snapshots-read-only-repository>>.
+
+[role="exclude", id="_repository_plugins"]
+==== Repository plugins
+
+See <<snapshots-repository-plugins>>.
+
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 

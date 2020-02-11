@@ -161,7 +161,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
         try {
             final JvmOptionsParser parser = new JvmOptionsParser();
             parser.readJvmOptionsFiles(config);
-            fail();
+            fail("expected no such file exception, the root jvm.options file does not exist");
         } catch (final NoSuchFileException expected) {
             // this is expected, the root JVM options file must exist
         }
@@ -249,7 +249,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
         try {
             final JvmOptionsParser parser = new JvmOptionsParser();
             parser.readJvmOptionsFiles(config);
-            fail();
+            fail("expected JVM options file parser exception, XX:+UseG1GC is improperly formatted");
         } catch (final JvmOptionsParser.JvmOptionsFileParserException expected) {
             assertThat(expected.jvmOptionsFile(), equalTo(rootJvmOptions));
             assertThat(expected.invalidLines().entrySet(), hasSize(1));

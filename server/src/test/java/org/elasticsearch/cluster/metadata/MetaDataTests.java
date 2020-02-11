@@ -975,10 +975,8 @@ public class MetaDataTests extends ESTestCase {
         builder.endObject();
 
         assertEquals("{\n" +
-            "  \"meta-data\" : {\n" +
-            "    \"version\" : 0,\n" +
+            "  \"metadata\" : {\n" +
             "    \"cluster_uuid\" : \"clusterUUID\",\n" +
-            "    \"cluster_uuid_committed\" : false,\n" +
             "    \"cluster_coordination\" : {\n" +
             "      \"term\" : 0,\n" +
             "      \"last_committed_config\" : [ ],\n" +
@@ -988,38 +986,34 @@ public class MetaDataTests extends ESTestCase {
             "    \"templates\" : { },\n" +
             "    \"indices\" : {\n" +
             "      \"index\" : {\n" +
-            "        \"version\" : 2,\n" +
-            "        \"mapping_version\" : 1,\n" +
-            "        \"settings_version\" : 1,\n" +
-            "        \"aliases_version\" : 1,\n" +
-            "        \"routing_num_shards\" : 1,\n" +
             "        \"state\" : \"open\",\n" +
             "        \"settings\" : {\n" +
-            "          \"index.number_of_replicas\" : \"2\",\n" +
-            "          \"index.number_of_shards\" : \"1\",\n" +
-            "          \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
+            "          \"index\" : {\n" +
+            "            \"number_of_shards\" : \"1\",\n" +
+            "            \"number_of_replicas\" : \"2\",\n" +
+            "            \"version\" : {\n" +
+            "              \"created\" : \"" + Version.CURRENT.id + "\"\n" +
+            "            }\n" +
+            "          }\n" +
             "        },\n" +
-            "        \"mappings\" : [\n" +
-            "          {\n" +
+            "        \"mappings\" : {\n" +
             "            \"type\" : {\n" +
             "              \"key\" : \"value\"\n" +
             "            }\n" +
-            "          }\n" +
-            "        ],\n" +
-            "        \"aliases\" : { },\n" +
-            "        \"primary_terms\" : [\n" +
-            "          1\n" +
-            "        ],\n" +
+            "        },\n" +
+            "        \"aliases\" : [ ],\n" +
+            "        \"primary_terms\" : {\n" +
+            "          \"0\" : 1\n" +
+            "        },\n" +
             "        \"in_sync_allocations\" : {\n" +
             "          \"0\" : [ ]\n" +
-            "        },\n" +
-            "        \"rollover_info\" : { }\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
             "      \"tombstones\" : [ ]\n" +
             "    }\n" +
-            "  }\n" +
+            "  },\n" +
             "}", Strings.toString(builder));
     }
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -1104,10 +1098,8 @@ public class MetaDataTests extends ESTestCase {
         builder.endObject();
 
         assertEquals("{\n" +
-            "  \"meta-data\" : {\n" +
-            "    \"version\" : 0,\n" +
+            "  \"metadata\" : {\n" +
             "    \"cluster_uuid\" : \"clusterUUID\",\n" +
-            "    \"cluster_uuid_committed\" : false,\n" +
             "    \"cluster_coordination\" : {\n" +
             "      \"term\" : 1,\n" +
             "      \"last_committed_config\" : [\n" +
@@ -1123,12 +1115,6 @@ public class MetaDataTests extends ESTestCase {
             "        }\n" +
             "      ]\n" +
             "    },\n" +
-            "    \"settings\" : {\n" +
-            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
-            "    },\n" +
-            "    \"transient_settings\" : {\n" +
-            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
-            "    },\n" +
             "    \"templates\" : {\n" +
             "      \"template\" : {\n" +
             "        \"order\" : 0,\n" +
@@ -1139,54 +1125,40 @@ public class MetaDataTests extends ESTestCase {
             "        \"settings\" : {\n" +
             "          \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
             "        },\n" +
-            "        \"mappings\" : [\n" +
-            "          {\n" +
+            "        \"mappings\" : {\n" +
+            "          \"type\" : {\n" +
             "            \"key1\" : { },\n" +
             "            \"key2\" : { },\n" +
             "            \"key3\" : { }\n" +
             "          }\n" +
-            "        ],\n" +
-            "        \"aliases\" : { }\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"indices\" : {\n" +
             "      \"index\" : {\n" +
-            "        \"version\" : 2,\n" +
-            "        \"mapping_version\" : 1,\n" +
-            "        \"settings_version\" : 1,\n" +
-            "        \"aliases_version\" : 1,\n" +
-            "        \"routing_num_shards\" : 1,\n" +
             "        \"state\" : \"open\",\n" +
             "        \"settings\" : {\n" +
             "          \"index.number_of_replicas\" : \"2\",\n" +
             "          \"index.number_of_shards\" : \"1\",\n" +
             "          \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
             "        },\n" +
-            "        \"mappings\" : [\n" +
-            "          {\n" +
+            "        \"mappings\" : {\n" +
+            "          \"type\" : {\n" +
             "            \"type1\" : {\n" +
             "              \"key\" : \"value\"\n" +
             "            }\n" +
             "          }\n" +
-            "        ],\n" +
-            "        \"aliases\" : {\n" +
-            "          \"alias\" : {\n" +
-            "            \"index_routing\" : \"indexRouting\"\n" +
-            "          }\n" +
             "        },\n" +
-            "        \"primary_terms\" : [\n" +
-            "          1\n" +
+            "        \"aliases\" : [\n" +
+            "          \"alias\"\n" +
             "        ],\n" +
+            "        \"primary_terms\" : {\n" +
+            "          \"0\" : 1\n" +
+            "        },\n" +
             "        \"in_sync_allocations\" : {\n" +
             "          \"0\" : [\n" +
             "            \"allocationId\"\n" +
             "          ]\n" +
-            "        },\n" +
-            "        \"rollover_info\" : {\n" +
-            "          \"rolloveAlias\" : {\n" +
-            "            \"met_conditions\" : { },\n" +
-            "            \"time\" : 1\n" +
-            "          }\n" +
             "        }\n" +
             "      }\n" +
             "    },\n" +
@@ -1212,10 +1184,8 @@ public class MetaDataTests extends ESTestCase {
         builder.endObject();
 
         assertEquals("{\n" +
-            "  \"meta-data\" : {\n" +
-            "    \"version\" : 0,\n" +
+            "  \"metadata\" : {\n" +
             "    \"cluster_uuid\" : \"clusterUUID\",\n" +
-            "    \"cluster_uuid_committed\" : false,\n" +
             "    \"cluster_coordination\" : {\n" +
             "      \"term\" : 1,\n" +
             "      \"last_committed_config\" : [\n" +
@@ -1231,19 +1201,13 @@ public class MetaDataTests extends ESTestCase {
             "        }\n" +
             "      ]\n" +
             "    },\n" +
-            "    \"settings\" : {\n" +
-            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
-            "    },\n" +
-            "    \"transient_settings\" : {\n" +
-            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
-            "    },\n" +
             "    \"templates\" : {\n" +
             "      \"template\" : {\n" +
-            "        \"order\" : 0,\n" +
             "        \"index_patterns\" : [\n" +
             "          \"pattern1\",\n" +
             "          \"pattern2\"\n" +
             "        ],\n" +
+            "        \"order\" : 0,\n" +
             "        \"settings\" : {\n" +
             "          \"index\" : {\n" +
             "            \"version\" : {\n" +
@@ -1257,48 +1221,38 @@ public class MetaDataTests extends ESTestCase {
             "            \"key2\" : { },\n" +
             "            \"key3\" : { }\n" +
             "          }\n" +
-            "        },\n" +
-            "        \"aliases\" : { }\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"indices\" : {\n" +
             "      \"index\" : {\n" +
-            "        \"version\" : 2,\n" +
-            "        \"mapping_version\" : 1,\n" +
-            "        \"settings_version\" : 1,\n" +
-            "        \"aliases_version\" : 1,\n" +
-            "        \"routing_num_shards\" : 1,\n" +
             "        \"state\" : \"open\",\n" +
             "        \"settings\" : {\n" +
-            "          \"index.number_of_replicas\" : \"2\",\n" +
-            "          \"index.number_of_shards\" : \"1\",\n" +
-            "          \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
+            "          \"index\" : {\n" +
+            "            \"number_of_shards\" : \"1\",\n" +
+            "            \"number_of_replicas\" : \"2\",\n" +
+            "            \"version\" : {\n" +
+            "              \"created\" : \"" + Version.CURRENT.id + "\"\n" +
+            "            }\n" +
+            "          }\n" +
             "        },\n" +
-            "        \"mappings\" : [\n" +
-            "          {\n" +
+            "        \"mappings\" : {\n" +
+            "          \"type\" : {\n" +
             "            \"type1\" : {\n" +
             "              \"key\" : \"value\"\n" +
             "            }\n" +
             "          }\n" +
-            "        ],\n" +
-            "        \"aliases\" : {\n" +
-            "          \"alias\" : {\n" +
-            "            \"index_routing\" : \"indexRouting\"\n" +
-            "          }\n" +
             "        },\n" +
-            "        \"primary_terms\" : [\n" +
-            "          1\n" +
+            "        \"aliases\" : [\n" +
+            "          \"alias\"\n" +
             "        ],\n" +
+            "        \"primary_terms\" : {\n" +
+            "          \"0\" : 1\n" +
+            "        },\n" +
             "        \"in_sync_allocations\" : {\n" +
             "          \"0\" : [\n" +
             "            \"allocationId\"\n" +
             "          ]\n" +
-            "        },\n" +
-            "        \"rollover_info\" : {\n" +
-            "          \"rolloveAlias\" : {\n" +
-            "            \"met_conditions\" : { },\n" +
-            "            \"time\" : 1\n" +
-            "          }\n" +
             "        }\n" +
             "      }\n" +
             "    },\n" +

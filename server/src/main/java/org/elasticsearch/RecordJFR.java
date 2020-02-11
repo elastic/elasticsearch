@@ -26,6 +26,7 @@ import jdk.jfr.Name;
 import jdk.jfr.StackTrace;
 import org.HdrHistogram.Histogram;
 import org.HdrHistogram.Recorder;
+import org.HdrHistogram.SynchronizedHistogram;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,18 +35,19 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RecordJFR {
 
-    public static synchronized void recordHistogram(String name, Histogram histogram) {
-        HistogramEvent event = new HistogramEvent();
+    public static synchronized void recordHistogram(String name, Histogram histogram, HistogramEvent event) {
         if (event.isEnabled() == false) {
             return;
         }
 
         event.begin();
-        event._10 = histogram.getValueAtPercentile(0.10);
-        event._50 = histogram.getValueAtPercentile(0.50);
-        event._90 = histogram.getValueAtPercentile(0.90);
-        event._99 = histogram.getValueAtPercentile(0.99);
-        event._99_9 = histogram.getValueAtPercentile(0.999);
+        event._10 = histogram.getValueAtPercentile(10.0);
+        event._50 = histogram.getValueAtPercentile(50.0);
+        event._90 = histogram.getValueAtPercentile(90.0);
+        event._99 = histogram.getValueAtPercentile(99.0);
+        event._99_9 = histogram.getValueAtPercentile(99.9);
+        event._99_99 = histogram.getValueAtPercentile(99.99);
+        event._99_999 = histogram.getValueAtPercentile(99.999);
         event.max = histogram.getMaxValue();
         event.mean = histogram.getMean();
         event.total = histogram.getTotalCount();
@@ -82,42 +84,31 @@ public class RecordJFR {
     }
 
     public static void scheduleHistogramSample(String name, ThreadPool threadPool, AtomicReference<Recorder> recorder) {
-        AtomicReference<Histogram> toReuse = new AtomicReference<>(null);
+        Histogram initualHistogram = recorder.get().getIntervalHistogram(null);
+        SynchronizedHistogram totalHistogram = new SynchronizedHistogram(initualHistogram.getLowestDiscernibleValue(),
+            initualHistogram.getHighestTrackableValue(), initualHistogram.getNumberOfSignificantValueDigits());
+        totalHistogram.add(initualHistogram);
+        AtomicReference<Histogram> toReuse = new AtomicReference<>(initualHistogram);
 
         threadPool.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 synchronized (RecordJFR.class) {
                     Histogram histogramToRecycle = toReuse.get();
-                    if (histogramToRecycle != null) {
-                        histogramToRecycle.reset();
-                    }
+                    histogramToRecycle.reset();
+
                     Histogram intervalHistogram = recorder.get().getIntervalHistogram(histogramToRecycle);
                     toReuse.set(intervalHistogram);
-                    RecordJFR.recordHistogram(name, intervalHistogram);
+                    totalHistogram.add(intervalHistogram);
+                    RecordJFR.recordHistogram(name, intervalHistogram, new IntervalHistogramEvent());
+                    RecordJFR.recordHistogram(name, totalHistogram, new TotalHistogramEvent());
                 }
             }
         }, TimeValue.timeValueSeconds(10), ThreadPool.Names.GENERIC);
     }
 
-    public static void scheduleHistogramSample(String name, ThreadPool threadPool, Histogram histogram) {
-        threadPool.scheduleWithFixedDelay(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (RecordJFR.class) {
-                    RecordJFR.recordHistogram(name, histogram);
-                }
-            }
-        }, TimeValue.timeValueSeconds(10), ThreadPool.Names.GENERIC);
-    }
-
-    @Name(HistogramEvent.NAME)
-    @Label("Histogram")
-    @Category("Elasticsearch")
     @StackTrace(false)
     public static class HistogramEvent extends Event {
-
-        static final String NAME = "org.elasticsearch.jfr.HistogramEvent";
 
         @Label("Name")
         public String name;
@@ -137,6 +128,12 @@ public class RecordJFR {
         @Label("99.9%")
         public long _99_9;
 
+        @Label("99.99%")
+        public long _99_99;
+
+        @Label("99.999%")
+        public long _99_999;
+
         @Label("Max")
         public long max;
 
@@ -148,8 +145,27 @@ public class RecordJFR {
 
     }
 
-    @Name(HistogramEvent.NAME)
-    @Label("Histogram")
+    @Name(IntervalHistogramEvent.NAME)
+    @Label("Interval Histogram")
+    @Category("Elasticsearch")
+    public static class IntervalHistogramEvent extends HistogramEvent {
+
+        static final String NAME = "org.elasticsearch.jfr.IntervalHistogramEvent";
+
+    }
+
+    @Name(TotalHistogramEvent.NAME)
+    @Label("Total Histogram")
+    @Category("Elasticsearch")
+    @StackTrace(false)
+    public static class TotalHistogramEvent extends HistogramEvent {
+
+        static final String NAME = "org.elasticsearch.jfr.TotalHistogramEvent";
+
+    }
+
+    @Name(MeanMetricEvent.NAME)
+    @Label("Mean Metric")
     @Category("Elasticsearch")
     @StackTrace(false)
     public static class MeanMetricEvent extends Event {

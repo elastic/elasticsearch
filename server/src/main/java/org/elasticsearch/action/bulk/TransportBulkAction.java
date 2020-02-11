@@ -137,8 +137,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         clusterService.addStateApplier(this.ingestForwarder);
-        RecordJFR.scheduleHistogramSample("TransportBulkAction#Total", threadPool, total);
-        RecordJFR.scheduleHistogramSample("TransportBulkAction#Interval", threadPool, new AtomicReference<>(recorder));
+        RecordJFR.scheduleHistogramSample("TransportBulkAction", threadPool, new AtomicReference<>(recorder));
     }
 
     /**
@@ -530,8 +529,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     private void finishHim() {
                         long nanosTook = relativeTime() - startTimeNanos;
-                        total.recordValue(TimeUnit.NANOSECONDS.toMicros(nanosTook));
-                        recorder.recordValue(TimeUnit.NANOSECONDS.toMicros(nanosTook));
+                        long microsTook = TimeUnit.NANOSECONDS.toMicros(nanosTook);
+                        total.recordValue(microsTook);
+                        recorder.recordValue(microsTook);
                         listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
                             TimeUnit.NANOSECONDS.toMillis(nanosTook)));
                     }

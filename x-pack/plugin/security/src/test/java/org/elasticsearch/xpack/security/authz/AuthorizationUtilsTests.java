@@ -14,12 +14,14 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -95,9 +97,15 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {
-        String origin = randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.DEPRECATION_ORIGIN,
-                ClientHelper.MONITORING_ORIGIN, ClientHelper.PERSISTENT_TASK_ORIGIN, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
-        assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE);
+        for (String origin : Arrays.asList(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.DEPRECATION_ORIGIN,
+                ClientHelper.MONITORING_ORIGIN, ClientHelper.PERSISTENT_TASK_ORIGIN, ClientHelper.INDEX_LIFECYCLE_ORIGIN)) {
+            assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE);
+        }
+    }
+
+    public void testSwitchAndExecuteAsyncSearchUser() throws Exception {
+        String origin = ClientHelper.ASYNC_SEARCH_ORIGIN;
+        assertSwitchBasedOnOriginAndExecute(origin, AsyncSearchUser.INSTANCE);
     }
 
     public void testSwitchWithTaskOrigin() throws Exception {
@@ -124,10 +132,10 @@ public class AuthorizationUtilsTests extends ESTestCase {
             latch.countDown();
             listener.onResponse(null);
         };
+
         threadContext.putHeader(headerName, headerValue);
         try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(origin)) {
             AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, consumer);
-
             latch.await();
         }
     }

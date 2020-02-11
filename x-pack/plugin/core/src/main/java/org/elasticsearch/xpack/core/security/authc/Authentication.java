@@ -82,6 +82,10 @@ public class Authentication implements ToXContentObject {
         return lookedUpBy;
     }
 
+    public RealmRef getSourceRealm() {
+        return lookedUpBy == null ? authenticatedBy : lookedUpBy;
+    }
+
     public Version getVersion() {
         return version;
     }

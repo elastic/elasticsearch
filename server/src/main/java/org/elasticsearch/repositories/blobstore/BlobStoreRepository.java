@@ -1487,8 +1487,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     "Duplicate snapshot name [" + snapshotId.getName() + "] detected, aborting");
             }
 
-            // First inspect all known SegmentInfos instances to see if we already have an equivalent commit in the repository that has the
-            // same sequence number, primary term id and history uuid as our current commit.
+            // First inspect all known SegmentInfos instances to see if we already have an equivalent commit in the repository
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos =
                 findMatchingShardSnapshot(snapshotIndexCommit, snapshots);
 
@@ -1657,9 +1656,35 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * Extracts an instance of {@link SegmentInfos} for each snapshot tracked in the given {@link BlobStoreIndexShardSnapshots} and
+     * compares it against the given {@link IndexCommit}.
+     * If the sequence number, local checkpoint, primary term and history UUID of the given commit and the found shard snapshot are equal
+     * then we will not snapshot the files in the index commit but rather assign the files in the existing matching snapshot to the new
+     * shard snapshot.
+     * Compared to merely comparing files in the index commit and repository, the logic here will be able to identify shards with equal
+     * content but different segment structure (as may be the case after replica promotion) and avoid redundant snapshot creation in this
+     * situation.
+     * Note: This method does not load any blobs from the repository. It instead exploits the fact that segment info files are stored
+     * alongside their content as hash in the {@link BlobStoreIndexShardSnapshots} metadata to quickly load all {@link SegmentInfos} for
+     * each shard snapshot.
+     * Also see {@link StoreFileMetaData#hashEqualsContents()}.
+     *
+     * @param snapshotIndexCommit Index commit to snapshot
+     * @param snapshots shard snapshots already in the repository
+     * @return List of files already in the repository to use as the given shard's snapshot or {@code null} if no such set of files could
+     *         be found in the current shard snapshots
+     */
+    @Nullable
     private static List<BlobStoreIndexShardSnapshot.FileInfo> findMatchingShardSnapshot(
-            IndexCommit snapshotIndexCommit, BlobStoreIndexShardSnapshots snapshots) throws IOException {
-        final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
+            IndexCommit snapshotIndexCommit, BlobStoreIndexShardSnapshots snapshots) {
+        final Map<String, String> userCommitData;
+        try {
+            userCommitData = snapshotIndexCommit.getUserData();
+        } catch (IOException e) {
+            assert false : new AssertionError("Did not expect #getUserData to throw but saw exception", e);
+            return null;
+        }
         final String sequenceNum = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
         final String localCheckpoint = userCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
         final String primaryTerm = userCommitData.get(Engine.MAX_PRIMARY_TERM);
@@ -1672,7 +1697,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     final Directory dir = new ByteBuffersDirectory();
                     for (BlobStoreIndexShardSnapshot.FileInfo f : files) {
                         final StoreFileMetaData m = f.metadata();
-                        if (m.length() != m.hash().length) {
+                        if (m.hashEqualsContents() == false) {
                             continue;
                         }
                         try (IndexOutput indexOutput = dir.createOutput(m.name(), IOContext.DEFAULT)) {

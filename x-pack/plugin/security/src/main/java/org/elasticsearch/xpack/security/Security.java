@@ -267,7 +267,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.license.XPackLicenseState.FIPS_ALLOWED_LICENSE_OPERATION_MODES;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -382,7 +381,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         securityIndex.set(SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService));
 
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, getLicenseState(),
+        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, getLicenseState(), securityContext.get(),
             securityIndex.get(), SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
         this.tokenService.set(tokenService);
         components.add(tokenService);
@@ -678,7 +677,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
                                 }, null),
                                 dlsBitsetCache.get(),
-                                indexService.getThreadPool().getThreadContext(), getLicenseState(),
+                                securityContext.get(),
+                                getLicenseState(),
                                 indexService.getScriptService()));
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
@@ -698,7 +698,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             // attaches information to the scroll context so that we can validate the user that created the scroll against
             // the user that is executing a scroll operation
             module.addSearchOperationListener(
-                    new SecuritySearchOperationListener(threadContext.get(), getLicenseState(), auditTrailService.get()));
+                    new SecuritySearchOperationListener(securityContext.get(), getLicenseState(), auditTrailService.get()));
         }
     }
 
@@ -767,46 +767,46 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             return emptyList();
         }
         return Arrays.asList(
-                new RestAuthenticateAction(settings, restController, securityContext.get(), getLicenseState()),
-                new RestClearRealmCacheAction(settings, restController, getLicenseState()),
-                new RestClearRolesCacheAction(settings, restController, getLicenseState()),
-                new RestGetUsersAction(settings, restController, getLicenseState()),
-                new RestPutUserAction(settings, restController, getLicenseState()),
-                new RestDeleteUserAction(settings, restController, getLicenseState()),
-                new RestGetRolesAction(settings, restController, getLicenseState()),
-                new RestPutRoleAction(settings, restController, getLicenseState()),
-                new RestDeleteRoleAction(settings, restController, getLicenseState()),
-                new RestChangePasswordAction(settings, restController, securityContext.get(), getLicenseState()),
-                new RestSetEnabledAction(settings, restController, getLicenseState()),
-                new RestHasPrivilegesAction(settings, restController, securityContext.get(), getLicenseState()),
-                new RestGetUserPrivilegesAction(settings, restController, securityContext.get(), getLicenseState()),
-                new RestGetRoleMappingsAction(settings, restController, getLicenseState()),
-                new RestPutRoleMappingAction(settings, restController, getLicenseState()),
-                new RestDeleteRoleMappingAction(settings, restController, getLicenseState()),
-                new RestGetTokenAction(settings, restController, getLicenseState()),
-                new RestInvalidateTokenAction(settings, restController, getLicenseState()),
-                new RestGetCertificateInfoAction(restController),
-                new RestSamlPrepareAuthenticationAction(settings, restController, getLicenseState()),
-                new RestSamlAuthenticateAction(settings, restController, getLicenseState()),
-                new RestSamlLogoutAction(settings, restController, getLicenseState()),
-                new RestSamlInvalidateSessionAction(settings, restController, getLicenseState()),
-                new RestOpenIdConnectPrepareAuthenticationAction(settings, restController, getLicenseState()),
-                new RestOpenIdConnectAuthenticateAction(settings, restController, getLicenseState()),
-                new RestOpenIdConnectLogoutAction(settings, restController, getLicenseState()),
-                new RestGetBuiltinPrivilegesAction(settings, restController, getLicenseState()),
-                new RestGetPrivilegesAction(settings, restController, getLicenseState()),
-                new RestPutPrivilegesAction(settings, restController, getLicenseState()),
-                new RestDeletePrivilegesAction(settings, restController, getLicenseState()),
-                new RestCreateApiKeyAction(settings, restController, getLicenseState()),
-                new RestInvalidateApiKeyAction(settings, restController, getLicenseState()),
-                new RestGetApiKeyAction(settings, restController, getLicenseState()),
-                new RestDelegatePkiAuthenticationAction(settings, restController, getLicenseState())
+                new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
+                new RestClearRealmCacheAction(settings, getLicenseState()),
+                new RestClearRolesCacheAction(settings, getLicenseState()),
+                new RestGetUsersAction(settings, getLicenseState()),
+                new RestPutUserAction(settings, getLicenseState()),
+                new RestDeleteUserAction(settings, getLicenseState()),
+                new RestGetRolesAction(settings, getLicenseState()),
+                new RestPutRoleAction(settings, getLicenseState()),
+                new RestDeleteRoleAction(settings, getLicenseState()),
+                new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
+                new RestSetEnabledAction(settings, getLicenseState()),
+                new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+                new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+                new RestGetRoleMappingsAction(settings, getLicenseState()),
+                new RestPutRoleMappingAction(settings, getLicenseState()),
+                new RestDeleteRoleMappingAction(settings, getLicenseState()),
+                new RestGetTokenAction(settings, getLicenseState()),
+                new RestInvalidateTokenAction(settings, getLicenseState()),
+                new RestGetCertificateInfoAction(),
+                new RestSamlPrepareAuthenticationAction(settings, getLicenseState()),
+                new RestSamlAuthenticateAction(settings, getLicenseState()),
+                new RestSamlLogoutAction(settings, getLicenseState()),
+                new RestSamlInvalidateSessionAction(settings, getLicenseState()),
+                new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
+                new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
+                new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
+                new RestGetBuiltinPrivilegesAction(settings, getLicenseState()),
+                new RestGetPrivilegesAction(settings, getLicenseState()),
+                new RestPutPrivilegesAction(settings, getLicenseState()),
+                new RestDeletePrivilegesAction(settings, getLicenseState()),
+                new RestCreateApiKeyAction(settings, getLicenseState()),
+                new RestInvalidateApiKeyAction(settings, getLicenseState()),
+                new RestGetApiKeyAction(settings, getLicenseState()),
+                new RestDelegatePkiAuthenticationAction(settings, getLicenseState())
         );
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
+        return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(securityContext::get));
     }
 
     /**
@@ -939,16 +939,18 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                                         CircuitBreakerService circuitBreakerService,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
-                                                                        HttpServerTransport.Dispatcher dispatcher) {
+                                                                        HttpServerTransport.Dispatcher dispatcher,
+                                                                        ClusterSettings clusterSettings) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
         httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
+            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher, clusterSettings));
         httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
-            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings)));
+            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings),
+            clusterSettings));
 
         return httpTransports;
     }
@@ -1043,7 +1045,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             if (inFipsMode) {
                 License license = LicenseService.getLicense(state.metaData());
                 if (license != null &&
-                    FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+                    XPackLicenseState.isFipsAllowedForOperationMode(license.operationMode()) == false) {
                     throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
                         "] license. It is only allowed with a Platinum or Trial license.");
 

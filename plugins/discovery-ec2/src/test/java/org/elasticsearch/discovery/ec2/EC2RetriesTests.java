@@ -101,7 +101,6 @@ public class EC2RetriesTests extends ESTestCase {
     }
 
     public void testEC2DiscoveryRetriesOnRateLimiting() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/51685", inFipsJvm());
         final String accessKey = "ec2_access";
         final List<String> hosts = List.of("127.0.0.1:9000");
         final Map<String, Integer> failedRequests = new ConcurrentHashMap<>();

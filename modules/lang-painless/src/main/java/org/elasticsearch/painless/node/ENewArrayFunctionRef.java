@@ -53,10 +53,10 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
         function = new SFunction(
                 location, type, scriptRoot.getNextSyntheticName("newarray"),
                 Collections.singletonList("int"), Collections.singletonList("size"),
-                new SBlock(location, Collections.singletonList(code)), true);
+                new SBlock(location, Collections.singletonList(code)), true, true, true, false);
         function.generateSignature(scriptRoot.getPainlessLookup());
         function.analyze(scriptRoot);
-        scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true);
+        scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true, true);
         //scriptRoot.getClassNode().addFunction(function);
 
         if (expected == null) {

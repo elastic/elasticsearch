@@ -969,7 +969,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
 
-        // test AyncSearch user short circuits to its onw reserved role
+        // test AyncSearch user short circuits to its own reserved role
         rolesFuture = new PlainActionFuture<>();
         auth = new Authentication(AsyncSearchUser.INSTANCE, new RealmRef("name", "type", "node"), null);
         compositeRolesStore.getRoles(AsyncSearchUser.INSTANCE, auth, rolesFuture);

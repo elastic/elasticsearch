@@ -93,8 +93,8 @@ public class AggregationsTests extends ESTestCase {
             assertTrue(
                 "The following aggregation is unknown to transform: ["
                     + aggregationName
-                    + "]. Did you added a new aggregation? "
-                    + "If so: Great, please open an issue to add transform support for it. Afterwards add \""
+                    + "]. If this is a newly added aggregation, "
+                    + "please open an issue to add transform support for it. Afterwards add \""
                     + aggregationName
                     + "\" to the list in "
                     + Aggregations.class.getName()

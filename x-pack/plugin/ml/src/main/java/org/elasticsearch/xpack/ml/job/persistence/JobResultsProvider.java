@@ -578,14 +578,14 @@ public class JobResultsProvider {
                                 int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                                 if (shardFailures != null && shardFailures.length > 0) {
                                     LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
-                                            Arrays.toString(shardFailures));
+                                        Arrays.toString(shardFailures));
                                     errorHandler.accept(new ElasticsearchException(
-                                            ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                                        ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
                                     return;
                                 }
                                 if (unavailableShards > 0) {
                                     errorHandler.accept(new ElasticsearchException("[" + jobId
-                                            + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                                        + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
                                     return;
                                 }
                                 SearchHits hits = searchResponse.getHits();
@@ -595,15 +595,15 @@ public class JobResultsProvider {
                                     LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
                                     return;
                                 }
-                                    for (SearchHit hit : hits) {
-                                        try {
-                                            parseAutodetectParamSearchHit(jobId, paramsBuilder, hit);
-                                        } catch (Exception e) {
-                                            errorHandler.accept(e);
-                                            return;
-                                        }
+                                for (SearchHit hit : hits) {
+                                    try {
+                                        parseAutodetectParamSearchHit(jobId, paramsBuilder, hit);
+                                    } catch (Exception e) {
+                                        errorHandler.accept(e);
+                                        return;
                                     }
                                 }
+                            }
                             getScheduledEventsListener.onResponse(paramsBuilder);
                         },
                         errorHandler

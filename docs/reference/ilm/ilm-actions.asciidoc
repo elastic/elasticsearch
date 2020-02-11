@@ -1,121 +1,43 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-policy-definition]]
-== Policy phases and actions
+[[ilm-actions]]
+=== Index lifecycle actions
 
-There are four stages in the index lifecycle, in the order
-they are executed.
+[[_actions]]<<ilm-allocate-action,Allocate>>::
+Move shards to nodes with different performance characteristics
+and reduce the number of replicas. 
 
-[options="header"]
-|======
-| Name     | Description
-| `hot`    | The index is actively being written to
-| `warm`   | The index is generally not being written to, but is still queried
-| `cold`   | The index is no longer being updated and is seldom queried. The
-information still needs to be searchable, but it's okay if those queries are
-slower.
-| `delete` | The index is no longer needed and can safely be deleted
-|======
+<<ilm-forcemerge-action,Force Merge>>::
+Reduce the number of index segments and purge deleted documents.
+Makes the index read-only.
 
-Each of these stages is called a "phase". A policy does not need to configure
-each phase for an index. For example, one policy may define only the hot
-phase and the delete phase, while another may define all four phases.
+<<ilm-freeze-action,Freeze>>::
+Freeze the index to minimize its memory footprint.
 
-=== Timing
+<<ilm-readonly-action,Read-Only>>::
+Block write operations to the index. 
+  
+<<ilm-rollover-action,Rollover>>::
+Remove the index as the write index for the rollover alias and 
+start indexing to a new index.
 
-Indices enter phases based on a phase's `min_age` parameter.
-The index will not enter the phase until the index's age is older than that
-of the `min_age`. The parameter is configured using a time
-duration format (see <<time-units, Time Units>>).
+<<ilm-searchable-snapshot-action, Searchable Snapshot>>::
+Take a snapshot of the managed index in the configured repository
+and mount it as a searchable snapshot.
 
-`min_age` defaults to zero seconds `0s` for each phase if not specified.
+<<ilm-set-priority-action,Set Priority>>::
+Lower the priority of an index as it moves through the lifecycle
+to ensure that hot indices are recovered first. 
 
-[source,console]
---------------------------------------------------
-PUT _ilm/policy/my_policy
-{
-  "policy": {
-    "phases": {
-      "warm": {
-        "min_age": "1d",
-        "actions": {
-          "allocate": {
-            "number_of_replicas": 1
-          }
-        }
-      },
-      "delete": {
-        "min_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
+<<ilm-shrink-action,Shrink>>::
+Reduce the number of primary shards by shrinking the index into a new index.
 
-The above example configures a policy that moves the index into the warm
-phase after one day. Until then, the index is in a waiting state. After
-moving into the warm phase, it will wait until 30 days have elapsed before
-moving to the delete phase and deleting the index.
+<<ilm-unfollow-action,Unfollow>>::
+Convert a follower index to a regular index.
+Performed automatically before a rollover or shrink action. 
 
-`min_age` is usually the time elapsed from the time the index is created, unless
-the `index.lifecycle.origination_date` index setting is configured, in which
-case the `min_age` will be the time elapsed since that specified date. If the
-index is rolled over, then `min_age` is the time elapsed from the time the
-index is rolled over. The intention here is to execute following phases and
-actions relative to when data was written last to a rolled over index.
-
-The previous phase's actions must complete before {ilm} will check `min_age` and
-transition into the next phase. By default, {ilm} checks for indices that meet
-policy criteria, like `min_age`, every 10 minutes. You can use the
-`indices.lifecycle.poll_interval` cluster setting to control how often this
-check occurs.
-
-=== Phase Execution
-
-The current phase definition, of an index's policy being executed, is stored
-in the index's metadata. This phase definition is cached to prevent changes to
-the policy from putting the index in a state where it cannot proceed from its
-current step. When the policy is updated we check to see if this phase
-definition can be safely updated, and if so, update the cached definition in
-indices using the updated policy. The phase and its actions are compiled into a
-series of discrete steps that are executed sequentially. Since some {ilm-init}
-actions are more complex and involve multiple operations against an index, each
-of these operations are done in isolation in a unit called a "step". The
-<<ilm-explain-lifecycle,Explain Lifecycle API>> exposes this information to us
-to see which step our index is either to execute next, or is currently
-executing.
-
-=== Actions
-
-The below list shows the actions which are available in each phase.
-
-NOTE: The order that configured actions are performed in within each phase is
-determined automatically by {ilm-init}, and cannot be changed by changing the
-policy definition.
-
-* Hot
-  - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-unfollow-action,Unfollow>>
-  - <<ilm-rollover-action,Rollover>>
-* Warm
-  - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-unfollow-action,Unfollow>>
-  - <<ilm-readonly-action,Read-Only>>
-  - <<ilm-allocate-action,Allocate>>
-  - <<ilm-shrink-action,Shrink>>
-  - <<ilm-forcemerge-action,Force Merge>>
-* Cold
-  - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-unfollow-action,Unfollow>>
-  - <<ilm-allocate-action,Allocate>>
-  - <<ilm-freeze-action,Freeze>>
-  - <<ilm-searchable-snapshot-action, Searchable Snapshot>>
-* Delete
-  - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
-  - <<ilm-delete-action,Delete>>
+<<ilm-wait-for-snapshot-action,Wait For Snapshot>>::
+Ensure that a snapshot exists before deleting the index. 
 
 [[ilm-allocate-action]]
 ==== Allocate
@@ -136,7 +58,6 @@ controlling where Elasticsearch allocates shards of a particular index.
 
 --
 NOTE: As allocate action is not allowed in `hot` phase, the initial allocation for the index should be done manually or via index templates, as ILM won't take care of index allocation during `hot` phase.
-
 --
 
 [[ilm-allocate-options]]
@@ -233,39 +154,6 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-[[ilm-wait-for-snapshot-action]]
-==== Wait For Snapshot
-
-Phases allowed: delete.
-
-The Wait For Snapshot Action waits for defined SLM policy to be executed to ensure that snapshot of index exists before
-deletion.
-
-[[ilm-wait-for-snapshot-options]]
-.Wait For Snapshot
-[options="header"]
-|======
-| Name                 | Required  | Default             | Description
-| `policy`             | yes       | -                   | SLM policy name that this action should wait for
-|======
-
-[source,console]
---------------------------------------------------
-PUT _ilm/policy/my_policy
-{
-  "policy": {
-    "phases": {
-      "delete": {
-        "actions": {
-          "wait_for_snapshot" : {
-            "policy": "slm-policy-name"
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
 
 [[ilm-delete-action]]
 ==== Delete
@@ -784,57 +672,33 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-=== Full Policy
+[[ilm-wait-for-snapshot-action]]
+==== Wait For Snapshot
 
-With all of these actions, we can support complex management strategies for our
-indices. This policy will define an index that will start in the hot phase,
-rolling over every 50 GB or 7 days. After 30 days it enters the warm phase
-and increases the replicas to 2, force merges and shrinks. After 60 days
-it enters the cold phase and allocates to "cold" nodes, and after 90 days the
-index is deleted.
+Phases allowed: delete.
+
+The Wait For Snapshot Action waits for defined SLM policy to be executed to ensure that snapshot of index exists before
+deletion.
+
+[[ilm-wait-for-snapshot-options]]
+.Wait For Snapshot
+[options="header"]
+|======
+| Name                 | Required  | Default             | Description
+| `policy`             | yes       | -                   | SLM policy name that this action should wait for
+|======
 
 [source,console]
 --------------------------------------------------
-PUT _ilm/policy/full_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
-      "hot": {
-        "actions": {
-          "rollover": {
-            "max_age": "7d",
-            "max_size": "50G"
-          }
-        }
-      },
-      "warm": {
-        "min_age": "30d",
-        "actions": {
-          "forcemerge": {
-            "max_num_segments": 1
-          },
-          "shrink": {
-            "number_of_shards": 1
-          },
-          "allocate": {
-            "number_of_replicas": 2
-          }
-        }
-      },
-      "cold": {
-        "min_age": "60d",
-        "actions": {
-          "allocate": {
-            "require": {
-              "type": "cold"
-            }
-          }
-        }
-      },
       "delete": {
-        "min_age": "90d",
         "actions": {
-          "delete": {}
+          "wait_for_snapshot" : {
+            "policy": "slm-policy-name"
+          }
         }
       }
     }

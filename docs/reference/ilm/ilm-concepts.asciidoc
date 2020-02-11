@@ -1,0 +1,15 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-concepts]]
+== Index lifecycle management concepts
+
+++++
+<titleabbrev>Concepts</titleabbrev>
+++++
+
+* <<ilm-phases>>
+* <<ilm-actions>>
+
+include::ilm-phases.asciidoc[]
+
+include::ilm-actions.asciidoc[]

@@ -1,0 +1,105 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-phases]]
+=== Index lifecycle phases
+
+[[ilm-policy-definition]]{ilm-init} splits the index lifecycle into four phases: 
+`hot`, `warm`, `cold`, and `delete`.
+A lifecycle policy specifies which phases 
+are applicable and what actions are performed in each phase. 
+{ilm-init} controls the order in which the actions in a phase are executed,
+and the steps that are performed to complete each action. 
+The order of the actions in a policy doesn't affect the order of execution.
+
+{ilm-init} supports the following actions in each phase.
+
+* Hot
+  - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-rollover-action,Rollover>>
+* Warm
+  - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-readonly-action,Read-Only>>
+  - <<ilm-allocate-action,Allocate>>
+  - <<ilm-shrink-action,Shrink>>
+  - <<ilm-forcemerge-action,Force Merge>>
+* Cold
+  - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-allocate-action,Allocate>>
+  - <<ilm-freeze-action,Freeze>>
+* Delete
+  - <<ilm-delete-action,Wait For Snapshot>>
+  - <<ilm-delete-action,Delete>>
+
+==== Timing
+
+{ilm-init} moves indices through the lifecycle according to their age. 
+To control the timing of these transitions, 
+you set the `min_age` parameter for the phases in your lifecycle policy. 
+If you don't specify `min_age`for a phase, it defaults to zero seconds (`0s`).
+
+{ilm-init} will not move an index into the next phase 
+unless it is older than the specified `min_age` and all actions in the 
+current phase are complete.
+
+For example, the following policy moves an index into the `warm`
+phase after one day. Until then, the index is in a waiting state. 
+After 30 days, the index moves to the `delete` phase.
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "1d", <1>
+        "actions": {
+          "allocate": {
+            "number_of_replicas": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> `min_age` uses the time duration format. See <<time-units, Time Units>>
+for more information.
+
+If `index.lifecycle.origination_date` is configured, 
+the age of an index is calculated based on the time that has elapsed since the origination date
+rather than when the index was created. 
+
+For policies that use the rollover action, the index age for the following 
+phases is caclulated based on when the index rolled over.
+That way, the timing of subsequent actions is relative to when data was last written to the index.  
+
+By default, {ilm} checks policy criteria like `min_age` every 10 minutes. 
+To change the frequency, use the `indices.lifecycle.poll_interval` cluster setting.
+
+==== Policy updates
+
+To prevent policy updates from putting an index into a state where it cannot proceed through the lifecycle, 
+the phase definition is cached in the index metadata when it enters a phase. 
+
+If the changes can be safely applied, {ilm-init} applies the changes to the cached phase definition.
+If they cannot, the index completes the phase using the cached definition. 
+
+==== Execution status
+
+Some actions require multiple index operations. 
+{ilm} performs these operations as a series of discrete steps. 
+You can use the
+<<ilm-explain-lifecycle,explain  API>> to get information about the current phase, action, and step.
+
+

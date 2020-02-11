@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.RecordJFR;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
@@ -51,6 +52,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -83,6 +85,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -100,6 +103,8 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
     private final MappingUpdatedAction mappingUpdatedAction;
     private final ConcurrentHashMap<ShardId, ShardQueue> shardQueues = new ConcurrentHashMap<>();
 
+    private final AtomicReference<MeanMetric> meanMetric = new AtomicReference<>(new MeanMetric());
+
     @Inject
     public TransportShardBulkActionNew(Settings settings, TransportService transportService, ClusterService clusterService,
                                        IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
@@ -108,6 +113,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
             BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false);
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
+        RecordJFR.scheduleMeanSample("TransportShardBulkActionNew#NumberOfOps", threadPool, meanMetric);
     }
 
     @Override
@@ -389,6 +395,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         while (++i <= MAX_PERFORM_OPS && (polledOp = shardQueue.poll()) != null) {
             shardOpsToPerform.add(polledOp);
         }
+        meanMetric.get().inc(shardOpsToPerform.size());
         return shardOpsToPerform;
     }
 

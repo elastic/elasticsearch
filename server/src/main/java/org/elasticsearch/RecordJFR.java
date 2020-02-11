@@ -26,6 +26,7 @@ import jdk.jfr.Name;
 import jdk.jfr.StackTrace;
 import org.HdrHistogram.Histogram;
 import org.HdrHistogram.Recorder;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RecordJFR {
 
-    public synchronized static void record(String name, Histogram histogram) {
+    public static synchronized void recordHistogram(String name, Histogram histogram) {
         HistogramEvent event = new HistogramEvent();
         if (event.isEnabled() == false) {
             return;
@@ -53,7 +54,34 @@ public class RecordJFR {
         event.commit();
     }
 
-    public static void scheduleHistogramSample(ThreadPool threadPool, AtomicReference<Recorder> recorder) {
+    public static synchronized void recordMeanMetric(String name, MeanMetric meanMetric) {
+        MeanMetricEvent event = new MeanMetricEvent();
+        if (event.isEnabled() == false) {
+            return;
+        }
+
+        event.begin();
+        event.mean = meanMetric.mean();
+        event.sum = meanMetric.sum();
+        event.counter = meanMetric.count();
+        event.name = name;
+        event.end();
+        event.commit();
+    }
+
+    public static void scheduleMeanSample(String name, ThreadPool threadPool, AtomicReference<MeanMetric> meanMetric) {
+        threadPool.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (this) {
+                    MeanMetric meanMetric1 = meanMetric.getAndSet(new MeanMetric());
+                    RecordJFR.recordMeanMetric(name, meanMetric1);
+                }
+            }
+        }, TimeValue.timeValueSeconds(10), ThreadPool.Names.GENERIC);
+    }
+
+    public static void scheduleHistogramSample(String name, ThreadPool threadPool, AtomicReference<Recorder> recorder) {
         AtomicReference<Histogram> toReuse = new AtomicReference<>(null);
 
         threadPool.scheduleWithFixedDelay(new Runnable() {
@@ -66,7 +94,7 @@ public class RecordJFR {
                     }
                     Histogram intervalHistogram = recorder.get().getIntervalHistogram(histogramToRecycle);
                     toReuse.set(intervalHistogram);
-                    RecordJFR.record("TransportBulkAction", intervalHistogram);
+                    RecordJFR.recordHistogram(name, intervalHistogram);
                 }
             }
         }, TimeValue.timeValueSeconds(10), ThreadPool.Names.GENERIC);
@@ -106,6 +134,28 @@ public class RecordJFR {
 
         @Label("Total")
         public long total;
+
+    }
+
+    @Name(HistogramEvent.NAME)
+    @Label("Histogram")
+    @Category("Elasticsearch")
+    @StackTrace(false)
+    public static class MeanMetricEvent extends Event {
+
+        static final String NAME = "org.elasticsearch.jfr.MeanMetricEvent";
+
+        @Label("Name")
+        public String name;
+
+        @Label("Mean")
+        public double mean;
+
+        @Label("Counter")
+        public long counter;
+
+        @Label("Sum")
+        public long sum;
 
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.HdrHistogram.Histogram;
 import org.HdrHistogram.Recorder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -136,27 +135,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         clusterService.addStateApplier(this.ingestForwarder);
-        RecordJFR.scheduleHistogramSample(threadPool, new AtomicReference<>(recorder));
-        scheduleHistogramSample();
-    }
-
-    private void scheduleHistogramSample() {
-        AtomicReference<Histogram> toReuse = new AtomicReference<>(null);
-
-        threadPool.scheduleWithFixedDelay(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (this) {
-                    Histogram histogramToRecycle = toReuse.get();
-                    if (histogramToRecycle != null) {
-                        histogramToRecycle.reset();
-                    }
-                    Histogram intervalHistogram = recorder.getIntervalHistogram(histogramToRecycle);
-                    toReuse.set(intervalHistogram);
-                    RecordJFR.record("TransportBulkAction", intervalHistogram);
-                }
-            }
-        }, TimeValue.timeValueSeconds(10), ThreadPool.Names.GENERIC);
+        RecordJFR.scheduleHistogramSample("TransportBulkAction", threadPool, new AtomicReference<>(recorder));
     }
 
     /**

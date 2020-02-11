@@ -1515,20 +1515,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos = null;
 
             final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
-            final long sequenceNum = Long.parseLong(userCommitData.get(SequenceNumbers.MAX_SEQ_NO));
-            final long localCheckpoint = Long.parseLong(userCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            final String historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
-            assert historyUUID != null;
+            final String sequenceNumString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
+            final String localCheckpointString = userCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+            if (sequenceNumString != null && localCheckpointString != null) {
+                final long sequenceNum = Long.parseLong(sequenceNumString);
+                final long localCheckpoint = Long.parseLong(localCheckpointString);
+                final String historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
+                assert historyUUID != null;
 
-            for (List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFileSet : snapshotFileSets) {
-                final SegmentInfos segmentInfos = segmentInfosFromMeta(snapshotFileSet);
-                final Map<String, String> snapshotUserCommitData = segmentInfos.getUserData();
-                final long snapshotSequenceNum = Long.parseLong(snapshotUserCommitData.get(SequenceNumbers.MAX_SEQ_NO));
-                final long snapshotLocalCheckpoint = Long.parseLong(snapshotUserCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                if (snapshotSequenceNum == sequenceNum && snapshotLocalCheckpoint == localCheckpoint
-                && historyUUID.equals(snapshotUserCommitData.get(Engine.HISTORY_UUID_KEY))) {
-                    filesFromSegmentInfos = snapshotFileSet;
-                    break;
+                for (List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFileSet : snapshotFileSets) {
+                    final SegmentInfos segmentInfos = segmentInfosFromMeta(snapshotFileSet);
+                    final Map<String, String> snapshotUserCommitData = segmentInfos.getUserData();
+                    final long snapshotSequenceNum = Long.parseLong(snapshotUserCommitData.get(SequenceNumbers.MAX_SEQ_NO));
+                    final long snapshotLocalCheckpoint = Long.parseLong(snapshotUserCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                    if (snapshotSequenceNum == sequenceNum && snapshotLocalCheckpoint == localCheckpoint
+                        && historyUUID.equals(snapshotUserCommitData.get(Engine.HISTORY_UUID_KEY))) {
+                        filesFromSegmentInfos = snapshotFileSet;
+                        break;
+                    }
                 }
             }
 

@@ -18,7 +18,7 @@ import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ESTestCase.getTestTransportPlugin;
-import static org.elasticsearch.test.ESTestCase.inFipsJvm;
+import static org.elasticsearch.test.ESTestCase.inFipsSunJsseJvm;
 
 /**
  * TransportClient.Builder that installs the XPackPlugin by default.
@@ -55,7 +55,7 @@ public class TestXPackTransportClient extends TransportClient {
 
     private static Settings possiblyDisableTlsDiagnostic(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         return builder.build();

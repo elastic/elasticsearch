@@ -12,6 +12,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
@@ -38,7 +39,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
     }
 
     public void testDefaultTimeout() throws Exception {
-        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(getSettingsBuilder().put("path.home", createTempDir()).build());
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
                 .path("/")
@@ -59,7 +60,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
     }
 
     public void testDefaultTimeoutCustom() throws Exception {
-        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(getSettingsBuilder().put("path.home", createTempDir()).build());
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
@@ -82,7 +83,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
     }
 
     public void testTimeoutCustomPerRequest() throws Exception {
-        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(getSettingsBuilder().put("path.home", createTempDir()).build());
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .readTimeout(TimeValue.timeValueSeconds(3))
@@ -103,5 +104,13 @@ public class HttpReadTimeoutTests extends ESTestCase {
             assertThat(timeout.seconds(), greaterThan(1L));
             assertThat(timeout.seconds(), lessThan(5L));
         }
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsSunJsseJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder;
     }
 }

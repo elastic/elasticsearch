@@ -82,7 +82,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         // Some tests use a client profile. Put the passphrase in the secure settings for the profile (secure settings cannot be set twice)
         secureSettings.setString("transport.profiles.client.xpack.security.ssl.secure_key_passphrase", "testnode");
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         Settings settings1 = builder
@@ -394,7 +394,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
         // test profile optional client authentication
         value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
-        settings = Settings.builder()
+        settings = getSettingsBuilder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
             .put("transport.profiles.client.xpack.security.ssl.certificate", testnodeCert)
@@ -438,5 +438,13 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
         TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
         return nodeChannels.getChannels().get(0);
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsSunJsseJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder;
     }
 }

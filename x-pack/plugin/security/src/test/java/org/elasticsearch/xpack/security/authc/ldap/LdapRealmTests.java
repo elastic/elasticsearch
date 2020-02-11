@@ -100,7 +100,7 @@ public class LdapRealmTests extends LdapTestCase {
         threadPool = new TestThreadPool("ldap realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         defaultGlobalSettings = builder.put("path.home", createTempDir()).build();

@@ -57,6 +57,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -2255,5 +2256,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static boolean inFipsJvm() {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+    }
+
+    public static boolean inFipsSunJsseJvm() {
+        return inFipsJvm() && JavaVersion.current().getVersion().get(0) == 8;
     }
 }

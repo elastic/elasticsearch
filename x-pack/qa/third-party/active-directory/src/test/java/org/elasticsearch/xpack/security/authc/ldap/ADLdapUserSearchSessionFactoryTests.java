@@ -13,6 +13,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -37,14 +38,14 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
     @Before
     public void init() throws Exception {
         Path certPath = getDataPath("support/smb_ca.crt");
-        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = TestEnvironment.newEnvironment(getSettingsBuilder().put("path.home", createTempDir()).build());
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
 
-        globalSettings = Settings.builder()
+        globalSettings = getSettingsBuilder()
             .put("path.home", createTempDir())
             .put("xpack.security.authc.realms.ldap.ad-as-ldap-test.ssl.certificate_authorities", certPath)
             .build();
@@ -134,5 +135,13 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
         factory.unauthenticatedSession(username, future);
         return future.actionGet();
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsSunJsseJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder;
     }
 }

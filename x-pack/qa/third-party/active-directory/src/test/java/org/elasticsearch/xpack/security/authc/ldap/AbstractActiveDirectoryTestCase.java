@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
@@ -82,7 +83,9 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
          * verification tests since a re-established connection does not perform hostname verification.
          */
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-
+        if (inFipsSunJsseJvm()){
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
         // fake realms so ssl will get loaded
         builder.putList("xpack.security.authc.realms.active_directory.foo.ssl.certificate_authorities", certificatePaths);
         builder.put("xpack.security.authc.realms.active_directory.foo.ssl.verification_mode", VerificationMode.FULL);

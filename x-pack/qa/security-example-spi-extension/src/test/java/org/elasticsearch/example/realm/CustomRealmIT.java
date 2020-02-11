@@ -23,6 +23,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -78,13 +79,15 @@ public class CustomRealmIT extends ESIntegTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getTransport().address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put("cluster.name", clusterName)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
-                .build();
-        try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString());
+        if (inFipsSunJsseJvm()){
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        try (TransportClient client = new PreBuiltXPackTransportClient(builder.build())) {
             client.addTransportAddress(publishAddress);
             ClusterHealthResponse response = client.admin().cluster().prepareHealth().execute().actionGet();
             assertThat(response.isTimedOut(), is(false));
@@ -98,13 +101,15 @@ public class CustomRealmIT extends ESIntegTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getTransport().address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put("cluster.name", clusterName)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAlphaOfLength(1))
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
-                .build();
-        try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString());
+        if (inFipsSunJsseJvm()){
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        try (TransportClient client = new PreBuiltXPackTransportClient(builder.build())) {
             client.addTransportAddress(publishAddress);
             client.admin().cluster().prepareHealth().execute().actionGet();
             fail("authentication failure should have resulted in a NoNodesAvailableException");

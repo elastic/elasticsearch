@@ -102,7 +102,7 @@ public class SecurityTests extends ESTestCase {
             .put("xpack.security.enabled", true)
             .put(testSettings)
             .put("path.home", createTempDir());
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         Settings settings = builder.build();

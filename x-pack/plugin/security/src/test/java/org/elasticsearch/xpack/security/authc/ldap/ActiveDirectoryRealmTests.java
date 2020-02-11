@@ -144,7 +144,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         threadPool = new TestThreadPool("active directory realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         globalSettings = builder.put("path.home", createTempDir()).build();

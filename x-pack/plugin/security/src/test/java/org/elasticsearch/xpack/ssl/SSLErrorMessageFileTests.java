@@ -382,7 +382,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
 
     private Settings.Builder getSettingsBuilder() {
         final Settings.Builder settings = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             settings.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         return settings;

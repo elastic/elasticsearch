@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 
 import java.nio.file.Path;
+
+import static org.elasticsearch.test.ESTestCase.inFipsSunJsseJvm;
 
 public class LdapTestUtils {
 
@@ -31,6 +34,9 @@ public class LdapTestUtils {
         Settings.Builder builder = Settings.builder().put("path.home", LuceneTestCase.createTempDir());
         MockSecureSettings secureSettings = new MockSecureSettings();
         builder.setSecureSettings(secureSettings);
+        if (inFipsSunJsseJvm()){
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
         // fake realms so ssl will get loaded
         builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
         builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", VerificationMode.FULL);

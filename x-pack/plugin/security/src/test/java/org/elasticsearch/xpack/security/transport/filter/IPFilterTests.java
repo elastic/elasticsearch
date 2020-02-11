@@ -267,7 +267,7 @@ public class IPFilterTests extends ESTestCase {
 
     public void testThatNodeStartsWithIPFilterDisabled() throws Exception {
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         Settings settings = builder

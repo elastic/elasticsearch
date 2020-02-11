@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.OpenLdapTests;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
@@ -56,7 +57,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
          * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        globalSettings = Settings.builder()
+        globalSettings = getSettingsBuilder()
             .put("path.home", createTempDir())
             .put("xpack.security.authc.realms.ldap.oldap-test.ssl.certificate_authorities", caPath)
             .build();
@@ -139,5 +140,13 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
         factory.unauthenticatedSession(username, future);
         return future.actionGet();
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsSunJsseJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder;
     }
 }

@@ -207,7 +207,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
     private Settings.Builder getSettingsBuilder() {
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         return builder;

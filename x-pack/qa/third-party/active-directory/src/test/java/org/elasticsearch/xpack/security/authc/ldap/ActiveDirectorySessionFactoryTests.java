@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
@@ -182,7 +183,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     public void testAuthenticateBaseGroupSearch() throws Exception {
-        Settings settings = Settings.builder()
+        Settings settings = getSettingsBuilder()
                 .put(buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                         LdapSearchScope.ONE_LEVEL, false))
                 .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_BASEDN_SETTING,
@@ -244,7 +245,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     public void testCustomUserFilter() throws Exception {
-        Settings settings = Settings.builder()
+        Settings settings = getSettingsBuilder()
                 .put(buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                         LdapSearchScope.SUB_TREE, false))
                 .put(getFullSettingKey(REALM_ID.getName(), ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_FILTER_SETTING),
@@ -270,7 +271,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "ad-as-ldap-test");
-        final Settings settings = Settings.builder()
+        final Settings settings = getSettingsBuilder()
             .put(LdapTestCase.buildLdapSettings(realmId, new String[]{AD_LDAP_URL}, new String[]{userTemplate}, groupSearchBase,
                 LdapSearchScope.SUB_TREE, null, false))
             .putList(RealmSettings.realmSslPrefix(realmId) + "certificate_authorities", certificatePaths)
@@ -297,7 +298,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "ad-as-ldap-test");
-        Settings settings = Settings.builder()
+        Settings settings = getSettingsBuilder()
             .put(LdapTestCase.buildLdapSettings(realmId, new String[]{AD_LDAP_URL}, new String[]{userTemplate}, groupSearchBase,
                 LdapSearchScope.SUB_TREE, null, false))
             .putList(RealmSettings.realmSslPrefix(realmId) + "certificate_authorities", certificatePaths)
@@ -325,7 +326,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "ad-as-ldap-test");
-        Settings settings = Settings.builder()
+        Settings settings = getSettingsBuilder()
             .put(LdapTestCase.buildLdapSettings(realmId, new String[]{AD_LDAP_URL}, new String[]{userTemplate}, groupSearchBase,
                 LdapSearchScope.SUB_TREE, null, false))
             .putList("ssl.certificate_authorities", certificatePaths)
@@ -371,7 +372,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     private Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification, boolean useBindUser) {
-        Settings.Builder builder = Settings.builder()
+        Settings.Builder builder = getSettingsBuilder()
                 .put(getFullSettingKey(REALM_ID, SessionFactorySettings.URLS_SETTING), ldapUrl)
                 .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
                 .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
@@ -429,5 +430,13 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             sessionFactory.getConnectionPool().setRetryFailedOperationsDueToInvalidConnections(false);
         }
         return sessionFactory;
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsSunJsseJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder;
     }
 }

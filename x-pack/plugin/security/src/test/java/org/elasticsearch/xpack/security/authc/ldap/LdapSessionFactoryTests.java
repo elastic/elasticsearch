@@ -61,7 +61,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         ldapCaPath = createTempFile();
         Files.copy(origCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         globalSettings = builder

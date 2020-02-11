@@ -14,6 +14,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -25,6 +26,7 @@ import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.ESTestCase.inFipsSunJsseJvm;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -68,14 +70,16 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
     private static Client startClient(Path tempDir, TransportAddress... transportAddresses) {
         logger.info("--> Starting Elasticsearch Java TransportClient {}, {}", transportAddresses, tempDir);
 
-        Settings clientSettings = Settings.builder()
+        Settings.Builder clientSettingsBuilder = Settings.builder()
                 .put("cluster.name", "qa_migrate_tests_" + counter.getAndIncrement())
                 .put("client.transport.ignore_cluster_name", true)
                 .put("path.home", tempDir)
-                .put(SecurityField.USER_SETTING.getKey(), "transport_user:x-pack-test-password")
-                .build();
+                .put(SecurityField.USER_SETTING.getKey(), "transport_user:x-pack-test-password");
+        if (inFipsSunJsseJvm()){
+            clientSettingsBuilder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
 
-        TransportClient client = new PreBuiltXPackTransportClient(clientSettings).addTransportAddresses(transportAddresses);
+        TransportClient client = new PreBuiltXPackTransportClient(clientSettingsBuilder.build()).addTransportAddresses(transportAddresses);
         Exception clientException = null;
         try {
             logger.info("--> Elasticsearch Java TransportClient started");

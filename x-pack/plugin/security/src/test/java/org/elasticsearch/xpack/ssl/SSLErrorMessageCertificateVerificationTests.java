@@ -186,7 +186,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             .put(prefix + ".key", getPath(keyPath))
             .put(prefix + ".client_authentication", clientAuth.name())
             .put(prefix + ".verification_mode", verificationMode.name());
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         if (caPath != null) {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -29,6 +30,7 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
+import static org.elasticsearch.test.ESTestCase.inFipsSunJsseJvm;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -67,6 +69,9 @@ public abstract class ESXPackSmokeClientTestCase extends LuceneTestCase {
                 .put("client.transport.ignore_cluster_name", true)
                 .put("xpack.security.enabled", false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
+        if (inFipsSunJsseJvm()){
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
         TransportClient client = new PreBuiltXPackTransportClient(builder.build())
                 .addTransportAddresses(transportAddresses);
 

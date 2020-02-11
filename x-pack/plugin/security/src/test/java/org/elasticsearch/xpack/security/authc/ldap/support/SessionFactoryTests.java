@@ -67,7 +67,7 @@ public class SessionFactoryTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "response_settings");
         final Path pathHome = createTempDir();
         {
-            Settings settings = Settings.builder()
+            Settings settings = getSettingsBuilder()
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "10s")
                     .put("path.home", pathHome)
                     .build();
@@ -78,7 +78,7 @@ public class SessionFactoryTests extends ESTestCase {
             assertThat(options.getResponseTimeoutMillis(), is(equalTo(10000L)));
         }
         {
-            Settings settings = Settings.builder()
+            Settings settings = getSettingsBuilder()
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "7s")
                     .put("path.home", pathHome)
                     .build();
@@ -91,7 +91,7 @@ public class SessionFactoryTests extends ESTestCase {
                     .getConcreteSettingForNamespace("response_settings")});
         }
         {
-            Settings settings = Settings.builder()
+            Settings settings = getSettingsBuilder()
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "11s")
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "6s")
                     .put("path.home", pathHome)
@@ -105,7 +105,7 @@ public class SessionFactoryTests extends ESTestCase {
                     ".authc.realms.ldap.response_settings.timeout.response] may not be used at the same time"));
         }
         {
-            Settings settings = Settings.builder()
+            Settings settings = getSettingsBuilder()
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_LDAP_SETTING), "750ms")
                     .put("path.home", pathHome)
                     .build();
@@ -197,7 +197,7 @@ public class SessionFactoryTests extends ESTestCase {
 
     private Settings.Builder getSettingsBuilder() {
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         return builder;

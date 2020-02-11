@@ -18,6 +18,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
@@ -90,6 +91,9 @@ public class OpenLdapTests extends ESTestCase {
          */
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
+        if (inFipsSunJsseJvm()){
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
         // fake realms so ssl will get loaded
         builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap.foo.ssl.truststore.secure_password", "changeit");

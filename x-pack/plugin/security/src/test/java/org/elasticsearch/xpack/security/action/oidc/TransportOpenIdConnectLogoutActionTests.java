@@ -93,7 +93,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             .put("path.home", createTempDir())
             .build();
         Settings.Builder sslSettingsBuilder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             sslSettingsBuilder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         final Settings sslSettings = sslSettingsBuilder

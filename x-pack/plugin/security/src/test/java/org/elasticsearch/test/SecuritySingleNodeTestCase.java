@@ -168,7 +168,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put("transport.type", "security4");
         builder.put("path.home", customSecuritySettingsSource.nodePath(0));
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         Settings.Builder customBuilder = Settings.builder().put(customSettings);

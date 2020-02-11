@@ -93,6 +93,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.test.ESTestCase.inFipsSunJsseJvm;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
         ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
@@ -153,12 +154,17 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         List<Object> components = new ArrayList<>();
+        // This is a hack, but the settings we add in #additionalSettings() are not added to the environment instance
+        // (in org.elasticsearch.node.Node) which is passed in `createComponents` of each of the plugins. So the environment
+        // we get here wouldn't have the additional setting. This is a known issue, and once it is resolved, the code here
+        // can be adjusted accordingly
+        final Environment updatedEnvironment = getUpdatedEnvironment(environment);
         components.addAll(super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry));
+                xContentRegistry, updatedEnvironment, nodeEnvironment, namedWriteableRegistry));
 
         filterPlugins(Plugin.class).stream().forEach(p ->
             components.addAll(p.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry))
+                    xContentRegistry, updatedEnvironment, nodeEnvironment, namedWriteableRegistry))
         );
         return components;
     }
@@ -474,6 +480,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());
+    }
+
+    private Environment getUpdatedEnvironment(Environment existingEnvironment){
+        Settings.Builder additionalSettingsBuilder = Settings.builder();
+        additionalSettingsBuilder.put(existingEnvironment.settings());
+        if (inFipsSunJsseJvm()) {
+            additionalSettingsBuilder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return new Environment(additionalSettingsBuilder.build(), existingEnvironment.configFile());
     }
 
 }

@@ -1370,6 +1370,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 
+    public static boolean inFipsSunJsseJvm() {
+        return inFipsJvm() && JavaVersion.current().getVersion().get(0) == 8;
+    }
+
     /**
      * Returns a unique port range for this JVM starting from the computed base port
      */

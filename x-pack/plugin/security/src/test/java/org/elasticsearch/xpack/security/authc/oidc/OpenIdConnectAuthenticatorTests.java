@@ -95,7 +95,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     @Before
     public void setup() {
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         globalSettings = builder.put("path.home", createTempDir())

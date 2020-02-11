@@ -53,13 +53,16 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
     protected Settings nodeSettings(int nodeOrdinal) {
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
             .put("xpack.http.ssl.keystore.password", "testnode")
-            .putList("xpack.http.ssl.supported_protocols", getProtocols())
-            .build();
+            .putList("xpack.http.ssl.supported_protocols", getProtocols());
+        if (inFipsSunJsseJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder.build();
     }
 
     @Before

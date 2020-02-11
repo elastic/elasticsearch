@@ -294,7 +294,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()) {
+        if (inFipsSunJsseJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         return new TestSessionFactory(config, new SSLService(builder.build(), TestEnvironment.newEnvironment(config.settings())),

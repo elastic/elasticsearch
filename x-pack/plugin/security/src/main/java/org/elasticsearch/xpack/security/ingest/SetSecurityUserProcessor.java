@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.security.ingest;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -19,7 +19,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
@@ -32,20 +34,21 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set_security_user";
 
-    private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
     private final String field;
     private final Set<Property> properties;
 
-    public SetSecurityUserProcessor(String tag, ThreadContext threadContext, String field, Set<Property> properties) {
+    public
+    SetSecurityUserProcessor(String tag, SecurityContext securityContext, String field, Set<Property> properties) {
         super(tag);
-        this.threadContext = threadContext;
+        this.securityContext = Objects.requireNonNull(securityContext, "security context must be provided");
         this.field = field;
         this.properties = properties;
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        Authentication authentication = Authentication.getAuthentication(threadContext);
+        Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             throw new IllegalStateException("No user authenticated, only use this processor via authenticated user");
         }
@@ -157,10 +160,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final ThreadContext threadContext;
+        private final Supplier<SecurityContext> securityContext;
 
-        public Factory(ThreadContext threadContext) {
-            this.threadContext = threadContext;
+        public Factory(Supplier<SecurityContext> securityContext) {
+            this.securityContext = securityContext;
         }
 
         @Override
@@ -177,7 +180,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             } else {
                 properties = EnumSet.allOf(Property.class);
             }
-            return new SetSecurityUserProcessor(tag, threadContext, field, properties);
+            return new SetSecurityUserProcessor(tag, securityContext.get(), field, properties);
         }
     }
 

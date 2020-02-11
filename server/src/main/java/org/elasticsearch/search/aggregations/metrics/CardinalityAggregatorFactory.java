@@ -51,7 +51,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(CardinalityAggregationBuilder.NAME, (ignored) -> true, cardinalityAggregatorSupplier());
+        valuesSourceRegistry.registerAny(CardinalityAggregationBuilder.NAME, cardinalityAggregatorSupplier());
     }
 
     private static CardinalityAggregatorSupplier cardinalityAggregatorSupplier(){

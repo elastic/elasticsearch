@@ -351,7 +351,9 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(ExtendedStatsAggregationBuilder.NAME, ExtendedStatsAggregationBuilder::new,
                 ExtendedStatsAggregationBuilder::parse).addResultReader(InternalExtendedStats::new));
         registerAggregation(new AggregationSpec(ValueCountAggregationBuilder.NAME, ValueCountAggregationBuilder::new,
-                ValueCountAggregationBuilder::parse).addResultReader(InternalValueCount::new));
+                ValueCountAggregationBuilder::parse)
+                    .addResultReader(InternalValueCount::new)
+                    .setAggregatorRegistrar(ValueCountAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(PercentilesAggregationBuilder.NAME, PercentilesAggregationBuilder::new,
                 PercentilesAggregationBuilder::parse)
                     .addResultReader(InternalTDigestPercentiles.NAME, InternalTDigestPercentiles::new)

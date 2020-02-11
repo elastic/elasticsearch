@@ -19,7 +19,6 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
-import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;

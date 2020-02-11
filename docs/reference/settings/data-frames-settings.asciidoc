@@ -28,8 +28,8 @@ Therefore the node cannot start or administrate {transform} or receive transport
 communication requests related to {transform} APIs.
 +
 IMPORTANT: If you want to use {transform} features in your cluster, you must have
-`xpack.transform.enabled` set to `true` on all master-eligible nodes. This is the
-default behavior.
+`xpack.transform.enabled` set to `true` on all master-eligible nodes and all data nodes.
+This is the default behavior.
 
 `xpack.transform.num_transform_failure_retries` (<<cluster-update-settings,Dynamic>>)::
 The number of times that a {transform} retries when it experiences a

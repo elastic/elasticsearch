@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -25,15 +24,20 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
-    public RestSqlQueryAction(RestController controller) {
-        controller.registerHandler(GET, Protocol.SQL_QUERY_REST_ENDPOINT, this);
-        controller.registerHandler(POST, Protocol.SQL_QUERY_REST_ENDPOINT, this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
+            new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT)));
     }
 
     @Override

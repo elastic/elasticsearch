@@ -28,6 +28,10 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.eql.EqlInfoTransportAction;
+import org.elasticsearch.xpack.eql.EqlUsageTransportAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -65,7 +69,10 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class)
+            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );
     }
 
@@ -88,7 +95,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     }
 
     // TODO: this needs to be used by all plugin methods - including getActions and createComponents
-    private boolean isEnabled(Settings settings) {
+    public static boolean isEnabled(Settings settings) {
         return EQL_ENABLED_SETTING.get(settings);
     }
 
@@ -104,6 +111,6 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         if (isEnabled(settings) == false) {
             return Collections.emptyList();
         }
-        return Arrays.asList(new RestEqlSearchAction(restController));
+        return Arrays.asList(new RestEqlSearchAction(), new RestEqlStatsAction());
     }
 }

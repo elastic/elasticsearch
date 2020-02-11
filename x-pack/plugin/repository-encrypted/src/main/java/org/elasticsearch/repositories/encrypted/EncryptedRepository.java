@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -241,6 +243,25 @@ public final class EncryptedRepository extends BlobStoreRepository {
     protected void doClose() {
         super.doClose();
         this.delegatedRepository.close();
+    }
+
+    @Override
+    protected long readSnapshotIndexLatestBlob() throws IOException {
+        EncryptedBlobContainer encryptedBlobContainer = (EncryptedBlobContainer) blobContainer();
+        return Numbers.bytesToLong(Streams.readFully(encryptedBlobContainer.delegatedBlobContainer.readBlob(INDEX_LATEST_BLOB)).toBytesRef());
+    }
+
+    @Override
+    protected void writeSnapshotIndexLatestBlob(long newGen) throws IOException {
+        final BytesReference genBytes;
+        try (BytesStreamOutput bStream = new BytesStreamOutput()) {
+            bStream.writeLong(newGen);
+            genBytes = bStream.bytes();
+        }
+        EncryptedBlobContainer encryptedBlobContainer = (EncryptedBlobContainer) blobContainer();
+        try (InputStream stream = genBytes.streamInput()) {
+            encryptedBlobContainer.delegatedBlobContainer.writeBlobAtomic(INDEX_LATEST_BLOB, stream, genBytes.length(), false);
+        }
     }
 
     private static class EncryptedBlobStore implements BlobStore {

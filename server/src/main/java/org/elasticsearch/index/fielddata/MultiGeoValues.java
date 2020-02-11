@@ -20,7 +20,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.spatial.util.GeoRelationUtils;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.CentroidCalculator;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.common.geo.TriangleTreeWriter;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -110,8 +110,9 @@ public abstract class MultiGeoValues <G extends MultiGeoValues.GeoValue> {
         }
 
         @Override
-        public GeoRelation relate(double minX, double minY, double maxX, double maxY) {
-            if (GeoRelationUtils.pointInRectPrecise(geoPoint.lat(), geoPoint.lon(), minY, maxY, minX, maxX)) {
+        public GeoRelation relate(Rectangle rectangle) {
+            if (geoPoint.lat() >= rectangle.getMinLat() && geoPoint.lat() <= rectangle.getMaxLat()
+                    && geoPoint.lon() >= rectangle.getMinLon() && geoPoint.lon() <= rectangle.getMaxLon()) {
                 return GeoRelation.QUERY_CROSSES;
             }
             return GeoRelation.QUERY_DISJOINT;
@@ -164,12 +165,12 @@ public abstract class MultiGeoValues <G extends MultiGeoValues.GeoValue> {
          * @return the latitude of the centroid of the shape
          */
         @Override
-        public GeoRelation relate(double minX, double minY, double maxX, double maxY) {
-            int eMinX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(minX);
-            int eMinY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(minY);
-            int eMaxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(maxX);
-            int eMaxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(maxY);
-            return reader.relate(eMinX, eMinY, eMaxX, eMaxY);
+        public GeoRelation relate(Rectangle rectangle) {
+            int minX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMinX());
+            int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
+            int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
+            int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
+            return reader.relateTile(minX, minY, maxX, maxY);
         }
 
         @Override
@@ -236,7 +237,7 @@ public abstract class MultiGeoValues <G extends MultiGeoValues.GeoValue> {
         double lat();
         double lon();
         BoundingBox boundingBox();
-        GeoRelation relate(double minX, double minY, double maxX, double maxY);
+        GeoRelation relate(Rectangle rectangle);
         DimensionalShapeType dimensionalShapeType();
         double weight();
     }
@@ -266,24 +267,20 @@ public abstract class MultiGeoValues <G extends MultiGeoValues.GeoValue> {
         private void reset(Extent extent, CoordinateEncoder coordinateEncoder) {
             this.top = coordinateEncoder.decodeY(extent.top);
             this.bottom = coordinateEncoder.decodeY(extent.bottom);
-            if (extent.negLeft == Integer.MAX_VALUE) {
+
+            if (extent.negLeft == Integer.MAX_VALUE && extent.negRight == Integer.MIN_VALUE) {
                 this.negLeft = Double.POSITIVE_INFINITY;
-            } else {
-                this.negLeft = coordinateEncoder.decodeX(extent.negLeft);
-            }
-            if (extent.negRight == Integer.MIN_VALUE) {
                 this.negRight = Double.NEGATIVE_INFINITY;
             } else {
+                this.negLeft = coordinateEncoder.decodeX(extent.negLeft);
                 this.negRight = coordinateEncoder.decodeX(extent.negRight);
             }
-            if (extent.posLeft == Integer.MAX_VALUE) {
+
+            if (extent.posLeft == Integer.MAX_VALUE && extent.posRight == Integer.MIN_VALUE) {
                 this.posLeft = Double.POSITIVE_INFINITY;
-            } else {
-                this.posLeft = coordinateEncoder.decodeX(extent.posLeft);
-            }
-            if (extent.posRight == Integer.MIN_VALUE) {
                 this.posRight = Double.NEGATIVE_INFINITY;
             } else {
+                this.posLeft = coordinateEncoder.decodeX(extent.posLeft);
                 this.posRight = coordinateEncoder.decodeX(extent.posRight);
             }
         }

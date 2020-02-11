@@ -53,13 +53,13 @@ import static org.apache.lucene.geo.GeoUtils.orient;
 public class TriangleTreeReader {
     private final ByteArrayDataInput input;
     private final CoordinateEncoder coordinateEncoder;
-    private final Rectangle2D rectangle2D;
+    private final Tile2D tile2D;
     private final Extent extent;
     private int treeOffset;
 
     public TriangleTreeReader(CoordinateEncoder coordinateEncoder) {
         this.coordinateEncoder = coordinateEncoder;
-        this.rectangle2D = new Rectangle2D();
+        this.tile2D = new Tile2D();
         this.extent = new Extent();
         this.input = new ByteArrayDataInput();
     }
@@ -113,14 +113,15 @@ public class TriangleTreeReader {
      * Compute the relation with the provided bounding box. If the result is CELL_INSIDE_QUERY
      * then the bounding box is within the shape.
      */
-    public GeoRelation relate(int minX, int minY, int maxX, int maxY) {
+    public GeoRelation relateTile(int minX, int minY, int maxX, int maxY) {
         Extent extent = getExtent();
         int thisMaxX = extent.maxX();
         int thisMinX = extent.minX();
         int thisMaxY = extent.maxY();
         int thisMinY = extent.minY();
 
-        // check north and east boundaries
+        // exclude north and east boundary intersections with tiles from intersection consideration
+        // for consistent tiling definition of shapes on the boundaries of tiles
         if ((thisMinX >= maxX || thisMaxX < minX || thisMinY > maxY || thisMaxY <= minY)) {
             // shapes are disjoint
             return GeoRelation.QUERY_DISJOINT;
@@ -131,12 +132,12 @@ public class TriangleTreeReader {
         }
         // quick checks failed, need to traverse the tree
         GeoRelation rel = GeoRelation.QUERY_DISJOINT;
-        rectangle2D.setValues(minX, maxX, minY, maxY);
+        tile2D.setValues(minX, maxX, minY, maxY);
         byte metadata = input.readByte();
         if ((metadata & 1 << 2) == 1 << 2) { // component in this node is a point
             int x = Math.toIntExact(thisMaxX - input.readVLong());
             int y = Math.toIntExact(thisMaxY - input.readVLong());
-            if (rectangle2D.contains(x, y)) {
+            if (tile2D.contains(x, y)) {
                 return GeoRelation.QUERY_CROSSES;
             }
             thisMinX = x;
@@ -145,7 +146,7 @@ public class TriangleTreeReader {
             int aY = Math.toIntExact(thisMaxY - input.readVLong());
             int bX = Math.toIntExact(thisMaxX - input.readVLong());
             int bY = Math.toIntExact(thisMaxY - input.readVLong());
-            if (rectangle2D.intersectsLine(aX, aY, bX, bY)) {
+            if (tile2D.intersectsLine(aX, aY, bX, bY)) {
                 return GeoRelation.QUERY_CROSSES;
             }
             thisMinX = aX;
@@ -159,14 +160,14 @@ public class TriangleTreeReader {
             boolean ab = (metadata & 1 << 4) == 1 << 4;
             boolean bc = (metadata & 1 << 5) == 1 << 5;
             boolean ca = (metadata & 1 << 6) == 1 << 6;
-            rel = rectangle2D.relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
+            rel = tile2D.relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
             if (rel == GeoRelation.QUERY_CROSSES) {
                 return GeoRelation.QUERY_CROSSES;
             }
             thisMinX = aX;
         }
         if ((metadata & 1 << 0) == 1 << 0) { // left != null
-            GeoRelation left = relate(rectangle2D, false, thisMaxX, thisMaxY);
+            GeoRelation left = relateTile(tile2D, false, thisMaxX, thisMaxY);
             if (left == GeoRelation.QUERY_CROSSES) {
                 return GeoRelation.QUERY_CROSSES;
             } else if (left == GeoRelation.QUERY_INSIDE) {
@@ -174,8 +175,8 @@ public class TriangleTreeReader {
             }
         }
         if ((metadata & 1 << 1) == 1 << 1) { // right != null
-            if (rectangle2D.maxX >= thisMinX) {
-                GeoRelation right = relate(rectangle2D, false, thisMaxX, thisMaxY);
+            if (tile2D.maxX >= thisMinX) {
+                GeoRelation right = relateTile(tile2D, false, thisMaxX, thisMaxY);
                 if (right == GeoRelation.QUERY_CROSSES) {
                     return GeoRelation.QUERY_CROSSES;
                 } else if (right == GeoRelation.QUERY_INSIDE) {
@@ -187,19 +188,19 @@ public class TriangleTreeReader {
         return rel;
     }
 
-    private GeoRelation relate(Rectangle2D rectangle2D, boolean splitX, int parentMaxX, int parentMaxY) {
+    private GeoRelation relateTile(Tile2D tile2D, boolean splitX, int parentMaxX, int parentMaxY) {
         int thisMaxX = Math.toIntExact(parentMaxX - input.readVLong());
         int thisMaxY = Math.toIntExact(parentMaxY - input.readVLong());
         GeoRelation rel = GeoRelation.QUERY_DISJOINT;
         int size = input.readVInt();
-        if (rectangle2D.minY <= thisMaxY && rectangle2D.minX <= thisMaxX) {
+        if (tile2D.minY <= thisMaxY && tile2D.minX <= thisMaxX) {
             byte metadata = input.readByte();
             int thisMinX;
             int thisMinY;
             if ((metadata & 1 << 2) == 1 << 2) { // component in this node is a point
                 int x = Math.toIntExact(thisMaxX - input.readVLong());
                 int y = Math.toIntExact(thisMaxY - input.readVLong());
-                if (rectangle2D.contains(x, y)) {
+                if (tile2D.contains(x, y)) {
                     return GeoRelation.QUERY_CROSSES;
                 }
                 thisMinX = x;
@@ -209,7 +210,7 @@ public class TriangleTreeReader {
                 int aY = Math.toIntExact(thisMaxY - input.readVLong());
                 int bX = Math.toIntExact(thisMaxX - input.readVLong());
                 int bY = Math.toIntExact(thisMaxY - input.readVLong());
-                if (rectangle2D.intersectsLine(aX, aY, bX, bY)) {
+                if (tile2D.intersectsLine(aX, aY, bX, bY)) {
                     return GeoRelation.QUERY_CROSSES;
                 }
                 thisMinX = aX;
@@ -224,7 +225,7 @@ public class TriangleTreeReader {
                 boolean ab = (metadata & 1 << 4) == 1 << 4;
                 boolean bc = (metadata & 1 << 5) == 1 << 5;
                 boolean ca = (metadata & 1 << 6) == 1 << 6;
-                rel = rectangle2D.relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
+                rel = tile2D.relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
                 if (rel == GeoRelation.QUERY_CROSSES) {
                     return GeoRelation.QUERY_CROSSES;
                 }
@@ -232,7 +233,7 @@ public class TriangleTreeReader {
                 thisMinY = Math.min(Math.min(aY, bY), cY);
             }
             if ((metadata & 1 << 0) == 1 << 0) { // left != null
-                GeoRelation left = relate(rectangle2D, !splitX, thisMaxX, thisMaxY);
+                GeoRelation left = relateTile(tile2D, !splitX, thisMaxX, thisMaxY);
                 if (left == GeoRelation.QUERY_CROSSES) {
                     return GeoRelation.QUERY_CROSSES;
                 } else if (left == GeoRelation.QUERY_INSIDE) {
@@ -241,8 +242,8 @@ public class TriangleTreeReader {
             }
             if ((metadata & 1 << 1) == 1 << 1) { // right != null
                 int rightSize = input.readVInt();
-                if ((splitX == false && rectangle2D.maxY >= thisMinY) || (splitX && rectangle2D.maxX >= thisMinX)) {
-                    GeoRelation right = relate(rectangle2D, !splitX, thisMaxX, thisMaxY);
+                if ((splitX == false && tile2D.maxY >= thisMinY) || (splitX && tile2D.maxX >= thisMinX)) {
+                    GeoRelation right = relateTile(tile2D, !splitX, thisMaxX, thisMaxY);
                     if (right == GeoRelation.QUERY_CROSSES) {
                         return GeoRelation.QUERY_CROSSES;
                     } else if (right == GeoRelation.QUERY_INSIDE) {
@@ -258,14 +259,14 @@ public class TriangleTreeReader {
         return rel;
     }
 
-    private static class Rectangle2D {
+    private static class Tile2D {
 
         protected int minX;
         protected int maxX;
         protected int minY;
         protected int maxY;
 
-        Rectangle2D() {
+        Tile2D() {
         }
 
         private void setValues(int minX, int maxX, int minY, int maxY) {
@@ -279,7 +280,7 @@ public class TriangleTreeReader {
          * Checks if the rectangle contains the provided point
          **/
         public boolean contains(int x, int y) {
-            return (x < minX || x > maxX || y < minY || y > maxY) == false;
+            return (x <= minX || x > maxX || y < minY || y >= maxY) == false;
         }
 
         /**
@@ -298,7 +299,7 @@ public class TriangleTreeReader {
             int tMaxY = StrictMath.max(aY, bY);
 
             // 2. check bounding boxes are disjoint
-            if (tMaxX < minX || tMinX > maxX || tMinY > maxY || tMaxY < minY) {
+            if (tMaxX <= minX || tMinX > maxX || tMinY > maxY || tMaxY <= minY) {
                 return false;
             }
 
@@ -313,14 +314,13 @@ public class TriangleTreeReader {
          * Checks if the rectangle intersects the provided triangle
          **/
         private GeoRelation relateTriangle(int aX, int aY, boolean ab, int bX, int bY, boolean bc, int cX, int cY, boolean ca) {
-
             // compute bounding box of triangle
             int tMinX = StrictMath.min(StrictMath.min(aX, bX), cX);
             int tMaxX = StrictMath.max(StrictMath.max(aX, bX), cX);
             int tMinY = StrictMath.min(StrictMath.min(aY, bY), cY);
             int tMaxY = StrictMath.max(StrictMath.max(aY, bY), cY);
 
-            // 1. check bounding boxes are disjoint
+            // 1. check bounding boxes are disjoint, where north and east boundaries are not considered as crossing
             if (tMaxX <= minX || tMinX > maxX || tMinY > maxY || tMaxY <= minY) {
                 return GeoRelation.QUERY_DISJOINT;
             }

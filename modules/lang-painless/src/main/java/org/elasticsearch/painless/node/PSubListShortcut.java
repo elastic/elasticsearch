@@ -19,15 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ListSubShortcutNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a list load/store shortcut.  (Internal only.)
@@ -48,12 +48,7 @@ final class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
         getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
@@ -75,8 +70,8 @@ final class PSubListShortcut extends AStoreable {
 
         if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
             index.expected = int.class;
-            index.analyze(scriptRoot, locals);
-            index = index.cast(scriptRoot, locals);
+            index.analyze(scriptRoot, scope);
+            index = index.cast(scriptRoot, scope);
 
             actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {
@@ -85,10 +80,10 @@ final class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    ListSubShortcutNode write() {
+    ListSubShortcutNode write(ClassNode classNode) {
         ListSubShortcutNode listSubShortcutNode = new ListSubShortcutNode();
 
-        listSubShortcutNode.setChildNode(index.write());
+        listSubShortcutNode.setChildNode(index.write(classNode));
 
         listSubShortcutNode.setLocation(location);
         listSubShortcutNode.setExpressionType(actual);

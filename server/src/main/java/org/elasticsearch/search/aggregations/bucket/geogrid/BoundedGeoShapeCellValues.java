@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.DimensionalShapeType;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoRelation;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
 /**
@@ -76,11 +77,11 @@ class BoundedGeoShapeCellValues extends UnboundedGeoShapeCellValues {
         }
 
         @Override
-        public GeoRelation relate(double minX, double minY, double maxX, double maxY) {
-            if (boundsTop >= minY && boundsBottom <= maxY
-                    && (boundsEastLeft <= maxX && boundsEastRight >= minX
-                    || (crossesDateline && boundsWestLeft <= maxX && boundsWestRight >= minX))) {
-                GeoRelation relation = innerValue.relate(minX, minY, maxX, maxY);
+        public GeoRelation relate(Rectangle rectangle) {
+            if (boundsTop >= rectangle.getMinY() && boundsBottom <= rectangle.getMaxY()
+                    && (boundsEastLeft <= rectangle.getMaxX() && boundsEastRight >= rectangle.getMinX()
+                    || (crossesDateline && boundsWestLeft <= rectangle.getMaxX() && boundsWestRight >= rectangle.getMinX()))) {
+                GeoRelation relation = innerValue.relate(rectangle);
                 // bounded relations can never be sure to be inside until each tile and sub-tile is checked
                 // explicitly against the geoBoundingBox
                 if (relation == GeoRelation.QUERY_INSIDE) {

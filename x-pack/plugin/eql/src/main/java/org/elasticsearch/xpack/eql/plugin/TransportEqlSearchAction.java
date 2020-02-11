@@ -12,6 +12,9 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,7 +24,12 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.eql.execution.PlanExecutor;
+import org.elasticsearch.xpack.eql.parser.ParserParams;
+import org.elasticsearch.xpack.eql.session.Configuration;
+import org.elasticsearch.xpack.eql.session.Results;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -29,28 +37,44 @@ import java.util.List;
 public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse> {
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
+    private final PlanExecutor planExecutor;
 
     @Inject
     public TransportEqlSearchAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                   ThreadPool threadPool, ActionFilters actionFilters) {
+            ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.clusterService = clusterService;
+        this.planExecutor = planExecutor;
     }
 
     @Override
     protected void doExecute(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
-        operation(request, listener);
+        operation(planExecutor, request, username(securityContext), clusterName(clusterService), listener);
     }
 
-    public static void operation(EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
-        // TODO: implement parsing and querying
-        listener.onResponse(createResponse(request));
+    public static void operation(PlanExecutor planExecutor, EqlSearchRequest request, String username,
+            String clusterName, ActionListener<EqlSearchResponse> listener) {
+        // TODO: these should be sent by the client
+        ZoneId zoneId = DateUtils.of("Z");
+        QueryBuilder filter = request.query();
+        TimeValue timeout = TimeValue.timeValueSeconds(30);
+        boolean includeFrozen = request.indicesOptions().ignoreThrottled() == false;
+        String clientId = null;
+        
+        ParserParams params = new ParserParams()
+                .fieldEventType(request.eventTypeField())
+                .fieldTimestamp(request.timestampField())
+                .implicitJoinKey(request.implicitJoinKeyField());
+        
+        Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen, clientId);
+        //planExecutor.eql(cfg, request.rule(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
+        listener.onResponse(createResponse(null));
     }
 
-    static EqlSearchResponse createResponse(EqlSearchRequest request) {
+    static EqlSearchResponse createResponse(Results results) {
         // Stubbed search response
         // TODO: implement actual search response processing once the parser/executor is in place
         List<SearchHit> events = Arrays.asList(
@@ -62,5 +86,13 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             new EqlSearchResponse.Sequence(Collections.singletonList("2343"), events)
         ), null, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
         return new EqlSearchResponse(hits, 0, false);
+    }
+
+    static String username(SecurityContext securityContext) {
+        return securityContext != null && securityContext.getUser() != null ? securityContext.getUser().principal() : null;
+    }
+
+    static String clusterName(ClusterService clusterService) {
+        return clusterService.getClusterName().value();
     }
 }

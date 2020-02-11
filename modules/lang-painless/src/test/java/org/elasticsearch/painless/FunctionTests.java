@@ -95,7 +95,7 @@ public class FunctionTests extends ScriptTestCase {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int test(StringBuilder b, int i) {b.setLength(i)} test(new StringBuilder(), 1)");
         });
-        assertEquals("Not all paths provide a return value for method [test].", expected.getMessage());
+        assertEquals("not all paths provide a return value for function [test] with [2] parameters", expected.getMessage());
         expected = expectScriptThrows(ClassCastException.class, () -> {
             exec("int test(StringBuilder b, int i) {return b.setLength(i)} test(new StringBuilder(), 1)");
         });

@@ -121,7 +121,22 @@ public abstract class SessionFactory {
         LDAPConnectionOptions options = new LDAPConnectionOptions();
         options.setConnectTimeoutMillis(Math.toIntExact(config.getSetting(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING).millis()));
         options.setFollowReferrals(config.getSetting(SessionFactorySettings.FOLLOW_REFERRALS_SETTING));
-        options.setResponseTimeoutMillis(config.getSetting(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING).millis());
+        final long responseTimeoutMillis;
+        if (config.hasSetting(SessionFactorySettings.TIMEOUT_RESPONSE_SETTING)) {
+            if (config.hasSetting(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING)) {
+                throw new IllegalArgumentException("[" + RealmSettings.getFullSettingKey(config,
+                        SessionFactorySettings.TIMEOUT_TCP_READ_SETTING) + "] and [" + RealmSettings.getFullSettingKey(config,
+                        SessionFactorySettings.TIMEOUT_RESPONSE_SETTING) + "] may not be used at the same time");
+            }
+            responseTimeoutMillis = config.getSetting(SessionFactorySettings.TIMEOUT_RESPONSE_SETTING).millis();
+        } else {
+            if (config.hasSetting(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING)) {
+                responseTimeoutMillis = config.getSetting(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING).millis();
+            } else {
+                responseTimeoutMillis = config.getSetting(SessionFactorySettings.TIMEOUT_LDAP_SETTING).millis();
+            }
+        }
+        options.setResponseTimeoutMillis(responseTimeoutMillis);
         options.setAllowConcurrentSocketFactoryUse(true);
 
         final boolean verificationModeExists = config.hasSetting(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM);

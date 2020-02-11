@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -74,7 +75,6 @@ import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
-import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -264,7 +264,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
          * Creates the list of GroupBy keys
          */
         static GroupingContext groupBy(List<? extends Expression> groupings) {
-            if (groupings.isEmpty() == true) {
+            if (groupings.isEmpty()) {
                 return null;
             }
 
@@ -695,21 +695,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // scalar functions typically require script ordering
                         if (orderExpression instanceof ScalarFunction) {
                             ScalarFunction sf = (ScalarFunction) orderExpression;
-                            // is there an expression to order by?
-                            if (sf.orderBy() != null) {
-                                Expression orderBy = sf.orderBy();
-                                if (orderBy instanceof NamedExpression) {
-                                    orderBy = qContainer.aliases().getOrDefault(orderBy, orderBy);
-                                    qContainer = qContainer
-                                            .addSort(new AttributeSort(((NamedExpression) orderBy).toAttribute(), direction, missing));
-                                } else if (orderBy.foldable() == false) {
-                                    // ignore constant
-                                    throw new PlanningException("does not know how to order by expression {}", orderBy);
-                                }
-                            } else {
-                                // nope, use scripted sorting
-                                qContainer = qContainer.addSort(new ScriptSort(sf.asScript(), direction, missing));
-                            }
+                            // nope, use scripted sorting
+                            qContainer = qContainer.addSort(new ScriptSort(sf.asScript(), direction, missing));
                         }
                         // score
                         else if (orderExpression instanceof Score) {

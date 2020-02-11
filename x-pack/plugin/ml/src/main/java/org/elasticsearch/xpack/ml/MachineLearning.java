@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -42,17 +41,18 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -80,6 +79,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -140,7 +140,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
-import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteDataFrameAnalyticsAction;
@@ -152,6 +151,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
+import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFindFileStructureAction;
 import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
@@ -257,7 +257,9 @@ import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPostCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarJobAction;
+import org.elasticsearch.xpack.ml.rest.cat.RestCatDatafeedsAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatJobsAction;
+import org.elasticsearch.xpack.ml.rest.cat.RestCatTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
@@ -266,9 +268,9 @@ import org.elasticsearch.xpack.ml.rest.datafeeds.RestPutDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestUpdateDatafeedAction;
-import org.elasticsearch.xpack.ml.rest.dataframe.RestExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestDeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestEvaluateDataFrameAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestPutDataFrameAnalyticsAction;
@@ -323,7 +325,7 @@ import java.util.function.UnaryOperator;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
-public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, IngestPlugin, PersistentTaskPlugin {
+public class MachineLearning extends Plugin implements SystemIndexPlugin, AnalysisPlugin, IngestPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
@@ -633,7 +635,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,
-            dataFrameAnalyticsAuditor, trainedModelProvider);
+            dataFrameAnalyticsAuditor, trainedModelProvider, resultsPersisterService);
         MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
             new MemoryUsageEstimationProcessManager(
                 threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
@@ -713,66 +715,68 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             return emptyList();
         }
         return Arrays.asList(
-            new RestGetJobsAction(restController),
-            new RestGetJobStatsAction(restController),
-            new RestMlInfoAction(restController),
-            new RestPutJobAction(restController),
-            new RestPostJobUpdateAction(restController),
-            new RestDeleteJobAction(restController),
-            new RestOpenJobAction(restController),
-            new RestGetFiltersAction(restController),
-            new RestPutFilterAction(restController),
-            new RestUpdateFilterAction(restController),
-            new RestDeleteFilterAction(restController),
-            new RestGetInfluencersAction(restController),
-            new RestGetRecordsAction(restController),
-            new RestGetBucketsAction(restController),
-            new RestGetOverallBucketsAction(restController),
-            new RestPostDataAction(restController),
-            new RestCloseJobAction(restController),
-            new RestFlushJobAction(restController),
-            new RestValidateDetectorAction(restController),
-            new RestValidateJobConfigAction(restController),
-            new RestGetCategoriesAction(restController),
-            new RestGetModelSnapshotsAction(restController),
-            new RestRevertModelSnapshotAction(restController),
-            new RestUpdateModelSnapshotAction(restController),
-            new RestGetDatafeedsAction(restController),
-            new RestGetDatafeedStatsAction(restController),
-            new RestPutDatafeedAction(restController),
-            new RestUpdateDatafeedAction(restController),
-            new RestDeleteDatafeedAction(restController),
-            new RestPreviewDatafeedAction(restController),
-            new RestStartDatafeedAction(restController),
-            new RestStopDatafeedAction(restController),
-            new RestDeleteModelSnapshotAction(restController),
-            new RestDeleteExpiredDataAction(restController),
-            new RestForecastJobAction(restController),
-            new RestDeleteForecastAction(restController),
-            new RestGetCalendarsAction(restController),
-            new RestPutCalendarAction(restController),
-            new RestDeleteCalendarAction(restController),
-            new RestDeleteCalendarEventAction(restController),
-            new RestDeleteCalendarJobAction(restController),
-            new RestPutCalendarJobAction(restController),
-            new RestGetCalendarEventsAction(restController),
-            new RestPostCalendarEventAction(restController),
-            new RestFindFileStructureAction(restController),
-            new RestSetUpgradeModeAction(restController),
-            new RestGetDataFrameAnalyticsAction(restController),
-            new RestGetDataFrameAnalyticsStatsAction(restController),
-            new RestPutDataFrameAnalyticsAction(restController),
-            new RestDeleteDataFrameAnalyticsAction(restController),
-            new RestStartDataFrameAnalyticsAction(restController),
-            new RestStopDataFrameAnalyticsAction(restController),
-            new RestEvaluateDataFrameAction(restController),
-            new RestExplainDataFrameAnalyticsAction(restController),
-            new RestGetTrainedModelsAction(restController),
-            new RestDeleteTrainedModelAction(restController),
-            new RestGetTrainedModelsStatsAction(restController),
-            new RestPutTrainedModelAction(restController),
+            new RestGetJobsAction(),
+            new RestGetJobStatsAction(),
+            new RestMlInfoAction(),
+            new RestPutJobAction(),
+            new RestPostJobUpdateAction(),
+            new RestDeleteJobAction(),
+            new RestOpenJobAction(),
+            new RestGetFiltersAction(),
+            new RestPutFilterAction(),
+            new RestUpdateFilterAction(),
+            new RestDeleteFilterAction(),
+            new RestGetInfluencersAction(),
+            new RestGetRecordsAction(),
+            new RestGetBucketsAction(),
+            new RestGetOverallBucketsAction(),
+            new RestPostDataAction(),
+            new RestCloseJobAction(),
+            new RestFlushJobAction(),
+            new RestValidateDetectorAction(),
+            new RestValidateJobConfigAction(),
+            new RestGetCategoriesAction(),
+            new RestGetModelSnapshotsAction(),
+            new RestRevertModelSnapshotAction(),
+            new RestUpdateModelSnapshotAction(),
+            new RestGetDatafeedsAction(),
+            new RestGetDatafeedStatsAction(),
+            new RestPutDatafeedAction(),
+            new RestUpdateDatafeedAction(),
+            new RestDeleteDatafeedAction(),
+            new RestPreviewDatafeedAction(),
+            new RestStartDatafeedAction(),
+            new RestStopDatafeedAction(),
+            new RestDeleteModelSnapshotAction(),
+            new RestDeleteExpiredDataAction(),
+            new RestForecastJobAction(),
+            new RestDeleteForecastAction(),
+            new RestGetCalendarsAction(),
+            new RestPutCalendarAction(),
+            new RestDeleteCalendarAction(),
+            new RestDeleteCalendarEventAction(),
+            new RestDeleteCalendarJobAction(),
+            new RestPutCalendarJobAction(),
+            new RestGetCalendarEventsAction(),
+            new RestPostCalendarEventAction(),
+            new RestFindFileStructureAction(),
+            new RestSetUpgradeModeAction(),
+            new RestGetDataFrameAnalyticsAction(),
+            new RestGetDataFrameAnalyticsStatsAction(),
+            new RestPutDataFrameAnalyticsAction(),
+            new RestDeleteDataFrameAnalyticsAction(),
+            new RestStartDataFrameAnalyticsAction(),
+            new RestStopDataFrameAnalyticsAction(),
+            new RestEvaluateDataFrameAction(),
+            new RestExplainDataFrameAnalyticsAction(),
+            new RestGetTrainedModelsAction(),
+            new RestDeleteTrainedModelAction(),
+            new RestGetTrainedModelsStatsAction(),
+            new RestPutTrainedModelAction(),
             // CAT Handlers
-            new RestCatJobsAction(restController)
+            new RestCatJobsAction(),
+            new RestCatTrainedModelsAction(),
+            new RestCatDatafeedsAction()
         );
     }
 
@@ -886,13 +890,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
-            final TimeValue delayedNodeTimeOutSetting;
-            // Whether we are using native process is a good way to detect whether we are in dev / test mode:
-            if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
-                delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
-            } else {
-                delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
-            }
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate =
@@ -904,8 +901,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .build();
                 templates.put(AuditorField.NOTIFICATIONS_INDEX, notificationMessageTemplate);
             } catch (IOException e) {
@@ -920,8 +916,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .version(Version.CURRENT.id)
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .build();
@@ -939,7 +934,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
                                         AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
                         .version(Version.CURRENT.id)
@@ -956,8 +950,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexPattern()))
                         // TODO review these settings
                         .settings(Settings.builder()
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();
@@ -973,7 +966,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 // Sacrifice durability for performance: in the event of power
                                 // failure we can lose the last 5 seconds of changes, but it's
                                 // much faster
@@ -1044,4 +1036,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return namedXContent;
     }
 
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return Collections.unmodifiableList(Arrays.asList(
+            new SystemIndexDescriptor(MlMetaIndex.INDEX_NAME, "Contains scheduling and anomaly tracking metadata"),
+            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.STATE_INDEX_PATTERN, "Contains ML model state"),
+            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.CONFIG_INDEX, "Contains ML configuration data"),
+            new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
+        ));
+    }
 }

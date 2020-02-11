@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -107,5 +109,10 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
     @Override
     protected ClusterBlockException checkBlock(EnrichStatsAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+
+    @Override
+    protected String getMasterActionName(DiscoveryNode node) {
+        return node.getVersion().before(Version.V_7_7_0) ? EnrichStatsAction.OLD_NAME : actionName;
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -36,6 +37,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
     public static final EnrichCoordinatorStatsAction INSTANCE = new EnrichCoordinatorStatsAction();
     public static final String NAME = "cluster:monitor/xpack/enrich/coordinator_stats";
+    public static final String OLD_NAME = "cluster:admin/xpack/enrich/coordinator_stats";
 
     private EnrichCoordinatorStatsAction() {
         super(NAME, Response::new);
@@ -160,6 +162,10 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         protected NodeResponse nodeOperation(NodeRequest request) {
             DiscoveryNode node = clusterService.localNode();
             return new NodeResponse(node, coordinator.getStats(node.getId()));
+        }
+
+        @Override protected String getBwcTransportNodeAction(DiscoveryNode node) {
+            return node.getVersion().before(Version.V_7_7_0) ? OLD_NAME + "[n]" : transportNodeAction;
         }
     }
 

@@ -280,7 +280,7 @@ public class TriangleTreeReader {
          * Checks if the rectangle contains the provided point
          **/
         public boolean contains(int x, int y) {
-            return (x < minX || x > maxX || y < minY || y > maxY) == false;
+            return (x <= minX || x > maxX || y < minY || y >= maxY) == false;
         }
 
         /**

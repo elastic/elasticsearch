@@ -174,6 +174,12 @@ public interface GeoGridTiler {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             assert bounds.minX() <= bounds.maxX();
 
+            if (precision == 0) {
+                values.resizeCell(1);
+                values.add(0, GeoTileUtils.longEncodeTiles(0, 0, 0));
+                return 1;
+            }
+
             // geo tiles are not defined at the extreme latitudes due to them
             // tiling the world as a square.
             if ((bounds.top > GeoTileUtils.LATITUDE_MASK && bounds.bottom > GeoTileUtils.LATITUDE_MASK)
@@ -181,10 +187,6 @@ public interface GeoGridTiler {
                 return 0;
             }
 
-            if (precision == 0) {
-                values.resizeCell(1);
-                values.add(0, GeoTileUtils.longEncodeTiles(0, 0, 0));
-            }
 
             final double tiles = 1 << precision;
             int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);

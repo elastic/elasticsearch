@@ -154,30 +154,10 @@ public final class GeoTileUtils {
      */
     public static long longEncode(double longitude, double latitude, int precision) {
         // Mathematics for this code was adapted from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Java
-
         // Number of tiles for the current zoom level along the X and Y axis
         final long tiles = 1 << checkPrecisionRange(precision);
-
-        long xTile = (long) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
-
-        double latSin = SloppyMath.cos(PI_DIV_2 - (Math.toRadians(normalizeLat(latitude))));
-        long yTile = (long) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
-
-        // Edge values may generate invalid values, and need to be clipped.
-        // For example, polar regions (above/below lat 85.05112878) get normalized.
-        if (xTile < 0) {
-            xTile = 0;
-        }
-        if (xTile >= tiles) {
-            xTile = tiles - 1;
-        }
-        if (yTile < 0) {
-            yTile = 0;
-        }
-        if (yTile >= tiles) {
-            yTile = tiles - 1;
-        }
-
+        long xTile = getXTile(longitude, tiles);
+        long yTile = getYTile(latitude, tiles);
         return longEncodeTiles(precision, xTile, yTile);
     }
 

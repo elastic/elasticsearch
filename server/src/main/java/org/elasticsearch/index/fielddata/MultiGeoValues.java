@@ -19,6 +19,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
@@ -255,24 +256,20 @@ public abstract class MultiGeoValues {
         private void reset(Extent extent, CoordinateEncoder coordinateEncoder) {
             this.top = coordinateEncoder.decodeY(extent.top);
             this.bottom = coordinateEncoder.decodeY(extent.bottom);
-            if (extent.negLeft == Integer.MAX_VALUE) {
+
+            if (extent.negLeft == Integer.MAX_VALUE && extent.negRight == Integer.MIN_VALUE) {
                 this.negLeft = Double.POSITIVE_INFINITY;
-            } else {
-                this.negLeft = coordinateEncoder.decodeX(extent.negLeft);
-            }
-            if (extent.negRight == Integer.MIN_VALUE) {
                 this.negRight = Double.NEGATIVE_INFINITY;
             } else {
+                this.negLeft = coordinateEncoder.decodeX(extent.negLeft);
                 this.negRight = coordinateEncoder.decodeX(extent.negRight);
             }
-            if (extent.posLeft == Integer.MAX_VALUE) {
+
+            if (extent.posLeft == Integer.MAX_VALUE && extent.posRight == Integer.MIN_VALUE) {
                 this.posLeft = Double.POSITIVE_INFINITY;
-            } else {
-                this.posLeft = coordinateEncoder.decodeX(extent.posLeft);
-            }
-            if (extent.posRight == Integer.MIN_VALUE) {
                 this.posRight = Double.NEGATIVE_INFINITY;
             } else {
+                this.posLeft = coordinateEncoder.decodeX(extent.posLeft);
                 this.posRight = coordinateEncoder.decodeX(extent.posRight);
             }
         }

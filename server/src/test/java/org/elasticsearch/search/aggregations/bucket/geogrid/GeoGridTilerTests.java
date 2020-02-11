@@ -29,6 +29,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -177,6 +178,40 @@ public class GeoGridTilerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
+    public void testTilerMatchPoint() throws Exception {
+        int precision = randomIntBetween(0, 4);
+        Point originalPoint = GeometryTestUtils.randomPoint(false);
+        int xTile = GeoTileUtils.getXTile(originalPoint.getX(), 1 << precision);
+        int yTile = GeoTileUtils.getYTile(originalPoint.getY(), 1 << precision);
+        Rectangle bbox = GeoTileUtils.toBoundingBox(xTile, yTile, precision);
+        long originalTileHash = GeoTileUtils.longEncode(originalPoint.getX(), originalPoint.getY(), precision);
+
+        Point[] pointCorners = new Point[] {
+            // tile corners
+            new Point(bbox.getMinX(), bbox.getMinY()),
+            new Point(bbox.getMinX(), bbox.getMaxY()),
+            new Point(bbox.getMaxX(), bbox.getMinY()),
+            new Point(bbox.getMaxX(), bbox.getMaxY()),
+            // tile edge midpoints
+            new Point(bbox.getMinX(), (bbox.getMinY() + bbox.getMaxY()) / 2),
+            new Point(bbox.getMaxX(), (bbox.getMinY() + bbox.getMaxY()) / 2),
+            new Point((bbox.getMinX() + bbox.getMaxX()) / 2, bbox.getMinY()),
+            new Point((bbox.getMinX() + bbox.getMaxX()) / 2, bbox.getMaxY()),
+        };
+
+        for (Point point : pointCorners) {
+            TriangleTreeReader reader = triangleTreeReader(point, GeoShapeCoordinateEncoder.INSTANCE);
+            MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
+            GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(null, precision, GEOTILE);
+            int numTiles = GEOTILE.setValues(unboundedCellValues, value, precision);
+            assertThat(numTiles, equalTo(1));
+            long tilerHash = unboundedCellValues.getValues()[0];
+            long pointHash = GeoTileUtils.longEncode(point.getX(), point.getY(), precision);
+            assertThat(tilerHash, equalTo(pointHash));
+        }
+    }
+
     public void testGeoHash() throws Exception {
         double x = randomDouble();
         double y = randomDouble();
@@ -231,13 +266,13 @@ public class GeoGridTilerTests extends ESTestCase {
         MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
         int count = 0;
 
+        if (precision == 0) {
+            return 1;
+        }
+
         if ((bounds.top > LATITUDE_MASK && bounds.bottom > LATITUDE_MASK)
             || (bounds.top < -LATITUDE_MASK && bounds.bottom < -LATITUDE_MASK)) {
             return 0;
-        }
-
-        if (precision == 0) {
-            return 1;
         }
 
         final double tiles = 1 << precision;

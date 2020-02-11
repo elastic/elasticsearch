@@ -100,8 +100,6 @@ public class TriangleTreeTests extends ESTestCase {
             int maxX = randomIntBetween(1, 40);
             int minY = randomIntBetween(-40, -1);
             int maxY = randomIntBetween(1, 40);
-            double[] x = new double[]{minX, maxX, maxX, minX, minX};
-            double[] y = new double[]{minY, minY, maxY, maxY, minY};
             Geometry rectangle = new Rectangle(minX, maxX, maxY, minY);
             TriangleTreeReader reader = triangleTreeReader(rectangle, GeoShapeCoordinateEncoder.INSTANCE);
 
@@ -125,6 +123,7 @@ public class TriangleTreeTests extends ESTestCase {
             // box-query touches top-left corner
             assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX), maxY, minX,
                 maxY + randomIntBetween(1, 90 - maxY)));
+
             // box-query fully-enclosed inside rectangle
             assertRelation(GeoRelation.QUERY_INSIDE, reader, getExtentFromBox(3 * (minX + maxX) / 4, 3 * (minY + maxY) / 4,
                 3 * (maxX + minX) / 4, 3 * (maxY + minY) / 4));
@@ -258,6 +257,7 @@ public class TriangleTreeTests extends ESTestCase {
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(xMin, yMin, xMax, yMax));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
     public void testRandomMultiLineIntersections() throws IOException {
         double extentSize = randomDoubleBetween(0.01, 10, true);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
@@ -292,6 +292,7 @@ public class TriangleTreeTests extends ESTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
     public void testRandomGeometryIntersection() throws IOException {
         int testPointCount = randomIntBetween(100, 200);
         Point[] testPoints = new Point[testPointCount];

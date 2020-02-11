@@ -3,21 +3,6 @@
 
 The following pages have moved or been deleted.
 
-[role="exclude",id="modules-snapshots"]
-=== Snapshot module
-
-See <<snapshot-restore>>.
-
-[role="exclude", id="_read_only_url_repository"]
-==== Read only URL repository
-
-See <<snapshots-read-only-repository>>.
-
-[role="exclude", id="_repository_plugins"]
-==== Repository plugins
-
-See <<snapshots-repository-plugins>>.
-
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
@@ -334,6 +319,11 @@ See <<snapshots-restore-snapshot>>.
 === Snapshot repositories
 
 See <<snapshots-register-repository>>.
+
+[role="exclude", id="_repository_plugins"]
+=== Repository plugins
+
+See <<snapshots-repository-plugins>>.
 
 [role="exclude",id="slm-api-delete"]
 === {slm-init} delete policy API

@@ -26,6 +26,10 @@ configurations {
 
 archivesBaseName = 'x-pack-sql'
 
+test {
+  testLogging.showStandardStreams = true
+}
+
 // All integration tests live in qa modules
 integTest.enabled = false
 

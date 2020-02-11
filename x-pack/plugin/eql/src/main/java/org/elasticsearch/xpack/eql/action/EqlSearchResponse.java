@@ -483,5 +483,21 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         public int hashCode() {
             return Objects.hash(events, sequences, counts, totalHits);
         }
+
+        public  List<SearchHit> events() {
+            return this.events;
+        }
+
+        public  List<Sequence> sequences() {
+            return this.sequences;
+        }
+
+        public  List<Count> counts() {
+            return this.counts;
+        }
+
+        public  TotalHits totalHits() {
+            return this.totalHits;
+        }
     }
 }

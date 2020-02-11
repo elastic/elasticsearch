@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.eql.session.Results;
 
 import java.time.ZoneId;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse> {
@@ -63,12 +62,12 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         TimeValue timeout = TimeValue.timeValueSeconds(30);
         boolean includeFrozen = request.indicesOptions().ignoreThrottled() == false;
         String clientId = null;
-        
+
         ParserParams params = new ParserParams()
                 .fieldEventType(request.eventTypeField())
                 .fieldTimestamp(request.timestampField())
                 .implicitJoinKey(request.implicitJoinKeyField());
-        
+
         Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen, clientId);
         //planExecutor.eql(cfg, request.rule(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
         listener.onResponse(createResponse(null));
@@ -77,14 +76,14 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     static EqlSearchResponse createResponse(Results results) {
         // Stubbed search response
         // TODO: implement actual search response processing once the parser/executor is in place
+        // Updated for stubbed response to: process where serial_event_id = 1
+        // to validate the sample test until the engine is wired in.
         List<SearchHit> events = Arrays.asList(
-            new SearchHit(1, "111", null),
-            new SearchHit(2, "222", null)
+            new SearchHit(1, "111", null)
         );
-        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(null, Arrays.asList(
-            new EqlSearchResponse.Sequence(Collections.singletonList("4021"), events),
-            new EqlSearchResponse.Sequence(Collections.singletonList("2343"), events)
-        ), null, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
+        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(events, null,
+            null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
+
         return new EqlSearchResponse(hits, 0, false);
     }
 

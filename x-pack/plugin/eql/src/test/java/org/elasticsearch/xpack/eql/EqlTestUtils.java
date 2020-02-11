@@ -6,8 +6,10 @@
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.session.Configuration;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -30,5 +32,18 @@ public final class EqlTestUtils {
                 new TimeValue(randomNonNegativeLong()),
                 randomBoolean(),
                 randomAlphaOfLength(16));
+    }
+
+    public static Tuple<String, String> pathAndName(String string) {
+        String folder = StringUtils.EMPTY;
+        String file = string;
+        int lastIndexOf = string.lastIndexOf("/");
+        if (lastIndexOf > 0) {
+            folder = string.substring(0, lastIndexOf - 1);
+            if (lastIndexOf + 1 < string.length()) {
+                file = string.substring(lastIndexOf + 1);
+            }
+        }
+        return new Tuple<>(folder, file);
     }
 }

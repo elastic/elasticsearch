@@ -42,6 +42,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'indices.lifecycle.history_index_enabled', 'false'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
@@ -61,7 +62,6 @@ testClusters.integTest {
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-  setting 'index.lifecycle.history_index_enabled', 'false'
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
@@ -72,6 +72,10 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
   /* Skip repositories. We just aren't going to be able to test them so it
    * doesn't make sense to waste time installing them. */
   if (subproj.path.startsWith(':plugins:repository-')) {
+    return
+  }
+  // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
+  if (subproj.path.startsWith(':plugins:ingest-attachment') && Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
     return
   }
   // FIXME
@@ -92,6 +96,12 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'README.asciidoc'
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
+  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+    // We don't install/support this plugin in FIPS 140
+    exclude 'plugins/ingest-attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    exclude 'reference/cat/plugins.asciidoc'
+  }
 }
 
 listSnippets.docs = buildRestTests.docs

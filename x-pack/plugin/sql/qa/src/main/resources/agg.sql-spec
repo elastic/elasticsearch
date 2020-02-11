@@ -348,7 +348,7 @@ SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING MAX(emp_no) > 1
 aggMaxWithHavingOnAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 ORDER BY g ;
 aggMaxWithMultipleHaving
-SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND m < 99999 ORDER BY gender; 
+SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND m < 99999 ORDER BY gender;
 aggMaxWithMultipleHavingBetween
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999 ORDER BY g ;
 aggMaxWithMultipleHavingWithLimit
@@ -435,7 +435,7 @@ SELECT 1 FROM test_emp HAVING COUNT(*) > 0;
 implicitGroupingWithLiteralAliasAndFiltering
 SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
 implicitGroupingWithLiteralAndFilteringOnAlias
-SELECT 1, COUNT(*) AS c FROM test_emp HAVING c > 0; 
+SELECT 1, COUNT(*) AS c FROM test_emp HAVING c > 0;
 implicitGroupingWithLiteralAliasAndFilteringOnAlias
 SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
 implicitGroupingWithAggs
@@ -497,7 +497,7 @@ SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_
 
 
 //
-// Mixture of aggs that get promoted plus filtering on one of them 
+// Mixture of aggs that get promoted plus filtering on one of them
 //
 aggMultiWithHaving
 SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max > 74600 ORDER BY gender;
@@ -559,3 +559,57 @@ aggMultiWithHavingUsingInAndNullHandling
 SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max IN(74999, null, 74600) ORDER BY gender;
 aggMultiGroupByMultiWithHavingUsingInAndNullHandling
 SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, null, 74600) ORDER BY gender, languages;
+
+// group by with literal
+implicitGroupByWithLiteral
+SELECT 10, MAX("salary") FROM test_emp;
+implicitGroupByWithLiterals
+SELECT 10, 'foo', MAX("salary"), 20, 'bar' FROM test_emp;
+groupByWithLiteral
+SELECT 20, COUNT(*) from test_emp GROUP BY gender ORDER BY 2;
+groupByWithLiterals
+SELECT 10, 'foo', COUNT(*), '20', 'bar' from test_emp GROUP BY gender ORDER BY 3;
+groupByNumberWithLiteral
+SELECT emp_no e, 5 FROM "test_emp" GROUP BY emp_no ORDER BY e DESC;
+groupByNumberWithWhereWithLiteral
+SELECT emp_no e, 5 FROM "test_emp" WHERE emp_no < 10020 GROUP BY e ORDER BY emp_no DESC;
+groupByMulScalarWithLiterals
+SELECT emp_no * 2 AS e , 5, TRUE FROM test_emp GROUP BY e ORDER BY e;
+groupByMulScalarWithWhereWithLiterals
+SELECT emp_no * 2 AS e, 5, TRUE FROM test_emp WHERE emp_no < 10020 GROUP BY e ORDER BY e;
+aggMaxImplicitWithCastWithLiteral
+SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 FROM test_emp;
+aggMaxImplicitWithCastWithWhereWithLiteral
+SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 FROM test_emp WHERE emp_no > 10000;
+aggSumWithCastWithLiteral
+SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s, TRUE FROM test_emp GROUP BY gender ORDER BY gender;
+aggSumWithCastWithAliasWithLiteral
+SELECT TRUE, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp GROUP BY g ORDER BY g DESC;
+aggSumWithWhereWithLiteral
+SELECT TRUE, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp WHERE emp_no > 10000 GROUP BY gender ORDER BY gender;
+
+// group by with aliased literal
+implicitGroupByWithLiteralWithAlias
+SELECT 10 AS a, MAX("salary") AS max FROM test_emp;
+implicitGroupByWithLiteralsWithAliases
+SELECT 10 AS a, 'foo', MAX("salary") AS max, 20, 'bar' AS d FROM test_emp;
+groupByWithLiteralsWithAliases
+SELECT 10 AS a, 'foo', COUNT(*) AS cnt, '20', 'bar' AS d from test_emp GROUP BY gender ORDER BY 3;
+groupByNumberWithLiteralWithAlias
+SELECT emp_no e, 5 department FROM "test_emp" GROUP BY emp_no ORDER BY e DESC;
+groupByNumberWithWhereWithLiteralWithAlias
+SELECT emp_no e, 5 department FROM "test_emp" WHERE emp_no < 10020 GROUP BY e ORDER BY emp_no DESC;
+groupByMulScalarWithLiteralsWithAliases
+SELECT emp_no * 2 AS e, 5 department, TRUE as employed FROM test_emp GROUP BY e ORDER BY e;
+groupByMulScalarWithWhereWithLiteralsWithAliases
+SELECT emp_no * 2 AS e, 5 department, TRUE as employed FROM test_emp WHERE emp_no < 10020 GROUP BY e ORDER BY e;
+aggMaxImplicitWithCastWithLiteralWithAlias
+SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 department FROM test_emp;
+aggMaxImplicitWithCastWithWhereWithLiteralWithAlias
+SELECT CAST(MAX(emp_no) AS SMALLINT) c, 5 department FROM test_emp WHERE emp_no > 10000;
+aggSumWithCastWithLiteralWithAlias
+SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s, TRUE as employed FROM test_emp GROUP BY gender ORDER BY gender;
+aggSumWithCastWithAliasWithLiteralWithAlias
+SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp GROUP BY g ORDER BY g DESC;
+aggSumWithWhereWithLiteralWithAlias
+SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp WHERE emp_no > 10000 GROUP BY gender ORDER BY gender;

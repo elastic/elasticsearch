@@ -81,7 +81,11 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         // Some tests use a client profile. Put the passphrase in the secure settings for the profile (secure settings cannot be set twice)
         secureSettings.setString("transport.profiles.client.xpack.security.ssl.secure_key_passphrase", "testnode");
-        Settings settings1 = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings1 = builder
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", testnodeKey)
             .put("xpack.security.transport.ssl.certificate", testnodeCert)
@@ -136,6 +140,8 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
     @SuppressForbidden(reason = "Need to open socket connection")
     public void testRenegotiation() throws Exception {
+        assumeFalse("BCTLS doesn't support renegotiation: https://github.com/bcgit/bc-java/issues/593#issuecomment-533518845",
+            inFipsJvm());
         // force TLSv1.2 since renegotiation is not supported by 1.3
         SSLService sslService =
             createSSLService(Settings.builder().put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2").build());

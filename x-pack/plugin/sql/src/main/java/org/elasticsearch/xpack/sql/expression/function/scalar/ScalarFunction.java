@@ -29,10 +29,4 @@ public abstract class ScalarFunction extends Function implements ScriptWeaver {
     protected ScalarFunction(Source source, List<Expression> fields) {
         super(source, fields);
     }
-
-    // used if the function is monotonic and thus does not have to be computed for ordering purposes
-    // null means the script needs to be used; expression means the field/expression to be used instead
-    public Expression orderBy() {
-        return null;
-    }
 }

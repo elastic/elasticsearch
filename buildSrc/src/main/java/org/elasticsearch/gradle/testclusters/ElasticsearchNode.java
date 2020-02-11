@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
+import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.LazyPropertyList;
 import org.elasticsearch.gradle.LazyPropertyMap;
 import org.elasticsearch.gradle.LoggedExec;
@@ -30,6 +31,7 @@ import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
+import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -115,6 +117,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final String name;
     private final Project project;
     private final ReaperService reaper;
+    private final Jdk bwcJdk;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -129,6 +132,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
+    private final LazyPropertyList<File> extraJarFiles = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
@@ -144,7 +148,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private List<ElasticsearchDistribution> distributions = new ArrayList<>();
-    private File javaHome;
     private volatile Process esProcess;
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
@@ -152,11 +155,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String transportPort = "0";
     private Path confPathData;
 
-    ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
-        this.path = path;
+    ElasticsearchNode(String name, Project project, ReaperService reaper, File workingDirBase, Jdk bwcJdk) {
+        this.path = project.getPath();
         this.name = name;
         this.project = project;
         this.reaper = reaper;
+        this.bwcJdk = bwcJdk;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
@@ -372,21 +376,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         configurationFrozen.set(true);
     }
 
-    @Override
-    public void setJavaHome(File javaHome) {
-        requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
-        checkFrozen();
-        if (javaHome.exists() == false) {
-            throw new TestClustersException("java home for `" + this + "` does not exists: `" + javaHome + "`");
-        }
-        this.javaHome = javaHome;
-    }
-
-    @Internal
-    public File getJavaHome() {
-        return javaHome;
-    }
-
     /**
      * Returns a stream of lines in the generated logs similar to Files.lines
      *
@@ -420,6 +409,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }
+
+        copyExtraJars();
+
+        copyExtraConfigFiles();
+
         createConfiguration();
 
         final List<String> pluginsToInstall = new ArrayList<>();
@@ -464,8 +458,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
 
         installModules();
-
-        copyExtraConfigFiles();
 
         if (isSettingTrue("xpack.security.enabled")) {
             if (credentials.isEmpty()) {
@@ -551,6 +543,25 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         });
     }
 
+    /**
+     * Copies extra jars to the `/lib` directory.
+     * //TODO: Remove this when system modules are available
+     */
+    private void copyExtraJars() {
+        if (extraJarFiles.isEmpty() == false) {
+            logToProcessStdout("Setting up " + extraJarFiles.size() + " additional jar dependencies");
+        }
+        extraJarFiles.forEach(from -> {
+            Path destination = getDistroDir().resolve("lib").resolve(from.getName());
+            try {
+                Files.copy(from.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.info("Added extra jar {} to {}", from.getName(), destination);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't copy extra jar dependency " + from.getName() + " to " + destination.toString(), e);
+            }
+        });
+    }
+
     private void installModules() {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             logToProcessStdout("Installing " + modules.size() + "modules");
@@ -591,6 +602,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             throw new IllegalArgumentException("extra config file destination can't be relative, was " + destination + " for " + this);
         }
         extraConfigFiles.put(destination, from, normalization);
+    }
+
+    @Override
+    public void extraJarFile(File from) {
+        if (from.toString().endsWith(".jar") == false) {
+            throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
+        }
+        extraJarFiles.add(from);
     }
 
     @Override
@@ -644,9 +663,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private Map<String, String> getESEnvironment() {
         Map<String, String> defaultEnv = new HashMap<>();
-        if (getJavaHome() != null) {
-            defaultEnv.put("JAVA_HOME", getJavaHome().getAbsolutePath());
-        }
+        getRequiredJavaHome().ifPresent(javaHome -> defaultEnv.put("JAVA_HOME", javaHome));
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
@@ -654,6 +671,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 + systemProperties.entrySet()
                     .stream()
                     .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
+                    // ES_PATH_CONF is also set as an environment variable and for a reference to ${ES_PATH_CONF}
+                    // to work ES_JAVA_OPTS, we need to make sure that ES_PATH_CONF before ES_JAVA_OPTS. Instead,
+                    // we replace the reference with the actual value in other environment variables
+                    .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
                     .collect(Collectors.joining(" "));
         }
         String jvmArgsString = "";
@@ -689,6 +710,22 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         environment.forEach((key, value) -> defaultEnv.put(key, value.toString()));
         return defaultEnv;
+    }
+
+    private java.util.Optional<String> getRequiredJavaHome() {
+        // If we are testing the current version of Elasticsearch, use the configured runtime Java
+        if (getTestDistribution() == TestDistribution.INTEG_TEST || getVersion().equals(VersionProperties.getElasticsearchVersion())) {
+            return java.util.Optional.of(BuildParams.getRuntimeJavaHome()).map(File::getAbsolutePath);
+        } else if (getVersion().before("7.0.0")) {
+            return java.util.Optional.of(bwcJdk.getJavaHomePath().toString());
+        } else { // otherwise use the bundled JDK
+            return java.util.Optional.empty();
+        }
+    }
+
+    @Internal
+    Jdk getBwcJdk() {
+        return getVersion().before("7.0.0") ? bwcJdk : null;
     }
 
     private void startElasticsearchProcess() {

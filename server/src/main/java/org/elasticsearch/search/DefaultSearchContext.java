@@ -302,7 +302,7 @@ final class DefaultSearchContext extends SearchContext {
 
     private Query createTypeFilter(String[] types) {
         if (types != null && types.length >= 1) {
-            MappedFieldType ft = mapperService().fullName(TypeFieldMapper.NAME);
+            MappedFieldType ft = mapperService().fieldType(TypeFieldMapper.NAME);
             if (ft != null) {
                 // ft might be null if no documents have been indexed yet
                 return ft.termsQuery(Arrays.asList(types), queryShardContext);
@@ -794,7 +794,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType smartNameFieldType(String name) {
-        return mapperService().fullName(name);
+        return mapperService().fieldType(name);
     }
 
     @Override

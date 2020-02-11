@@ -67,7 +67,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         DirectoryReader r = DirectoryReader.open(w);
         w.close();
 
-        MappedFieldType ft = mapperService.fullName(TypeFieldMapper.NAME);
+        MappedFieldType ft = mapperService.fieldType(TypeFieldMapper.NAME);
         IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
                 ft, new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         AtomicOrdinalsFieldData afd = fd.load(r.leaves().get(0));

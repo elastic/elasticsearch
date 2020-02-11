@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.junit.BeforeClass;
@@ -93,7 +94,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
 
-        Settings.Builder builder = Settings.builder()
+        Settings.Builder builder = getSettingsBuilder()
                 .put("path.home", home)
                 .put("path.conf", conf.toString())
                 .put("xpack.security.http.ssl.client_authentication", "none");
@@ -143,7 +144,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         String password = new String(CharArrays.toUtf8Bytes(nodeClientPassword().getChars()), StandardCharsets.UTF_8);
         String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
-        Settings.Builder builder = Settings.builder()
+        Settings.Builder builder = getSettingsBuilder()
                 .put("path.home", home)
                 .put("xpack.security.http.ssl.client_authentication", "none");
         addSSLSettingsForPEMFiles(builder,
@@ -171,5 +172,13 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
             () -> muor.getParser().parse("-u", "elastic", "-U", "http://localhost:9200"));
 
         assertThat(ex.getMessage(), containsString("password"));
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder;
     }
 }

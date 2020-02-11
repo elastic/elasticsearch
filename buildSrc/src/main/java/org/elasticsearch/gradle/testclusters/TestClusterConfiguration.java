@@ -83,8 +83,6 @@ public interface TestClusterConfiguration {
 
     void freeze();
 
-    void setJavaHome(File javaHome);
-
     void start();
 
     void restart();
@@ -92,6 +90,8 @@ public interface TestClusterConfiguration {
     void extraConfigFile(String destination, File from);
 
     void extraConfigFile(String destination, File from, PropertyNormalization normalization);
+
+    void extraJarFile(File from);
 
     void user(Map<String, String> userSpec);
 

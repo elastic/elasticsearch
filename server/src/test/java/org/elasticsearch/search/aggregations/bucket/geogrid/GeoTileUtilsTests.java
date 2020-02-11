@@ -23,6 +23,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.hashToGeoPoint;
@@ -222,8 +223,8 @@ public class GeoTileUtilsTests extends ESTestCase {
      * so ensure they are clipped correctly.
      */
     public void testSingularityAtPoles() {
-        double minLat = -85.05112878;
-        double maxLat = 85.05112878;
+        double minLat = -LATITUDE_MASK;
+        double maxLat = LATITUDE_MASK;
         double lon = randomIntBetween(-180, 180);
         double lat = randomBoolean()
             ? randomDoubleBetween(-90, minLat, true)

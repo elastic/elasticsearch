@@ -17,6 +17,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -30,6 +31,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.JDBCType;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -126,7 +130,76 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 ContentType.APPLICATION_JSON), StringUtils.EMPTY));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
+    public void testNextPageWithDatetimeAndTimezoneParam() throws IOException {
+        Request request = new Request("PUT", "/test_date_timezone");
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("_doc");
+            {
+                createIndex.startObject("properties");
+                {
+                    createIndex.startObject("date").field("type", "date").field("format", "epoch_millis");
+                    createIndex.endObject();
+                }
+                createIndex.endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client().performRequest(request);
+
+        request = new Request("PUT", "/test_date_timezone/_doc/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        long[] datetimes = new long[] { 1_000, 10_000, 100_000, 1_000_000, 10_000_000 };
+        for (long datetime : datetimes) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"date\":").append(datetime).append("}\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        ZoneId zoneId = randomZone();
+        String mode = randomMode();
+        String sqlRequest =
+                "{\"query\":\"SELECT CAST(date AS string) AS date FROM test_date_timezone ORDER BY date\","
+                        + "\"time_zone\":\"" + zoneId.getId() + "\", "
+                        + "\"mode\":\"" + mode + "\", "
+                        + "\"fetch_size\":2}";
+
+        String cursor = null;
+        for (int i = 0; i <= datetimes.length; i += 2) {
+            Map<String, Object> expected = new HashMap<>();
+            Map<String, Object> response;
+
+            if (i == 0) {
+                expected.put("columns", singletonList(columnInfo(mode, "date", "keyword", JDBCType.VARCHAR,
+                        Integer.MAX_VALUE)));
+                response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "");
+            } else {
+                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
+                        ContentType.APPLICATION_JSON), StringUtils.EMPTY);
+            }
+
+            List<Object> values = new ArrayList<>(2);
+            for (int j = 0; j < (i < datetimes.length - 1 ? 2 : 1); j++) {
+                values.add(singletonList(StringUtils.toString(
+                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(datetimes[i + j]), zoneId))));
+            }
+            expected.put("rows", values);
+            cursor = (String) response.remove("cursor");
+            assertResponse(expected, response);
+            assertNotNull(cursor);
+        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("rows", emptyList());
+        assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
+                ContentType.APPLICATION_JSON), StringUtils.EMPTY));
+    }
+
+    @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testTimeZone() throws IOException {
         String mode = randomMode();
         index("{\"test\":\"2017-07-27 00:00:00\"}",

@@ -9,6 +9,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -16,7 +17,12 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Properties;
 
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertNoSearchContexts;
 
 /**
@@ -106,6 +112,55 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
         assertNoSearchContexts();
     }
 
+    public void testScrollWithDatetimeAndTimezoneParam() throws IOException, SQLException {
+        Request request = new Request("PUT", "/test_date_timezone");
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("_doc");
+            {
+                createIndex.startObject("properties");
+                {
+                    createIndex.startObject("date").field("type", "date").field("format", "epoch_millis");
+                    createIndex.endObject();
+                }
+                createIndex.endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client().performRequest(request);
+
+        request = new Request("PUT", "/test_date_timezone/_doc/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        long[] datetimes = new long[] { 1_000, 10_000, 100_000, 1_000_000, 10_000_000 };
+        for (long datetime : datetimes) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"date\":").append(datetime).append("}\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        ZoneId zoneId = randomZone();
+        Properties connectionProperties = connectionProperties();
+        connectionProperties.put(JDBC_TIMEZONE, zoneId.toString());
+        try (Connection c = esJdbc(connectionProperties);
+             Statement s = c.createStatement()) {
+            s.setFetchSize(2);
+            try (ResultSet rs =
+                         s.executeQuery("SELECT CAST(date AS string) AS date FROM test_date_timezone ORDER BY date")) {
+                for (int i = 0; i < datetimes.length; i++) {
+                    assertEquals(2, rs.getFetchSize());
+                    assertTrue("No more entries left at " + i, rs.next());
+                    assertEquals(StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(datetimes[i]), zoneId)),
+                            rs.getString(1));
+                }
+                assertFalse(rs.next());
+            }
+        }
+    }
 
     /**
      * Test for {@code SELECT} that is implemented as an aggregation.

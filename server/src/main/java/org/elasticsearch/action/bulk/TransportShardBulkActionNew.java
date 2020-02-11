@@ -395,7 +395,9 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         while (++i <= MAX_PERFORM_OPS && (polledOp = shardQueue.poll()) != null) {
             shardOpsToPerform.add(polledOp);
         }
-        meanMetric.get().inc(shardOpsToPerform.size());
+        if (shardOpsToPerform.isEmpty() == false) {
+            meanMetric.get().inc(shardOpsToPerform.size());
+        }
         return shardOpsToPerform;
     }
 

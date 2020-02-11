@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.HdrHistogram.AtomicHistogram;
 import org.HdrHistogram.Recorder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -109,7 +110,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
 
-    private final Recorder recorder = new Recorder(1,TimeUnit.SECONDS.toMicros(60),  3);
+    private final AtomicHistogram total = new AtomicHistogram(1, TimeUnit.SECONDS.toMicros(60), 3);
+    private final Recorder recorder = new Recorder(1, TimeUnit.SECONDS.toMicros(60),  3);
 
     @Inject
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
@@ -135,7 +137,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         clusterService.addStateApplier(this.ingestForwarder);
-        RecordJFR.scheduleHistogramSample("TransportBulkAction", threadPool, new AtomicReference<>(recorder));
+        RecordJFR.scheduleHistogramSample("TransportBulkAction#Total", threadPool, total);
+        RecordJFR.scheduleHistogramSample("TransportBulkAction#Interval", threadPool, new AtomicReference<>(recorder));
     }
 
     /**
@@ -527,6 +530,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     private void finishHim() {
                         long nanosTook = relativeTime() - startTimeNanos;
+                        total.recordValue(TimeUnit.NANOSECONDS.toMicros(nanosTook));
                         recorder.recordValue(TimeUnit.NANOSECONDS.toMicros(nanosTook));
                         listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
                             TimeUnit.NANOSECONDS.toMillis(nanosTook)));

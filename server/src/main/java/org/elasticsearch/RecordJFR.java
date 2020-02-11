@@ -73,7 +73,7 @@ public class RecordJFR {
         threadPool.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
-                synchronized (this) {
+                synchronized (RecordJFR.class) {
                     MeanMetric meanMetric1 = meanMetric.getAndSet(new MeanMetric());
                     RecordJFR.recordMeanMetric(name, meanMetric1);
                 }
@@ -87,7 +87,7 @@ public class RecordJFR {
         threadPool.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
-                synchronized (this) {
+                synchronized (RecordJFR.class) {
                     Histogram histogramToRecycle = toReuse.get();
                     if (histogramToRecycle != null) {
                         histogramToRecycle.reset();
@@ -95,6 +95,17 @@ public class RecordJFR {
                     Histogram intervalHistogram = recorder.get().getIntervalHistogram(histogramToRecycle);
                     toReuse.set(intervalHistogram);
                     RecordJFR.recordHistogram(name, intervalHistogram);
+                }
+            }
+        }, TimeValue.timeValueSeconds(10), ThreadPool.Names.GENERIC);
+    }
+
+    public static void scheduleHistogramSample(String name, ThreadPool threadPool, Histogram histogram) {
+        threadPool.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (RecordJFR.class) {
+                    RecordJFR.recordHistogram(name, histogram);
                 }
             }
         }, TimeValue.timeValueSeconds(10), ThreadPool.Names.GENERIC);

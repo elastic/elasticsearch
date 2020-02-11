@@ -655,6 +655,7 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(testOutputDir)
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
+                    project.mkdir(test.workingDir.toPath().resolve('temp'))
 
                     //TODO remove once jvm.options are added to test system properties
                     test.systemProperty ('java.locale.providers','SPI,COMPAT')

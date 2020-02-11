@@ -96,6 +96,10 @@ class LoggingOutputStream extends OutputStream {
             // windows case: remove the first part of newlines there too
             --used;
         }
+        if (used == 0) {
+            // only windows \r was in the buffer
+            return;
+        }
         log(new String(buffer.bytes, 0, used, StandardCharsets.UTF_8));
         if (buffer.bytes.length != DEFAULT_BUFFER_LENGTH) {
             threadLocal.set(new Buffer()); // reset size

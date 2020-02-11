@@ -24,7 +24,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -42,11 +41,11 @@ public class RestForceMergeActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestForceMergeAction(controller());
+        controller().registerHandler(new RestForceMergeAction());
     }
 
     public void testBodyRejection() throws Exception {
-        final RestForceMergeAction handler = new RestForceMergeAction(mock(RestController.class));
+        final RestForceMergeAction handler = new RestForceMergeAction();
         String json = JsonXContent.contentBuilder().startObject().field("max_num_segments", 1).endObject().toString();
         final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                 .withContent(new BytesArray(json), XContentType.JSON)

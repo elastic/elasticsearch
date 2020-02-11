@@ -29,20 +29,22 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodeAttrsAction extends AbstractCatAction {
 
-    public RestNodeAttrsAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/nodeattrs", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "/_cat/nodeattrs"));
     }
 
     @Override

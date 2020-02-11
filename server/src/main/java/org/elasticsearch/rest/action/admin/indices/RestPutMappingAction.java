@@ -28,13 +28,15 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -46,27 +48,25 @@ public class RestPutMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in put " +
         "mapping requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestPutMappingAction(RestController controller) {
-        controller.registerHandler(PUT, "/{index}/_mapping/", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(PUT, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(PUT, "/_mapping/{type}", this);
-
-        controller.registerHandler(POST, "/{index}/_mapping/", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(POST, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(POST, "/_mapping/{type}", this);
-
-        //register the same paths, but with plural form _mappings
-        controller.registerHandler(PUT, "/{index}/_mappings/", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_mappings", this);
-        controller.registerHandler(PUT, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(PUT, "/_mappings/{type}", this);
-
-        controller.registerHandler(POST, "/{index}/_mappings/", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mappings", this);
-        controller.registerHandler(POST, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(POST, "/_mappings/{type}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/{index}/_mapping/"),
+            new Route(PUT, "/{index}/_mapping/"),
+            new Route(POST, "/{index}/{type}/_mapping"),
+            new Route(PUT, "/{index}/{type}/_mapping"),
+            new Route(POST, "/{index}/_mapping/{type}"),
+            new Route(PUT, "/{index}/_mapping/{type}"),
+            new Route(POST, "/_mapping/{type}"),
+            new Route(PUT, "/_mapping/{type}"),
+            new Route(POST, "/{index}/_mappings/"),
+            new Route(PUT, "/{index}/_mappings/"),
+            new Route(POST, "/{index}/{type}/_mappings"),
+            new Route(PUT, "/{index}/{type}/_mappings"),
+            new Route(POST, "/{index}/_mappings/{type}"),
+            new Route(PUT, "/{index}/_mappings/{type}"),
+            new Route(POST, "/_mappings/{type}"),
+            new Route(PUT, "/_mappings/{type}")));
     }
 
     @Override

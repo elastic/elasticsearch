@@ -694,14 +694,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private DefaultSearchContext createSearchContext(SearchRewriteContext rewriteContext, TimeValue timeout) {
-        final ShardSearchRequest request = rewriteContext.request;
-        final Engine.Searcher searcher = rewriteContext.searcher;
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
-                indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
         boolean success = false;
         try {
+            final ShardSearchRequest request = rewriteContext.request;
+            final Engine.Searcher searcher = rewriteContext.searcher;
+            IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+            IndexShard indexShard = indexService.getShard(request.shardId().getId());
+            SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
+                indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
             DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
                 searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,
                 fetchPhase, clusterService.state().nodes().getMinNodeVersion());
@@ -709,8 +709,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return searchContext;
         } finally {
             if (success == false) {
-                // we handle the case where the DefaultSearchContext constructor throws an exception since we would otherwise
-                // leak a searcher and this can have severe implications (unable to obtain shard lock exceptions).
+                // we handle the case where `IndicesService#indexServiceSafe`or `IndexService#getShard`, or the DefaultSearchContext
+                // constructor throws an exception since we would otherwise leak a searcher and this can have severe implications
+                // (unable to obtain shard lock exceptions).
                 IOUtils.closeWhileHandlingException(rewriteContext.searcher);
             }
         }

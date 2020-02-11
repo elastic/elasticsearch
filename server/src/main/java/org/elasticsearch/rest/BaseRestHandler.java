@@ -18,6 +18,7 @@
  */
 
 package org.elasticsearch.rest;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
@@ -80,6 +81,12 @@ public abstract class BaseRestHandler implements RestHandler {
      *         {@link RestNodesUsageAction}.
      */
     public abstract String getName();
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public abstract List<Route> routes();
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {

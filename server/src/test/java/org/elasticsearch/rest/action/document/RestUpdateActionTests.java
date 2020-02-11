@@ -42,7 +42,8 @@ public class RestUpdateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestUpdateAction(controller());
+        action = new RestUpdateAction();
+        controller().registerHandler(action);
     }
 
     public void testTypeInPath() {

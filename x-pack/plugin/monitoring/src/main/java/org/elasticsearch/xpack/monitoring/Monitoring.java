@@ -169,7 +169,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         if (false == enabled) {
             return emptyList();
         }
-        return singletonList(new RestMonitoringBulkAction(restController));
+        return singletonList(new RestMonitoringBulkAction());
     }
 
     @Override

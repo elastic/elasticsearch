@@ -34,6 +34,8 @@ import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -48,6 +50,8 @@ import org.junit.runner.RunWith;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
@@ -55,6 +59,7 @@ import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -311,23 +316,28 @@ public abstract class PackagingTestCase extends Assert {
         return Archives.startElasticsearchWithTty(installation, sh, password);
     }
 
-
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
+        assertElasticsearchFailure(result, Collections.singletonList(expectedMessage), journaldWrapper);
+    }
 
+    public void assertElasticsearchFailure(Shell.Result result, List<String> expectedMessages, Packages.JournaldWrapper journaldWrapper) {
+        @SuppressWarnings("unchecked")
+        Matcher<String>[] stringMatchers = expectedMessages.stream().map(CoreMatchers::containsString).toArray(Matcher[]::new);
         if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
 
             // If log file exists, then we have bootstrapped our logging and the
             // error should be in the logs
             assertThat(installation.logs.resolve("elasticsearch.log"), fileExists());
             String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
-            assertThat(logfile, containsString(expectedMessage));
+
+            assertThat(logfile, anyOf(stringMatchers));
 
         } else if (distribution().isPackage() && Platforms.isSystemd()) {
 
             // For systemd, retrieve the error from journalctl
             assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
             Shell.Result error = journaldWrapper.getLogs();
-            assertThat(error.stdout, containsString(expectedMessage));
+            assertThat(error.stdout, anyOf(stringMatchers));
 
         } else if (Platforms.WINDOWS) {
 
@@ -338,12 +348,12 @@ public abstract class PackagingTestCase extends Assert {
             sh.runIgnoreExitCode("Get-EventSubscriber | " +
                 "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |" +
                 "Unregister-EventSubscriber -Force");
-            assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), containsString(expectedMessage));
+            assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), anyOf(stringMatchers));
 
         } else {
 
             // Otherwise, error should be on shell stderr
-            assertThat(result.stderr, containsString(expectedMessage));
+            assertThat(result.stderr, anyOf(stringMatchers));
         }
     }
 

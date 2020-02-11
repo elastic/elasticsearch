@@ -21,6 +21,10 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -30,10 +34,6 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.ScorePipe;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
-import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.io.IOException;

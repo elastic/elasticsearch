@@ -8,15 +8,20 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 public class RestDeleteLifecycleAction extends BaseRestHandler {
 
-    public RestDeleteLifecycleAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE, "/_ilm/policy/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(DELETE, "/_ilm/policy/{name}"));
     }
 
     @Override

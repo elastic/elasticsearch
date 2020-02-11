@@ -106,6 +106,9 @@ class S3RetryingInputStream extends InputStream {
         while (true) {
             try {
                 final int result = currentStream.read();
+                if (result == -1) {
+                    return -1;
+                }
                 currentOffset += 1;
                 return result;
             } catch (IOException e) {

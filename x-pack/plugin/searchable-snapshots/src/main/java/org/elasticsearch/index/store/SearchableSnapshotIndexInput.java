@@ -121,9 +121,19 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
             // we did not read everything in an optimized fashion, so read the remainder directly
             try (InputStream inputStream
                      = blobContainer.readBlob(fileInfo.partName(part), pos + optimizedReadSize, length - optimizedReadSize)) {
-                final int directReadSize = inputStream.read(b, offset + optimizedReadSize, length - optimizedReadSize);
+
+                int directReadSize = 0;
+                while ((optimizedReadSize + directReadSize) < length) {
+                    final int read = inputStream.read(b,
+                                                      offset + optimizedReadSize + directReadSize,
+                                                      length - optimizedReadSize - directReadSize);
+                    if (read == -1) {
+                        break;
+                    }
+                    directReadSize += read;
+                    position += read;
+                }
                 assert optimizedReadSize + directReadSize == length : optimizedReadSize + " and " + directReadSize + " vs " + length;
-                position += directReadSize;
             }
         }
     }
@@ -276,10 +286,17 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
         int read(byte[] b, int offset, int length) throws IOException {
             assert this.pos < maxPos : "should not try and read from a fully-read stream";
-            int read = inputStream.read(b, offset, length);
-            assert read <= length : read + " vs " + length;
-            pos += read;
-            return read;
+            int totalRead = 0;
+            while (totalRead < length) {
+                final int read = inputStream.read(b, offset + totalRead, length - totalRead);
+                if (read == -1) {
+                    break;
+                }
+                totalRead += read;
+                pos += read;
+            }
+            assert totalRead <= length : totalRead + " vs " + length;
+            return totalRead > 0 ? totalRead : -1;
         }
 
         boolean isFullyRead() {

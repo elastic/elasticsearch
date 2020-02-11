@@ -534,7 +534,6 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 return;
             }
             List<String> orphanedMetadataBlobs = new ArrayList<>();
-            Map<String, List<String>> blobNameToMetadataNames = new HashMap<>();
             for (String metadataBlobName : foundMetadataBlobs) {
                 // also remove unrecognized blobs in the metadata blob container (mainly because it's tedious in the general
                 // case to tell between bogus and legit stale metadata, and it would require reading the blobs, which is not worth it)
@@ -544,18 +543,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
                     continue;
                 }
                 String blobName = metadataBlobName.substring(0, metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS);
-                blobNameToMetadataNames.computeIfAbsent(blobName, k -> new ArrayList<>()).add(metadataBlobName);
-            }
-            for (Map.Entry<String, List<String>> blobAndMetadataName : blobNameToMetadataNames.entrySet()) {
-                if (false == foundEncryptedBlobs.contains(blobAndMetadataName.getKey())) {
-                    orphanedMetadataBlobs.addAll(blobAndMetadataName.getValue());
-                } else if (blobAndMetadataName.getValue().size() > 1) {
-                    String metadataIdentifier = readMetadataUidFromEncryptedBlob(blobAndMetadataName.getKey());
-                    for (String metadataBlobName : blobAndMetadataName.getValue()) {
-                        if (false == metadataBlobName.endsWith(metadataIdentifier)) {
-                            orphanedMetadataBlobs.add(metadataBlobName);
-                        }
-                    }
+                if (false == foundEncryptedBlobs.contains(blobName)) {
+                    orphanedMetadataBlobs.add(metadataBlobName);
                 }
             }
             try {
@@ -585,16 +574,6 @@ public final class EncryptedRepository extends BlobStoreRepository {
             }
         }
 
-        private String readMetadataUidFromEncryptedBlob(String blobName) throws IOException {
-            try (InputStream encryptedDataInputStream = delegatedBlobContainer.readBlob(blobName)) {
-                // read the metadata identifier (fixed length) which is prepended to the encrypted blob
-                final byte[] metadataIdentifier = encryptedDataInputStream.readNBytes(METADATA_UID_LENGTH_IN_BYTES);
-                if (metadataIdentifier.length != METADATA_UID_LENGTH_IN_BYTES) {
-                    throw new IOException("Failure to read encrypted blob metadata identifier");
-                }
-                return new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier), StandardCharsets.UTF_8);
-            }
-        }
     }
 
     private static String computeSaltedPBKDF2Hash(SecureRandom secureRandom, char[] password) {

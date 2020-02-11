@@ -33,7 +33,7 @@ import org.objectweb.asm.commons.Method;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
-public class UnboundCallNode extends ArgumentsNode {
+public class MemberCallNode extends ArgumentsNode {
 
     /* ---- begin node data ---- */
 

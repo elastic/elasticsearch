@@ -30,8 +30,8 @@ import org.elasticsearch.painless.ir.StatementNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
-import org.elasticsearch.painless.ir.UnboundCallNode;
-import org.elasticsearch.painless.ir.UnboundFieldNode;
+import org.elasticsearch.painless.ir.MemberCallNode;
+import org.elasticsearch.painless.ir.MemberFieldNode;
 import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -45,13 +45,13 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * This injects additional ir nodes required to for
+ * This injects additional ir nodes required for
  * the "execute" method. This includes injection of ir nodes
  * to convert get methods into local variables for those
  * that are used and adds additional sandboxing by wrapping
  * the main "execute" block with several exceptions.
  */
-public class DecorateExecutePhase {
+public class ScriptInjectionPhase {
 
     public static void phase(ScriptRoot scriptRoot, ClassNode classNode) {
         FunctionNode executeFunctionNode = null;
@@ -87,12 +87,12 @@ public class DecorateExecutePhase {
 
                     if (name.equals(declarationNode.getName())) {
                         if (scriptRoot.getUsedVariables().contains(name)) {
-                                UnboundCallNode unboundCallNode = new UnboundCallNode();
-                                unboundCallNode.setLocation(declarationNode.getLocation());
-                                unboundCallNode.setExpressionType(declarationNode.getDeclarationType());
-                                unboundCallNode.setLocalFunction(new LocalFunction(
+                                MemberCallNode memberCallNode = new MemberCallNode();
+                                memberCallNode.setLocation(declarationNode.getLocation());
+                                memberCallNode.setExpressionType(declarationNode.getDeclarationType());
+                                memberCallNode.setLocalFunction(new LocalFunction(
                                         getMethod.getName(), returnType, Collections.emptyList(), true, false));
-                                declarationNode.setExpressionNode(unboundCallNode);
+                                declarationNode.setExpressionNode(memberCallNode);
                         } else {
                             blockNode.getStatementsNodes().remove(statementIndex);
                             isRemoved = true;
@@ -151,10 +151,10 @@ public class DecorateExecutePhase {
 
             catchBlockNode.addStatementNode(throwNode);
 
-            UnboundCallNode unboundCallNode = new UnboundCallNode();
-            unboundCallNode.setLocation(internalLocation);
-            unboundCallNode.setExpressionType(ScriptException.class);
-            unboundCallNode.setLocalFunction(new LocalFunction(
+            MemberCallNode memberCallNode = new MemberCallNode();
+            memberCallNode.setLocation(internalLocation);
+            memberCallNode.setExpressionType(ScriptException.class);
+            memberCallNode.setLocalFunction(new LocalFunction(
                             "convertToScriptException",
                             ScriptException.class,
                             Arrays.asList(Throwable.class, Map.class),
@@ -163,20 +163,20 @@ public class DecorateExecutePhase {
                     )
             );
 
-            throwNode.setExpressionNode(unboundCallNode);
+            throwNode.setExpressionNode(memberCallNode);
 
             VariableNode variableNode = new VariableNode();
             variableNode.setLocation(internalLocation);
             variableNode.setExpressionType(ScriptException.class);
             variableNode.setName("#painlessExplainError");
 
-            unboundCallNode.addArgumentNode(variableNode);
+            memberCallNode.addArgumentNode(variableNode);
 
             CallNode callNode = new CallNode();
             callNode.setLocation(internalLocation);
             callNode.setExpressionType(Map.class);
 
-            unboundCallNode.addArgumentNode(callNode);
+            memberCallNode.addArgumentNode(callNode);
 
             variableNode = new VariableNode();
             variableNode.setLocation(internalLocation);
@@ -203,13 +203,13 @@ public class DecorateExecutePhase {
 
             callNode.setRightNode(callSubNode);
 
-            UnboundFieldNode unboundFieldNode = new UnboundFieldNode();
-            unboundFieldNode.setLocation(internalLocation);
-            unboundFieldNode.setExpressionType(PainlessLookup.class);
-            unboundFieldNode.setName("$DEFINITION");
-            unboundFieldNode.setStatic(true);
+            MemberFieldNode memberFieldNode = new MemberFieldNode();
+            memberFieldNode.setLocation(internalLocation);
+            memberFieldNode.setExpressionType(PainlessLookup.class);
+            memberFieldNode.setName("$DEFINITION");
+            memberFieldNode.setStatic(true);
 
-            callSubNode.addArgumentNode(unboundFieldNode);
+            callSubNode.addArgumentNode(memberFieldNode);
 
             for (Class<?> throwable : new Class<?>[] {
                     PainlessError.class, BootstrapMethodError.class, OutOfMemoryError.class, StackOverflowError.class, Exception.class}) {
@@ -242,10 +242,10 @@ public class DecorateExecutePhase {
 
                 catchBlockNode.addStatementNode(throwNode);
 
-                unboundCallNode = new UnboundCallNode();
-                unboundCallNode.setLocation(internalLocation);
-                unboundCallNode.setExpressionType(ScriptException.class);
-                unboundCallNode.setLocalFunction(new LocalFunction(
+                memberCallNode = new MemberCallNode();
+                memberCallNode.setLocation(internalLocation);
+                memberCallNode.setExpressionType(ScriptException.class);
+                memberCallNode.setLocalFunction(new LocalFunction(
                                 "convertToScriptException",
                                 ScriptException.class,
                                 Arrays.asList(Throwable.class, Map.class),
@@ -254,20 +254,20 @@ public class DecorateExecutePhase {
                         )
                 );
 
-                throwNode.setExpressionNode(unboundCallNode);
+                throwNode.setExpressionNode(memberCallNode);
 
                 variableNode = new VariableNode();
                 variableNode.setLocation(internalLocation);
                 variableNode.setExpressionType(ScriptException.class);
                 variableNode.setName(name);
 
-                unboundCallNode.addArgumentNode(variableNode);
+                memberCallNode.addArgumentNode(variableNode);
 
                 callNode = new CallNode();
                 callNode.setLocation(internalLocation);
                 callNode.setExpressionType(Map.class);
 
-                unboundCallNode.addArgumentNode(callNode);
+                memberCallNode.addArgumentNode(callNode);
 
                 StaticNode staticNode = new StaticNode();
                 staticNode.setLocation(internalLocation);
@@ -304,7 +304,7 @@ public class DecorateExecutePhase {
         }
     }
 
-    protected DecorateExecutePhase() {
+    private ScriptInjectionPhase() {
         // do nothing
     }
 }

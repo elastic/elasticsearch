@@ -26,7 +26,7 @@ import org.elasticsearch.painless.symbol.ScopeTable;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
-public class UnboundFieldNode extends ExpressionNode {
+public class MemberFieldNode extends ExpressionNode {
 
     /* ---- begin node data ---- */
 
@@ -51,7 +51,7 @@ public class UnboundFieldNode extends ExpressionNode {
 
     /* ---- end node data ---- */
 
-    public UnboundFieldNode() {
+    public MemberFieldNode() {
         // do nothing
     }
 

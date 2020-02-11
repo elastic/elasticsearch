@@ -88,6 +88,11 @@ public final class DateFieldMapper extends FieldMapper {
             public Instant toInstant(long value) {
                 return Instant.ofEpochMilli(value);
             }
+
+            @Override
+            public Instant clampToValidRange(Instant instant) {
+                return instant;
+            }
         },
         NANOSECONDS("date_nanos", NumericType.DATE_NANOSECONDS) {
             @Override
@@ -98,6 +103,11 @@ public final class DateFieldMapper extends FieldMapper {
             @Override
             public Instant toInstant(long value) {
                 return DateUtils.toInstant(value);
+            }
+
+            @Override
+            public Instant clampToValidRange(Instant instant) {
+                return DateUtils.clampToNanosRange(instant);
             }
         };
 
@@ -117,9 +127,17 @@ public final class DateFieldMapper extends FieldMapper {
             return numericType;
         }
 
+        /**
+         * Convert an {@linkplain Instant} into a long value in this resolution.
+         */
         public abstract long convert(Instant instant);
 
+        /**
+         * Convert a long value in this resolution into an instant.
+         */
         public abstract Instant toInstant(long value);
+
+        public abstract Instant clampToValidRange(Instant instant);
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
@@ -440,20 +458,30 @@ public final class DateFieldMapper extends FieldMapper {
                 }
             }
 
-            return isFieldWithinQuery(reader, fromInclusive, toInclusive, context);
+            return isFieldWithinRange(reader, fromInclusive, toInclusive);
+        }
+
+        /**
+         * Return whether all values of the given {@link IndexReader} are within the range,
+         * outside the range or cross the range. Unlike {@link #isFieldWithinQuery} this
+         * accepts values that are out of the range of the {@link #resolution} of this field.
+         * @param fromInclusive start date, inclusive
+         * @param toInclusive end date, inclusive
+         */
+        public Relation isFieldWithinRange(IndexReader reader, Instant fromInclusive, Instant toInclusive)
+                throws IOException {
+            return isFieldWithinRange(reader,
+                    resolution.convert(resolution.clampToValidRange(fromInclusive)),
+                    resolution.convert(resolution.clampToValidRange(toInclusive)));
         }
 
         /**
          * Return whether all values of the given {@link IndexReader} are within the range,
          * outside the range or cross the range.
-         * @param fromInclusive start date in milliseconds since epoch, including the start millisecond
-         * @param toInclusive end date in milliseconds since epoch, including the end millisecond
+         * @param fromInclusive start date, inclusive, {@link Resolution#convert(Instant) converted} to the appropriate scale
+         * @param toInclusive end date, inclusive, {@link Resolution#convert(Instant) converted} to the appropriate scale
          */
-        public Relation isFieldWithinQuery(IndexReader reader, long fromInclusive, long toInclusive, QueryRewriteContext context)
-                throws IOException {
-            // This check needs to be done after fromInclusive and toInclusive
-            // are resolved so we can throw an exception if they are invalid
-            // even if there are no points in the shard
+        private Relation isFieldWithinRange(IndexReader reader, long fromInclusive, long toInclusive) throws IOException {
             if (PointValues.size(reader, name()) == 0) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;

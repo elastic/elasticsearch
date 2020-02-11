@@ -45,6 +45,7 @@ import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -53,6 +54,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Locale;
 
@@ -82,14 +84,94 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         nowInMillis = randomNonNegativeLong();
     }
 
-    public void testIsFieldWithinQueryEmptyReader() throws IOException {
+    public void testIsFieldWithinRangeEmptyReader() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType();
         ft.setName("my_date");
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
                 randomBoolean(), randomBoolean(), null, null, context));
-        assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, parse("2015-10-12"), parse("2016-04-03"), context));
+        assertEquals(Relation.DISJOINT, ft.isFieldWithinRange(reader, instant("2015-10-12"), instant("2016-04-03")));
+    }
+
+    public void testIsFieldWithinQueryDateMillis() throws IOException {
+        DateFieldType ft = new DateFieldType();
+        ft.setResolution(Resolution.MILLISECONDS);
+        isFieldWithinRangeTestCase(ft);
+    }
+
+    public void testIsFieldWithinQueryDateNanos() throws IOException {
+        DateFieldType ft = new DateFieldType();
+        ft.setResolution(Resolution.NANOSECONDS);
+        isFieldWithinRangeTestCase(ft);
+    }
+
+    public void isFieldWithinRangeTestCase(DateFieldType ft) throws IOException {
+        ft.setName("my_date");
+
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        Document doc = new Document();
+        LongPoint field = new LongPoint("my_date", ft.parse("2015-10-12"));
+        doc.add(field);
+        w.addDocument(doc);
+        field.setLongValue(ft.parse("2016-04-03"));
+        w.addDocument(doc);
+        DirectoryReader reader = DirectoryReader.open(w);
+
+        DateMathParser alternateFormat = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
+        doTestIsFieldWithinQuery(ft, reader, null, null);
+        doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
+        doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
+        doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, alternateFormat);
+
+        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinRange(reader, instant("2015-10-09"), instant("2016-01-02")));
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinRange(reader, instant("2016-01-02"), instant("2016-06-20")));
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinRange(reader, instant("2016-01-02"), instant("2016-02-12")));
+        assertEquals(Relation.DISJOINT, ft.isFieldWithinRange(reader, instant("2014-01-02"), instant("2015-02-12")));
+        assertEquals(Relation.DISJOINT, ft.isFieldWithinRange(reader, instant("2016-05-11"), instant("2016-08-30")));
+        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, instant("2015-09-25"), instant("2016-05-29")));
+        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, instant("2015-10-12"), instant("2016-04-03")));
+        assertEquals(Relation.INTERSECTS,
+                ft.isFieldWithinRange(reader, instant("2015-10-12").plusMillis(1), instant("2016-04-03").minusMillis(1)));
+        assertEquals(Relation.INTERSECTS,
+                ft.isFieldWithinRange(reader, instant("2015-10-12").plusMillis(1), instant("2016-04-03")));
+        assertEquals(Relation.INTERSECTS,
+                ft.isFieldWithinRange(reader, instant("2015-10-12"), instant("2016-04-03").minusMillis(1)));
+        assertEquals(Relation.INTERSECTS,
+                ft.isFieldWithinRange(reader, instant("2015-10-12").plusNanos(1), instant("2016-04-03").minusNanos(1)));
+        assertEquals(ft.resolution() == Resolution.NANOSECONDS ? Relation.INTERSECTS : Relation.WITHIN, // Millis round down here.
+                ft.isFieldWithinRange(reader, instant("2015-10-12").plusNanos(1), instant("2016-04-03")));
+        assertEquals(Relation.INTERSECTS,
+                ft.isFieldWithinRange(reader, instant("2015-10-12"), instant("2016-04-03").minusNanos(1)));
+
+        // Some edge cases
+        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, Instant.EPOCH, instant("2016-04-03")));
+        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, Instant.ofEpochMilli(-1000), instant("2016-04-03")));
+        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, Instant.ofEpochMilli(Long.MIN_VALUE), instant("2016-04-03")));
+        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, instant("2015-10-12"), Instant.ofEpochMilli(Long.MAX_VALUE)));
+
+        // Fields with no value indexed.
+        DateFieldType ft2 = new DateFieldType();
+        ft2.setName("my_date2");
+
+        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
+        assertEquals(Relation.DISJOINT, ft2.isFieldWithinRange(reader, instant("2015-10-09"), instant("2016-01-02")));
+
+        // Fire a bunch of random values into isFieldWithinRange to make sure it doesn't crash
+        for (int iter = 0; iter < 1000; iter++) {
+            long min = randomLong();
+            long max = randomLong();
+            if (min > max) {
+                long swap = max;
+                max = min;
+                min = swap;
+            }
+            ft.isFieldWithinRange(reader, Instant.ofEpochMilli(min), Instant.ofEpochMilli(max));
+        }
+
+        IOUtils.close(reader, w, dir);
     }
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader,
@@ -115,49 +197,6 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 false, true, null, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
                 true, false, null, null, context));
-    }
-
-    public void testIsFieldWithinQuery() throws IOException {
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        Document doc = new Document();
-        LongPoint field = new LongPoint("my_date", parse("2015-10-12"));
-        doc.add(field);
-        w.addDocument(doc);
-        field.setLongValue(parse("2016-04-03"));
-        w.addDocument(doc);
-        DirectoryReader reader = DirectoryReader.open(w);
-        DateFieldType ft = new DateFieldType();
-        ft.setName("my_date");
-
-        // Test the parsing version of isFieldWithinQuery which is mostly used by range queries
-        DateMathParser alternateFormat = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
-        doTestIsFieldWithinQuery(ft, reader, null, null);
-        doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
-        doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
-        doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, alternateFormat);
-
-        // Test the "direct from long" version of isfieldWithinQuery which is used to optimize time zones
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2015-10-09"), parse("2016-01-02"), context));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2016-01-02"), parse("2016-06-20"), context));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2016-01-02"), parse("2016-02-12"), context));
-        assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, parse("2014-01-02"), parse("2015-02-12"), context));
-        assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, parse("2016-05-11"), parse("2016-08-30"), context));
-        assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, parse("2015-09-25"), parse("2016-05-29"), context));
-        assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, parse("2015-10-12"), parse("2016-04-03"), context));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2015-10-12") + 1, parse("2016-04-03") - 1, context));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2015-10-12") + 1, parse("2016-04-03"), context));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, parse("2015-10-12"), parse("2016-04-03") - 1, context));
-
-
-        // Fields with no value indexed.
-        DateFieldType ft2 = new DateFieldType();
-        ft2.setName("my_date2");
-
-        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
-        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, parse("2015-10-09"), parse("2016-01-02"), context));
-        IOUtils.close(reader, w, dir);
     }
 
     public void testValueFormat() {
@@ -265,7 +304,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         dir.close();
     }
 
-    private long parse(String str) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(str)).toInstant().toEpochMilli();
+    private Instant instant(String str) {
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(str)).toInstant();
     }
 }

@@ -106,7 +106,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         if (isSnapshot() || EQL_FEATURE_FLAG_REGISTERED) {
-            return List.of(EQL_ENABLED_SETTING);
+            return Collections.singletonList(EQL_ENABLED_SETTING);
         } else {
             return Collections.emptyList();
         }

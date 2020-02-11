@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public interface NumericMetricAggregationSupplier extends AggregatorSupplier {
+public interface MinMaxAggregatorSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      ValuesSourceConfig config,
                      ValuesSource valuesSource,

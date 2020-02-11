@@ -25,10 +25,13 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,6 +39,23 @@ import java.util.List;
 import java.util.Map;
 
 class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(MaxAggregationBuilder.NAME,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            new NumericMetricAggregationSupplier() {
+                @Override
+                public Aggregator build(String name,
+                                        ValuesSourceConfig config,
+                                        ValuesSource valuesSource,
+                                        SearchContext context,
+                                        Aggregator parent,
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
+                    return new MaxAggregator(name, config, (Numeric) valuesSource, context, parent,  pipelineAggregators, metaData);
+                }
+            });
+    }
 
     MaxAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
@@ -58,10 +78,14 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        if (valuesSource instanceof Numeric == false) {
-            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
-                this.name());
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            MaxAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof NumericMetricAggregationSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected NumericMetricAggregationSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
         }
-        return new MaxAggregator(name, config, (Numeric) valuesSource, searchContext, parent, pipelineAggregators, metaData);
+        return ((NumericMetricAggregationSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent,
+            pipelineAggregators, metaData);
     }
 }

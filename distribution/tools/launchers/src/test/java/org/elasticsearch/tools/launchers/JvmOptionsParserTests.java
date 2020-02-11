@@ -170,11 +170,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     public void testReadRootJvmOptions() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
         final Path config = newTempDir();
         final Path rootJvmOptions = config.resolve("jvm.options");
-        Files.write(
-            rootJvmOptions,
-            List.of("# comment", "-Xms256m", "-Xmx256m"),
-            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND
-        );
+        Files.write(rootJvmOptions, List.of("# comment", "-Xms256m", "-Xmx256m"), StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
         if (randomBoolean()) {
             // an empty jvm.options.d directory should be irrelevant
             Files.createDirectory(config.resolve("jvm.options.d"));
@@ -190,12 +186,14 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
         Files.write(
             config.resolve("jvm.options"),
             List.of("# comment", "-Xms256m", "-Xmx256m"),
-            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
         );
         Files.write(
             config.resolve("jvm.options.d").resolve("heap.options"),
             List.of("# comment", "-Xms384m", "-Xmx384m"),
-            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
         );
         final JvmOptionsParser parser = new JvmOptionsParser();
         final List<String> jvmOptions = parser.readJvmOptionsFiles(config);
@@ -208,31 +206,36 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
         Files.write(
             config.resolve("jvm.options"),
             List.of("# comment", "-Xms256m", "-Xmx256m"),
-            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
         );
         Files.write(
             config.resolve("jvm.options.d").resolve("first.options"),
             List.of("# comment", "-Xms384m", "-Xmx384m"),
-            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
         );
         Files.write(
             config.resolve("jvm.options.d").resolve("second.options"),
             List.of("# comment", "-Xms512m", "-Xmx512m"),
-            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
         );
         final JvmOptionsParser parser = new JvmOptionsParser();
         final List<String> jvmOptions = parser.readJvmOptionsFiles(config);
         assertThat(jvmOptions, contains("-Xms256m", "-Xmx256m", "-Xms384m", "-Xmx384m", "-Xms512m", "-Xmx512m"));
     }
 
-    public void testReadJvmOptionsDirectoryIgnoresFilesNotNamedOptions() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
+    public void testReadJvmOptionsDirectoryIgnoresFilesNotNamedOptions() throws IOException,
+        JvmOptionsParser.JvmOptionsFileParserException {
         final Path config = newTempDir();
         Files.createFile(config.resolve("jvm.options"));
         Files.createDirectory(config.resolve("jvm.options.d"));
         Files.write(
             config.resolve("jvm.options.d").resolve("heap.not-named-options"),
             List.of("# comment", "-Xms256m", "-Xmx256m"),
-            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
         );
         final JvmOptionsParser parser = new JvmOptionsParser();
         final List<String> jvmOptions = parser.readJvmOptionsFiles(config);
@@ -242,11 +245,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     public void testFileContainsInvalidLinesThrowsParserException() throws IOException {
         final Path config = newTempDir();
         final Path rootJvmOptions = config.resolve("jvm.options");
-        Files.write(
-            rootJvmOptions,
-            List.of("XX:+UseG1GC"),
-            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND
-        );
+        Files.write(rootJvmOptions, List.of("XX:+UseG1GC"), StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
         try {
             final JvmOptionsParser parser = new JvmOptionsParser();
             parser.readJvmOptionsFiles(config);

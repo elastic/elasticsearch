@@ -310,6 +310,11 @@ See <<ml-get-bucket>>,
 
 See <<snapshot-restore>>.
 
+[role="exclude", id="_repository_plugins"]
+==== Repository plugins
+
+See <<snapshots-repository-plugins>>.
+
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
 
@@ -319,11 +324,6 @@ See <<snapshots-restore-snapshot>>.
 === Snapshot repositories
 
 See <<snapshots-register-repository>>.
-
-[role="exclude", id="_repository_plugins"]
-=== Repository plugins
-
-See <<snapshots-repository-plugins>>.
 
 [role="exclude",id="slm-api-delete"]
 === {slm-init} delete policy API

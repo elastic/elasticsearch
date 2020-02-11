@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.xpack.eql.common.Failure;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -22,7 +23,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.xpack.eql.analysis.Failure.fail;
+import static org.elasticsearch.xpack.eql.common.Failure.fail;
 
 /**
  * The verifier has the role of checking the analyzed tree for failures and build a list of failures following this check.

@@ -250,27 +250,6 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(handlerCalled.get());
     }
 
-    /**
-     * Useful for testing with deprecation handler.
-     */
-    private static class FakeRestHandler implements RestHandler {
-        private final boolean canTripCircuitBreaker;
-
-        private FakeRestHandler(boolean canTripCircuitBreaker) {
-            this.canTripCircuitBreaker = canTripCircuitBreaker;
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-            //no op
-        }
-
-        @Override
-        public boolean canTripCircuitBreaker() {
-            return canTripCircuitBreaker;
-        }
-    }
-
     public void testDispatchRequestAddsAndFreesBytesOnSuccess() {
         int contentLength = BREAKER_LIMIT.bytesAsInt();
         String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
@@ -663,12 +642,12 @@ public class RestControllerTests extends ESTestCase {
         }
     }
 
-    private static final class AssertingChannel extends AbstractRestChannel {
+    public static final class AssertingChannel extends AbstractRestChannel {
 
         private final RestStatus expectedStatus;
         private final AtomicReference<RestResponse> responseReference = new AtomicReference<>();
 
-        protected AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
+        public AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
             super(request, detailedErrorsEnabled);
             this.expectedStatus = expectedStatus;
         }

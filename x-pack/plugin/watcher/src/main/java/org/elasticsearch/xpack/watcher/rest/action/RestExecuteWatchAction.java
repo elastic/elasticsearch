@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -30,11 +29,12 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.IGNORE_CONDITION;
@@ -42,17 +42,19 @@ import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction
 
 public class RestExecuteWatchAction extends BaseRestHandler implements RestRequestFilter {
 
-    private static final List<String> RESERVED_FIELD_NAMES = Arrays.asList(WatchField.TRIGGER.getPreferredName(),
+    private static final List<String> RESERVED_FIELD_NAMES = asList(WatchField.TRIGGER.getPreferredName(),
             WatchField.INPUT.getPreferredName(), WatchField.CONDITION.getPreferredName(),
             WatchField.ACTIONS.getPreferredName(), WatchField.TRANSFORM.getPreferredName(),
             WatchField.THROTTLE_PERIOD.getPreferredName(), WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(),
             WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName());
 
-    public RestExecuteWatchAction(RestController controller) {
-        controller.registerHandler(POST, "/_watcher/watch/{id}/_execute", this);
-        controller.registerHandler(PUT, "/_watcher/watch/{id}/_execute", this);
-        controller.registerHandler(POST, "/_watcher/watch/_execute", this);
-        controller.registerHandler(PUT, "/_watcher/watch/_execute", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/_watcher/watch/{id}/_execute"),
+            new Route(PUT, "/_watcher/watch/{id}/_execute"),
+            new Route(POST, "/_watcher/watch/_execute"),
+            new Route(PUT, "/_watcher/watch/_execute")));
     }
 
     @Override

@@ -33,6 +33,9 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAction<GetDatafeedsStatsAction.Request,
@@ -65,50 +68,70 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
     }
 
     @Override
-    protected void masterOperation(Task task, GetDatafeedsStatsAction.Request request, ClusterState state,
-                                   ActionListener<GetDatafeedsStatsAction.Response> listener) throws Exception {
+    protected void masterOperation(Task task, GetDatafeedsStatsAction.Request request,
+                                   ClusterState state,
+                                   ActionListener<GetDatafeedsStatsAction.Response> listener) {
         logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
+        final PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        ActionListener<SortedSet<String>> expandIdsListener = ActionListener.wrap(
+            expandedIds -> {
+                datafeedConfigProvider.expandDatafeedConfigs(
+                    request.getDatafeedId(),
+                    // Already took into account the request parameter when we expanded the IDs with the tasks earlier
+                    // Should allow for no datafeeds in case the config is gone
+                    true,
+                    ActionListener.wrap(
+                        datafeedBuilders -> {
+                            Map<String, DatafeedConfig> existingConfigs = datafeedBuilders.stream()
+                                .map(DatafeedConfig.Builder::build)
+                                .collect(Collectors.toMap(DatafeedConfig::getId, Function.identity()));
 
-        datafeedConfigProvider.expandDatafeedConfigs(
-            request.getDatafeedId(),
-            request.allowNoDatafeeds(),
-            ActionListener.wrap(
-                datafeedBuilders -> {
-                    List<String> jobIds =
-                        datafeedBuilders.stream()
-                            .map(DatafeedConfig.Builder::build)
-                            .map(DatafeedConfig::getJobId)
-                            .collect(Collectors.toList());
-                    jobResultsProvider.datafeedTimingStats(
-                        jobIds,
-                        timingStatsByJobId -> {
-                            PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                            List<GetDatafeedsStatsAction.Response.DatafeedStats> results =
-                                datafeedBuilders.stream()
-                                    .map(DatafeedConfig.Builder::build)
-                                    .map(
-                                        datafeed -> getDatafeedStats(
-                                            datafeed.getId(),
-                                            state,
-                                            tasksInProgress,
-                                            datafeed.getJobId(),
-                                            timingStatsByJobId.get(datafeed.getJobId())))
-                                    .collect(Collectors.toList());
-                            QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage =
-                                new QueryPage<>(results, results.size(), DatafeedConfig.RESULTS_FIELD);
-                            listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
+                            List<String> jobIds = existingConfigs.values()
+                                .stream()
+                                .map(DatafeedConfig::getJobId)
+                                .collect(Collectors.toList());
+                            jobResultsProvider.datafeedTimingStats(
+                                jobIds,
+                                timingStatsByJobId -> {
+                                    List<GetDatafeedsStatsAction.Response.DatafeedStats> results = expandedIds.stream()
+                                        .map(datafeedId -> {
+                                            DatafeedConfig config = existingConfigs.get(datafeedId);
+                                            String jobId = config == null ? null : config.getJobId();
+                                            DatafeedTimingStats timingStats = jobId == null ? null : timingStatsByJobId.get(jobId);
+                                            return buildDatafeedStats(
+                                                datafeedId,
+                                                state,
+                                                tasksInProgress,
+                                                jobId,
+                                                timingStats
+                                            );
+                                        })
+                                        .collect(Collectors.toList());
+                                    QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage =
+                                        new QueryPage<>(results, results.size(), DatafeedConfig.RESULTS_FIELD);
+                                    listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
+                                },
+                                listener::onFailure);
                         },
-                        listener::onFailure);
-                },
-                listener::onFailure)
+                        listener::onFailure)
+                );
+            },
+            listener::onFailure
         );
+
+        // This might also include datafeed tasks that exist but no longer have a config
+        datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(),
+            request.allowNoDatafeeds(),
+            tasksInProgress,
+            true,
+            expandIdsListener);
     }
 
-    private static GetDatafeedsStatsAction.Response.DatafeedStats getDatafeedStats(String datafeedId,
-                                                                                   ClusterState state,
-                                                                                   PersistentTasksCustomMetaData tasks,
-                                                                                   String jobId,
-                                                                                   DatafeedTimingStats timingStats) {
+    private static GetDatafeedsStatsAction.Response.DatafeedStats buildDatafeedStats(String datafeedId,
+                                                                                     ClusterState state,
+                                                                                     PersistentTasksCustomMetaData tasks,
+                                                                                     String jobId,
+                                                                                     DatafeedTimingStats timingStats) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
         DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedId, tasks);
         DiscoveryNode node = null;
@@ -117,7 +140,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
             node = state.nodes().get(task.getExecutorNode());
             explanation = task.getAssignment().getExplanation();
         }
-        if (timingStats == null) {
+        if (timingStats == null && jobId != null) {
             timingStats = new DatafeedTimingStats(jobId);
         }
         return new GetDatafeedsStatsAction.Response.DatafeedStats(datafeedId, datafeedState, node, explanation, timingStats);

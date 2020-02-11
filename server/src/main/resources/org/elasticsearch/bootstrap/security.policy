@@ -78,6 +78,10 @@ grant {
   permission jdk.net.NetworkPermission "getOption.TCP_KEEPCOUNT";
   permission jdk.net.NetworkPermission "setOption.TCP_KEEPCOUNT";
 
+  permission jdk.jfr.FlightRecorderPermission "registerEvent";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.jfr.internal.handlers";
+
   // Allow read access to all system properties
   permission java.util.PropertyPermission "*", "read";
 

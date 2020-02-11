@@ -5,22 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -35,7 +30,8 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.same;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -46,19 +42,22 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
     private static final String ANALYTICS_ID = "my_analytics";
 
-    private Client client;
+    private static final Map<String, String> HEADERS = Collections.singletonMap("foo", "bar");
+
     private DataFrameDataExtractor dataExtractor;
+    private ResultsPersisterService resultsPersisterService;
     private ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 
     @Before
     public void setUpMocks() {
-        client = mock(Client.class);
         dataExtractor = mock(DataFrameDataExtractor.class);
+        when(dataExtractor.getHeaders()).thenReturn(HEADERS);
+        resultsPersisterService = mock(ResultsPersisterService.class);
     }
 
     public void testProcess_GivenNoResults() {
         givenProcessResults(Collections.emptyList());
-        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(resultsPersisterService);
     }
 
     public void testProcess_GivenSingleRowAndResult() throws IOException {
@@ -126,7 +125,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         RowResults result = new RowResults(2, resultFields);
         givenProcessResults(Arrays.asList(result));
 
-        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(resultsPersisterService);
     }
 
     public void testProcess_GivenSingleBatchWithSkippedRows() throws IOException {
@@ -204,7 +203,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         RowResults result2 = new RowResults(2, resultFields);
         givenProcessResults(Arrays.asList(result1, result2));
 
-        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(resultsPersisterService);
     }
 
     public void testProcess_GivenNoResults_ShouldCancelAndConsumeExtractor() throws IOException {
@@ -218,13 +217,13 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
         givenProcessResults(Collections.emptyList());
 
-        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(resultsPersisterService);
         verify(dataExtractor).cancel();
         verify(dataExtractor, times(2)).next();
     }
 
     private void givenProcessResults(List<RowResults> results) {
-        try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, client, dataExtractor)) {
+        try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, dataExtractor, resultsPersisterService)) {
             results.forEach(joiner::processRowResults);
         }
     }
@@ -251,14 +250,9 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private void givenClientHasNoFailures() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        @SuppressWarnings("unchecked")
-        ActionFuture<BulkResponse> responseFuture = mock(ActionFuture.class);
-        when(responseFuture.actionGet()).thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
-        when(client.execute(same(BulkAction.INSTANCE), bulkRequestCaptor.capture())).thenReturn(responseFuture);
-        when(client.threadPool()).thenReturn(threadPool);
+        when(resultsPersisterService.bulkIndexWithHeadersWithRetry(
+            eq(HEADERS), bulkRequestCaptor.capture(), eq(ANALYTICS_ID), any(), any()))
+            .thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
     }
 
     private static class DelegateStubDataExtractor {

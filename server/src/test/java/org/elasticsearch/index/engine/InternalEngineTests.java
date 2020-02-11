@@ -4754,6 +4754,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testShouldPeriodicallyFlushAfterMerge() throws Exception {
         engine.close();
+        // Do not use MockRandomMergePolicy as it can cause a force merge performing two merges.
         engine = createEngine(copy(engine.config(), newMergePolicy(random(), false)));
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         ParsedDocument doc =

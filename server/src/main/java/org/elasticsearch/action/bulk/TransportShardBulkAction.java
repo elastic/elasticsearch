@@ -170,7 +170,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             public void onRejection(Exception e) {
-                // Force the execution to finish the request
+                // We must finish the outstanding request. Finishing the outstanding request can include
+                //refreshing and fsyncing. Therefore, we must force execution on the WRITE thread.
                 executor.execute(new ActionRunnable<>(listener) {
 
                     @Override

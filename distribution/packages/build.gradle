@@ -79,8 +79,9 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
       mkdir "${packagingFiles}/var/lib/elasticsearch"
       mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
 
-      // bare empty dir for /etc/elasticsearch
+      // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
       mkdir "${packagingFiles}/elasticsearch"
+      mkdir "${packagingFiles}/elasticsearch/jvm.options.d"
     }
   }
 }
@@ -197,6 +198,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       includeEmptyDirs true
       createDirectoryEntry true
       include("elasticsearch") // empty dir, just to add directory entry
+      include("elasticsearch/jvm.options.d") // empty dir, just to add directory entry
     }
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')

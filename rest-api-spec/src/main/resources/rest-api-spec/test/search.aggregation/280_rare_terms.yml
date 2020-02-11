@@ -317,7 +317,7 @@ setup:
 "sub aggs":
   - skip:
       version: " - 7.6.0"
-      reason: Sub aggs fixed in 7.6.1  a
+      reason: Sub aggs fixed in 7.6.1
 
   - do:
       index:

@@ -124,9 +124,9 @@ functions can be used for ordering. Here are some examples of queries that are *
 
 [source, sql]
 --------------------------------------------------
-SELECT age, ROUND(AVG(salary)) AS avg FROM test GROUP BY gender ORDER BY avg;
+SELECT age, ROUND(AVG(salary)) AS avg FROM test GROUP BY age ORDER BY avg;
 
-SELECT age, MAX(salary) - MIN(salary) AS diff FROM test GROUP BY gender ORDER BY diff;
+SELECT age, MAX(salary) - MIN(salary) AS diff FROM test GROUP BY age ORDER BY diff;
 --------------------------------------------------
 
 [float]

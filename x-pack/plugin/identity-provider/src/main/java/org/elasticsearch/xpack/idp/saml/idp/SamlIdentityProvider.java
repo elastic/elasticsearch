@@ -16,5 +16,9 @@ public interface SamlIdentityProvider {
 
     String getEntityId();
 
+    String getSingleSignOnEndpoint(String binding);
+
+    String getSingleLogoutEndpoint(String binding);
+
     X509Credential getSigningCredential();
 }

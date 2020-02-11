@@ -245,6 +245,13 @@ public class MockWebServer implements Closeable {
     }
 
     /**
+     * Removes all requests from the queue.
+     */
+    public void clearRequests() {
+        requests.clear();
+    }
+
+    /**
      * A utility method to peek into the requests and find out if #MockWebServer.takeRequests will not throw an out of bound exception
      * @return true if more requests are available, false otherwise
      */

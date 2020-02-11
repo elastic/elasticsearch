@@ -466,41 +466,38 @@ public class JobResultsProvider {
                         if (itemResponse.isFailure()) {
                             listener.onFailure(itemResponse.getFailure());
                             return;
-                        } else {
-                            SearchResponse searchResponse = itemResponse.getResponse();
-                            ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
-                            int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                            if (shardFailures != null && shardFailures.length > 0) {
-                                LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
-                                listener.onFailure(
-                                    new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
-                                return;
-                            } else if (unavailableShards > 0) {
-                                listener.onFailure(
-                                    new ElasticsearchException(
-                                        "[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
-                                return;
-                            } else {
-                                SearchHits hits = searchResponse.getHits();
-                                long hitsCount = hits.getHits().length;
-                                if (hitsCount == 0) {
-                                    SearchRequest searchRequest = msearchRequest.requests().get(i);
-                                    LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
-                                } else if (hitsCount > 1) {
-                                    SearchRequest searchRequest = msearchRequest.requests().get(i);
-                                    LOGGER.debug("Found multiple hits for [{}]", new Object[]{searchRequest.indices()});
-                                } else {
-                                    assert hitsCount == 1;
-                                    SearchHit hit = hits.getHits()[0];
-                                    try {
-                                        DatafeedTimingStats timingStats = parseSearchHit(hit, DatafeedTimingStats.PARSER);
-                                        timingStatsByJobId.put(jobId, timingStats);
-                                    } catch (Exception e) {
-                                        listener.onFailure(e);
-                                        return;
-                                    }
-                                }
-                            }
+                        }
+                        SearchResponse searchResponse = itemResponse.getResponse();
+                        ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                        int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                        if (shardFailures != null && shardFailures.length > 0) {
+                            LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
+                            listener.onFailure(
+                                new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                            return;
+                        }
+                        if (unavailableShards > 0) {
+                            listener.onFailure(
+                                new ElasticsearchException(
+                                    "[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                            return;
+                        }
+                        SearchHits hits = searchResponse.getHits();
+                        long hitsCount = hits.getHits().length;
+                        if (hitsCount == 0 || hitsCount > 1) {
+                            SearchRequest searchRequest = msearchRequest.requests().get(i);
+                            LOGGER.debug("Found {} hits for [{}]",
+                                hitsCount == 0 ? "0" : "multiple",
+                                new Object[]{searchRequest.indices()});
+                            return;
+                        }
+                        SearchHit hit = hits.getHits()[0];
+                        try {
+                            DatafeedTimingStats timingStats = parseSearchHit(hit, DatafeedTimingStats.PARSER);
+                            timingStatsByJobId.put(jobId, timingStats);
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                            return;
                         }
                     }
                     listener.onResponse(timingStatsByJobId);
@@ -575,40 +572,38 @@ public class JobResultsProvider {
                                 if (itemResponse.isFailure()) {
                                     errorHandler.accept(itemResponse.getFailure());
                                     return;
-                                } else {
-                                    SearchResponse searchResponse = itemResponse.getResponse();
-                                    ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
-                                    int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                                    if (shardFailures != null && shardFailures.length > 0) {
-                                        LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
-                                                Arrays.toString(shardFailures));
-                                        errorHandler.accept(new ElasticsearchException(
-                                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
-                                        return;
-                                    } else if (unavailableShards > 0) {
-                                        errorHandler.accept(new ElasticsearchException("[" + jobId
-                                                + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
-                                        return;
-                                    } else {
-                                        SearchHits hits = searchResponse.getHits();
-                                        long hitsCount = hits.getHits().length;
-                                        if (hitsCount == 0) {
-                                            SearchRequest searchRequest = msearch.request().requests().get(i);
-                                            LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
-                                        } else {
-                                            for (SearchHit hit : hits) {
-                                                try {
-                                                    parseAutodetectParamSearchHit(jobId, paramsBuilder, hit);
-                                                } catch (Exception e) {
-                                                    errorHandler.accept(e);
-                                                    return;
-                                                }
-                                            }
+                                }
+                                SearchResponse searchResponse = itemResponse.getResponse();
+                                ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                                int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                                if (shardFailures != null && shardFailures.length > 0) {
+                                    LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
+                                            Arrays.toString(shardFailures));
+                                    errorHandler.accept(new ElasticsearchException(
+                                            ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                                    return;
+                                }
+                                if (unavailableShards > 0) {
+                                    errorHandler.accept(new ElasticsearchException("[" + jobId
+                                            + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                                    return;
+                                }
+                                SearchHits hits = searchResponse.getHits();
+                                long hitsCount = hits.getHits().length;
+                                if (hitsCount == 0) {
+                                    SearchRequest searchRequest = msearch.request().requests().get(i);
+                                    LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
+                                    return;
+                                }
+                                    for (SearchHit hit : hits) {
+                                        try {
+                                            parseAutodetectParamSearchHit(jobId, paramsBuilder, hit);
+                                        } catch (Exception e) {
+                                            errorHandler.accept(e);
+                                            return;
                                         }
                                     }
                                 }
-                            }
-
                             getScheduledEventsListener.onResponse(paramsBuilder);
                         },
                         errorHandler

@@ -40,9 +40,10 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     private static final ParseField VALUES_FIELD = new ParseField("values");
     private static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER;
     static {
-        PARSER = AbstractPercentilesAggregationBuilder.getParser(
+        PARSER = AbstractPercentilesAggregationBuilder.createParser(
             PercentileRanksAggregationBuilder.NAME,
             PercentileRanksAggregationBuilder::new,
+            PercentilesConfig.TDigest::new,
             VALUES_FIELD);
     }
 

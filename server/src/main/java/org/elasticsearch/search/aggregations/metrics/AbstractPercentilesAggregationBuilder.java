@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * This provides a base class for aggregations that are building percentiles or percentiles-like functionality (e.g. percentile ranks).
@@ -54,8 +55,9 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     private PercentilesConfig percentilesConfig;
     private ParseField valuesField;
 
-    public static <T extends AbstractPercentilesAggregationBuilder<T>> ConstructingObjectParser<T, String> getParser(String aggName,
-                                                         TriFunction<String, double[], PercentilesConfig, T> fn,
+    public static <T extends AbstractPercentilesAggregationBuilder<T>> ConstructingObjectParser<T, String> createParser(String aggName,
+                                                         TriFunction<String, double[], PercentilesConfig, T> ctor,
+                                                         Supplier<PercentilesConfig> defaultConfig,
                                                          ParseField valuesField) {
 
         /**
@@ -83,24 +85,26 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             if (args == null || args.length == 0) {
                 // Note: if this is a Percentiles agg, the null `values` will be converted into a default,
                 // whereas a Ranks agg will throw an exception due to missing a required param
-                return fn.apply(name, null, new PercentilesConfig.TDigest());
+                return ctor.apply(name, null, defaultConfig.get());
             }
+
+            PercentilesConfig tDigestConfig = (PercentilesConfig) args[1];
+            PercentilesConfig hdrConfig = (PercentilesConfig) args[2];
 
             double[] values = args[0] != null ? ((List<Double>) args[0]).stream().mapToDouble(Double::doubleValue).toArray() : null;
             PercentilesConfig percentilesConfig;
 
-            if (args[1] != null && args[2] != null) {
+            if (tDigestConfig != null && hdrConfig != null) {
                 throw new IllegalArgumentException("Only one percentiles method should be declared.");
-            } else if (args[1] == null && args[2] == null) {
-                // Default is tdigest
-                percentilesConfig = new PercentilesConfig.TDigest();
-            } else if (args[1] != null) {
-                percentilesConfig = (PercentilesConfig) args[1];
+            } else if (tDigestConfig == null && hdrConfig == null) {
+                percentilesConfig = defaultConfig.get();
+            } else if (tDigestConfig != null) {
+                percentilesConfig = tDigestConfig;
             } else {
-                percentilesConfig = (PercentilesConfig) args[2];
+                percentilesConfig = hdrConfig;
             }
 
-            return fn.apply(name, values, percentilesConfig);
+            return ctor.apply(name, values, percentilesConfig);
         });
 
         ValuesSourceParserHelper.declareAnyFields(parser, true, true);

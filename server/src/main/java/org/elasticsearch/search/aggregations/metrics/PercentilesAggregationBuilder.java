@@ -43,7 +43,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
 
     private static final ConstructingObjectParser<PercentilesAggregationBuilder, String> PARSER;
     static {
-        PARSER = AbstractPercentilesAggregationBuilder.getParser(
+        PARSER = AbstractPercentilesAggregationBuilder.createParser(
             PercentilesAggregationBuilder.NAME,
             (name, values, percentileConfig) -> {
                 if (values == null) {
@@ -53,6 +53,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
                 }
                 return new PercentilesAggregationBuilder(name, values, percentileConfig);
             },
+            PercentilesConfig.TDigest::new,
             PERCENTS_FIELD);
     }
 

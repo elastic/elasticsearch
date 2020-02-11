@@ -1,8 +1,6 @@
 [[release-notes-7.6.0]]
 == {es} version 7.6.0
 
-coming[7.6.0]
-
 Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
 
 [[breaking-7.6.0]]

@@ -257,22 +257,22 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
         return Arrays.asList(
                 // stats API
-                new RestFollowStatsAction(restController),
-                new RestCcrStatsAction(restController),
-                new RestFollowInfoAction(restController),
+                new RestFollowStatsAction(),
+                new RestCcrStatsAction(),
+                new RestFollowInfoAction(),
                 // follow APIs
-                new RestPutFollowAction(restController),
-                new RestResumeFollowAction(restController),
-                new RestPauseFollowAction(restController),
-                new RestUnfollowAction(restController),
+                new RestPutFollowAction(),
+                new RestResumeFollowAction(),
+                new RestPauseFollowAction(),
+                new RestUnfollowAction(),
                 // auto-follow APIs
-                new RestDeleteAutoFollowPatternAction(restController),
-                new RestPutAutoFollowPatternAction(restController),
-                new RestGetAutoFollowPatternAction(restController),
-                new RestPauseAutoFollowPatternAction(restController),
-                new RestResumeAutoFollowPatternAction(restController),
+                new RestDeleteAutoFollowPatternAction(),
+                new RestPutAutoFollowPatternAction(),
+                new RestGetAutoFollowPatternAction(),
+                new RestPauseAutoFollowPatternAction(),
+                new RestResumeAutoFollowPatternAction(),
                 // forget follower API
-                new RestForgetFollowerAction(restController));
+                new RestForgetFollowerAction());
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

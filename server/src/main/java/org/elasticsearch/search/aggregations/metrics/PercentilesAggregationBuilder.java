@@ -48,6 +48,8 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
             (name, values, percentileConfig) -> {
                 if (values == null) {
                     values = DEFAULT_PERCENTS; // this is needed because Percentiles has a default, while Ranks does not
+                } else {
+                    values = validatePercentiles(values, name);
                 }
                 return new PercentilesAggregationBuilder(name, values, percentileConfig);
             },
@@ -84,21 +86,25 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
      * Set the values to compute percentiles from.
      */
     public PercentilesAggregationBuilder percentiles(double... percents) {
+        this.values = validatePercentiles(percents, name);
+        return this;
+    }
+
+    private static double[] validatePercentiles(double[] percents, String aggName) {
         if (percents == null) {
-            throw new IllegalArgumentException("[percents] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[percents] must not be null: [" + aggName + "]");
         }
         if (percents.length == 0) {
-            throw new IllegalArgumentException("[percents] must not be empty: [" + name + "]");
+            throw new IllegalArgumentException("[percents] must not be empty: [" + aggName + "]");
         }
         double[] sortedPercents = Arrays.copyOf(percents, percents.length);
         Arrays.sort(sortedPercents);
         for (double percent : sortedPercents) {
             if (percent < 0.0 || percent > 100.0) {
-                throw new IllegalArgumentException("percent must be in [0,100], got [" + percent + "]: [" + name + "]");
+                throw new IllegalArgumentException("percent must be in [0,100], got [" + percent + "]: [" + aggName + "]");
             }
         }
-        this.values = sortedPercents;
-        return this;
+        return sortedPercents;
     }
 
     /**

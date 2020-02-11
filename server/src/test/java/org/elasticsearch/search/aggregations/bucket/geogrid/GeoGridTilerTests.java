@@ -199,17 +199,17 @@ public class GeoGridTilerTests extends ESTestCase {
 
         // test shape within tile bounds
         {
-            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOHASH);
             int count = GEOHASH.setValues(values, value, 5);
             assertThat(count, equalTo(1));
         }
         {
-            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOHASH);
             int count = GEOHASH.setValues(values, value, 6);
             assertThat(count, equalTo(32));
         }
         {
-            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOHASH);
             int count = GEOHASH.setValues(values, value, 7);
             assertThat(count, equalTo(1024));
         }

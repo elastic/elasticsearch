@@ -116,8 +116,8 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertGeoPointEquals(keyToGeoPoint("1/1/0"), 90.0, 66.51326044311186);
         assertGeoPointEquals(keyToGeoPoint("1/0/1"), -90.0, -66.51326044311186);
         assertGeoPointEquals(keyToGeoPoint("1/1/1"), 90.0, -66.51326044311186);
-        assertGeoPointEquals(keyToGeoPoint("29/536870000/10"), 179.99938879162073, LATITUDE_MASK);
-        assertGeoPointEquals(keyToGeoPoint("29/10/536870000"), -179.99999295920134, -LATITUDE_MASK);
+        assertGeoPointEquals(keyToGeoPoint("29/536870000/10"), 179.99938879162073, 85.05112817241982);
+        assertGeoPointEquals(keyToGeoPoint("29/10/536870000"), -179.99999295920134, -85.0510760525731);
 
         //noinspection ConstantConditions
         expectThrows(NullPointerException.class, () -> keyToGeoPoint(null));

@@ -326,9 +326,25 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
-        
+
         verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
         verify(persister, times(3)).persistModelSizeStats(any(ModelSizeStats.class), any());
+        // We should have only fired one notification; only the change from ok to warn should have fired, not the subsequent warn
+        verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, "warn", 0));
+    }
+
+    public void testProcessResult_modelSizeStatsWithFirstCategorizationStatusWarn() {
+        AutodetectResult result = mock(AutodetectResult.class);
+        processorUnderTest.setDeleteInterimRequired(false);
+
+        // First one with warn - this works because a default constructed ModelSizeStats has CategorizationStatus.OK
+        ModelSizeStats modelSizeStats =
+            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
+        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
+        processorUnderTest.processResult(result);
+
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).persistModelSizeStats(any(ModelSizeStats.class), any());
         // We should have only fired one notification; only the change from ok to warn should have fired, not the subsequent warn
         verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, "warn", 0));
     }

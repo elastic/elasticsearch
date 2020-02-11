@@ -301,27 +301,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             SnapshotInfo::fromXContentInternal, namedXContentRegistry, compress);
     }
 
-    public static SegmentInfos segmentInfosFromMeta(Iterable<BlobStoreIndexShardSnapshot.FileInfo> files) {
-        final Directory dir = new ByteBuffersDirectory();
-        for (BlobStoreIndexShardSnapshot.FileInfo f : files) {
-            final StoreFileMetaData m = f.metadata();
-            if (m.length() != m.hash().length) {
-                continue;
-            }
-            try (IndexOutput indexOutput = dir.createOutput(m.name(), IOContext.DEFAULT)) {
-                final BytesRef fileContent = m.hash();
-                indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        try {
-            return SegmentInfos.readLatestCommit(dir);
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-    }
-
     @Override
     protected void doStart() {
         uncleanStart = metadata.pendingGeneration() > RepositoryData.EMPTY_REPO_GEN &&
@@ -1508,29 +1487,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     "Duplicate snapshot name [" + snapshotId.getName() + "] detected, aborting");
             }
 
-            final List<List<BlobStoreIndexShardSnapshot.FileInfo>> snapshotFileSets = snapshots.snapshots().stream().map(
-                snapshotFiles -> new ArrayList<>(snapshotFiles.indexFiles())
-            ).collect(Collectors.toList());
-
             List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos = null;
-
+            // First inspect all known SegmentInfos instances to see if we already have an equivalent commit in the repository that has the
+            // same sequence number, primary term id and history uuid as our current commit.
             final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
             final String sequenceNumString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
             final String localCheckpointString = userCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
-            if (sequenceNumString != null && localCheckpointString != null) {
-                final long sequenceNum = Long.parseLong(sequenceNumString);
-                final long localCheckpoint = Long.parseLong(localCheckpointString);
-                final String historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
-                assert historyUUID != null;
-
-                for (List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFileSet : snapshotFileSets) {
-                    final SegmentInfos segmentInfos = segmentInfosFromMeta(snapshotFileSet);
+            final String maxTermString = userCommitData.get(Engine.MAX_PRIMARY_TERM);
+            final String historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
+            if (sequenceNumString != null && localCheckpointString != null && maxTermString != null && historyUUID != null) {
+                for (SnapshotFiles snapshotFileSet : snapshots.snapshots()) {
+                    final List<BlobStoreIndexShardSnapshot.FileInfo> files = snapshotFileSet.indexFiles();
+                    final SegmentInfos segmentInfos;
+                    try {
+                        segmentInfos = segmentInfosFromMeta(files);
+                    } catch (IOException e) {
+                        logger.debug("Failed to read SegmentInfos from files {}", files);
+                        continue;
+                    }
                     final Map<String, String> snapshotUserCommitData = segmentInfos.getUserData();
-                    final long snapshotSequenceNum = Long.parseLong(snapshotUserCommitData.get(SequenceNumbers.MAX_SEQ_NO));
-                    final long snapshotLocalCheckpoint = Long.parseLong(snapshotUserCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                    if (snapshotSequenceNum == sequenceNum && snapshotLocalCheckpoint == localCheckpoint
-                        && historyUUID.equals(snapshotUserCommitData.get(Engine.HISTORY_UUID_KEY))) {
-                        filesFromSegmentInfos = snapshotFileSet;
+                    if (sequenceNumString.equals(snapshotUserCommitData.get(SequenceNumbers.MAX_SEQ_NO)) &&
+                        localCheckpointString.equals(snapshotUserCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) &&
+                        maxTermString.equals(snapshotUserCommitData.get(Engine.MAX_PRIMARY_TERM)) &&
+                        historyUUID.equals(snapshotUserCommitData.get(Engine.HISTORY_UUID_KEY))) {
+                        filesFromSegmentInfos = files;
                         break;
                     }
                 }
@@ -1542,6 +1522,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             long indexIncrementalSize = 0;
             long indexTotalFileSize = 0;
             final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new LinkedBlockingQueue<>();
+            // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
+            // in the commit with files already in the repository
             if (filesFromSegmentInfos == null) {
                 indexCommitPointFiles = new ArrayList<>();
                 store.incRef();
@@ -1697,6 +1679,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static SegmentInfos segmentInfosFromMeta(Iterable<BlobStoreIndexShardSnapshot.FileInfo> files) throws IOException {
+        final Directory dir = new ByteBuffersDirectory();
+        for (BlobStoreIndexShardSnapshot.FileInfo f : files) {
+            final StoreFileMetaData m = f.metadata();
+            if (m.length() != m.hash().length) {
+                continue;
+            }
+            try (IndexOutput indexOutput = dir.createOutput(m.name(), IOContext.DEFAULT)) {
+                final BytesRef fileContent = m.hash();
+                indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
+            }
+        }
+        return SegmentInfos.readLatestCommit(dir);
     }
 
     private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {

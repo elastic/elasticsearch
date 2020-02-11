@@ -694,6 +694,7 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(testOutputDir)
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
+                    project.mkdir(test.workingDir.toPath().resolve('temp'))
 
                     if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
                         test.jvmArgs '--illegal-access=warn'

@@ -1489,7 +1489,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // First inspect all known SegmentInfos instances to see if we already have an equivalent commit in the repository that has the
             // same sequence number, primary term id and history uuid as our current commit.
-            final List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos = findMatchingShardSnapshot(snapshotIndexCommit, snapshots);
+            final List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos =
+                findMatchingShardSnapshot(snapshotIndexCommit, snapshots);
 
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles;
             int indexIncrementalFileCount = 0;
@@ -1659,45 +1660,41 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private static List<BlobStoreIndexShardSnapshot.FileInfo> findMatchingShardSnapshot(
             IndexCommit snapshotIndexCommit, BlobStoreIndexShardSnapshots snapshots) throws IOException {
         final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
-        final String sequenceNumString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
-        final String localCheckpointString = userCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
-        final String maxTermString = userCommitData.get(Engine.MAX_PRIMARY_TERM);
+        final String sequenceNum = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
+        final String localCheckpoint = userCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+        final String primaryTerm = userCommitData.get(Engine.MAX_PRIMARY_TERM);
         final String historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
-        if (sequenceNumString != null && localCheckpointString != null && maxTermString != null && historyUUID != null) {
+        if (sequenceNum != null && localCheckpoint != null && primaryTerm != null && historyUUID != null) {
             for (SnapshotFiles snapshotFileSet : snapshots.snapshots()) {
                 final List<BlobStoreIndexShardSnapshot.FileInfo> files = snapshotFileSet.indexFiles();
                 final SegmentInfos segmentInfos;
                 try {
-                    segmentInfos = segmentInfosFromMeta(files);
+                    final Directory dir = new ByteBuffersDirectory();
+                    for (BlobStoreIndexShardSnapshot.FileInfo f : files) {
+                        final StoreFileMetaData m = f.metadata();
+                        if (m.length() != m.hash().length) {
+                            continue;
+                        }
+                        try (IndexOutput indexOutput = dir.createOutput(m.name(), IOContext.DEFAULT)) {
+                            final BytesRef fileContent = m.hash();
+                            indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
+                        }
+                    }
+                    segmentInfos = SegmentInfos.readLatestCommit(dir);
                 } catch (IOException e) {
                     logger.debug("Failed to read SegmentInfos from files {}", files);
                     continue;
                 }
                 final Map<String, String> snapshotUserCommitData = segmentInfos.getUserData();
-                if (sequenceNumString.equals(snapshotUserCommitData.get(SequenceNumbers.MAX_SEQ_NO)) &&
-                    localCheckpointString.equals(snapshotUserCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) &&
-                    maxTermString.equals(snapshotUserCommitData.get(Engine.MAX_PRIMARY_TERM)) &&
+                if (sequenceNum.equals(snapshotUserCommitData.get(SequenceNumbers.MAX_SEQ_NO)) &&
+                    localCheckpoint.equals(snapshotUserCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) &&
+                    primaryTerm.equals(snapshotUserCommitData.get(Engine.MAX_PRIMARY_TERM)) &&
                     historyUUID.equals(snapshotUserCommitData.get(Engine.HISTORY_UUID_KEY))) {
                     return files;
                 }
             }
         }
         return null;
-    }
-
-    private static SegmentInfos segmentInfosFromMeta(Iterable<BlobStoreIndexShardSnapshot.FileInfo> files) throws IOException {
-        final Directory dir = new ByteBuffersDirectory();
-        for (BlobStoreIndexShardSnapshot.FileInfo f : files) {
-            final StoreFileMetaData m = f.metadata();
-            if (m.length() != m.hash().length) {
-                continue;
-            }
-            try (IndexOutput indexOutput = dir.createOutput(m.name(), IOContext.DEFAULT)) {
-                final BytesRef fileContent = m.hash();
-                indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
-            }
-        }
-        return SegmentInfos.readLatestCommit(dir);
     }
 
     private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {

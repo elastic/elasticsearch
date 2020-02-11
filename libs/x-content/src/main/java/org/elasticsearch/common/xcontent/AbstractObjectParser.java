@@ -147,10 +147,11 @@ public abstract class AbstractObjectParser<Value, Context>
     }
 
     /**
-     * Declare a field that can bee an object or an explicit {@code null}.
+     * Declare an object field that parses explicit {@code null}s in the json to a default value.
      */
-    public <T> void declareObjectOrNull(BiConsumer<Value, T> consumer, ContextParser<Context, T> objectParser, ParseField field) {
-        declareField(consumer, (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : objectParser.parse(p, c),
+    public <T> void declareObjectOrNull(BiConsumer<Value, T> consumer, ContextParser<Context, T> objectParser, T nullValue,
+            ParseField field) {
+        declareField(consumer, (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : objectParser.parse(p, c),
                 field, ValueType.OBJECT_OR_NULL);
     }
 

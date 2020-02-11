@@ -49,16 +49,18 @@ public class ParsedStringStats extends ParsedAggregation {
     private final int maxLength;
     private final double avgLength;
     private final double entropy;
+    private final boolean showDistribution;
     private final Map<String, Double> distribution;
 
     private ParsedStringStats(String name, long count, int minLength, int maxLength, double avgLength, double entropy,
-            Map<String, Double> distribution) {
+            boolean showDistribution, Map<String, Double> distribution) {
         setName(name);
         this.count = count;
         this.minLength = minLength;
         this.maxLength = maxLength;
         this.avgLength = avgLength;
         this.entropy = entropy;
+        this.showDistribution = showDistribution;
         this.distribution = distribution;
     }
 
@@ -115,19 +117,27 @@ public class ParsedStringStats extends ParsedAggregation {
         return StringStatsAggregationBuilder.NAME;
     }
 
+    private static final Object NULL_DISTRIBUTION_MARKER = new Object();
     public static final ConstructingObjectParser<ParsedStringStats, String> PARSER = new ConstructingObjectParser<>(
             StringStatsAggregationBuilder.NAME, true, (args, name) -> {
                 long count = (long) args[0];
-                @SuppressWarnings("unchecked")
-                Map<String, Double> distribution = (Map<String, Double>) args[5];
+                boolean disributionWasExplicitNull = args[5] == NULL_DISTRIBUTION_MARKER;
                 if (count == 0) {
-                    return new ParsedStringStats(name, count, 0, 0, 0, 0, distribution);
+                    return new ParsedStringStats(name, count, 0, 0, 0, 0, disributionWasExplicitNull, null);
                 }
                 int minLength = (int) args[1];
                 int maxLength = (int) args[2];
                 double averageLength = (double) args[3];
                 double entropy = (double) args[4];
-                return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy, distribution);
+                if (disributionWasExplicitNull) {
+                    return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy,
+                            disributionWasExplicitNull, null);
+                } else {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Double> distribution = (Map<String, Double>) args[5];
+                    return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy,
+                            distribution != null, distribution);
+                }
             });
     static {
         PARSER.declareLong(constructorArg(), COUNT_FIELD);
@@ -136,7 +146,7 @@ public class ParsedStringStats extends ParsedAggregation {
         PARSER.declareDoubleOrNull(constructorArg(), 0, AVG_LENGTH_FIELD);
         PARSER.declareDoubleOrNull(constructorArg(), 0, ENTROPY_FIELD);
         PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> unmodifiableMap(p.map(HashMap::new, XContentParser::doubleValue)),
-                DISTRIBUTION_FIELD);
+                NULL_DISTRIBUTION_MARKER, DISTRIBUTION_FIELD);
         ParsedAggregation.declareAggregationFields(PARSER);
     }
 
@@ -154,7 +164,7 @@ public class ParsedStringStats extends ParsedAggregation {
             builder.field(AVG_LENGTH_FIELD.getPreferredName(), avgLength);
             builder.field(ENTROPY_FIELD.getPreferredName(), entropy);
         }
-        if (distribution != null) {
+        if (showDistribution) {
             builder.field(DISTRIBUTION_FIELD.getPreferredName(), distribution);
         }
         return builder;

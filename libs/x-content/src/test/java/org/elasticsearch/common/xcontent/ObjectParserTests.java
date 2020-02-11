@@ -276,17 +276,19 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testObjectOrNullWhenNull() throws IOException {
+        StaticTestStruct nullMarker = new StaticTestStruct();
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object\" : null}");
         ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
-        objectParser.declareObjectOrNull(StaticTestStruct::setObject, objectParser, new ParseField("object"));
+        objectParser.declareObjectOrNull(StaticTestStruct::setObject, objectParser, nullMarker, new ParseField("object"));
         StaticTestStruct s = objectParser.parse(parser, null);
-        assertThat(s.object, nullValue());
+        assertThat(s.object, equalTo(nullMarker));
     }
 
     public void testObjectOrNullWhenNonNull() throws IOException {
+        StaticTestStruct nullMarker = new StaticTestStruct();
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object\" : {}}");
         ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
-        objectParser.declareObjectOrNull(StaticTestStruct::setObject, objectParser, new ParseField("object"));
+        objectParser.declareObjectOrNull(StaticTestStruct::setObject, objectParser, nullMarker, new ParseField("object"));
         StaticTestStruct s = objectParser.parse(parser, null);
         assertThat(s.object, not(nullValue()));
     }

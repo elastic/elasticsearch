@@ -133,12 +133,12 @@ public class AuthenticationService {
      * This method will optionally, authenticate as the anonymous user if the service is configured to allow anonymous access.
      *
      * @param request The request to be authenticated
-     * @param supportAnonymousAccess If {@code false}, then authentication will <em>not</em> fallback to anonymous.
+     * @param allowAnonymous If {@code false}, then authentication will <em>not</em> fallback to anonymous.
      *                               If {@code true}, then authentication <em>will</em> fallback to anonymous, if this service is
      *                               configured to allow anonymous access (see {@link #isAnonymousUserEnabled}).
      */
-    public void authenticate(RestRequest request, boolean supportAnonymousAccess, ActionListener<Authentication> authenticationListener) {
-        createAuthenticator(request, supportAnonymousAccess, authenticationListener).authenticateAsync();
+    public void authenticate(RestRequest request, boolean allowAnonymous, ActionListener<Authentication> authenticationListener) {
+        createAuthenticator(request, allowAnonymous, authenticationListener).authenticateAsync();
     }
 
     /**
@@ -149,14 +149,29 @@ public class AuthenticationService {
      *
      * @param action       The action of the message
      * @param message      The message to be authenticated
-     * @param fallbackUser The default user that will be assumed if no other user is attached to the message. Can be
-     *                     {@code null}, in which case there will be no fallback user and the success/failure of the
-     *                     authentication will be based on the whether there's an attached user to in the message and
-     *                     if there is, whether its credentials are valid.
+     * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not
+     *                      be {@code null}.
      */
-    public void authenticate(String action, TransportMessage message, User fallbackUser,
-                             boolean allowAnonymous, ActionListener<Authentication> listener) {
-        createAuthenticator(action, message, fallbackUser, allowAnonymous, listener).authenticateAsync();
+    public void authenticate(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
+        Objects.requireNonNull(fallbackUser, "fallback user may not be null");
+        createAuthenticator(action, message, fallbackUser, false, listener).authenticateAsync();
+    }
+
+    /**
+     * Authenticates the user that is associated with the given message. If the user was authenticated successfully (i.e.
+     * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
+     * the user and that user is then "attached" to the message's context.
+     * If no user or credentials are found to be attached to the given message, and the caller allows anonymous access
+     * ({@code allowAnonymous} parameter), and this service is configured for anonymous access (see {@link #isAnonymousUserEnabled} and
+     * {@link #anonymousUser}), then the anonymous user will be returned instead.
+     *
+     * @param action       The action of the message
+     * @param message      The message to be authenticated
+     * @param allowAnonymous Whether to permit anonymous access for this request (this only relevant if the service is
+     *                       {@link #isAnonymousUserEnabled configured for anonymous access}).
+     */
+    public void authenticate(String action, TransportMessage message, boolean allowAnonymous, ActionListener<Authentication> listener) {
+        createAuthenticator(action, message, null, allowAnonymous, listener).authenticateAsync();
     }
 
     /**
@@ -169,7 +184,7 @@ public class AuthenticationService {
      */
     public void authenticate(String action, TransportMessage message,
                              AuthenticationToken token, ActionListener<Authentication> listener) {
-        new Authenticator(action, message, null, isAnonymousUserEnabled, listener).authenticateToken(token);
+        new Authenticator(action, message, null, shouldFallbackToAnonymous(true), listener).authenticateToken(token);
     }
 
     public void expire(String principal) {
@@ -196,18 +211,43 @@ public class AuthenticationService {
 
     // pkg private method for testing
     Authenticator createAuthenticator(RestRequest request, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
-        return new Authenticator(request, fallbackToAnonymous && isAnonymousUserEnabled, listener);
+        return new Authenticator(request, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
     }
 
     // pkg private method for testing
-    Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser, boolean allowAnonymous,
+    Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser, boolean fallbackToAnonymous,
                                       ActionListener<Authentication> listener) {
-        return new Authenticator(action, message, fallbackUser, allowAnonymous && isAnonymousUserEnabled, listener);
+        return new Authenticator(action, message, fallbackUser, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
     }
 
     // pkg private method for testing
     long getNumInvalidation() {
         return numInvalidation.get();
+    }
+
+    /**
+     * Determines whether to support anonymous access for the current request. Returns {@code true} if all of the following are true
+     * <ul>
+     *     <li>The service has anonymous authentication enabled (see {@link #isAnonymousUserEnabled})</li>
+     *     <li>Anonymous access is accepted for this request ({@code allowAnonymousOnThisRequest} parameter)
+     *     <li>The {@link ThreadContext} does not provide API Key or Bearer Token credentials. If these are present, we
+     *     treat the request as though it attempted to authenticate (even if that failed), and will not fall back to anonymous.</li>
+     * </ul>
+     */
+    boolean shouldFallbackToAnonymous(boolean allowAnonymousOnThisRequest) {
+        if (isAnonymousUserEnabled == false) {
+            return false;
+        }
+        if (allowAnonymousOnThisRequest == false) {
+            return false;
+        }
+        String header = threadContext.getHeader("Authorization");
+        if (Strings.hasText(header) &&
+            ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length()) ||
+                (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -241,7 +281,7 @@ public class AuthenticationService {
                               ActionListener<Authentication> listener) {
             this.request = auditableRequest;
             this.fallbackUser = fallbackUser;
-            this.fallbackToAnonymous = fallbackToAnonymous && shouldFallbackToAnonymous();
+            this.fallbackToAnonymous = fallbackToAnonymous;
             this.defaultOrderedRealmList = realms.asList();
             this.listener = listener;
         }
@@ -523,20 +563,6 @@ public class AuthenticationService {
             // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing when
             // an exception bubbles up even after successful authentication
             action.run();
-        }
-
-        /**
-         * When an API Key or an Elasticsearch Token Service token is used for authentication and authentication fails (as indicated by
-         * a null AuthenticationToken) we should not fallback to the anonymous user.
-         */
-        boolean shouldFallbackToAnonymous(){
-            String header = threadContext.getHeader("Authorization");
-            if (Strings.hasText(header) &&
-                ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length()) ||
-                (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
-                return false;
-            }
-            return true;
         }
 
         /**

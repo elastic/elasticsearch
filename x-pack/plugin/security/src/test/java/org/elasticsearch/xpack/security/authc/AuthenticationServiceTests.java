@@ -289,7 +289,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, (User)null, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -315,7 +315,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // Authenticate against the normal chain. 1st Realm will be checked (and not pass) then 2nd realm will successfully authc
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, (User)null, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -331,7 +331,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         // Authenticate against the smart chain.
         // "SecondRealm" will be at the top of the list and will successfully authc.
         // "FirstRealm" will not be used
-        service.authenticate("_action", message, (User)null, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -363,7 +363,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         // This will authenticate against the smart chain.
         // "SecondRealm" will be at the top of the list but will no longer authenticate the user.
         // Then "FirstRealm" will be checked.
-        service.authenticate("_action", message, (User)null, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -432,7 +432,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, (User)null, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -443,7 +443,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertTrue(completed.get());
 
         completed.set(false);
-        service.authenticate("_action", message, (User)null, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -474,7 +474,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, (User)null, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
@@ -613,14 +613,19 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAuthenticateTransportSuccess() throws Exception {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
-        User user = new User("username", "r1", "r2");
-        User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
+        final User user = new User("username", "r1", "r2");
+        final Consumer<ActionListener<Authentication>> authenticate;
+        if (randomBoolean()) {
+            authenticate = listener -> service.authenticate("_action", message, SystemUser.INSTANCE, listener);
+        } else {
+            authenticate = listener -> service.authenticate("_action", message, true, listener);
+        }
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         mockAuthenticate(firstRealm, token, user);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, fallback, true, ActionListener.wrap(result -> {
+        authenticate.accept(ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), sameInstance(user));
             assertThreadContextContainsAuthentication(result);
@@ -662,7 +667,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final SetOnce<Authentication> authRef = new SetOnce<>();
         final SetOnce<String> authHeaderRef = new SetOnce<>();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            service.authenticate("_action", message, SystemUser.INSTANCE, true, ActionListener.wrap(authentication -> {
+            service.authenticate("_action", message, SystemUser.INSTANCE, ActionListener.wrap(authentication -> {
                     assertThat(authentication, notNullValue());
                     assertThat(authentication.getUser(), sameInstance(user1));
                     assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
@@ -686,7 +691,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
             threadContext1.putTransient(AuthenticationField.AUTHENTICATION_KEY, authRef.get());
             threadContext1.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
-            service.authenticate("_action", message1, SystemUser.INSTANCE, true, ActionListener.wrap(ctxAuth -> {
+            service.authenticate("_action", message1, SystemUser.INSTANCE, ActionListener.wrap(ctxAuth -> {
                     assertThat(ctxAuth, sameInstance(authRef.get()));
                     assertThat(threadContext1.getHeader(AuthenticationField.AUTHENTICATION_KEY), sameInstance(authHeaderRef.get()));
                     setCompletedToTrue(completed);
@@ -721,7 +726,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
                 new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool2, new AnonymousUser(Settings.EMPTY),
                 tokenService, apiKeyService);
-            service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE, true, ActionListener.wrap(result -> {
+            service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
                     assertThat(result, notNullValue());
                     assertThat(result.getUser(), equalTo(user1));
                     assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
@@ -1099,7 +1104,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // we do not actually go async
         if (randomBoolean()) {
-            service.authenticate("_action", message, (User)null, true, listener);
+            service.authenticate("_action", message, true, listener);
         } else {
             service.authenticate(restRequest, listener);
         }
@@ -1138,7 +1143,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // call service asynchronously but it doesn't actually go async
         if (randomBoolean()) {
-            service.authenticate("_action", message, (User)null, true, listener);
+            service.authenticate("_action", message, true, listener);
         } else {
             service.authenticate(restRequest, listener);
         }
@@ -1248,7 +1253,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
-            service.authenticate("_action", message, (User)null, true, ActionListener.wrap(result -> {
+            service.authenticate("_action", message, true, ActionListener.wrap(result -> {
                     assertThat(result, notNullValue());
                     assertThat(result.getUser(), is(user));
                     assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -1275,7 +1280,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         AtomicBoolean success = new AtomicBoolean(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + Base64.getEncoder().encodeToString(randomBytes));
-            service.authenticate("_action", message, (User)null, true, ActionListener.wrap(result -> {
+            service.authenticate("_action", message, true, ActionListener.wrap(result -> {
                 assertThat(result, notNullValue());
                 assertThat(result.getUser(), is(user));
                 assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -1489,7 +1494,11 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private Authentication authenticateBlocking(String action, TransportMessage message, User fallbackUser) {
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        service.authenticate(action, message, fallbackUser, true, future);
+        if (fallbackUser == null) {
+            service.authenticate(action, message, true, future);
+        } else {
+            service.authenticate(action, message, fallbackUser, future);
+        }
         return future.actionGet();
     }
 

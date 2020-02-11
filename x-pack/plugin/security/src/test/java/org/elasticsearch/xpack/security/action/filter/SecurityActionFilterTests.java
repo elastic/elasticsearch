@@ -95,11 +95,11 @@ public class SecurityActionFilterTests extends ESTestCase {
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(5));
+            assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), eq(false), any(ActionListener.class));
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
@@ -122,13 +122,13 @@ public class SecurityActionFilterTests extends ESTestCase {
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(5));
+            assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), eq(false), any(ActionListener.class));
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
@@ -167,11 +167,11 @@ public class SecurityActionFilterTests extends ESTestCase {
         }
         doAnswer(i -> {
             final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(5));
+            assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), eq(false), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
         doAnswer((i) -> {
             ActionListener<Void> callback = (ActionListener<Void>) i.getArguments()[3];
             callback.onResponse(null);
@@ -203,11 +203,11 @@ public class SecurityActionFilterTests extends ESTestCase {
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(5));
+            assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), eq(false), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
         doAnswer((i) -> {
             ActionListener<Void> callback = (ActionListener<Void>) i.getArguments()[3];
             callback.onResponse(null);
@@ -234,11 +234,11 @@ public class SecurityActionFilterTests extends ESTestCase {
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(5));
+            assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), eq(false), any(ActionListener.class));
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
         doThrow(exception).when(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(exception);

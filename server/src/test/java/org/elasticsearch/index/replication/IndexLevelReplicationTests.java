@@ -564,19 +564,21 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(snapshot.next(), nullValue());
                 assertThat(snapshot.skippedOperations(), equalTo(0));
             }
-            // Make sure that replica2 receives translog ops (eg. op2) from replica1
-            // and does not overwrite its stale operation (op1) as it is trimmed.
             logger.info("--> Promote replica1 as the primary");
             shards.promoteReplicaToPrimary(replica1).get(); // wait until resync completed.
+            // We roll a new translog generation and trim operations that are above the global checkpoint during primary-replica resync.
+            // If the `initOperations` is empty, then the stale operation on the replica2 will be discarded as it is the only operation
+            // in a translog file. Otherwise, the stale op will be retained along with initOperations but will be skipped in snapshot.
+            int staleOps = initOperations.isEmpty() ? 0 : 1;
             shards.index(new IndexRequest(index.getName()).id("d2").source("{}", XContentType.JSON));
             final Translog.Operation op2;
             try (Translog.Snapshot snapshot = getTranslog(replica2).newSnapshot()) {
-                assertThat(snapshot.totalOperations(), equalTo(initDocs + 2));
+                assertThat(snapshot.totalOperations(), equalTo(initDocs + 1 + staleOps));
                 op2 = snapshot.next();
                 assertThat(op2.seqNo(), equalTo(op1.seqNo()));
                 assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat(snapshot.skippedOperations(), equalTo(1));
+                assertThat(snapshot.skippedOperations(), equalTo(staleOps));
             }
 
             // Make sure that peer-recovery transfers all but non-overridden operations.

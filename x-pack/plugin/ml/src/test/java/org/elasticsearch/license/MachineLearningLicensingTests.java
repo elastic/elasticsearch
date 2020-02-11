@@ -689,7 +689,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
     }
 
     private static OperationMode randomValidLicenseType() {
-        return randomFrom(License.OperationMode.TRIAL, License.OperationMode.PLATINUM);
+        return randomFrom(License.OperationMode.TRIAL, License.OperationMode.PLATINUM, OperationMode.ENTERPRISE);
     }
 
     private static OperationMode randomLicenseType() {

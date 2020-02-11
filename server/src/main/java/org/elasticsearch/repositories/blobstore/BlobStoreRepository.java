@@ -30,6 +30,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -179,7 +180,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String SNAPSHOT_INDEX_CODEC = "snapshots";
 
-    private static final String DATA_BLOB_PREFIX = "__";
+    private static final String UPLOADED_DATA_BLOB_PREFIX = "__";
+
+    /**
+     * Prefix used for the identifiers of data blobs that were not actually written to the repository physically because their contents are
+     * already stored in the metadata referencing them, i.e. in {@link BlobStoreIndexShardSnapshot} and
+     * {@link BlobStoreIndexShardSnapshots}. This is the case for files for which {@link StoreFileMetaData#hashEqualsContents()} is
+     * {@code true}.
+     */
+    private static final String VIRTUAL_DATA_BLOB_PREFIX = "v__";
 
     /**
      * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
@@ -1516,6 +1525,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
 
+                // We can skip writing blobs where the metadata hash is equal to the blob's contents because we store the hash/contents
+                // directly in the shard level metadata in this case
+                final boolean needsWrite = md.hashEqualsContents() == false;
                 indexTotalFileCount += md.length();
                 indexTotalNumberOfFiles++;
 
@@ -1524,9 +1536,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     indexIncrementalSize += md.length();
                     // create a new FileInfo
                     BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo =
-                        new BlobStoreIndexShardSnapshot.FileInfo(DATA_BLOB_PREFIX + UUIDs.randomBase64UUID(), md, chunkSize());
+                        new BlobStoreIndexShardSnapshot.FileInfo(
+                            (needsWrite ? UPLOADED_DATA_BLOB_PREFIX : VIRTUAL_DATA_BLOB_PREFIX) + UUIDs.randomBase64UUID(),
+                            md, chunkSize());
                     indexCommitPointFiles.add(snapshotFileInfo);
-                    filesToSnapshot.add(snapshotFileInfo);
+                    if (needsWrite) {
+                        filesToSnapshot.add(snapshotFileInfo);
+                    }
+                    assert needsWrite || assertFileContentsMatchHash(snapshotFileInfo, store);
                 } else {
                     indexCommitPointFiles.add(existingFileInfo);
                 }
@@ -1534,8 +1551,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             snapshotStatus.moveToStarted(startTime, indexIncrementalFileCount,
                 indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileCount);
-
-            assert indexIncrementalFileCount == filesToSnapshot.size();
 
             final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
             allFilesUploadedListener.whenComplete(v -> {
@@ -1625,6 +1640,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
+        try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
+            final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
+            indexInput.readBytes(tmp, 0, tmp.length);
+            assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+        return true;
+    }
+
     @Override
     public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
                              RecoveryState recoveryState, ActionListener<Void> listener) {
@@ -1668,37 +1694,41 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
                     boolean success = false;
-
-                    try (InputStream stream = maybeRateLimit(new SlicedInputStream(fileInfo.numberOfParts()) {
-                                                                 @Override
-                                                                 protected InputStream openSlice(long slice) throws IOException {
-                                                                     return container.readBlob(fileInfo.partName(slice));
-                                                                 }
-                                                             },
-                        restoreRateLimiter, restoreRateLimitingTimeInNanos)) {
-                        try (IndexOutput indexOutput =
-                                 store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
-                            final byte[] buffer = new byte[BUFFER_SIZE];
-                            int length;
-                            while ((length = stream.read(buffer)) > 0) {
-                                indexOutput.writeBytes(buffer, 0, length);
-                                recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
+                    try (IndexOutput indexOutput =
+                             store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
+                        if (fileInfo.name().startsWith(VIRTUAL_DATA_BLOB_PREFIX)) {
+                            final BytesRef hash = fileInfo.metadata().hash();
+                            indexOutput.writeBytes(hash.bytes, hash.offset, hash.length);
+                            recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), hash.length);
+                        } else {
+                            try (InputStream stream = maybeRateLimit(new SlicedInputStream(fileInfo.numberOfParts()) {
+                                @Override
+                                protected InputStream openSlice(long slice) throws IOException {
+                                    return container.readBlob(fileInfo.partName(slice));
+                                }
+                            }, restoreRateLimiter, restoreRateLimitingTimeInNanos)) {
+                                final byte[] buffer = new byte[BUFFER_SIZE];
+                                int length;
+                                while ((length = stream.read(buffer)) > 0) {
+                                    indexOutput.writeBytes(buffer, 0, length);
+                                    recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
+                                }
                             }
-                            Store.verify(indexOutput);
-                            indexOutput.close();
-                            store.directory().sync(Collections.singleton(fileInfo.physicalName()));
-                            success = true;
-                        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-                            try {
-                                store.markStoreCorrupted(ex);
-                            } catch (IOException e) {
-                                logger.warn("store cannot be marked as corrupted", e);
-                            }
-                            throw ex;
-                        } finally {
-                            if (success == false) {
-                                store.deleteQuiet(fileInfo.physicalName());
-                            }
+                        }
+                        Store.verify(indexOutput);
+                        indexOutput.close();
+                        store.directory().sync(Collections.singleton(fileInfo.physicalName()));
+                        success = true;
+                    } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+                        try {
+                            store.markStoreCorrupted(ex);
+                        } catch (IOException e) {
+                            logger.warn("store cannot be marked as corrupted", e);
+                        }
+                        throw ex;
+                    } finally {
+                        if (success == false) {
+                            store.deleteQuiet(fileInfo.physicalName());
                         }
                     }
                 }
@@ -1830,7 +1860,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
                     && survivingSnapshotUUIDs.contains(
                         blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
-                || (blob.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
+                || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                 || FsBlobContainer.isTempBlobName(blob)).collect(Collectors.toList());
     }
 
@@ -1884,7 +1914,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobStoreIndexShardSnapshots shardSnapshots = indexShardSnapshotsFormat.read(shardContainer, Long.toString(latest));
             return new Tuple<>(shardSnapshots, latest);
         } else if (blobs.stream().anyMatch(b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(INDEX_FILE_PREFIX)
-                                                                              || b.startsWith(DATA_BLOB_PREFIX))) {
+                                                                              || b.startsWith(UPLOADED_DATA_BLOB_PREFIX))) {
             throw new IllegalStateException(
                 "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]");
         }

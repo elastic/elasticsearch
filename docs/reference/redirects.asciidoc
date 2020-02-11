@@ -320,6 +320,11 @@ See <<snapshots-restore-snapshot>>.
 
 See <<snapshots-register-repository>>.
 
+[role="exclude", id="_repository_plugins"]
+=== Repository plugins
+
+See <<snapshots-repository-plugins>>.
+
 [role="exclude",id="slm-api-delete"]
 === {slm-init} delete policy API
 

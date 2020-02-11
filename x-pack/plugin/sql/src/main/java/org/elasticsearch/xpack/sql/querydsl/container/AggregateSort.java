@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 
 import java.util.Objects;
@@ -22,11 +21,6 @@ public class AggregateSort extends Sort {
 
     public AggregateFunction agg() {
         return agg;
-    }
-
-    @Override
-    public String id() {
-        return Expressions.id(agg);
     }
 
     @Override

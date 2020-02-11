@@ -42,15 +42,12 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
@@ -81,7 +78,7 @@ public class QueryContainer {
     // at scrolling, their inputs (leaves) get updated
     private final AttributeMap<Pipe> scalarFunctions;
 
-    private final Set<Sort> sort;
+    private final Map<String, Sort> sort;
     private final int limit;
     private final boolean trackHits;
     private final boolean includeFrozen;
@@ -105,7 +102,7 @@ public class QueryContainer {
             AttributeMap<Expression> aliases,
             Map<String, GroupByKey> pseudoFunctions,
             AttributeMap<Pipe> scalarFunctions,
-            Set<Sort> sort,
+            Map<String, Sort> sort,
             int limit,
             boolean trackHits,
             boolean includeFrozen,
@@ -116,7 +113,7 @@ public class QueryContainer {
         this.aliases = aliases == null || aliases.isEmpty() ? AttributeMap.emptyAttributeMap() : aliases;
         this.pseudoFunctions = pseudoFunctions == null || pseudoFunctions.isEmpty() ? emptyMap() : pseudoFunctions;
         this.scalarFunctions = scalarFunctions == null || scalarFunctions.isEmpty() ? AttributeMap.emptyAttributeMap() : scalarFunctions;
-        this.sort = sort == null || sort.isEmpty() ? emptySet() : sort;
+        this.sort = sort == null || sort.isEmpty() ? emptyMap() : sort;
         this.limit = limit;
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
@@ -133,7 +130,7 @@ public class QueryContainer {
             return emptyList();
         }
 
-        for (Sort s : sort) {
+        for (Sort s : sort.values()) {
             if (s instanceof AggregateSort) {
                 customSort = Boolean.TRUE;
                 break;
@@ -147,11 +144,14 @@ public class QueryContainer {
         }
 
         List<Tuple<Integer, Comparator>> sortingColumns = new ArrayList<>(sort.size());
-        for (Sort s: sort) {
+        for (Map.Entry<String, Sort> entry : sort.entrySet()) {
+            String expressionId = entry.getKey();
+            Sort s = entry.getValue();
+
             int atIndex = -1;
             for (int i = 0; i < fields.size(); i++) {
                 Tuple<FieldExtraction, String> field = fields.get(i);
-                if (field.v2().equals(s.id())) {
+                if (field.v2().equals(expressionId)) {
                     atIndex = i;
                     break;
                 }
@@ -159,9 +159,14 @@ public class QueryContainer {
             if (atIndex == -1) {
                 throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", s);
             }
-            // assemble a comparator for it
-            Comparator comp = s.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
-            comp = s.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
+
+            // assemble a comparator for it, if it's not an AggregateSort
+            // then it's pre-sorted by ES so use null
+            Comparator comp = null;
+            if (s instanceof AggregateSort) {
+                comp = s.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
+                comp = s.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
+            }
 
             sortingColumns.add(new Tuple<>(Integer.valueOf(atIndex), comp));
         }
@@ -224,7 +229,7 @@ public class QueryContainer {
         return pseudoFunctions;
     }
 
-    public Set<Sort> sort() {
+    public Map<String, Sort> sort() {
         return sort;
     }
 
@@ -298,10 +303,10 @@ public class QueryContainer {
         return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
-    public QueryContainer addSort(Sort sortable) {
-        Set<Sort> sort = new LinkedHashSet<>(this.sort);
-        sort.add(sortable);
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+    public QueryContainer addSort(String expressionId, Sort sortable) {
+        Map<String, Sort> newSort = new LinkedHashMap<>(this.sort);
+        newSort.put(expressionId, sortable);
+        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, newSort, limit, trackHits, includeFrozen,
                 minPageSize);
     }
 

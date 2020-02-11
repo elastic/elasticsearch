@@ -49,8 +49,6 @@ public abstract class Sort {
         this.missing = nulls;
     }
 
-    public abstract String id();
-
     public Direction direction() {
         return direction;
     }

@@ -9,21 +9,13 @@ import java.util.Objects;
 
 public class ScoreSort extends Sort {
 
-    private final String id;
-
-    public ScoreSort(String id, Direction direction, Missing missing) {
+    public ScoreSort(Direction direction, Missing missing) {
         super(direction, missing);
-        this.id = id;
-    }
-
-    @Override
-    public String id() {
-        return id;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(direction(), missing(), id());
+        return Objects.hash(direction(), missing());
     }
 
     @Override
@@ -38,7 +30,6 @@ public class ScoreSort extends Sort {
 
         ScriptSort other = (ScriptSort) obj;
         return Objects.equals(direction(), other.direction())
-                && Objects.equals(missing(), other.missing())
-                && Objects.equals(id(), other.id());
+                && Objects.equals(missing(), other.missing());
     }
 }

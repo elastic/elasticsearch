@@ -688,25 +688,27 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // field
                     if (orderExpression instanceof FieldAttribute) {
-                        qContainer = qContainer.addSort(new AttributeSort((FieldAttribute) orderExpression, direction, missing));
+                        qContainer = qContainer.addSort(lookup,
+                                new AttributeSort((FieldAttribute) orderExpression, direction, missing));
                     }
                     // scalar functions typically require script ordering
                     else if (orderExpression instanceof ScalarFunction) {
                         ScalarFunction sf = (ScalarFunction) orderExpression;
                         // nope, use scripted sorting
-                        qContainer = qContainer.addSort(new ScriptSort(Expressions.id(sf), sf.asScript(), direction, missing));
+                        qContainer = qContainer.addSort(lookup, new ScriptSort(sf.asScript(), direction, missing));
                     }
                     // histogram
                     else if (orderExpression instanceof Histogram) {
-                        qContainer = qContainer.addSort(new GroupingFunctionSort(Expressions.id(orderExpression), direction, missing));
+                        qContainer = qContainer.addSort(lookup, new GroupingFunctionSort(direction, missing));
                     }
                     // score
                     else if (orderExpression instanceof Score) {
-                        qContainer = qContainer.addSort(new ScoreSort(Expressions.id(orderExpression), direction, missing));
+                        qContainer = qContainer.addSort(lookup, new ScoreSort(direction, missing));
                     }
                     // agg function
                     else if (orderExpression instanceof AggregateFunction) {
-                        qContainer = qContainer.addSort(new AggregateSort((AggregateFunction) orderExpression, direction, missing));
+                        qContainer = qContainer.addSort(lookup,
+                                new AggregateSort((AggregateFunction) orderExpression, direction, missing));
                     }
                     // unknown
                     else {

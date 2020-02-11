@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 
 import java.util.Objects;
 
@@ -21,11 +20,6 @@ public class AttributeSort extends Sort {
 
     public Attribute attribute() {
         return attribute;
-    }
-
-    @Override
-    public String id() {
-        return Expressions.id(attribute);
     }
 
     @Override

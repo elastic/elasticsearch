@@ -9,21 +9,13 @@ import java.util.Objects;
 
 public class GroupingFunctionSort extends Sort {
 
-    private final String id;
-
-    public GroupingFunctionSort(String id, Direction direction, Missing missing) {
+    public GroupingFunctionSort(Direction direction, Missing missing) {
         super(direction, missing);
-        this.id = id;
-    }
-
-    @Override
-    public String id() {
-        return id;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(direction(), missing(), id);
+        return Objects.hash(direction(), missing());
     }
     
     @Override
@@ -38,7 +30,6 @@ public class GroupingFunctionSort extends Sort {
         
         GroupingFunctionSort other = (GroupingFunctionSort) obj;
         return Objects.equals(direction(), other.direction())
-                && Objects.equals(missing(), other.missing())
-                && Objects.equals(id(), other.id());
+                && Objects.equals(missing(), other.missing());
     }
 }

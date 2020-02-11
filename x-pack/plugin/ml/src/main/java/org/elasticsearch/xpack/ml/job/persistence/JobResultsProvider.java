@@ -489,7 +489,7 @@ public class JobResultsProvider {
                             LOGGER.debug("Found {} hits for [{}]",
                                 hitsCount == 0 ? "0" : "multiple",
                                 new Object[]{searchRequest.indices()});
-                            return;
+                            continue;
                         }
                         SearchHit hit = hits.getHits()[0];
                         try {
@@ -593,7 +593,6 @@ public class JobResultsProvider {
                                 if (hitsCount == 0) {
                                     SearchRequest searchRequest = msearch.request().requests().get(i);
                                     LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
-                                    return;
                                 }
                                 for (SearchHit hit : hits) {
                                     try {

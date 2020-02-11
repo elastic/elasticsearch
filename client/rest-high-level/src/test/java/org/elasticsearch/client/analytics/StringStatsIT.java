@@ -42,16 +42,17 @@ public class StringStatsIT extends ESRestHighLevelClientTestCase {
         bulk.add(new IndexRequest().source(XContentType.JSON, "message", "more words"));
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
         SearchRequest search = new SearchRequest("test");
-        search.source().aggregation(new StringStatsAggregationBuilder("test").field("message.keyword"));
+        search.source().aggregation(new StringStatsAggregationBuilder("test").field("message.keyword").showDistribution(true));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedStringStats stats = response.getAggregations().get("test");
         assertThat(stats.getCount(), equalTo(2L));
         assertThat(stats.getMinLength(), equalTo(10));
-        assertThat(stats.getMaxLength(), equalTo(20));
-        assertThat(stats.getAvgLength(), equalTo(15));
-        assertThat(stats.getEntropy(), closeTo(1, .0000001));
-        assertThat(stats.getDistribution(), aMapWithSize(200));
-        assertThat(stats.getDistribution(), hasEntry("o", 3));
-        assertThat(stats.getDistribution(), hasEntry("t", 2));
+        assertThat(stats.getMaxLength(), equalTo(24));
+        assertThat(stats.getAvgLength(), equalTo(17.0));
+        assertThat(stats.getEntropy(), closeTo(4, .1));
+        assertThat(stats.getDistribution(), aMapWithSize(18));
+        assertThat(stats.getDistribution(), hasEntry(equalTo("o"), closeTo(.09, .005)));
+        assertThat(stats.getDistribution(), hasEntry(equalTo("r"), closeTo(.12, .005)));
+        assertThat(stats.getDistribution(), hasEntry(equalTo("t"), closeTo(.09, .005)));
     }
 }

@@ -154,7 +154,7 @@ public class AuthenticationService {
      */
     public void authenticate(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
         Objects.requireNonNull(fallbackUser, "fallback user may not be null");
-        createAuthenticator(action, message, fallbackUser, false, listener).authenticateAsync();
+        createAuthenticator(action, message, fallbackUser, listener).authenticateAsync();
     }
 
     /**
@@ -171,7 +171,7 @@ public class AuthenticationService {
      *                       {@link #isAnonymousUserEnabled configured for anonymous access}).
      */
     public void authenticate(String action, TransportMessage message, boolean allowAnonymous, ActionListener<Authentication> listener) {
-        createAuthenticator(action, message, null, allowAnonymous, listener).authenticateAsync();
+        createAuthenticator(action, message, allowAnonymous, listener).authenticateAsync();
     }
 
     /**
@@ -184,7 +184,7 @@ public class AuthenticationService {
      */
     public void authenticate(String action, TransportMessage message,
                              AuthenticationToken token, ActionListener<Authentication> listener) {
-        new Authenticator(action, message, null, shouldFallbackToAnonymous(true), listener).authenticateToken(token);
+        new Authenticator(action, message, shouldFallbackToAnonymous(true), listener).authenticateToken(token);
     }
 
     public void expire(String principal) {
@@ -215,9 +215,15 @@ public class AuthenticationService {
     }
 
     // pkg private method for testing
-    Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser, boolean fallbackToAnonymous,
+    Authenticator createAuthenticator(String action, TransportMessage message, boolean fallbackToAnonymous,
                                       ActionListener<Authentication> listener) {
-        return new Authenticator(action, message, fallbackUser, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
+        return new Authenticator(action, message, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
+    }
+
+    // pkg private method for testing
+    Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser,
+                                      ActionListener<Authentication> listener) {
+        return new Authenticator(action, message, fallbackUser, listener);
     }
 
     // pkg private method for testing
@@ -271,10 +277,14 @@ public class AuthenticationService {
             this(new AuditableRestRequest(auditTrail, failureHandler, threadContext, request), null, fallbackToAnonymous, listener);
         }
 
-        Authenticator(String action, TransportMessage message, User fallbackUser, boolean fallbackToAnonymous,
-                      ActionListener<Authentication> listener) {
+        Authenticator(String action, TransportMessage message, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
             this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message),
-                fallbackUser, fallbackToAnonymous, listener);
+                null, fallbackToAnonymous, listener);
+        }
+
+        Authenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
+            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message),
+                Objects.requireNonNull(fallbackUser, "Fallback user cannot be null"), false, listener);
         }
 
         private Authenticator(AuditableRequest auditableRequest, User fallbackUser, boolean fallbackToAnonymous,

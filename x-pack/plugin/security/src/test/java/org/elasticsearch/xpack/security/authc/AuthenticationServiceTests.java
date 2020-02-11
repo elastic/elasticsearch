@@ -252,7 +252,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
 
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        Authenticator authenticator = service.createAuthenticator("_action", message, null, true, future);
+        Authenticator authenticator = service.createAuthenticator("_action", message, true, future);
         authenticator.extractToken((result) -> {
             assertThat(result, notNullValue());
             assertThat(result, is(token));
@@ -263,7 +263,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testTokenMissing() throws Exception {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        Authenticator authenticator = service.createAuthenticator("_action", message, null, true, future);
+        Authenticator authenticator = service.createAuthenticator("_action", message, true, future);
         authenticator.extractToken((token) -> {
             assertThat(token, nullValue());
             authenticator.handleNullToken();

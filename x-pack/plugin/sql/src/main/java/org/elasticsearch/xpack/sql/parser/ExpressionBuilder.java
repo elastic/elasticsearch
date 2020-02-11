@@ -133,7 +133,8 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.canConvert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
-import static org.elasticsearch.xpack.sql.util.DateUtils.ofEscapedLiteral;
+import static org.elasticsearch.xpack.sql.util.DateUtils.dateOfEscapedLiteral;
+import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLiteral;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
 
@@ -769,9 +770,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitDateEscapedLiteral(DateEscapedLiteralContext ctx) {
         String string = string(ctx.string());
         Source source = source(ctx);
-        // parse yyyy-MM-dd
+        // parse yyyy-MM-dd (time optional but is set to 00:00:00.000 because of the conversion to DATE
         try {
-            return new Literal(source, asDateOnly(string), SqlDataTypes.DATE);
+            return new Literal(source, dateOfEscapedLiteral(string), SqlDataTypes.DATE);
         } catch(DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
@@ -797,7 +798,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         // parse yyyy-mm-dd hh:mm:ss(.f...)
         try {
-            return new Literal(source, ofEscapedLiteral(string), DataTypes.DATETIME);
+            return new Literal(source, dateTimeOfEscapedLiteral(string), DataTypes.DATETIME);
         } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid timestamp received; {}", ex.getMessage());
         }

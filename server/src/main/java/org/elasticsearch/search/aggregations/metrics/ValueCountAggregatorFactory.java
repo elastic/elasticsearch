@@ -80,6 +80,7 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected ValueCountAggregationSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((ValueCountAggregationSupplier) aggregatorSupplier).build(name, valuesSource, searchContext, parent, pipelineAggregators, metaData);
+        return ((ValueCountAggregationSupplier) aggregatorSupplier)
+            .build(name, valuesSource, searchContext, parent, pipelineAggregators,metaData);
     }
 }

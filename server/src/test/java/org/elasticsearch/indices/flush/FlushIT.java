@@ -27,6 +27,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -110,10 +111,10 @@ public class FlushIT extends ESIntegTestCase {
     public void testFlushOnInactive() throws Exception {
         final String indexName = "flush_on_inactive";
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2, Settings.builder()
-            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(),  randomTimeValue(10, 1000, "ms"))
             .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms")).build());
         assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 5000, "ms"))
             .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, "ms"))
             .put("index.routing.allocation.include._name", String.join(",", dataNodes))
             .build()));

@@ -33,41 +33,45 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class HDRPercentileRanksAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource> {
+class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
-    private final double[] values;
-    private final int numberOfSignificantValueDigits;
+    private final double[] percents;
+    private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
 
-    HDRPercentileRanksAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double[] values,
-                                        int numberOfSignificantValueDigits, boolean keyed, QueryShardContext queryShardContext,
-                                        AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metaData) throws IOException {
+    PercentileRanksAggregatorFactory(String name,
+                                     ValuesSourceConfig<ValuesSource> config,
+                                     double[] percents,
+                                     PercentilesConfig percentilesConfig,
+                                     boolean keyed,
+                                     QueryShardContext queryShardContext,
+                                     AggregatorFactory parent,
+                                     AggregatorFactories.Builder subFactoriesBuilder,
+                                     Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
-        this.values = values;
-        this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
+        this.percents = percents;
+        this.percentilesConfig = percentilesConfig;
         this.keyed = keyed;
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new HDRPercentileRanksAggregator(name, null, searchContext, parent, values, numberOfSignificantValueDigits, keyed,
+                                        Aggregator parent,
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
+
+        return percentilesConfig.createPercentileRanksAggregator(name, null, searchContext, parent, percents, keyed,
                 config.format(), pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new HDRPercentileRanksAggregator(name, valuesSource, searchContext, parent, values, numberOfSignificantValueDigits, keyed,
-                config.format(), pipelineAggregators, metaData);
+                                          SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          List<PipelineAggregator> pipelineAggregators,
+                                          Map<String, Object> metaData) throws IOException {
+        return percentilesConfig.createPercentileRanksAggregator(name, valuesSource, searchContext, parent, percents, keyed,
+            config.format(), pipelineAggregators, metaData);
     }
-
 }

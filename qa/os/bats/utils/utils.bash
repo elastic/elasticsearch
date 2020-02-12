@@ -307,24 +307,24 @@ start_elasticsearch_service() {
 
     run_elasticsearch_service 0 $commandLineArgs
 
-    wait_for_elasticsearch_status $desiredStatus $index
+    #wait_for_elasticsearch_status $desiredStatus $index
 
-    if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
-        pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
-        [ "x$pid" != "x" ] && [ "$pid" -gt 0 ]
-        echo "Looking for elasticsearch pid...."
-        ps $pid
-    elif is_systemd; then
-        run systemctl is-active elasticsearch.service
-        [ "$status" -eq 0 ]
+    #if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
+    #    pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
+    #    [ "x$pid" != "x" ] && [ "$pid" -gt 0 ]
+    #    echo "Looking for elasticsearch pid...."
+    #    ps $pid
+    #elif is_systemd; then
+    #    run systemctl is-active elasticsearch.service
+    #    [ "$status" -eq 0 ]
 
-        run systemctl status elasticsearch.service
-        [ "$status" -eq 0 ]
+    #    run systemctl status elasticsearch.service
+    #    [ "$status" -eq 0 ]
 
-    elif is_sysvinit; then
-        run service elasticsearch status
-        [ "$status" -eq 0 ]
-    fi
+    #elif is_sysvinit; then
+    #    run service elasticsearch status
+    #    [ "$status" -eq 0 ]
+    #fi
 }
 
 # Start elasticsearch
@@ -364,6 +364,8 @@ export ES_PATH_CONF=$ES_PATH_CONF
 export ES_JAVA_OPTS=$ES_JAVA_OPTS
 $timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $commandLineArgs
 BASH
+        #/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $commandLineArgs
+        false
         [ "$status" -eq "$expectedStatus" ]
     elif is_systemd; then
         run systemctl daemon-reload
@@ -468,7 +470,7 @@ wait_for_elasticsearch_status() {
     local index=$2
 
     echo "Making sure elasticsearch is up..."
-    wget -O - --retry-connrefused --waitretry=1 --timeout=120 --tries=120 http://localhost:9200/_cluster/health || {
+    wget -O - --retry-connrefused --waitretry=1 --timeout=10 --tries=3 http://localhost:9200/_cluster/health || {
         echo "Looks like elasticsearch never started"
         debug_collect_logs
         false

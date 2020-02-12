@@ -116,7 +116,6 @@ public class DistroTestPlugin implements Plugin<Project> {
             }
         }
 
-        Map<String, TaskProvider<BatsTestTask>> batsTests = new HashMap<>();
         TaskProvider<BatsTestTask> batsPluginsTest = configureBatsTest(
             project,
             "plugins",
@@ -125,7 +124,6 @@ public class DistroTestPlugin implements Plugin<Project> {
             copyPluginsTask
         );
         batsPluginsTest.configure(t -> t.setPluginsDir(pluginsDir));
-        batsTests.put("bats plugins", batsPluginsTest);
         TaskProvider<BatsTestTask> batsUpgradeTest = configureBatsTest(
             project,
             "upgrade",
@@ -134,7 +132,6 @@ public class DistroTestPlugin implements Plugin<Project> {
             copyUpgradeTask
         );
         batsUpgradeTest.configure(t -> t.setUpgradeDir(upgradeDir));
-        batsTests.put("bats upgrade", batsUpgradeTest);
 
         project.subprojects(vmProject -> {
             vmProject.getPluginManager().apply(VagrantBasePlugin.class);
@@ -175,12 +172,15 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             }
 
-            batsTests.forEach((desc, task) -> {
-                configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
-                    t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
-                    t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
-                    t.dependsOn(copyDistributionsTask);
-                });
+            configureVMWrapperTask(vmProject, "bats plugins", batsPluginsTest.getName(), vmDependencies).configure(t -> {
+                t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                t.dependsOn(copyDistributionsTask, copyPluginsTask);
+            });
+            configureVMWrapperTask(vmProject, "bats upgrade", batsUpgradeTest.getName(), vmDependencies).configure(t -> {
+                t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                t.dependsOn(copyDistributionsTask, copyUpgradeTask);
             });
         });
     }

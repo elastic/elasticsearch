@@ -109,29 +109,19 @@ suitable for use within a Logstash pipeline.
 Provides all of the privileges of the `machine_learning_user` role plus the full
 use of the {ml} APIs. Grants `manage_ml` cluster privileges, read access to
 `.ml-anomalies*`, `.ml-notifications*`, `.ml-state*`, `.ml-meta*` indices and
-write access to `.ml-annotations*` indices.
-+
---
-NOTE: {ml-cap} administrators also need index privileges for source and
-destination indices and roles that grant
-{kibana-ref}/xpack-security-authorization.html[access to {kib}].
-
-//See {ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
---
+write access to `.ml-annotations*` indices. {ml-cap} administrators also need
+index privileges for source and destination indices and roles that grant
+access to {kib}.
+See {ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
 
 [[built-in-roles-ml-user]] `machine_learning_user`::
 Grants the minimum privileges required to view {ml} configuration,
 status, and work with results. This role grants `monitor_ml` cluster privileges,
 read access to the `.ml-notifications` and `.ml-anomalies*` indices
 (which store {ml} results), and write access to `.ml-annotations*` indices.
-+
---
-NOTE: {ml-cap} users also need index privileges for source and destination
-indices and roles that grant
-{kibana-ref}/xpack-security-authorization.html[access to {kib}].
-
-//See {ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
---
+{ml-cap} users also need index privileges for source and destination
+indices and roles that grant access to {kib}. See
+{ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
 
 [[built-in-roles-monitoring-user]] `monitoring_user`::
 Grants the minimum privileges required for any user of {monitoring} other than those

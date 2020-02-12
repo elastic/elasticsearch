@@ -27,11 +27,8 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final StepKey KEY = new StepKey(INITIALIZATION_PHASE, "init", "init");
     private static final Logger logger = LogManager.getLogger(InitializePolicyContextStep.class);
 
-    private final String policy;
-
-    InitializePolicyContextStep(String policy, Step.StepKey key, StepKey nextStepKey) {
+    InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
-        this.policy = policy;
     }
 
     @Override
@@ -61,6 +58,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
                     );
             }
         } catch (Exception e) {
+            String policy = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
             throw new InitializePolicyException(policy, index.getName(), e);
         }
 
@@ -79,23 +77,5 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
     @Override
     public boolean isRetryable() {
         return true;
-    }
-
-    String policy() {
-        return policy;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
-        InitializePolicyContextStep that = (InitializePolicyContextStep) o;
-        return policy.equals(that.policy);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), policy);
     }
 }

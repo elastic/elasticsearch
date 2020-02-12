@@ -588,8 +588,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
                 }
             }
-            //If we're only selecting literals, we have to fix the row count
-            if(a.aggregates().stream().allMatch(s -> s.children().size() > 0 && s.children().get(0) instanceof Literal)) {
+            // If we're only selecting literals, we have to fix the row count
+            if (a.aggregates().stream().allMatch(e -> e.anyMatch(Expression::foldable))) {
                 for (Expression grouping : a.groupings()) {
                     GroupByKey matchingGroup = groupingContext.groupFor(grouping);
                     queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), literalId);

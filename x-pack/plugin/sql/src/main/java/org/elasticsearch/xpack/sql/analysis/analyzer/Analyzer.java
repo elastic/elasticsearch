@@ -344,16 +344,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<Expression> newGroupings = new ArrayList<>();
                     AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
 
-                    //if all we're selecting are functions or literals, even if we're giving them aliases.
-                    final boolean[] updateResolved = {true};
-                    a.forEachUp(p -> p.forEachExpressionsUp(e -> {
-                        if (e instanceof Alias
-                            && ((Alias) e).child() instanceof Function == false
-                            && ((Alias) e).child() instanceof Literal == false) {
-                            updateResolved[0] = false;
+                    final Holder<Boolean> updateResolved = new Holder<Boolean>(Boolean.FALSE);
+                    a.aggregates().forEach(e -> e.forEachUp(f -> {
+                        if (f instanceof Function == false && f.foldable() == false) {
+                            updateResolved.set(Boolean.TRUE);
                         }
                     }));
-                    if(updateResolved[0]){
+                    if(updateResolved.get() == true){
                         var allFields = plan.inputSet().stream().map(NamedExpression.class::cast)
                             .collect(toList());
                         allFields.addAll(a.aggregates());

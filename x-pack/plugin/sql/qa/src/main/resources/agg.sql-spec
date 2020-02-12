@@ -144,10 +144,26 @@ countDistinctAlias
 SELECT COUNT(DISTINCT hire_date) AS count FROM test_emp;
 countDistinctAndCountSimpleWithAlias
 SELECT COUNT(*) cnt, COUNT(DISTINCT first_name) as names, gender FROM test_emp GROUP BY gender ORDER BY gender;
-countWithFunctionFilterAndGroupBy
+aliasedCountWithFunctionFilterAndGroupBy
 SELECT COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 GROUP BY gender ORDER BY gender;
-countLiteralAndAliasWithFunctionFilterAndGroupBy
-SELECT 1 as t, gender as g, COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 GROUP BY g ORDER BY gender;
+countWithFunctionFilterAndGroupBy
+SELECT COUNT(*) FROM test_emp WHERE ABS(salary) > 0 GROUP BY gender ORDER BY gender;
+aliasedCountWithMultiFunctionFilterAndGroupBy
+SELECT COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 AND YEAR(birth_date) > 1980 GROUP BY gender ORDER BY gender;
+countWithMultiFunctionFilterAndGroupBy
+SELECT COUNT(*) FROM test_emp WHERE ABS(salary) > 0 AND YEAR(birth_date) > 1980 GROUP BY gender ORDER BY gender;
+aliasedCountWithFunctionFilterAndMultiGroupBy
+SELECT COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 GROUP BY gender, salary ORDER BY gender;
+countWithFunctionFilterAndMultiGroupBy
+SELECT COUNT(*) FROM test_emp WHERE ABS(salary) > 0 GROUP BY gender, salary ORDER BY gender;
+aliasedCountWithMultiFunctionFilterAndMultiGroupBy
+SELECT COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 AND YEAR(birth_date) > 1980 GROUP BY gender, salary ORDER BY gender;
+countWithMultiFunctionFilterAndMultiGroupBy
+SELECT COUNT(*) FROM test_emp WHERE ABS(salary) > 0 AND YEAR(birth_date) > 1980 GROUP BY gender, salary ORDER BY gender;
+aliasedCountLiteralColumnWithFunctionFilterAndMultiGroupBy
+SELECT 1, gender as g, COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 GROUP BY g, salary ORDER BY gender;
+aliasedCountLiteralColumnWithFunctionFilterAndMultiGroupByWithFunction
+SELECT 1, gender as g, COUNT(*) as c FROM test_emp WHERE ABS(salary) > 0 GROUP BY g, YEAR(birth_date) ORDER BY gender, YEAR(birth_date);
 
 aggCountAliasAndWhereClauseMultiGroupBy
 SELECT gender g, languages l, COUNT(*) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages;
@@ -568,7 +584,19 @@ SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM 
 implicitGroupByWithLiteral
 SELECT 10, MAX("salary") FROM test_emp;
 literalWithGroupBy
-SELECT 1 as s, 2 as t FROM test_emp GROUP BY gender;
+SELECT 1 FROM test_emp GROUP BY gender;
+literalsWithGroupBy
+SELECT 1, 2 FROM test_emp GROUP BY gender;
+aliasedLiteralWithGroupBy
+SELECT 1 AS s FROM test_emp GROUP BY gender;
+aliasedLiteralsWithGroupBy
+SELECT 1 AS s, 2 FROM test_emp GROUP BY gender;
+literalsWithMultipleGroupBy
+SELECT 1, 2 FROM test_emp GROUP BY gender, salary;
+aliasedLiteralsWithMultipleGroupBy
+SELECT 1 as s, 2 FROM test_emp GROUP BY gender, salary;
+aliasedLiteralsWithMultipleGroupByWithFunction
+SELECT 1 as s, 2 FROM test_emp GROUP BY gender, YEAR(birth_date);
 implicitGroupByWithLiterals
 SELECT 10, 'foo', MAX("salary"), 20, 'bar' FROM test_emp;
 groupByWithLiteral

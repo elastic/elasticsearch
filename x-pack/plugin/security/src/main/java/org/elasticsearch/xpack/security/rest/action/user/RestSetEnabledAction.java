@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -44,7 +43,7 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(POST, "/_security/user/{username}/_enable",
                 POST, "/_xpack/security/user/{username}/_enable"),
             new ReplacedRoute(PUT, "/_security/user/{username}/_enable",
@@ -53,7 +52,7 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
                 POST, "/_xpack/security/user/{username}/_disable"),
             new ReplacedRoute(PUT, "/_security/user/{username}/_disable",
                 PUT, "/_xpack/security/user/{username}/_disable")
-        ));
+        );
     }
 
     @Override

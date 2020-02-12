@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -52,7 +51,7 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(PUT, "/_security/user/{username}/_password",
                 PUT, "/_xpack/security/user/{username}/_password"),
             new ReplacedRoute(POST, "/_security/user/{username}/_password",
@@ -61,7 +60,7 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
                 PUT, "/_xpack/security/user/_password"),
             new ReplacedRoute(POST, "/_security/user/_password",
                 POST, "/_xpack/security/user/_password")
-        ));
+        );
     }
 
     @Override

@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -51,12 +50,12 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(POST, "/_security/user/{username}",
                 POST, "/_xpack/security/user/{username}"),
             new ReplacedRoute(PUT, "/_security/user/{username}",
                 PUT, "/_xpack/security/user/{username}")
-        ));
+        );
     }
 
     @Override

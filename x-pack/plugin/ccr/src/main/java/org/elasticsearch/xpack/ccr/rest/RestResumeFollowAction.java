@@ -14,7 +14,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request;
@@ -23,7 +22,7 @@ public class RestResumeFollowAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/{index}/_ccr/resume_follow"));
+        return List.of(new Route(POST, "/{index}/_ccr/resume_follow"));
     }
 
     @Override

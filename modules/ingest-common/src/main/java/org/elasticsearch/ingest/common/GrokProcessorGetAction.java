@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -120,7 +119,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Override
         public List<Route> routes() {
-            return singletonList(new Route(GET, "/_ingest/processor/grok"));
+            return List.of(new Route(GET, "/_ingest/processor/grok"));
         }
 
         @Override

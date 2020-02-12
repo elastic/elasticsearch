@@ -27,7 +27,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PathTests extends ESTestCase {
+public class AggregationPathTests extends ESTestCase {
     public void testInvalidPaths() throws Exception {
         assertInvalidPath("[foo]", "brackets at the beginning of the token expression");
         assertInvalidPath("foo[bar", "open brackets without closing at the token expression");
@@ -49,13 +49,8 @@ public class PathTests extends ESTestCase {
         assertValidPath("foo.bar>baz[qux]", tokens().add("foo.bar").add("baz", "qux"));
     }
 
-    private void assertInvalidPath(String path, String reason) {
-        try {
-            AggregationPath.parse(path);
-            fail("Expected parsing path [" + path + "] to fail - " + reason);
-        } catch (AggregationExecutionException aee) {
-            // expected
-        }
+    private AggregationExecutionException assertInvalidPath(String path, String reason) {
+        return expectThrows(AggregationExecutionException.class, () -> AggregationPath.parse(path));
     }
 
     private void assertValidPath(String path, Tokens tokenz) {

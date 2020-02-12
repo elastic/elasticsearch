@@ -37,7 +37,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -67,6 +67,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -264,15 +265,13 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract CollapseContext collapse();
 
-    public abstract SearchContext parsedPostFilter(ParsedQuery postFilter);
-
-    public abstract ParsedQuery parsedPostFilter();
+    public abstract Query postFilter();
 
     public abstract Query aliasFilter();
 
-    public abstract SearchContext parsedQuery(ParsedQuery query);
+    public abstract Query originalQuery();
 
-    public abstract ParsedQuery parsedQuery();
+    public abstract SearchContext setQuery(QueryBuilder query, QueryBuilder postFilter, Function<QueryBuilder, Query> parser);
 
     /**
      * The query to execute, might be rewritten.

@@ -111,8 +111,7 @@ public abstract class InnerHitContextBuilder {
         if (innerHitBuilder.getHighlightBuilder() != null) {
             innerHitsContext.highlight(innerHitBuilder.getHighlightBuilder().build(queryShardContext));
         }
-        ParsedQuery parsedQuery = new ParsedQuery(query.toQuery(queryShardContext), queryShardContext.matchNamedQueries());
-        innerHitsContext.parsedQuery(parsedQuery);
+        innerHitsContext.setQuery(query, null, queryShardContext::toQuery);
         Map<String, InnerHitsContext.InnerHitSubContext> baseChildren =
             buildChildInnerHits(innerHitsContext.parentSearchContext(), children);
         innerHitsContext.setChildInnerHits(baseChildren);

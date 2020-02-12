@@ -120,7 +120,7 @@ public final class DocumentPermissions {
                 queryShardContext.getXContentRegistry(), user);
             if (queryBuilder != null) {
                 failIfQueryUsesClient(queryBuilder, queryShardContext);
-                Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
+                Query roleQuery = queryShardContext.toQuery(queryBuilder);
                 filter.add(roleQuery, SHOULD);
                 if (queryShardContext.getMapperService().hasNested()) {
                     NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());

@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.TemplateScript;
@@ -122,8 +122,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     try (XContentParser parser = XContentFactory.xContent(querySource)
                             .createParser(shardContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, querySource)) {
                         QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-                        final ParsedQuery parsedQuery = shardContext.toQuery(innerQueryBuilder);
-                        collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                        final Query parsedQuery = shardContext.toQuery(innerQueryBuilder);
+                        collateMatch = Lucene.exists(searcher, parsedQuery);
                     }
                 }
                 if (!collateMatch && !collatePrune) {

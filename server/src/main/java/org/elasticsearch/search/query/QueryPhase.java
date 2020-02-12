@@ -206,10 +206,10 @@ public class QueryPhase implements SearchPhase {
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            if (searchContext.parsedPostFilter() != null) {
+            if (searchContext.postFilter() != null) {
                 // add post filters before aggregations
                 // it will only be applied to top hits
-                collectors.add(createFilteredCollectorContext(searcher, searchContext.parsedPostFilter().query()));
+                collectors.add(createFilteredCollectorContext(searcher, searchContext.postFilter()));
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }

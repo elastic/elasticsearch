@@ -289,7 +289,7 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexNameMatcher.test(pattern);
     }
 
-    public ParsedQuery toQuery(QueryBuilder queryBuilder) {
+    public Query toQuery(QueryBuilder queryBuilder) {
         return toQuery(queryBuilder, q -> {
             Query query = q.toQuery(this);
             if (query == null) {
@@ -299,11 +299,11 @@ public class QueryShardContext extends QueryRewriteContext {
         });
     }
 
-    private ParsedQuery toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query, IOException> filterOrQuery) {
+    private Query toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query, IOException> filterOrQuery) {
         reset();
         try {
             QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this, true);
-            return new ParsedQuery(filterOrQuery.apply(rewriteQuery), matchNamedQueries);
+            return filterOrQuery.apply(rewriteQuery);
         } catch(QueryShardException | ParsingException e ) {
             throw e;
         } catch(Exception e) {

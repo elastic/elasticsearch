@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -44,7 +45,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -175,12 +176,13 @@ public class DefaultSearchContextTests extends ESTestCase {
             // No exceptions should be thrown
             when(shardSearchRequest.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
             when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
+            when(queryShardContext.toQuery(new MatchAllQueryBuilder())).thenReturn(new MatchAllDocsQuery());
 
             DefaultSearchContext context3 = new DefaultSearchContext(3L, shardSearchRequest, target, searcher, null,
                 indexService, indexShard, bigArrays, null, timeout, null);
-            ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
-            context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
-            assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
+            Query query = new MatchAllDocsQuery();
+            context3.sliceBuilder(null).setQuery(new MatchAllQueryBuilder(), null, queryShardContext::toQuery).preProcess(false);
+            assertEquals(context3.query(), context3.buildFilteredQuery(query));
 
             when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
             when(queryShardContext.fieldMapper(anyString())).thenReturn(mock(MappedFieldType.class));
@@ -188,9 +190,11 @@ public class DefaultSearchContextTests extends ESTestCase {
 
             DefaultSearchContext context4 = new DefaultSearchContext(4L, shardSearchRequest, target, searcher, null,
                 indexService, indexShard, bigArrays, null, timeout, null);
-            context4.sliceBuilder(new SliceBuilder(1,2)).parsedQuery(parsedQuery).preProcess(false);
+            context4.sliceBuilder(new SliceBuilder(1,2))
+                .setQuery(new MatchAllQueryBuilder(), null, queryShardContext::toQuery).preProcess(false);
             Query query1 = context4.query();
-            context4.sliceBuilder(new SliceBuilder(0,2)).parsedQuery(parsedQuery).preProcess(false);
+            context4.sliceBuilder(new SliceBuilder(0,2))
+                .setQuery(new MatchAllQueryBuilder(), null, queryShardContext::toQuery).preProcess(false);
             Query query2 = context4.query();
             assertTrue(query1 instanceof MatchNoDocsQuery || query2 instanceof MatchNoDocsQuery);
 

@@ -47,7 +47,7 @@ public class HighlightPhase implements FetchSubPhase {
         if (context.highlight() == null) {
             return;
         }
-        hitExecute(context.shardTarget(), context.getQueryShardContext(), context.parsedQuery().query(), context.highlight(), hitContext);
+        hitExecute(context.shardTarget(), context.getQueryShardContext(), context.originalQuery(), context.highlight(), hitContext);
     }
 
     public void hitExecute(SearchShardTarget shardTarget,

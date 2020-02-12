@@ -99,7 +99,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
                                         List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metaData) throws IOException {
         SubSearchContext subSearchContext = new SubSearchContext(searchContext);
-        subSearchContext.parsedQuery(searchContext.parsedQuery());
+        subSearchContext.setQuery(searchContext.originalQuery());
         subSearchContext.explain(explain);
         subSearchContext.version(version);
         subSearchContext.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
@@ -124,41 +124,8 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         if (highlightBuilder != null) {
             subSearchContext.highlight(highlightBuilder.build(searchContext.getQueryShardContext()));
         }
-        if (isNested(parent) && searchContext.parsedQuery() != null) {
-            Query childContextQuery = findChildQueries(searchContext.parsedQuery().query());
-            if (childContextQuery != null) {
-                subSearchContext.setQuery(childContextQuery);
-            }
-        }
         return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent,
                 pipelineAggregators, metaData);
-    }
-
-    private static boolean isNested(Aggregator parent) {
-        for (Aggregator a = parent; a != null; a = a.parent()) {
-            if (a instanceof NestedAggregator) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static Query findChildQueries(Query parent) {
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        parent.visit(new QueryVisitor() {
-            @Override
-            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                if (parent instanceof ESToParentBlockJoinQuery) {
-                    builder.add(((ESToParentBlockJoinQuery)parent).getChildQuery(), BooleanClause.Occur.SHOULD);
-                }
-                return super.getSubVisitor(occur, parent);
-            }
-        });
-        BooleanQuery bq = builder.build();
-        if (bq.clauses().size() > 0) {
-            return bq;
-        }
-        return null;
     }
 
 }

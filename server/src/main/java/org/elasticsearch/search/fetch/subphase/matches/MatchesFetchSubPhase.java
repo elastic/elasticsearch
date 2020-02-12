@@ -78,12 +78,12 @@ public final class MatchesFetchSubPhase implements FetchSubPhase {
         if (context instanceof SubSearchContext) {
             return context.query();
         }
-        Query q = context.parsedQuery().query();
+        Query q = context.originalQuery();
         // If the query has a named post filter then we need to include that as well
-        if (context.parsedPostFilter() != null && context.parsedPostFilter().matchNamedQueries()) {
+        if (context.postFilter() != null) {
             q = new BooleanQuery.Builder()
                 .add(q, BooleanClause.Occur.MUST)
-                .add(context.parsedPostFilter().query(), BooleanClause.Occur.FILTER)
+                .add(context.postFilter(), BooleanClause.Occur.FILTER)
                 .build();
         }
         return q;

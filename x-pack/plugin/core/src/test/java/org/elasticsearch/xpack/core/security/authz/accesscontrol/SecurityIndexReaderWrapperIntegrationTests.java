@@ -17,6 +17,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -143,7 +143,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 }
             };
 
-            ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
+            Query parsedQuery = new TermQuery(new Term("field", values[i]));
             when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
 
             DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
@@ -151,7 +151,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
 
             int expectedHitCount = valuesHitCount[i];
-            logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
+            logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery, expectedHitCount);
 
             TotalHitCountCollector countCollector = new TotalHitCountCollector();
             indexSearcher.search(new MatchAllDocsQuery(), countCollector);

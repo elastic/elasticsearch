@@ -20,7 +20,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -36,6 +36,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
+import java.util.function.Function;
 
 public class SubSearchContext extends FilteredSearchContext {
 
@@ -46,7 +47,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private int from;
     private int size = DEFAULT_SIZE;
     private SortAndFormats sort;
-    private ParsedQuery parsedQuery;
+    private Query originalQuery;
     private Query query;
 
     private final FetchSearchResult fetchSearchResult;
@@ -199,17 +200,18 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext parsedQuery(ParsedQuery parsedQuery) {
-        this.parsedQuery = parsedQuery;
-        if (parsedQuery != null) {
-            this.query = parsedQuery.query();
+    public SearchContext setQuery(QueryBuilder query, QueryBuilder postFilter, Function<QueryBuilder, Query> parser) {
+        assert postFilter == null;
+        if (query != null) {
+            this.query = parser.apply(query);
+            this.originalQuery = this.query;
         }
         return this;
     }
 
     @Override
-    public ParsedQuery parsedQuery() {
-        return parsedQuery;
+    public Query originalQuery() {
+        return originalQuery;
     }
 
     @Override
@@ -230,11 +232,6 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public boolean trackScores() {
         return trackScores;
-    }
-
-    @Override
-    public SearchContext parsedPostFilter(ParsedQuery postFilter) {
-        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override

@@ -32,7 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -64,6 +64,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class TestSearchContext extends SearchContext {
     public static final SearchShardTarget SHARD_TARGET =
@@ -76,8 +77,8 @@ public class TestSearchContext extends SearchContext {
     final IndexShard indexShard;
     final QuerySearchResult queryResult = new QuerySearchResult();
     final QueryShardContext queryShardContext;
-    ParsedQuery originalQuery;
-    ParsedQuery postFilter;
+    Query originalQuery;
+    Query postFilter;
     Query query;
     Float minScore;
     SearchShardTask task;
@@ -408,13 +409,29 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedPostFilter(ParsedQuery postFilter) {
+    public SearchContext setQuery(QueryBuilder query, QueryBuilder postFilter, Function<QueryBuilder, Query> parser) {
+        if (query != null) {
+            this.originalQuery = parser.apply(query);
+        }
+        if (postFilter != null) {
+            this.postFilter = parser.apply(postFilter);
+        }
+        return this;
+    }
+
+    public SearchContext setQuery(Query query) {
+        this.originalQuery = query;
+        this.query = query;
+        return this;
+    }
+
+    public SearchContext setPostFilter(Query postFilter) {
         this.postFilter = postFilter;
         return this;
     }
 
     @Override
-    public ParsedQuery parsedPostFilter() {
+    public Query postFilter() {
         return postFilter;
     }
 
@@ -424,14 +441,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedQuery(ParsedQuery query) {
-        this.originalQuery = query;
-        this.query = query.query();
-        return this;
-    }
-
-    @Override
-    public ParsedQuery parsedQuery() {
+    public Query originalQuery() {
         return originalQuery;
     }
 

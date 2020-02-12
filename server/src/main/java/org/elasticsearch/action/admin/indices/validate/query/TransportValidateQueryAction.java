@@ -39,7 +39,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.IndexClosedException;
@@ -198,8 +197,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.nowInMillis(), request.filteringAliases());
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         try {
-            ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
-            searchContext.parsedQuery(parsedQuery);
+            searchContext.setQuery(request.query(), null, searchContext.getQueryShardContext()::toQuery);
             searchContext.preProcess(request.rewrite());
             valid = true;
             explanation = explain(searchContext, request.rewrite());
@@ -219,7 +217,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     private String explain(SearchContext context, boolean rewritten) {
         Query query = context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
-            return context.parsedQuery().query().toString();
+            return context.originalQuery().toString();
         } else {
             return query.toString();
         }

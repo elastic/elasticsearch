@@ -805,12 +805,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
             InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
-            context.parsedQuery(queryShardContext.toQuery(source.query()));
         }
         if (source.postFilter() != null) {
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
-            context.parsedPostFilter(queryShardContext.toQuery(source.postFilter()));
         }
+        context.setQuery(source.query(), source.postFilter(), queryShardContext::toQuery);
         if (innerHitBuilders.size() > 0) {
             for (Map.Entry<String, InnerHitContextBuilder> entry : innerHitBuilders.entrySet()) {
                 try {

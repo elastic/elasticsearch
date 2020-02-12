@@ -25,6 +25,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -44,7 +45,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.NamedQuery;
+import org.elasticsearch.index.query.NamedSpanQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.NestedHelper;
@@ -80,6 +82,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
@@ -129,13 +132,14 @@ final class DefaultSearchContext extends SearchContext {
      * applied. Putting things in here leaks them into highlighting so don't add
      * things like the type filter or alias filters.
      */
-    private ParsedQuery originalQuery;
+    private Query originalQuery;
+    private final List<Query> namedQueries = new ArrayList<>();
 
     /**
      * The query to actually execute.
      */
     private Query query;
-    private ParsedQuery postFilter;
+    private Query postFilter;
     private Query aliasFilter;
     private int[] docIdsToLoad;
     private int docsIdsToLoadFrom;
@@ -246,14 +250,14 @@ final class DefaultSearchContext extends SearchContext {
             throw new UncheckedIOException(e);
         }
 
-        if (query() == null) {
-            parsedQuery(ParsedQuery.parsedMatchAllQuery());
+        if (originalQuery == null) {
+            originalQuery = Queries.newMatchAllQuery();
         }
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)),
-                parsedQuery().matchNamedQueries()));
+            // TODO why isn't this just a BoostQuery?
+            originalQuery = new FunctionScoreQuery(originalQuery, new WeightFactorFunction(queryBoost));
         }
-        this.query = buildFilteredQuery(query);
+        this.query = buildFilteredQuery(originalQuery);
         if (rewrite) {
             try {
                 this.query = searcher.rewrite(query);
@@ -383,8 +387,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     public boolean hasNamedQueries() {
-        return (parsedQuery() != null && parsedQuery().matchNamedQueries())
-            || (parsedPostFilter() != null && parsedPostFilter().matchNamedQueries());
+        return namedQueries.size() > 0;
     }
 
     @Override
@@ -607,13 +610,21 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedPostFilter(ParsedQuery postFilter) {
-        this.postFilter = postFilter;
+    public SearchContext setQuery(QueryBuilder query, QueryBuilder postFilter, Function<QueryBuilder, Query> parser) {
+        this.namedQueries.clear();
+        if (query != null) {
+            this.originalQuery = parser.apply(query);
+            checkForNamedQueries(this.originalQuery);
+        }
+        if (postFilter != null) {
+            this.postFilter = parser.apply(postFilter);
+            checkForNamedQueries(this.postFilter);
+        }
         return this;
     }
 
     @Override
-    public ParsedQuery parsedPostFilter() {
+    public Query postFilter() {
         return this.postFilter;
     }
 
@@ -622,15 +633,20 @@ final class DefaultSearchContext extends SearchContext {
         return aliasFilter;
     }
 
-    @Override
-    public SearchContext parsedQuery(ParsedQuery query) {
-        this.originalQuery = query;
-        this.query = query.query();
-        return this;
+    private void checkForNamedQueries(Query query) {
+        query.visit(new QueryVisitor() {
+            @Override
+            public QueryVisitor getSubVisitor(Occur occur, Query parent) {
+                if (parent instanceof NamedQuery || parent instanceof NamedSpanQuery) {
+                    DefaultSearchContext.this.namedQueries.add(parent);
+                }
+                return super.getSubVisitor(occur, parent);
+            }
+        });
     }
 
     @Override
-    public ParsedQuery parsedQuery() {
+    public Query originalQuery() {
         return this.originalQuery;
     }
 

@@ -168,7 +168,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
-                        creationCheck.set(false);
+                        creationCheck.set(true);
                         if (response.isAcknowledged() == false) {
                             logger.error("error adding index template [{}] for [{}], request was not acknowledged",
                                 templateName, getOrigin());
@@ -222,7 +222,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 new ActionListener<PutLifecycleAction.Response>() {
                     @Override
                     public void onResponse(PutLifecycleAction.Response response) {
-                        creationCheck.set(false);
+                        creationCheck.set(true);
                         if (response.isAcknowledged() == false) {
                             logger.error("error adding lifecycle policy [{}] for [{}], request was not acknowledged",
                                 policy.getName(), getOrigin());

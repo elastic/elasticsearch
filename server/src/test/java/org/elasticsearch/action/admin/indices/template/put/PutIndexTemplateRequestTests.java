@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -136,7 +137,16 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
                 .endObject()
             .endObject()
             .startObject("aliases")
-                .startObject("my-alias").endObject()
+                .startObject("my-alias")
+                    .field("is_write_index", true)
+                    .field("index_routing", "1")
+                    .field("search_routing", "2")
+                    .startObject("filter")
+                        .startObject("term")
+                            .field("user", "kimchy")
+                        .endObject()
+                    .endObject()
+                .endObject()
             .endObject()
         .endObject();
 
@@ -155,7 +165,8 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
 
         assertThat(request.mappings(), containsString("field"));
 
-        Alias alias = new Alias("my-alias");
+        Alias alias = new Alias("my-alias").writeIndex(true).indexRouting("1").searchRouting("2")
+            .filter(QueryBuilders.termQuery("user", "kimchy"));
         assertThat(request.aliases().size(), equalTo(1));
         assertThat(request.aliases().iterator().next(), equalTo(alias));
     }

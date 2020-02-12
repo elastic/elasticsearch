@@ -47,7 +47,6 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final int maxDocCount;
     private final double precision;
 
-    // TODO: Registration should happen on the actual aggregator classes
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(RareTermsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
@@ -80,7 +79,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 ExecutionMode execution = ExecutionMode.MAP; //TODO global ords not implemented yet, only supports "map"
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
-                    throw new AggregationExecutionException("Aggregation [" + name + "] cannot support " +
+                    throw new IllegalArgumentException("Aggregation [" + name + "] cannot support " +
                         "regular expression style include/exclude settings as they can only be applied to string fields. " +
                         "Use an array of values for include/exclude clauses");
                 }
@@ -112,14 +111,14 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Map<String, Object> metaData) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-                    throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression " +
+                    throw new IllegalArgumentException("Aggregation [" + name + "] cannot support regular expression " +
                         "style include/exclude settings as they can only be applied to string fields. Use an array of numeric " +
                         "values for include/exclude clauses used to filter numeric fields");
                 }
 
                 IncludeExclude.LongFilter longFilter = null;
                 if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
-                    throw new AggregationExecutionException("RareTerms aggregation does not support floating point fields.");
+                    throw new IllegalArgumentException("RareTerms aggregation does not support floating point fields.");
                 }
                 if (includeExclude != null) {
                     longFilter = includeExclude.convertToLongFilter(format);

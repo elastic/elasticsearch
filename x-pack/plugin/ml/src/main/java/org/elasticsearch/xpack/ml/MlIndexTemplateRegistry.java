@@ -86,6 +86,11 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
+    protected boolean requiresMasterNode() {
+        return true;
+    }
+
+    @Override
     protected List<IndexTemplateConfig> getTemplateConfigs() {
         return Arrays.asList(
             ANOMALY_DETECTION_RESULTS_TEMPLATE,

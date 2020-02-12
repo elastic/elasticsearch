@@ -359,9 +359,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             if (progress != null && progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
                 progress.incrementDocsProcessed(progress.getTotalDocs() - progress.getDocumentsProcessed());
             }
-            // If the last checkpoint is now greater than 1, that means that we have just processed the first
-            // continuous checkpoint and should start recording the exponential averages
-            if (lastCheckpoint != null && lastCheckpoint.getCheckpoint() > 1) {
+
+            if (lastCheckpoint != null) {
                 long docsIndexed = 0;
                 long docsProcessed = 0;
                 // This should not happen as we simply create a new one when we reach continuous checkpoints

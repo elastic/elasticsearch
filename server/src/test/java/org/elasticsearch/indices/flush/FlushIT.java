@@ -107,6 +107,7 @@ public class FlushIT extends ESIntegTestCase {
             .actionGet().getShardFailures(), emptyArray());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52251")
     public void testFlushOnInactive() throws Exception {
         final String indexName = "flush_on_inactive";
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2, Settings.builder()

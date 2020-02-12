@@ -135,6 +135,9 @@ public final class IndexLifecycleTransition {
         causeXContentBuilder.endObject();
         LifecycleExecutionState currentState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         Step.StepKey currentStep;
+        // if an error is encountered while initialising the policy the lifecycle execution state will not yet contain any step information
+        // as we haven't yet initialised the policy, so we'll manually set the current step to be the "initialize policy" step so we can
+        // record the error (and later retry the init policy step)
         if (cause instanceof InitializePolicyException) {
             currentStep = InitializePolicyContextStep.KEY;
         } else {

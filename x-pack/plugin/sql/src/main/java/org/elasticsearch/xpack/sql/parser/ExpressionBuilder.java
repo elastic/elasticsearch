@@ -721,13 +721,25 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
-            if (canConvert(sourceType, dataType) == false) {
+            Object literalValue;
+            // The interval types are handled "directly", as they must not be exposed through the SQL types converter, which would then in
+            // turn expose the "protocol" interval types (i.e. "interval_year" & co.) to, for instance, SQL scalars (like CAST) a.s.o.
+            if (SqlDataTypes.isYearMonthInterval(dataType)) {
+                literalValue = IntervalYearMonth.from(param.value.toString(), dataType);
+            } else if (SqlDataTypes.isDayTimeInterval(dataType)) {
+                literalValue = IntervalDayTime.from(param.value.toString(), dataType);
+            } else if (canConvert(sourceType, dataType)) {
+                literalValue = converterFor(sourceType, dataType).convert(param.value);
+            } else {
                 throw new ParsingException(source, "Cannot cast value [{}] of type [{}] to parameter type [{}]", param.value, sourceType,
                     dataType);
             }
-            return new Literal(source, converterFor(sourceType, dataType).convert(param.value), dataType);
+            return new Literal(source, literalValue, dataType);
         } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
+        } catch (DateTimeParseException e) {
+            throw new ParsingException(source, "Cannot cast value [{}] of type [{}] to parameter type [{}]", param.value, sourceType,
+                dataType);
         }
     }
 

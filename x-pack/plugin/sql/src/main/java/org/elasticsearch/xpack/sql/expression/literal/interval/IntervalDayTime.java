@@ -33,6 +33,15 @@ public class IntervalDayTime extends Interval<Duration> {
         super(duration(in), SqlDataTypes.fromTypeName(in.readString()));
     }
 
+    public static IntervalDayTime from(String value, DataType intervalType) {
+        return new IntervalDayTime(Duration.parse(value), intervalType);
+    }
+
+    @Override
+    public int compareTo(Interval<Duration> o) {
+        return interval().compareTo(o.interval());
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(interval().getSeconds());

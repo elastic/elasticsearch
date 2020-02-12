@@ -80,7 +80,8 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
         assertQuery("SELECT CAST('12:29:25.123Z' AS TIME)", "CAST('12:29:25.123Z' AS TIME)",
             "time", "12:29:25.123Z", 18);
-        assertQuery("SELECT CAST('12:29:25.123456789+05:00' AS TIME)", "CAST('12:29:25.123456789+05:00' AS TIME)",
+        // TODO: expand to nano-resolution (i.e. '12:29:25.123456789+05:00'), once available
+        assertQuery("SELECT CAST('12:29:25.123+05:00' AS TIME)", "CAST('12:29:25.123+05:00' AS TIME)",
             "time", "12:29:25.123+05:00", 18);
         assertQuery("SELECT CAST(-26853765751000 AS TIME)", "CAST(-26853765751000 AS TIME)",
             "time", "12:37:29.000Z", 18);
@@ -188,7 +189,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize, Mode mode)
             throws IOException {
         boolean columnar = randomBoolean();
-        Map<String, Object> response = runSql(mode.toString(), sql, columnar);
+        Map<String, Object> response = runParameterizedSql(mode, sql, columnName, columnType, columnValue, columnar);
         List<Object> columns = (ArrayList<Object>) response.get("columns");
         assertEquals(1, columns.size());
 
@@ -215,10 +216,28 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             assertEquals(columnValue, row.get(0));
         }
     }
-    
-    private Map<String, Object> runSql(String mode, String sql, boolean columnar) throws IOException {
+
+    private Map<String, Object> runParameterizedSql(Mode mode, String sql, String columnName, String columnType, Object columnValue,
+            boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
-        String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode) + "}";
+        String params = "";
+        if (Mode.isDriver(mode)) { // pass a parameter into the request that equals the SELECTed value
+            sql += " WHERE ? " + (columnType == "null" ? "IS NULL" : ("= " + columnName));
+            params = ",\"params\": [{\"type\":\"" + columnType + "\",\"value\":";
+            String value;
+            if (columnValue == null) {
+                value = "null";
+            } else {
+                value = columnValue.toString();
+                // JSON primitives need no string-encoding (even though server's parameter parsing correctly casts the value to the
+                // conveyed parameter type, irrespective of the parameter value type).
+                if ((columnValue instanceof Boolean || columnValue instanceof Number) == false) {
+                    value = "\"" + value + "\"";
+                }
+            }
+            params += value + "}]";
+        }
+        String requestContent = "{\"query\":\"" + sql + "\"" + params + mode(mode.toString()) + "}";
         String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
         
         // add a client_id to the request
@@ -244,7 +263,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/" + format));
             request.setOptions(options);
         }
-        if ((false == columnar && randomBoolean()) || columnar) {
+        if (columnar || randomBoolean()) {
             // randomly set the "columnar" parameter, either "true" (non-default) or explicit "false" (the default anyway)
             requestContent = new StringBuilder(requestContent)
                     .insert(requestContent.length() - 1, ",\"columnar\":" + columnar).toString();
@@ -252,14 +271,13 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
         // randomize binary response enforcement for drivers (ODBC/JDBC) and CLI
         boolean binaryCommunication = randomBoolean();
-        Mode m = Mode.fromString(mode);
         if (randomBoolean()) {
             // set it explicitly or leave the default (null) as is
             requestContent = new StringBuilder(requestContent)
                     .insert(requestContent.length() - 1, ",\"binary_format\":" + binaryCommunication).toString();
-            binaryCommunication = ((Mode.isDriver(m) || m == Mode.CLI) && binaryCommunication);
+            binaryCommunication = ((Mode.isDriver(mode) || mode == Mode.CLI) && binaryCommunication);
         } else {
-            binaryCommunication = Mode.isDriver(m) || m == Mode.CLI;
+            binaryCommunication = Mode.isDriver(mode) || mode == Mode.CLI;
         }
         
         // send the query either as body or as request parameter

@@ -34,6 +34,15 @@ public class IntervalYearMonth extends Interval<Period> {
         super(period(in), SqlDataTypes.fromTypeName(in.readString()));
     }
 
+    public static IntervalYearMonth from(String value, DataType intervalType) {
+        return new IntervalYearMonth(Period.parse(value), intervalType);
+    }
+
+    @Override
+    public int compareTo(Interval<Period> o) {
+        return Long.valueOf(interval().toTotalMonths()).compareTo(o.interval().toTotalMonths());
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Period p = interval();

@@ -26,7 +26,8 @@ import java.util.Objects;
  * Unfortunately because the SQL interval type is not preserved accurately by the JDK TemporalAmount class
  * in both cases, the data type needs to be carried around as it cannot be inferred.
  */
-public abstract class Interval<I extends TemporalAmount> implements ConstantNamedWriteable, ToXContentObject, IntervalScripting {
+public abstract class Interval<I extends TemporalAmount> implements ConstantNamedWriteable, ToXContentObject, IntervalScripting,
+        Comparable<Interval<I>> {
 
     private final I interval;
     private final DataType intervalType;

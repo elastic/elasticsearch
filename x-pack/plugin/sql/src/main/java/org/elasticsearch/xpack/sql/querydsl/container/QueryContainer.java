@@ -40,15 +40,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
@@ -79,7 +76,7 @@ public class QueryContainer {
     // at scrolling, their inputs (leaves) get updated
     private final AttributeMap<Pipe> scalarFunctions;
 
-    private final Set<Sort> sort;
+    private final Map<ExpressionId, Sort> sort;
     private final int limit;
 
     // computed
@@ -96,7 +93,7 @@ public class QueryContainer {
             Map<ExpressionId, Attribute> aliases,
             Map<String, GroupByKey> pseudoFunctions,
             AttributeMap<Pipe> scalarFunctions,
-            Set<Sort> sort,
+            Map<ExpressionId, Sort> sort,
             int limit) {
         this.query = query;
         this.aggs = aggs == null ? Aggs.EMPTY : aggs;
@@ -104,7 +101,7 @@ public class QueryContainer {
         this.aliases = aliases == null || aliases.isEmpty() ? Collections.emptyMap() : aliases;
         this.pseudoFunctions = pseudoFunctions == null || pseudoFunctions.isEmpty() ? emptyMap() : pseudoFunctions;
         this.scalarFunctions = scalarFunctions == null || scalarFunctions.isEmpty() ? AttributeMap.emptyAttributeMap() : scalarFunctions;
-        this.sort = sort == null || sort.isEmpty() ? emptySet() : sort;
+        this.sort = sort == null || sort.isEmpty() ? emptyMap() : sort;
         this.limit = limit;
     }
 
@@ -118,46 +115,52 @@ public class QueryContainer {
             return emptyList();
         }
 
+        for (Sort s : sort.values()) {
+            if (isAggregateSort(s)) {
+                customSort = Boolean.TRUE;
+                break;
+            }
+        }
+
+        // If no custom sort is used break early
+        if (customSort == null) {
+            customSort = Boolean.FALSE;
+            return emptyList();
+        }
+
         List<Tuple<Integer, Comparator>> sortingColumns = new ArrayList<>(sort.size());
+        for (Map.Entry<ExpressionId, Sort> entry : sort.entrySet()) {
+            ExpressionId expressionId = entry.getKey();
+            Sort s = entry.getValue();
 
-        boolean aggSort = false;
-        for (Sort s : sort) {
-            Tuple<Integer, Comparator> tuple = new Tuple<>(Integer.valueOf(-1), null);
-
-            if (s instanceof AttributeSort) {
-                AttributeSort as = (AttributeSort) s;
-                // find the relevant column of each aggregate function
-                if (as.attribute() instanceof AggregateFunctionAttribute) {
-                    aggSort = true;
-                    AggregateFunctionAttribute afa = (AggregateFunctionAttribute) as.attribute();
-                    afa = (AggregateFunctionAttribute) aliases.getOrDefault(afa.innerId(), afa);
-                    int atIndex = -1;
-                    for (int i = 0; i < fields.size(); i++) {
-                        Tuple<FieldExtraction, ExpressionId> field = fields.get(i);
-                        if (field.v2().equals(afa.innerId())) {
-                            atIndex = i;
-                            break;
-                        }
-                    }
-
-                    if (atIndex == -1) {
-                        throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", afa.name());
-                    }
-                    // assemble a comparator for it
-                    Comparator comp = s.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
-                    comp = s.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
-
-                    tuple = new Tuple<>(Integer.valueOf(atIndex), comp);
+            int atIndex = -1;
+            for (int i = 0; i < fields.size(); i++) {
+                Tuple<FieldExtraction, ExpressionId> field = fields.get(i);
+                if (field.v2().equals(expressionId)) {
+                    atIndex = i;
+                    break;
                 }
             }
-            sortingColumns.add(tuple);
+            if (atIndex == -1) {
+                throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", s);
+            }
+
+            // assemble a comparator for it, if it's not an AggregateSort
+            // then it's pre-sorted by ES so use null
+            Comparator comp = null;
+            if (isAggregateSort(s)) {
+                comp = s.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
+                comp = s.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
+            }
+
+            sortingColumns.add(new Tuple<>(Integer.valueOf(atIndex), comp));
         }
 
-        if (customSort == null) {
-            customSort = Boolean.valueOf(aggSort);
-        }
+        return sortingColumns;
+    }
 
-        return aggSort ? sortingColumns : emptyList();
+    private boolean isAggregateSort(Sort s) {
+        return s instanceof AttributeSort && ((AttributeSort) s).attribute() instanceof AggregateFunctionAttribute;
     }
 
     /**
@@ -212,7 +215,7 @@ public class QueryContainer {
         return pseudoFunctions;
     }
 
-    public Set<Sort> sort() {
+    public Map<ExpressionId, Sort> sort() {
         return sort;
     }
 
@@ -260,10 +263,10 @@ public class QueryContainer {
         return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit);
     }
 
-    public QueryContainer addSort(Sort sortable) {
-        Set<Sort> sort = new LinkedHashSet<>(this.sort);
-        sort.add(sortable);
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit);
+    public QueryContainer addSort(ExpressionId expressionId, Sort sortable) {
+        Map<ExpressionId, Sort> newSort = new LinkedHashMap<>(this.sort);
+        newSort.put(expressionId, sortable);
+        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, newSort, limit);
     }
 
     private String aliasName(Attribute attr) {

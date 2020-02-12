@@ -13,6 +13,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
@@ -85,7 +86,7 @@ public class SourceGeneratorTests extends ESTestCase {
 
     public void testSortScoreSpecified() {
         QueryContainer container = new QueryContainer()
-                .addSort(new ScoreSort(Direction.DESC, null));
+                .addSort(new ExpressionId(), new ScoreSort(Direction.DESC, null));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(scoreSort()), sourceBuilder.sorts());
     }
@@ -94,14 +95,14 @@ public class SourceGeneratorTests extends ESTestCase {
         FieldSortBuilder sortField = fieldSort("test").unmappedType("keyword");
         
         QueryContainer container = new QueryContainer()
-                .addSort(new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")), Direction.ASC,
-                        Missing.LAST));
+                .addSort(new ExpressionId(), new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
+                        Direction.ASC, Missing.LAST));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(sortField.order(SortOrder.ASC).missing("_last")), sourceBuilder.sorts());
 
         container = new QueryContainer()
-                .addSort(new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")), Direction.DESC,
-                        Missing.FIRST));
+                .addSort(new ExpressionId(), new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
+                        Direction.DESC, Missing.FIRST));
         sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(sortField.order(SortOrder.DESC).missing("_first")), sourceBuilder.sorts());
     }

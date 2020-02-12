@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
@@ -461,20 +462,27 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     GroupByKey group = qContainer.findGroupForAgg(attr);
 
                     // TODO: might need to validate whether the target field or group actually exist
-                    if (group != null && group != Aggs.IMPLICIT_GROUP_KEY) {
+                    if (group!=null && group!=Aggs.IMPLICIT_GROUP_KEY) {
                         qContainer = qContainer.updateGroup(group.with(direction));
                     }
-                    else {
-                        // scalar functions typically require script ordering
-                        if (attr instanceof ScalarFunctionAttribute) {
-                            // nope, use scripted sorting
-                            qContainer = qContainer.addSort(
-                                    new ScriptSort(((ScalarFunctionAttribute) attr).script(), direction, missing));
-                        } else if (attr instanceof ScoreAttribute) {
-                            qContainer = qContainer.addSort(new ScoreSort(direction, missing));
-                        } else {
-                            qContainer = qContainer.addSort(new AttributeSort(attr, direction, missing));
-                        }
+
+                    // scalar functions typically require script ordering
+                    if (attr instanceof ScalarFunctionAttribute) {
+                        ScalarFunctionAttribute sf = (ScalarFunctionAttribute) attr;
+                        // nope, use scripted sorting
+                        qContainer = qContainer.addSort(sf.id(), new ScriptSort(sf.script(), direction, missing));
+                    }
+                    // score
+                    else if (attr instanceof ScoreAttribute) {
+                        qContainer = qContainer.addSort(attr.id(), new ScoreSort(direction, missing));
+                    }
+                    // agg function
+                    else if (attr instanceof AggregateFunctionAttribute) {
+                        AggregateFunctionAttribute afa = (AggregateFunctionAttribute) attr;
+                        qContainer = qContainer.addSort(afa.innerId(), new AttributeSort(attr, direction, missing));
+                    // field, histogram
+                    } else {
+                        qContainer = qContainer.addSort(attr.id(), new AttributeSort(attr, direction, missing));
                     }
                 }
 

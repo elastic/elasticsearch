@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Specification of an Elasticsearch endpoint used by the YAML specs to generate REST requests.
@@ -202,4 +203,38 @@ public class ClientYamlSuiteRestApi {
             return Objects.hash(path);
         }
     }
+
+    /**
+     * We want to retrieve the deprecation warning if and only if there are multiple possibilities
+     * for its value among the best paths. Specifically, if all best paths return the same
+     * deprecation warning, tests can be expected to account for that explicitly and we don't
+     * need to retrieve it here.
+     * @param chosenPath A path chosen by the test client.
+     * @param possiblePaths A list of all the paths that could have been chosen.
+     * @return A deprecation warning as a String if distinct warnings were possible, null otherwise.
+     */
+    public static String getDeprecationWarningIfNecessary(Path chosenPath, List<Path> possiblePaths) {
+        // case: only one possible path
+        if (possiblePaths.size() == 1) {
+            return null;
+        }
+        List<String> possibleDeprecationWarnings = possiblePaths.stream()
+            .map(Path::getDeprecation)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        final int warningsPresentCount = possibleDeprecationWarnings.size();
+
+        // case: no deprecation warnings
+        if (warningsPresentCount == 0) {
+            return null;
+        }
+
+        final int distinctWarningsPresentCount = Set.copyOf(possibleDeprecationWarnings).size();
+        // case: all paths deprecated with the same warning
+        if (warningsPresentCount == possiblePaths.size() && distinctWarningsPresentCount == 1) {
+            return null;
+        }
+        return chosenPath.getDeprecation();
+    }
+
 }

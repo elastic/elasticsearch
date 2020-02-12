@@ -228,7 +228,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
     public void testDisallowExpensiveQueries() {
         try {
             assertAcked(
-                    prepareCreate("test-index").addMapping("num1", "type=double")
+                    prepareCreate("test-index").addMapping("_doc", "num1", "type=double")
             );
             int docCount = 10;
             for (int i = 1; i <= docCount; i++) {
@@ -241,7 +241,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
             // Execute with search.allow_expensive_queries = null => default value = false => success
             Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1",
                     Collections.emptyMap());
-            SearchResponse resp = client().prepareSearch("test-index")
+            SearchResponse resp = client().prepareSearch("test-index", "_doc")
                     .setQuery(scriptQuery(script))
                     .get();
             assertNoFailures(resp);

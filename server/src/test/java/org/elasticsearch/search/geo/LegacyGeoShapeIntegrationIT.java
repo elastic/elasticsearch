@@ -195,7 +195,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
         try {
             // create index
             assertAcked(client().admin().indices().prepareCreate("test")
-                    .addMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
+                    .addMapping("_doc", "shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
             ensureGreen();
 
             indexRandom(true, client().prepareIndex("test", "_doc").setId("0").setSource(

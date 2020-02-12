@@ -162,7 +162,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
     public void testDisallowExpensiveQueries() {
         try {
             assertAcked(
-                    prepareCreate("test-index").addMapping("field1", "type=text", "field2", "type=double")
+                    prepareCreate("test-index").addMapping("_doc", "field1", "type=text", "field2", "type=double")
             );
             int docCount = 10;
             for (int i = 1; i <= docCount; i++) {

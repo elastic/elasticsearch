@@ -123,7 +123,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(new RestSamlInitiateSingleSignOnAction(restController));
+        return Collections.singletonList(new RestSamlInitiateSingleSignOnAction());
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.saml.authn.SuccessfulAuthenticationResponseMessageBuilder;
 import org.elasticsearch.xpack.idp.saml.authn.UserServiceAuthentication;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
 import org.opensaml.saml.saml2.core.Response;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -53,25 +55,28 @@ public class TransportSamlInitiateSingleSignOnAction
         final ThreadContext threadContext = threadPool.getThreadContext();
         final SamlFactory samlFactory = new SamlFactory();
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
-        Authentication serviceAccountAuthentication = Authentication.getAuthentication(threadContext);
-        // TODO: Adjust this once secondary auth code is merged in master and use the authentication object of the user
-        // Authentication authentication = authenticationService.getSecondaryAuth();
-
-        SamlServiceProvider sp = idp.getRegisteredServiceProvider(request.getSpEntityId());
-        if (null == sp) {
-            final String message =
-                "Service Provider with Entity ID [" + request.getSpEntityId() + "] is not registered with this Identity Provider";
-            logger.debug(message);
-            listener.onFailure(new IllegalArgumentException(message));
-            return;
+        try {
+            // TODO: Adjust this once secondary auth code is merged in master and use the authentication object of the user
+            // Authentication authentication = authenticationService.getSecondaryAuth();
+            Authentication serviceAccountAuthentication = new AuthenticationContextSerializer().readFromContext(threadContext);
+            SamlServiceProvider sp = idp.getRegisteredServiceProvider(request.getSpEntityId());
+            if (null == sp) {
+                final String message =
+                    "Service Provider with Entity ID [" + request.getSpEntityId() + "] is not registered with this Identity Provider";
+                logger.debug(message);
+                listener.onFailure(new IllegalArgumentException(message));
+                return;
+            }
+            final UserServiceAuthentication user = buildUserFromAuthentication(serviceAccountAuthentication, sp);
+            final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(samlFactory,
+                Clock.systemUTC(), idp);
+            final Response response = builder.build(user, null);
+            listener.onResponse(new SamlInitiateSingleSignOnResponse(user.getServiceProvider().getAssertionConsumerService().toString(),
+                SamlUtils.samlObjectToString(response),
+                user.getServiceProvider().getEntityId()));
+        } catch (IOException e) {
+            listener.onFailure(new IllegalArgumentException(e.getMessage()));
         }
-        final UserServiceAuthentication user = buildUserFromAuthentication(serviceAccountAuthentication, sp);
-        final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(samlFactory,
-            Clock.systemUTC(), idp);
-        final Response response = builder.build(user, null);
-        listener.onResponse(new SamlInitiateSingleSignOnResponse(user.getServiceProvider().getAssertionConsumerService().toString(),
-            SamlUtils.samlObjectToString(response),
-            user.getServiceProvider().getEntityId()));
     }
 
     private UserServiceAuthentication buildUserFromAuthentication(Authentication authentication, SamlServiceProvider sp) {

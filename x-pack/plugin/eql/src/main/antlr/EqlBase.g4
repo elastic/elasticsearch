@@ -63,7 +63,7 @@ subquery
     ;
 
 eventQuery
-    : event=identifier WHERE expression
+    : (event=identifier WHERE)? expression
     ;
 
 expression

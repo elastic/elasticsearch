@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class StringStatsIT extends ESRestHighLevelClientTestCase {
+public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
     public void testBasic() throws IOException {
         BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulk.add(new IndexRequest().source(XContentType.JSON, "message", "trying out elasticsearch"));

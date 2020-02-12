@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -43,14 +43,22 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestGetUserPrivilegesAction.class));
 
-    public RestGetUserPrivilegesAction(Settings settings, RestController controller, SecurityContext securityContext,
-                                       XPackLicenseState licenseState) {
+    public RestGetUserPrivilegesAction(Settings settings, SecurityContext securityContext, XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/_privileges", this,
-            GET, "/_xpack/security/user/_privileges", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRoute(GET, "/_security/user/_privileges", GET, "/_xpack/security/user/_privileges", deprecationLogger)
+        );
     }
 
     @Override

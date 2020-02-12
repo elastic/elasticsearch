@@ -34,6 +34,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
@@ -115,7 +117,7 @@ public class ArchiveTests extends PackagingTestCase {
             throw e;
         }
 
-        assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
+        assertThat(installation.logs.resolve("gc.log"), fileExists());
         ServerUtils.runElasticsearchTests();
 
         stopElasticsearch();
@@ -251,6 +253,62 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
+    public void test71CustomJvmOptionsDirectoryFile() throws Exception {
+        final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
+        try {
+            append(heapOptions, "-Xms512m\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+
+            stopElasticsearch();
+        } finally {
+            rm(heapOptions);
+        }
+    }
+
+    public void test72CustomJvmOptionsDirectoryFilesAreProcessedInSortedOrder() throws Exception {
+        final Path firstOptions = installation.config(Paths.get("jvm.options.d", "first.options"));
+        final Path secondOptions = installation.config(Paths.get("jvm.options.d", "second.options"));
+        try {
+            /*
+             * We override the heap in the first file, and disable compressed oops, and override the heap in the second file. By doing this,
+             * we can test that both files are processed by the JVM options parser, and also that they are processed in lexicographic order.
+             */
+            append(firstOptions, "-Xms384m\n-Xmx384m\n-XX:-UseCompressedOops\n");
+            append(secondOptions, "-Xms512m\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+            assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+
+            stopElasticsearch();
+        } finally {
+            rm(firstOptions);
+            rm(secondOptions);
+        }
+    }
+
+    public void test73CustomJvmOptionsDirectoryFilesWithoutOptionsExtensionIgnored() throws Exception {
+        final Path jvmOptionsIgnored = installation.config(Paths.get("jvm.options.d", "jvm.options.ignored"));
+        try {
+            append(jvmOptionsIgnored, "-Xms512\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
+
+            stopElasticsearch();
+        } finally {
+            rm(jvmOptionsIgnored);
+        }
+    }
+
     public void test80RelativePathConf() throws Exception {
 
         final Path temp = getTempDir().resolve("esconf-alternate");
@@ -286,7 +344,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         if (distribution().isDefault()) {
-            assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
             final Platforms.PlatformAction action = () -> {
                 Result result = sh.run(bin.certutilTool + " --help");
                 assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
@@ -299,7 +357,7 @@ public class ArchiveTests extends PackagingTestCase {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         } else {
-            assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileDoesNotExist());
         }
     }
 

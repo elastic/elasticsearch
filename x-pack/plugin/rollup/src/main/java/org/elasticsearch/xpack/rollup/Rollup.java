@@ -119,14 +119,14 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         }
 
         return Arrays.asList(
-            new RestRollupSearchAction(restController),
-            new RestPutRollupJobAction(restController),
-            new RestStartRollupJobAction(restController),
-            new RestStopRollupJobAction(restController),
-            new RestDeleteRollupJobAction(restController),
-            new RestGetRollupJobsAction(restController),
-            new RestGetRollupCapsAction(restController),
-            new RestGetRollupIndexCapsAction(restController)
+            new RestRollupSearchAction(),
+            new RestPutRollupJobAction(),
+            new RestStartRollupJobAction(),
+            new RestStopRollupJobAction(),
+            new RestDeleteRollupJobAction(),
+            new RestGetRollupJobsAction(),
+            new RestGetRollupCapsAction(),
+            new RestGetRollupIndexCapsAction()
         );
 
     }

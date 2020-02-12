@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -27,13 +28,16 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -95,9 +99,28 @@ public class ResultsPersisterService {
                                            String jobId,
                                            Supplier<Boolean> shouldRetry,
                                            Consumer<String> msgHandler) {
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler,
+            providedBulkRequest -> client.bulk(providedBulkRequest).actionGet());
+    }
+
+    public BulkResponse bulkIndexWithHeadersWithRetry(Map<String, String> headers,
+                                                      BulkRequest bulkRequest,
+                                                      String jobId,
+                                                      Supplier<Boolean> shouldRetry,
+                                                      Consumer<String> msgHandler) {
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler,
+            providedBulkRequest -> ClientHelper.executeWithHeaders(
+                headers, ClientHelper.ML_ORIGIN, client, () -> client.execute(BulkAction.INSTANCE, bulkRequest).actionGet()));
+    }
+
+    private BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest,
+                                            String jobId,
+                                            Supplier<Boolean> shouldRetry,
+                                            Consumer<String> msgHandler,
+                                            Function<BulkRequest, BulkResponse> actionExecutor) {
         RetryContext retryContext = new RetryContext(jobId, shouldRetry, msgHandler);
         while (true) {
-            BulkResponse bulkResponse = client.bulk(bulkRequest).actionGet();
+            BulkResponse bulkResponse = actionExecutor.apply(bulkRequest);
             if (bulkResponse.hasFailures() == false) {
                 return bulkResponse;
             }

@@ -364,8 +364,3 @@ See <<slm-api-start>>.
 === Stop {slm} API
 
 See <<slm-api-stop>>.
-
-[role="exclude",id="eql-search"]
-=== EQL search  API
-
-See <<eql>>.

@@ -7,12 +7,14 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 
+import java.util.Locale;
+
 /**
  * Exception thrown when a problem is encountered while initialising an ILM policy for an index.
  */
 public class InitializePolicyException extends ElasticsearchException {
 
-    public InitializePolicyException(String msg, Throwable cause, Object... args) {
-        super(msg, cause, args);
+    public InitializePolicyException(String policy, String index, Throwable cause) {
+        super(String.format(Locale.ROOT, "unable to initialize policy [%s] for index [%s]", policy, index), cause);
     }
 }

@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import java.util.Objects;
+
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -25,8 +27,11 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final StepKey KEY = new StepKey(INITIALIZATION_PHASE, "init", "init");
     private static final Logger logger = LogManager.getLogger(InitializePolicyContextStep.class);
 
-    InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
+    private final String policy;
+
+    InitializePolicyContextStep(String policy, Step.StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
+        this.policy = policy;
     }
 
     @Override
@@ -38,16 +43,15 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             return clusterState;
         }
 
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState
-            .fromIndexMetadata(indexMetaData);
-
-        if (lifecycleState.getLifecycleDate() != null) {
-            return clusterState;
-        }
-
         IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(indexMetaData);
-        if (shouldParseIndexName(indexMetaData.getSettings())) {
-            try {
+        LifecycleExecutionState lifecycleState;
+        try {
+            lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+            if (lifecycleState.getLifecycleDate() != null) {
+                return clusterState;
+            }
+
+            if (shouldParseIndexName(indexMetaData.getSettings())) {
                 long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
                 indexMetadataBuilder.settingsVersion(indexMetaData.getSettingsVersion() + 1)
                     .settings(Settings.builder()
@@ -55,9 +59,9 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
                         .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
                         .build()
                     );
-            } catch (Exception e) {
-                throw new InitializePolicyException(e.getMessage(), e);
             }
+        } catch (Exception e) {
+            throw new InitializePolicyException(policy, index.getName(), e);
         }
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
@@ -75,5 +79,23 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
     @Override
     public boolean isRetryable() {
         return true;
+    }
+
+    String policy() {
+        return policy;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        InitializePolicyContextStep that = (InitializePolicyContextStep) o;
+        return policy.equals(that.policy);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), policy);
     }
 }

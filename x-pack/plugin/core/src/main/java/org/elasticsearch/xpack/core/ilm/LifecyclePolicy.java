@@ -215,7 +215,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         lastStepKey = phaseAfterStep.getKey();
 
         // init step so that policy is guaranteed to have
-        steps.add(new InitializePolicyContextStep(InitializePolicyContextStep.KEY, lastStepKey));
+        steps.add(new InitializePolicyContextStep(name, InitializePolicyContextStep.KEY, lastStepKey));
 
         Collections.reverse(steps);
 

@@ -24,31 +24,34 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
 
-        return new InitializePolicyContextStep(stepKey, nextStepKey);
+        return new InitializePolicyContextStep(randomAlphaOfLengthBetween(1, 10), stepKey, nextStepKey);
     }
 
     @Override
     public InitializePolicyContextStep mutateInstance(InitializePolicyContextStep instance) {
+        String policy = instance.policy();
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
 
-        switch (between(0, 1)) {
-        case 0:
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+        switch (between(0, 2)) {
+            case 0:
+                policy = randomAlphaOfLengthBetween(1, 10);
+            case 1:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 2:
+                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new InitializePolicyContextStep(key, nextKey);
+        return new InitializePolicyContextStep(policy, key, nextKey);
     }
 
     @Override
     public InitializePolicyContextStep copyInstance(InitializePolicyContextStep instance) {
-        return new InitializePolicyContextStep(instance.getKey(), instance.getNextStepKey());
+        return new InitializePolicyContextStep(instance.policy(), instance.getKey(), instance.getNextStepKey());
     }
 
     public void testAddCreationDate() {
@@ -63,7 +66,7 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
             .build();
         Index index = indexMetadata.getIndex();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        InitializePolicyContextStep step = new InitializePolicyContextStep(null, null);
+        InitializePolicyContextStep step = new InitializePolicyContextStep(randomAlphaOfLengthBetween(1, 10), null, null);
         ClusterState newState = step.performAction(index, clusterState);
         assertThat(getIndexLifecycleDate(index, newState), equalTo(creationDate));
     }
@@ -83,7 +86,7 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
             .build();
         Index index = indexMetadata.getIndex();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        InitializePolicyContextStep step = new InitializePolicyContextStep(null, null);
+        InitializePolicyContextStep step = new InitializePolicyContextStep(randomAlphaOfLengthBetween(1, 10), null, null);
         ClusterState newState = step.performAction(index, clusterState);
         assertTrue(newState == clusterState);
     }

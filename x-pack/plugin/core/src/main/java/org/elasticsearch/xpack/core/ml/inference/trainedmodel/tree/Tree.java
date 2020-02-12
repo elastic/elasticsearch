@@ -388,8 +388,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         int depthRight = fillNodeEstimates(nodeEstimates, node.getRightChild(), depth + 1);
         long leftWeight = nodes.get(node.getLeftChild()).getNumberSamples();
         long rightWeight = nodes.get(node.getRightChild()).getNumberSamples();
-        double averageValue = (leftWeight * nodeEstimates[node.getLeftChild()] + rightWeight * nodeEstimates[node.getRightChild()])
-            / (leftWeight + rightWeight);
+        long divisor = leftWeight + rightWeight;
+        double averageValue = divisor == 0 ?
+            0.0 :
+            (leftWeight * nodeEstimates[node.getLeftChild()] + rightWeight * nodeEstimates[node.getRightChild()]) / divisor;
         nodeEstimates[nodeIndex] = averageValue;
         return Math.max(depthLeft, depthRight) + 1;
     }

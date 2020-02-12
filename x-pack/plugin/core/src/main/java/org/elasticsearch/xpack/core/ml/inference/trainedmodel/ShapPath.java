@@ -82,15 +82,6 @@ public class ShapPath  {
         }
     }
 
-    private void reduce(int pathIndex) {
-        for (int i = pathIndex; i < depth(); ++i) {
-            featureIndex[i] = featureIndex[i + 1];
-            fractionZeros[i] = fractionZeros[i + 1];
-            fractionOnes[i] = fractionOnes[i + 1];
-        }
-        --nextIndex;
-    }
-
     public double sumUnwoundPath(int pathIndex) {
         double total = 0.0;
         int pathDepth = depth();
@@ -130,7 +121,12 @@ public class ShapPath  {
                 scale[i] = scale[i] * (pathDepth + 1) / (fractionZero * (pathDepth - i));
             }
         }
-        reduce(pathIndex);
+        for (int i = pathIndex; i < depth(); ++i) {
+            featureIndex[i] = featureIndex[i + 1];
+            fractionZeros[i] = fractionZeros[i + 1];
+            fractionOnes[i] = fractionOnes[i + 1];
+        }
+        --nextIndex;
     }
 
     //! Indicator whether or not the feature \p pathIndex is decicive for the path.

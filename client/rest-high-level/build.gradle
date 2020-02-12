@@ -24,7 +24,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 apply plugin: 'com.github.johnrengelman.shadow'
-apply plugin: 'elasticsearch.rest-api-yaml'
+apply plugin: 'elasticsearch.rest-api-copy'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'

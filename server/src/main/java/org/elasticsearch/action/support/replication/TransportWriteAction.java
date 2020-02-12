@@ -315,6 +315,11 @@ public abstract class TransportWriteAction<
                     maybeFinish();
                 });
             }
+            try {
+                Thread.sleep(5_000);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
             if (sync) {
                 assert pendingOps.get() > 0;
                 indexShard.sync(location, (ex) -> {

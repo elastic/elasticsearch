@@ -17,6 +17,7 @@ import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -123,22 +124,26 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
             )
         );
 
-        assertFirstException(bulkItemResponses, MapperParsingException.class, "mapper parsing error");
+        assertFirstException(bulkItemResponses.values(), MapperParsingException.class, "mapper parsing error");
         bulkItemResponses.remove(1);
-        assertFirstException(bulkItemResponses, ResourceNotFoundException.class, "resource not found error");
+        assertFirstException(bulkItemResponses.values(), ResourceNotFoundException.class, "resource not found error");
         bulkItemResponses.remove(2);
-        assertFirstException(bulkItemResponses, IllegalArgumentException.class, "illegal argument error");
+        assertFirstException(bulkItemResponses.values(), IllegalArgumentException.class, "illegal argument error");
         bulkItemResponses.remove(3);
-        assertFirstException(bulkItemResponses, ElasticsearchSecurityException.class, "Authentication required");
+        assertFirstException(bulkItemResponses.values(), ElasticsearchSecurityException.class, "Authentication required");
         bulkItemResponses.remove(6);
-        assertFirstException(bulkItemResponses, ElasticsearchSecurityException.class, "current license is non-compliant for [transform]");
+        assertFirstException(
+            bulkItemResponses.values(),
+            ElasticsearchSecurityException.class,
+            "current license is non-compliant for [transform]"
+        );
         bulkItemResponses.remove(7);
 
         assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
     }
 
-    private static void assertFirstException(Map<Integer, BulkItemResponse> bulkItemResponses, Class<?> expectedClass, String message) {
-        Throwable t = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values());
+    private static void assertFirstException(Collection<BulkItemResponse> bulkItemResponses, Class<?> expectedClass, String message) {
+        Throwable t = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses);
         assertNotNull(t);
         assertEquals(t.getClass(), expectedClass);
         assertEquals(t.getMessage(), message);

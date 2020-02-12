@@ -16,7 +16,9 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -64,9 +66,10 @@ public class SearchableSnapshotIndexInputTests extends ESIndexInputTestCase {
 
                 onReadBlob.run();
 
+                final InputStream stream;
                 if (fileInfo.numberOfParts() == 1L) {
                     assertThat("Unexpected blob name [" + name + "]", name, equalTo(fileInfo.name()));
-                    return new ByteArrayInputStream(input, Math.toIntExact(position), Math.toIntExact(length));
+                    stream = new ByteArrayInputStream(input, Math.toIntExact(position), Math.toIntExact(length));
 
                 } else {
                     assertThat("Unexpected blob name [" + name + "]", name, allOf(startsWith(fileInfo.name()), containsString(".part")));
@@ -75,7 +78,19 @@ public class SearchableSnapshotIndexInputTests extends ESIndexInputTestCase {
                     assertThat("Unexpected part number [" + partNumber + "] for [" + name + "]", partNumber,
                         allOf(greaterThanOrEqualTo(0L), lessThan(fileInfo.numberOfParts())));
 
-                    return new ByteArrayInputStream(input, Math.toIntExact(partNumber * partSize + position), Math.toIntExact(length));
+                    stream = new ByteArrayInputStream(input, Math.toIntExact(partNumber * partSize + position), Math.toIntExact(length));
+                }
+
+                if (randomBoolean()) {
+                    return stream;
+                } else {
+                    // sometimes serve less bytes than expected, in agreement with InputStream{@link #read(byte[], int, int)} javadoc
+                    return new FilterInputStream(stream) {
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            return super.read(b, off, randomIntBetween(1, len));
+                        }
+                    };
                 }
             });
         return new SearchableSnapshotIndexInput(blobContainer, fileInfo, minimumReadSize,

@@ -8,6 +8,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -122,7 +123,9 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
         if (optimizedReadSize < length) {
             // we did not read everything in an optimized fashion, so read the remainder directly
             try (InputStream inputStream = openBlobStream(part, pos + optimizedReadSize, length - optimizedReadSize)) {
-                final int directReadSize = inputStream.read(b, offset + optimizedReadSize, length - optimizedReadSize);
+                final int directReadSize = readFully(inputStream, b, offset + optimizedReadSize, length - optimizedReadSize, () -> {
+                    throw new EOFException("Read past EOF at [" + position + "] with length [" + fileInfo.partBytes(part) + "]");
+                });
                 assert optimizedReadSize + directReadSize == length : optimizedReadSize + " and " + directReadSize + " vs " + length;
                 position += directReadSize;
             }
@@ -280,6 +283,23 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
         return stream;
     }
 
+    /**
+     * Fully read up to {@code length} bytes from the given {@link InputStream}
+     */
+    private static int readFully(InputStream inputStream, byte[] b, int offset, int length, CheckedRunnable<IOException> onEOF)
+        throws IOException {
+        int totalRead = 0;
+        while (totalRead < length) {
+            final int read = inputStream.read(b, offset + totalRead, length - totalRead);
+            if (read == -1) {
+                onEOF.run();
+                break;
+            }
+            totalRead += read;
+        }
+        return totalRead > 0 ? totalRead : -1;
+    }
+
     private static class StreamForSequentialReads implements Closeable {
         private final InputStream inputStream;
         private final int part;
@@ -299,7 +319,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
         int read(byte[] b, int offset, int length) throws IOException {
             assert this.pos < maxPos : "should not try and read from a fully-read stream";
-            int read = inputStream.read(b, offset, length);
+            final int read = readFully(inputStream, b, offset, length, () -> {});
             assert read <= length : read + " vs " + length;
             pos += read;
             return read;

@@ -6,8 +6,10 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
-copyYamlTests {
-  includeCore '*'
+restResources {
+  restTests {
+    includeCore '*'
+  }
 }
 
 integTest {

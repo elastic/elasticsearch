@@ -30,8 +30,10 @@ tasks.register("bwcTest") {
   group = 'verification'
 }
 
-copyYamlTests {
-  includeCore '*'
+restResources {
+  restTests {
+    includeCore '*'
+  }
 }
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {

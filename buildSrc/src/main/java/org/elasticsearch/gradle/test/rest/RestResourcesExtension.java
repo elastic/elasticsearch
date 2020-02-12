@@ -16,33 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.gradle.test.rest;
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.gradle.api.Action;
+import org.gradle.api.model.ObjectFactory;
 
-restResources {
-  restTests {
-    includeCore '*'
-  }
-}
+import javax.inject.Inject;
 
-File repo = file("$buildDir/testclusters/repo")
-testClusters.integTest {
-  numberOfNodes = 2
-  setting 'path.repo', repo.absolutePath
-}
+/**
+ * Custom extension to configure the {@link CopyRestApiTask}
+ */
+public class RestResourcesExtension {
 
-integTest.runner {
-  doFirst {
-    project.delete(repo)
-    repo.mkdirs()
-  }
-  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'oss'))) {
-    systemProperty 'tests.rest.blacklist', [
-      'cat.templates/10_basic/No templates',
-      'cat.templates/10_basic/Sort templates',
-      'cat.templates/10_basic/Multiple template',
-    ].join(',')
-  }
+    final RestResourcesSpec restApi;
+    final RestResourcesSpec restTests;
+
+    @Inject
+    public RestResourcesExtension(ObjectFactory objects) {
+        restApi = new RestResourcesSpec(objects);
+        restTests = new RestResourcesSpec(objects);
+    }
+
+    void restApi(Action<? super RestResourcesSpec> spec) {
+        spec.execute(restApi);
+    }
+
+    void restTests(Action<? super RestResourcesSpec> spec) {
+        spec.execute(restTests);
+    }
 }

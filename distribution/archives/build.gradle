@@ -317,8 +317,10 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
 
   group = "org.elasticsearch.distribution.integ-test-zip"
 
-  copyYamlTests {
-    includeCore '*'
+  restResources {
+    restTests {
+      includeCore '*'
+    }
   }
 
   integTest {

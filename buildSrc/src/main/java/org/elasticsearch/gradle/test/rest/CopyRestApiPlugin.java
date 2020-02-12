@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
@@ -34,17 +33,15 @@ import java.util.Map;
  */
 public class CopyRestApiPlugin implements Plugin<Project> {
 
-    private static final String COPY_SPEC_EXTENSION_NAME = "copyRestApiSpecs";
-    private static final String COPY_TEST_EXTENSION_NAME = "copyYamlTests";
+    private static final String EXTENSION_NAME = "restResources";
 
     @Override
     public void apply(Project project) {
-        CopyRestApiExtension copySpecExtension = project.getExtensions().create(COPY_SPEC_EXTENSION_NAME, CopyRestApiExtension.class);
-        CopyRestApiExtension copyTestExtension = project.getExtensions().create(COPY_TEST_EXTENSION_NAME, CopyRestApiExtension.class);
+        RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
         Provider<CopyRestApiTask> copyRestYamlTestTask = project.getTasks().register("copyYamlTestsTask", CopyRestApiTask.class, task -> {
-            task.includeCore.set(copyTestExtension.getIncludeCore());
-            task.includeXpack.set(copyTestExtension.getIncludeXpack());
+            task.includeCore.set(extension.restTests.getIncludeCore());
+            task.includeXpack.set(extension.restTests.getIncludeXpack());
             task.copyTo = "rest-api-spec/test";
             task.coreConfig = project.getConfigurations().create("restTest");
             if (BuildParams.isInternal()) {
@@ -65,8 +62,8 @@ public class CopyRestApiPlugin implements Plugin<Project> {
 
         Provider<CopyRestApiTask> copyRestYamlSpecTask = project.getTasks()
             .register("copyRestApiSpecsTask", CopyRestApiTask.class, task -> {
-                task.includeCore.set(copySpecExtension.getIncludeCore());
-                task.includeXpack.set(copySpecExtension.getIncludeXpack());
+                task.includeCore.set(extension.restApi.getIncludeCore());
+                task.includeXpack.set(extension.restApi.getIncludeXpack());
                 task.copyTo = "rest-api-spec/api";
                 task.dependsOn(copyRestYamlTestTask);
                 task.coreConfig = project.getConfigurations().create("restSpec");

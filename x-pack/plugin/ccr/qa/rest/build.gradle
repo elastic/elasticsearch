@@ -3,8 +3,10 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
-copyRestApiSpecs {
-  includeXpack 'ccr'
+restResources {
+  restApi {
+    includeXpack 'ccr'
+  }
 }
 
 dependencies {

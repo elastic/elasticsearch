@@ -7,11 +7,13 @@ dependencies {
 }
 
 // bring in graph rest test suite
-copyRestApiSpecs {
-  includeXpack 'graph'
-}
-copyYamlTests {
-  includeXpack 'graph'
+restResources {
+  restApi {
+    includeXpack 'graph'
+  }
+  restTests {
+    includeXpack 'graph'
+  }
 }
 
 testClusters.integTest {

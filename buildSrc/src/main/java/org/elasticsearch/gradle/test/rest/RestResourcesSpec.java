@@ -16,21 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.gradle.test.rest;
 
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 
-/**
- * Custom extension to configure the {@link CopyRestApiTask}
- */
-public class CopyRestApiExtension {
+public class RestResourcesSpec {
 
     private final ListProperty<String> includeCore;
     private final ListProperty<String> includeXpack;
 
-    public CopyRestApiExtension(ObjectFactory objects) {
+    public RestResourcesSpec(ObjectFactory objects) {
         includeCore = objects.listProperty(String.class);
         includeXpack = objects.listProperty(String.class);
     }

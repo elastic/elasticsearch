@@ -37,9 +37,11 @@ publishing {
   }
 }
 
-copyRestApiSpecs {
+restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
-  includeCore '*'
+  restApi {
+    includeCore '*'
+  }
 }
 
 dependencies {

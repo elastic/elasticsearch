@@ -400,7 +400,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             // track aliases defined in the SELECT and used inside GROUP BY
             // SELECT x AS a ... GROUP BY a
             Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
-            String literalId = null;
+            String id = null;
             for (NamedExpression ne : a.aggregates()) {
                 if (ne instanceof Alias) {
                     aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
@@ -451,12 +451,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     target = ((Alias) ne).child();
                 }
 
-                String id = Expressions.id(target);
+                id = Expressions.id(target);
 
                 // literal
                 if (target.foldable()) {
                     queryC = queryC.addColumn(ne.toAttribute());
-                    literalId = id;
                 }
 
                 // look at functions
@@ -592,7 +591,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             if (a.aggregates().stream().allMatch(e -> e.anyMatch(Expression::foldable))) {
                 for (Expression grouping : a.groupings()) {
                     GroupByKey matchingGroup = groupingContext.groupFor(grouping);
-                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), literalId);
+                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id);
                 }
             }
             return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);

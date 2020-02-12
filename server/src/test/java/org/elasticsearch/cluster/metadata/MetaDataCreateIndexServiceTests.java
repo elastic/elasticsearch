@@ -133,7 +133,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         queryShardContext = new QueryShardContext(0,
             new IndexSettings(IndexMetaData.builder("test").settings(indexSettings).build(), indexSettings),
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> randomNonNegativeLong(), null, null);
+            null, null, () -> randomNonNegativeLong(), null, null, () -> true);
     }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {

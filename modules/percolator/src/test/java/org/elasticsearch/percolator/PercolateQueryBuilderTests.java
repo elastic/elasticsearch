@@ -20,6 +20,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -57,6 +58,8 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQueryBuilder> {
 
@@ -341,4 +344,14 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertNotEquals(rewrittenQueryBuilder, percolateQueryBuilder);
     }
 
+    public void testDisallowExpensiveQueries() {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+
+        PercolateQueryBuilder queryBuilder = doCreateTestQueryBuilder(true);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> queryBuilder.toQuery(queryShardContext));
+        assertEquals("[percolate] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                e.getMessage());
+    }
 }

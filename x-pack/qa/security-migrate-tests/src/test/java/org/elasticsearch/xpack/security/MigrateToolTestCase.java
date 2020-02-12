@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +27,7 @@ import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.test.ESTestCase.inFipsSunJsseJvm;
+import static org.elasticsearch.test.ESTestCase.FIPS_SYSPROP;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -75,10 +76,9 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
                 .put("client.transport.ignore_cluster_name", true)
                 .put("path.home", tempDir)
                 .put(SecurityField.USER_SETTING.getKey(), "transport_user:x-pack-test-password");
-        if (inFipsSunJsseJvm()){
+        if (Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP)) && JavaVersion.current().getVersion().get(0) == 8){
             clientSettingsBuilder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
-
         TransportClient client = new PreBuiltXPackTransportClient(clientSettingsBuilder.build()).addTransportAddresses(transportAddresses);
         Exception clientException = null;
         try {

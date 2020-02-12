@@ -247,8 +247,20 @@ public class LogConfigurator {
 
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that
+        closeSysOut();
         System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8));
+        closeSysError();
         System.setErr(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8));
+    }
+
+    @SuppressForbidden(reason = "System#out")
+    private static void closeSysOut() {
+        System.out.close();
+    }
+
+    @SuppressForbidden(reason = "System#err")
+    private static void closeSysError() {
+        System.err.close();
     }
 
     private static void configureStatusLogger() {

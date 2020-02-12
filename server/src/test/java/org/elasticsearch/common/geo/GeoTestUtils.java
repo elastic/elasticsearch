@@ -19,6 +19,7 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
@@ -73,6 +74,14 @@ public class GeoTestUtils {
         TriangleTreeReader reader = new TriangleTreeReader(encoder);
         reader.reset(new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size())));
         return reader;
+    }
+
+    public static double encodeDecodeLat(double lat) {
+        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+    }
+
+    public static double encodeDecodeLon(double lon) {
+        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
     }
 
     public static String toGeoJsonString(Geometry geometry) throws IOException {

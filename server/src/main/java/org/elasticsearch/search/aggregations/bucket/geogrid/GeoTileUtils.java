@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -46,7 +47,14 @@ public final class GeoTileUtils {
     /**
      * The geo-tile map is clipped at 85.05112878 to 90 and -85.05112878 to -90
      */
-    public static final double LATITUDE_MASK = 85.05112878;
+    public static final double LATITUDE_MASK = 85.0511287798066;
+
+    /**
+     * Since shapes are encoded, their boundaries are to be compared to against the encoded/decoded values of <code>LATITUDE_MASK</code>
+     */
+    static final double NORMALIZED_LATITUDE_MASK = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(LATITUDE_MASK));
+    static final double NORMALIZED_NEGATIVE_LATITUDE_MASK =
+        GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-LATITUDE_MASK));
 
     private static final double PI_DIV_2 = Math.PI / 2;
 

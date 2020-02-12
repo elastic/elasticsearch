@@ -136,7 +136,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
         if (dockerComposeSupported() == false) {
             project.getLogger()
-                .warn(
+                .info(
                     "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose "
                         + "but none could be found so these will be skipped",
                     project.getPath()

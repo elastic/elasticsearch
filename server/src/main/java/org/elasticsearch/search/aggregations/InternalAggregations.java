@@ -24,12 +24,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -95,6 +97,20 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     @SuppressWarnings("unchecked")
     private List<InternalAggregation> getInternalAggregations() {
         return (List<InternalAggregation>) aggregations;
+    }
+
+    /**
+     * Get value to use when sorting by a descendant of the aggregation containing this.
+     */
+    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        InternalAggregation aggregation = get(head.name);
+        if (aggregation == null) {
+            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name + "]");
+        }
+        if (tail.hasNext()) {
+            return aggregation.sortValue(tail.next(), tail);
+        }
+        return aggregation.sortValue(head.key);
     }
 
     /**

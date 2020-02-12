@@ -779,7 +779,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             MappingUpdatePerformer noopMappingUpdater = (update, shardId, listener1) -> {};
             TransportShardBulkActionNew.ShardOp shardOp = new TransportShardBulkActionNew.ShardOp(request, primary,
                 ActionTestUtils.assertNoFailureListener(listener::onResponse));
-            TransportShardBulkActionNew.performOnPrimary(shardOp, null, null, System::currentTimeMillis, noopMappingUpdater, null);
+            TransportShardBulkActionNew.performOnPrimary(shardOp, null, null, System::currentTimeMillis, noopMappingUpdater, null, null);
             TransportWriteActionTestHelper.performPostWriteActions(primary, request, shardOp.locationToSync(), logger);
             shardOp.getListener().onResponse(null);
         } catch (Exception e) {

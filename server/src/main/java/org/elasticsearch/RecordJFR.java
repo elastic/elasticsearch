@@ -84,11 +84,11 @@ public class RecordJFR {
     }
 
     public static void scheduleHistogramSample(String name, ThreadPool threadPool, AtomicReference<Recorder> recorder) {
-        Histogram initualHistogram = recorder.get().getIntervalHistogram(null);
-        SynchronizedHistogram totalHistogram = new SynchronizedHistogram(initualHistogram.getLowestDiscernibleValue(),
-            initualHistogram.getHighestTrackableValue(), initualHistogram.getNumberOfSignificantValueDigits());
-        totalHistogram.add(initualHistogram);
-        AtomicReference<Histogram> toReuse = new AtomicReference<>(initualHistogram);
+        Histogram initialHistogram = recorder.get().getIntervalHistogram(null);
+        SynchronizedHistogram totalHistogram = new SynchronizedHistogram(initialHistogram.getLowestDiscernibleValue(),
+            initialHistogram.getHighestTrackableValue(), initialHistogram.getNumberOfSignificantValueDigits());
+        totalHistogram.add(initialHistogram);
+        AtomicReference<Histogram> toReuse = new AtomicReference<>(initialHistogram);
 
         threadPool.scheduleWithFixedDelay(new Runnable() {
             @Override

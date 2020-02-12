@@ -509,18 +509,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     + " failures; latest failure: "
                     + ExceptionRootCauseFinder.getDetailedMessage(unwrappedException)
             );
-        } else {
-            // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
-            // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
-            if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
+            return;
+        }
 
-                auditor.warning(
-                    getJobId(),
-                    "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
-                );
-                lastAuditedExceptionMessage = message;
-            }
+        // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
+        // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
+        if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
+            String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
+
+            auditor.warning(
+                getJobId(),
+                "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
+            );
+            lastAuditedExceptionMessage = message;
         }
     }
 

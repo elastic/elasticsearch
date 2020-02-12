@@ -25,7 +25,7 @@ public final class ExceptionRootCauseFinder {
     /**
      * List of rest statuses that we consider irrecoverable
      */
-    public static Set<RestStatus> IRRECOVERABLE_REST_STATUSES = new HashSet<>(
+    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = new HashSet<>(
         Arrays.asList(
             RestStatus.GONE,
             RestStatus.NOT_IMPLEMENTED,
@@ -79,7 +79,7 @@ public final class ExceptionRootCauseFinder {
     /**
      * Return the first irrecoverableException from a collection of bulk responses if there are any.
      *
-     * @param failures a collection of bulk item responses
+     * @param failures a collection of bulk item responses with failures
      * @return The first exception considered irrecoverable if there are any, null if no irrecoverable exception found
      */
     public static Throwable getFirstIrrecoverableExceptionFromBulkResponses(Collection<BulkItemResponse> failures) {
@@ -91,7 +91,7 @@ public final class ExceptionRootCauseFinder {
 
             if (unwrappedThrowable instanceof ElasticsearchException) {
                 ElasticsearchException elasticsearchException = (ElasticsearchException) unwrappedThrowable;
-                if (ExceptionRootCauseFinder.IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
+                if (IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
                     return elasticsearchException;
                 }
             }

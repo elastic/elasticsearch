@@ -128,6 +128,7 @@ import java.util.StringJoiner;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.type.DataTypeConversion.canConvert;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
@@ -716,6 +717,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
+            if (canConvert(sourceType, dataType) == false) {
+                throw new ParsingException(source, "Cannot cast value [{}] of type [{}] to parameter type [{}]", param.value, sourceType,
+                    dataType);
+            }
             return new Literal(source, conversionFor(sourceType, dataType).convert(param.value), dataType);
         } catch (SqlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);

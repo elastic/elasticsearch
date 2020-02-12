@@ -46,8 +46,8 @@ setup:
         id: dfa-outlier-detection-job
   - match:
       $body: |
-        / #id                               create_time type                  state
-        ^ (dfa\-outlier\-detection\-job \s+ [^\s]+ \s+  outlier_detection \s+ stopped \n)+  $/
+        / #id                               type                  create_time state
+        ^ (dfa\-outlier\-detection\-job \s+ outlier_detection \s+ [^\s]+ \s+  stopped \n)+  $/
 
 ---
 "Test cat data frame analytics single job with header":
@@ -57,8 +57,8 @@ setup:
         v: true
   - match:
       $body: |
-        /^  id                           \s+ create_time \s+ type              \s+ state   \n
-           (dfa\-outlier\-detection\-job \s+ [^\s]+      \s+ outlier_detection \s+ stopped \n)+  $/
+        /^  id                           \s+ type              \s+ create_time \s+ state   \n
+           (dfa\-outlier\-detection\-job \s+ outlier_detection \s+ [^\s]+      \s+ stopped \n)+  $/
 
 ---
 "Test cat data frame analytics all jobs with header":
@@ -67,10 +67,10 @@ setup:
         v: true
   - match:
       $body: |
-        /^  id                           \s+ create_time \s+ type              \s+ state   \n
-           (dfa\-classification\-job     \s+ [^\s]+      \s+ classification    \s+ stopped \n)+
-           (dfa\-outlier\-detection\-job \s+ [^\s]+      \s+ outlier_detection \s+ stopped \n)+
-           (dfa\-regression\-job         \s+ [^\s]+      \s+ regression        \s+ stopped \n)+  $/
+        /^  id                           \s+ type              \s+ create_time \s+ state   \n
+           (dfa\-classification\-job     \s+ classification    \s+ [^\s]+      \s+ stopped \n)+
+           (dfa\-outlier\-detection\-job \s+ outlier_detection \s+ [^\s]+      \s+ stopped \n)+
+           (dfa\-regression\-job         \s+ regression        \s+ [^\s]+      \s+ stopped \n)+  $/
 
 ---
 "Test cat data frame analytics all jobs with header and column selection":

@@ -92,13 +92,17 @@ public class RestCatDataFrameAnalyticsAction extends AbstractCatAction {
             .startHeaders()
             // DFA config info
             .addCell("id", TableColumnAttributeBuilder.builder("the id").build())
+            .addCell("type",
+                TableColumnAttributeBuilder.builder("analysis type")
+                    .setAliases("t")
+                    .build())
             .addCell("create_time",
                 TableColumnAttributeBuilder.builder("job creation time")
                     .setAliases("ct", "createTime")
                     .build())
-            .addCell("type",
-                TableColumnAttributeBuilder.builder("analysis type")
-                    .setAliases("t")
+            .addCell("version",
+                TableColumnAttributeBuilder.builder("the version of Elasticsearch when the analytics was created", false)
+                    .setAliases("v")
                     .build())
             .addCell("source_index",
                 TableColumnAttributeBuilder.builder("source index", false)
@@ -164,8 +168,9 @@ public class RestCatDataFrameAnalyticsAction extends AbstractCatAction {
             table
                 .startRow()
                 .addCell(config.getId())
-                .addCell(config.getCreateTime())
                 .addCell(config.getAnalysis().getWriteableName())
+                .addCell(config.getCreateTime())
+                .addCell(config.getVersion())
                 .addCell(String.join(",", config.getSource().getIndex()))
                 .addCell(config.getDest().getIndex())
                 .addCell(config.getDescription())

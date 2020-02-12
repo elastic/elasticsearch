@@ -262,7 +262,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     protected BlobStore newBlobStore() {
-        final String repository = createRepository(randomName());
+        final String repository = createRepository(randomRepositoryName());
         final BlobStoreRepository blobStoreRepository =
             (BlobStoreRepository) internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository);
         return PlainActionFuture.get(
@@ -270,7 +270,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     public void testSnapshotAndRestore() throws Exception {
-        final String repoName = createRepository(randomName());
+        final String repoName = createRepository(randomRepositoryName());
         int indexCount = randomIntBetween(1, 5);
         int[] docCounts = new int[indexCount];
         String[] indexNames = generateRandomNames(indexCount);
@@ -341,7 +341,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     public void testMultipleSnapshotAndRollback() throws Exception {
-        final String repoName = createRepository(randomName());
+        final String repoName = createRepository(randomRepositoryName());
         int iterationCount = randomIntBetween(2, 5);
         int[] docCounts = new int[iterationCount];
         String indexName = randomName();
@@ -396,7 +396,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     public void testIndicesDeletedFromRepository() throws Exception {
-        final String repoName = createRepository("test-repo");
+        final String repoName = createRepository(randomRepositoryName());
         Client client = client();
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -493,7 +493,11 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         assertThat(response.getRestoreInfo().successfulShards(), equalTo(response.getRestoreInfo().totalShards()));
     }
 
-    protected static String randomName() {
+    protected String randomName() {
+        return randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+    }
+
+    protected String randomRepositoryName() {
         return randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
     }
 }

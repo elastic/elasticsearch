@@ -31,7 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public final class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
+// not-final for tests
+public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     static final Logger logger = LogManager.getLogger(EncryptedRepositoryPlugin.class);
     static final String REPOSITORY_TYPE_NAME = "encrypted";
@@ -41,10 +42,10 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
             "password", key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
     static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity());
 
-    protected static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public EncryptedRepositoryPlugin(Settings settings) {
-        if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed()) {
+        if (false == getLicenseState().isEncryptedSnapshotAllowed()) {
             logger.warn("Encrypted snapshot repositories are not allowed for the current license." +
                     "Snapshotting to any encrypted repository is not permitted and will fail.",
                     LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
@@ -76,7 +77,7 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
 
             @Override
             public Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
-                if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed()) {
+                if (false == getLicenseState().isEncryptedSnapshotAllowed()) {
                     logger.warn("Encrypted snapshots are not allowed for the currently installed license." +
                                     "Snapshots to the [" + metaData.name() + "] encrypted repository are not permitted." +
                                     "All the other operations, including restore, are still permitted.",
@@ -102,7 +103,7 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
                             ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metaData.name()).getKey() + " must be set");
                 }
                 return new EncryptedRepository(metaData, registry, clusterService, (BlobStoreRepository) delegatedRepository,
-                        repositoryPassword);
+                        () -> getLicenseState(), repositoryPassword);
             }
         });
     }

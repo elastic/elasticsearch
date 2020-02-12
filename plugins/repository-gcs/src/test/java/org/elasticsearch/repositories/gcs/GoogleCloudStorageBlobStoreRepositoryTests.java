@@ -114,7 +114,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     }
 
     public void testDeleteSingleItem() {
-        final String repoName = createRepository(randomName());
+        final String repoName = createRepository(randomRepositoryName());
         final RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->

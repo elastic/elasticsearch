@@ -116,8 +116,8 @@ public final class BlobStoreTestUtil {
         executor.execute(ActionRunnable.run(listener, () -> {
             final BlobContainer blobContainer = repository.blobContainer();
             final long latestGen;
-            try (DataInputStream inputStream = new DataInputStream(blobContainer.readBlob("index.latest"))) {
-                latestGen = inputStream.readLong();
+            try {
+                latestGen = repository.readSnapshotIndexLatestBlob();
             } catch (NoSuchFileException e) {
                 throw new AssertionError("Could not find index.latest blob for repo [" + repository + "]");
             }

@@ -36,6 +36,7 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -560,7 +561,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         assignment.isAssigned() == false) {
                     OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
                     // Assignment has failed on the master node despite passing our "fast fail" validation
-                    exception = makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
+                    if (assignment.equals(AWAITING_UPGRADE)) {
+                        exception = makeCurrentlyBeingUpgradedException(logger, params.getJobId(), assignment.getExplanation());
+                    } else if (assignment.getExplanation().contains("[" + EnableAssignmentDecider.ALLOCATION_NONE_EXPLANATION + "]")) {
+                        exception = makeAssignmentsNotAllowedException(logger, params.getJobId());
+                    } else {
+                        exception = makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
+                    }
                     // The persistent task should be cancelled so that the observed outcome is the
                     // same as if the "fast fail" validation on the coordinating node had failed
                     shouldCancel = true;
@@ -598,6 +605,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         Exception detail = new IllegalStateException(msg);
         return new ElasticsearchStatusException("Could not open job because no ML nodes with sufficient capacity were found",
             RestStatus.TOO_MANY_REQUESTS, detail);
+    }
+
+    static ElasticsearchException makeAssignmentsNotAllowedException(Logger logger, String jobId) {
+        String msg = "Cannot open jobs because persistent task assignment is disabled by the ["
+            + EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.getKey() + "] setting";
+        logger.warn("[{}] {}", jobId, msg);
+        return new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
     }
 
     static ElasticsearchException makeCurrentlyBeingUpgradedException(Logger logger, String jobId, String explanation) {

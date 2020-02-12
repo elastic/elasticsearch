@@ -150,10 +150,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 `analysis`.`classification`.`num_top_feature_importance_values`::::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
-+
-See
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[Feature importance in {classification}].
+Advanced configuration option. Specifies the maximum number of
+{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
+importance] values to return. By default, it is zero and no feature importance
+calculation occurs.
 
 `analysis`.`classification`.`training_percent`::::
 (Optional, integer)
@@ -236,9 +236,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
 `analysis`.`regression`.`num_top_feature_importance_values`::::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
-+
-See {ml-docs}/dfa-regression.html#dfa-regression-feature-importance[Feature importance in {regression}].
+Advanced configuration option. Specifies the maximum number of
+{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature importance] 
+values to return. By default, it is zero and no feature importance calculation
+occurs.
 
 `analysis`.`regression`.`training_percent`::::
 (Optional, integer)

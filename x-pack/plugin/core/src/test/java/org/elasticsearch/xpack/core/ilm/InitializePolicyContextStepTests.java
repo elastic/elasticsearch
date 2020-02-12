@@ -36,6 +36,7 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
         switch (between(0, 2)) {
             case 0:
                 policy = randomAlphaOfLengthBetween(1, 10);
+                break;
             case 1:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;

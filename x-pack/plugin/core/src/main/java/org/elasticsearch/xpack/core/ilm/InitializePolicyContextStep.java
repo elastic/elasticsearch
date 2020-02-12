@@ -13,8 +13,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
-import java.util.Objects;
-
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
+import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -458,7 +459,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testForceMergeAction() throws Exception {
+    public void forceMergeActionWithCodec(String codec) throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
@@ -481,8 +482,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             }
         };
         assertThat(numSegments.get(), greaterThan(1));
-
-        createNewSingletonPolicy("warm", new ForceMergeAction(1));
+        createNewSingletonPolicy("warm", new ForceMergeAction(1, codec));
         updatePolicy(index, policy);
 
         assertBusy(() -> {
@@ -492,6 +492,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
         expectThrows(ResponseException.class, this::indexDocument);
+    }
+
+    public void testForceMergeAction() throws Exception {
+        forceMergeActionWithCodec(null);
     }
 
     public void testShrinkAction() throws Exception {
@@ -580,6 +584,61 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot succeeded
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+    }
+
+    public void testSetSingleNodeAllocationRetriesUntilItSucceeds() throws Exception {
+        int numShards = 2;
+        int expectedFinalShards = 1;
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+
+       ensureGreen(index);
+
+       // unallocate all index shards
+        Request setAllocationToMissingAttribute = new Request("PUT", "/" + index + "/_settings");
+        setAllocationToMissingAttribute.setJsonEntity("{\n" +
+            "  \"settings\": {\n" +
+            "    \"index.routing.allocation.include.rack\": \"bogus_rack\"" +
+            "  }\n" +
+            "}");
+        client().performRequest(setAllocationToMissingAttribute);
+
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "red");
+            request.addParameter("timeout", "70s");
+            request.addParameter("level", "shards");
+        });
+
+        // assign the policy that'll attempt to shrink the index
+        createNewSingletonPolicy("warm", new ShrinkAction(expectedFinalShards));
+        updatePolicy(index, policy);
+
+        assertTrue("ILM did not start retrying the set-single-node-allocation step", waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(index);
+                if (explainIndexResponse == null) {
+                    return false;
+                }
+                String failedStep = (String) explainIndexResponse.get("failed_step");
+                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
+                return failedStep != null && failedStep.equals(SetSingleNodeAllocateStep.NAME) && retryCount != null && retryCount >= 1;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
+        resetAllocationForIndex.setJsonEntity("{\n" +
+            "  \"settings\": {\n" +
+            "    \"index.routing.allocation.include.rack\": null" +
+            "  }\n" +
+            "}");
+        client().performRequest(resetAllocationForIndex);
+
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
     }
 
     public void testFreezeAction() throws Exception {
@@ -1566,7 +1625,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         hotActions.put(RolloverAction.NAME,  new RolloverAction(null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
-        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         Map<String, LifecycleAction> coldActions = new HashMap<>();

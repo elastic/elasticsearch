@@ -30,24 +30,28 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestValidateQueryAction extends BaseRestHandler {
 
-    public RestValidateQueryAction(RestController controller) {
-        controller.registerHandler(GET, "/_validate/query", this);
-        controller.registerHandler(POST, "/_validate/query", this);
-        controller.registerHandler(GET, "/{index}/_validate/query", this);
-        controller.registerHandler(POST, "/{index}/_validate/query", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_validate/query"),
+            new Route(POST, "/_validate/query"),
+            new Route(GET, "/{index}/_validate/query"),
+            new Route(POST, "/{index}/_validate/query")));
     }
 
     @Override

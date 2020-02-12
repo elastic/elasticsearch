@@ -9,7 +9,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -17,6 +16,9 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction.Response;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -25,8 +27,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetCertificateInfoAction extends BaseRestHandler {
 
-    public RestGetCertificateInfoAction(RestController controller) {
-        controller.registerHandler(GET, "/_ssl/certificates", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "/_ssl/certificates"));
     }
 
     @Override

@@ -82,11 +82,6 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         }
         response.getAssertions().add(assertion);
 
-        return sign(response);
-    }
-
-    private Response sign(Response response) {
-        // TODO
         return response;
     }
 

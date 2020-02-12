@@ -17,8 +17,10 @@ import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,6 +35,12 @@ public class XmlValidator {
     public XmlValidator(String xsdName) {
         this.schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
         this.xsdName = xsdName;
+    }
+
+    public void validate(String xml) throws Exception {
+        try(InputStream stream = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8))) {
+            validate(stream);
+        }
     }
 
     public void validate(InputStream xml) throws Exception {

@@ -131,6 +131,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
                 case STANDARD:
                 case GOLD:
                 case PLATINUM:
+                case ENTERPRISE:
                     transportTLSEnabled = true;
                     break;
                 default:
@@ -161,14 +162,15 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
 
         final License license = License.builder()
-                                        .uid(UUID.randomUUID().toString())
-                                        .type(mode.name().toLowerCase(Locale.ROOT))
-                                        .issuer("elasticsearch")
-                                        .issuedTo("elastic")
-                                        .issueDate(System.currentTimeMillis())
-                                        .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(24L).getMillis())
-                                        .maxNodes(2)
-                                        .build();
+                .uid(UUID.randomUUID().toString())
+                .type(mode.name().toLowerCase(Locale.ROOT))
+                .issuer("elasticsearch")
+                .issuedTo("elastic")
+                .issueDate(System.currentTimeMillis())
+                .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(24L).getMillis())
+                .maxNodes(License.OperationMode.ENTERPRISE == mode ? -1 : randomIntBetween(1, 10))
+                .maxResourceUnits(License.OperationMode.ENTERPRISE == mode ? randomIntBetween(10, 99) : -1)
+                .build();
         when(licenseService.getLicense()).thenReturn(license);
 
         final ClusterStatsResponse mockClusterStatsResponse = mock(ClusterStatsResponse.class);

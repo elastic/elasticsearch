@@ -86,7 +86,7 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
         Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
-            MappedFieldType ft = mapperService.fullName(field);
+            MappedFieldType ft = mapperService.fieldType(field);
             if (ft != null) {
                 if (indicesService.isMetaDataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
                         || fieldPredicate.test(ft.name())) {
@@ -105,7 +105,7 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
                         break;
                     }
                     // checks if the parent field contains sub-fields
-                    if (mapperService.fullName(parentField) == null) {
+                    if (mapperService.fieldType(parentField) == null) {
                         // no field type, it must be an object field
                         ObjectMapper mapper = mapperService.getObjectMapper(parentField);
                         String type = mapper.nested().isNested() ? "nested" : "object";

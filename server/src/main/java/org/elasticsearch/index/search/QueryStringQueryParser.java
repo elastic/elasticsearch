@@ -613,7 +613,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     private Query existsQuery(String fieldName) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-            (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+            (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fieldType(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             return new MatchNoDocsQuery("No mappings yet");
         }

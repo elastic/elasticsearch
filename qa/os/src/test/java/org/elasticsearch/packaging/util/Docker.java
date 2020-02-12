@@ -26,7 +26,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.common.CheckedRunnable;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -39,6 +38,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
@@ -156,7 +156,7 @@ public class Docker {
         // Bind-mount any volumes
         if (volumes != null) {
             volumes.forEach((localPath, containerPath) -> {
-                assertTrue(localPath + " doesn't exist", Files.exists(localPath));
+                assertThat(localPath, fileExists());
 
                 if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root")) {
                     // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),

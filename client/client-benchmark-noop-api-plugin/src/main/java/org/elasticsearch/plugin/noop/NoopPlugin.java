@@ -55,7 +55,7 @@ public class NoopPlugin extends Plugin implements ActionPlugin {
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-                new RestNoopBulkAction(restController),
-                new RestNoopSearchAction(restController));
+                new RestNoopBulkAction(),
+                new RestNoopSearchAction());
     }
 }

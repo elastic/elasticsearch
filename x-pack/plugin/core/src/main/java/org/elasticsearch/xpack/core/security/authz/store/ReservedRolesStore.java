@@ -275,7 +275,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public static boolean isReserved(String role) {
-        return RESERVED_ROLES.containsKey(role) || UsernamesField.SYSTEM_ROLE.equals(role) || UsernamesField.XPACK_ROLE.equals(role);
+        return RESERVED_ROLES.containsKey(role) || UsernamesField.SYSTEM_ROLE.equals(role) ||
+                UsernamesField.XPACK_ROLE.equals(role) || UsernamesField.ASYNC_SEARCH_ROLE.equals(role);
     }
 
     public Map<String, Object> usageStats() {

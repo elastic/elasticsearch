@@ -25,13 +25,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -39,13 +41,17 @@ public class RestMultiGetAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    public RestMultiGetAction(Settings settings, RestController controller) {
-        controller.registerHandler(GET, "/_mget", this);
-        controller.registerHandler(POST, "/_mget", this);
-        controller.registerHandler(GET, "/{index}/_mget", this);
-        controller.registerHandler(POST, "/{index}/_mget", this);
-
+    public RestMultiGetAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_mget"),
+            new Route(POST, "/_mget"),
+            new Route(GET, "/{index}/_mget"),
+            new Route(POST, "/{index}/_mget")));
     }
 
     @Override

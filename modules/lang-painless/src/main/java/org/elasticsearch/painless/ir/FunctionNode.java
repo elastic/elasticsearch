@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.symbol.ScopeTable;
 import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
@@ -47,13 +48,22 @@ public class FunctionNode extends IRNode {
 
     /* ---- end tree structure, begin node data ---- */
 
+    private ScriptRoot scriptRoot;
     private String name;
     private Class<?> returnType;
     private List<Class<?>> typeParameters = new ArrayList<>();
     private List<String> parameterNames = new ArrayList<>();
+    private boolean isStatic;
     private boolean isSynthetic;
-    private boolean doesMethodEscape;
     private int maxLoopCounter;
+
+    public void setScriptRoot(ScriptRoot scriptRoot) {
+        this.scriptRoot = scriptRoot;
+    }
+
+    public ScriptRoot getScriptRoot() {
+        return scriptRoot;
+    }
 
     public void setName(String name) {
         this.name = name;
@@ -87,20 +97,20 @@ public class FunctionNode extends IRNode {
         return parameterNames;
     }
 
+    public void setStatic(boolean isStatic) {
+        this.isStatic = isStatic;
+    }
+
+    public boolean isStatic() {
+        return isStatic;
+    }
+
     public void setSynthetic(boolean isSythetic) {
         this.isSynthetic = isSythetic;
     }
 
     public boolean isSynthetic() {
         return isSynthetic;
-    }
-
-    public void setMethodEscape(boolean doesMethodEscape) {
-        this.doesMethodEscape = doesMethodEscape;
-    }
-
-    public boolean doesMethodEscape() {
-        return doesMethodEscape;
     }
 
     public void setMaxLoopCounter(int maxLoopCounter) {
@@ -115,7 +125,13 @@ public class FunctionNode extends IRNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
-        int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
+        int access = Opcodes.ACC_PUBLIC;
+
+        if (isStatic) {
+            access |= Opcodes.ACC_STATIC;
+        } else {
+            scopeTable.defineInternalVariable(Object.class, "this");
+        }
 
         if (isSynthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
@@ -147,15 +163,6 @@ public class FunctionNode extends IRNode {
         }
 
         blockNode.write(classWriter, methodWriter, globals, scopeTable.newScope());
-
-        if (doesMethodEscape == false) {
-            if (returnType == void.class) {
-                methodWriter.returnValue();
-            } else {
-                throw new IllegalStateException("not all paths provide a return value " +
-                        "for method [" + name + "] with [" + typeParameters.size() + "] parameters");
-            }
-        }
 
         methodWriter.endMethod();
     }

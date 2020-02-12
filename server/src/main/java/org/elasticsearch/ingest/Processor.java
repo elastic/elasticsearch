@@ -90,6 +90,11 @@ public interface Processor {
          */
         Processor create(Map<String, Processor.Factory> processorFactories, String tag,
                          Map<String, Object> config) throws Exception;
+
+        default Processor create(Map<String, Processor.Factory> processorFactories, String tag,
+                         Map<String, Object> config, Map<String, String> metadata) throws Exception {
+            return create(processorFactories, tag, config);
+        }
     }
 
     /**

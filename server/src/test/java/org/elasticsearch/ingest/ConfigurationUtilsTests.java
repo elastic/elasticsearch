@@ -124,7 +124,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         config.add(Collections.singletonMap("test_processor", emptyConfig));
         config.add(Collections.singletonMap("test_processor", emptyConfig));
 
-        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry);
+        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry, Collections.emptyMap());
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(0), sameInstance(processor));
         assertThat(result.get(1), sameInstance(processor));
@@ -133,7 +133,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         unknownTaggedConfig.put("tag", "my_unknown");
         config.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry));
+            () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry, Collections.emptyMap()));
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
         assertThat(e.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
         assertThat(e.getMetadata("es.processor_type"), equalTo(Collections.singletonList("unknown_processor")));
@@ -148,7 +148,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         config2.add(Collections.singletonMap("second_unknown_processor", secondUnknownTaggedConfig));
         e = expectThrows(
             ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessorConfigs(config2, scriptService, registry)
+            () -> ConfigurationUtils.readProcessorConfigs(config2, scriptService, registry, Collections.emptyMap())
         );
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
         assertThat(e.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
@@ -173,17 +173,17 @@ public class ConfigurationUtilsTests extends ESTestCase {
             });
 
         Object emptyConfig = Collections.emptyMap();
-        Processor processor1 = ConfigurationUtils.readProcessor(registry, scriptService, "script", emptyConfig);
+        Processor processor1 = ConfigurationUtils.readProcessor(registry, scriptService, "script", emptyConfig, Collections.emptyMap());
         assertThat(processor1, sameInstance(processor));
 
         Object inlineScript = "test_script";
-        Processor processor2 = ConfigurationUtils.readProcessor(registry, scriptService, "script", inlineScript);
+        Processor processor2 = ConfigurationUtils.readProcessor(registry, scriptService, "script", inlineScript, Collections.emptyMap());
         assertThat(processor2, sameInstance(processor));
 
         Object invalidConfig = 12L;
 
         ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig));
+            () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig, Collections.emptyMap()));
         assertThat(ex.getMessage(), equalTo("property isn't a map, but of type [" + invalidConfig.getClass().getName() + "]"));
     }
 

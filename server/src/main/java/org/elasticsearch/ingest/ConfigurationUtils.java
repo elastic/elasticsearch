@@ -326,14 +326,16 @@ public final class ConfigurationUtils {
 
     public static List<Processor> readProcessorConfigs(List<Map<String, Object>> processorConfigs,
                                                        ScriptService scriptService,
-                                                       Map<String, Processor.Factory> processorFactories) throws Exception {
+                                                       Map<String, Processor.Factory> processorFactories,
+                                                       Map<String, String> pipelineMetadata) throws Exception {
         Exception exception = null;
         List<Processor> processors = new ArrayList<>();
         if (processorConfigs != null) {
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     try {
-                        processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue(),
+                            pipelineMetadata));
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);
                     }
@@ -393,13 +395,13 @@ public final class ConfigurationUtils {
     @SuppressWarnings("unchecked")
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
                                           ScriptService scriptService,
-                                          String type, Object config) throws Exception {
+                                          String type, Object config, Map<String, String> pipelineMetadata) throws Exception {
         if (config instanceof Map) {
-            return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
+            return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config, pipelineMetadata);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);
             normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);
-            return readProcessor(processorFactories, scriptService, type, normalizedScript);
+            return readProcessor(processorFactories, scriptService, type, normalizedScript, pipelineMetadata);
         } else {
             throw newConfigurationException(type, null, null,
                 "property isn't a map, but of type [" + config.getClass().getName() + "]");
@@ -407,8 +409,10 @@ public final class ConfigurationUtils {
     }
 
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
-                                           ScriptService scriptService,
-                                           String type, Map<String, Object> config) throws Exception {
+                                          ScriptService scriptService,
+                                          String type,
+                                          Map<String, Object> config,
+                                          Map<String, String> pipelineMetadata) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         Script conditionalScript = extractConditional(config);
         Processor.Factory factory = processorFactories.get(type);
@@ -417,7 +421,8 @@ public final class ConfigurationUtils {
             List<Map<String, Object>> onFailureProcessorConfigs =
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
-            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories);
+            List<Processor> onFailureProcessors =
+                readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories, pipelineMetadata);
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
                 throw newConfigurationException(type, tag, Pipeline.ON_FAILURE_KEY,
@@ -425,7 +430,7 @@ public final class ConfigurationUtils {
             }
 
             try {
-                Processor processor = factory.create(processorFactories, tag, config);
+                Processor processor = factory.create(processorFactories, tag, config, pipelineMetadata);
                 if (config.isEmpty() == false) {
                     throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
                         type, Arrays.toString(config.keySet().toArray()));

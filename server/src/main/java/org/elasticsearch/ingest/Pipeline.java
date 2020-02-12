@@ -66,25 +66,36 @@ public final class Pipeline {
         this.relativeTimeProvider = relativeTimeProvider;
     }
 
-    public static Pipeline create(String id, Map<String, Object> config,
-        Map<String, Processor.Factory> processorFactories, ScriptService scriptService) throws Exception {
+    public static Pipeline create(PipelineConfiguration pc, Map<String, Processor.Factory> processorFactories, ScriptService scriptService)
+        throws Exception {
+        return create(pc.getId(), pc.getConfigAsMap(), processorFactories, scriptService, pc.getMetadata());
+    }
+
+    public static Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories,
+                                  ScriptService scriptService) throws Exception {
+        return create(id, config, processorFactories, scriptService, Collections.emptyMap());
+    }
+
+    private static Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories,
+                                   ScriptService scriptService, Map<String, String> pipelineMetadata) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
-        List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, scriptService, processorFactories);
+        List<Processor> processors =
+            ConfigurationUtils.readProcessorConfigs(processorConfigs, scriptService, processorFactories, pipelineMetadata);
         List<Map<String, Object>> onFailureProcessorConfigs =
-                ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
+            ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
         List<Processor> onFailureProcessors =
-            ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories);
+            ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories, pipelineMetadata);
         if (config.isEmpty() == false) {
             throw new ElasticsearchParseException("pipeline [" + id +
-                    "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+                "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
         }
         if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
             throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
-                Collections.unmodifiableList(onFailureProcessors));
+            Collections.unmodifiableList(onFailureProcessors));
         return new Pipeline(id, description, version, compoundProcessor);
     }
 

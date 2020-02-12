@@ -300,7 +300,7 @@ public class IngestServiceTests extends ESTestCase {
                 "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
             XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -362,7 +362,7 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(id,
             new BytesArray("{\"processors\": [{\"complexSet\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -385,7 +385,7 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(id,
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -412,7 +412,7 @@ public class IngestServiceTests extends ESTestCase {
         // add a new pipeline:
         PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": []}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -424,7 +424,7 @@ public class IngestServiceTests extends ESTestCase {
         putRequest =
             new PutPipelineRequest(id, new BytesArray("{\"processors\": [], \"description\": \"_description\"}"), XContentType.JSON);
         previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -443,7 +443,7 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest =
             new PutPipelineRequest(id, new BytesArray("{\"description\": \"empty processors\"}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
@@ -629,7 +629,7 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(id,
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final SetOnce<Boolean> failure = new SetOnce<>();
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline(id).setFinalPipeline("_none");
@@ -656,7 +656,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -697,7 +697,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest =
             new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
@@ -716,7 +716,7 @@ public class IngestServiceTests extends ESTestCase {
             new PutPipelineRequest("_id", new BytesArray("{\"processors\": [], \"description\": \"_description\"}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest =
             new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
@@ -737,7 +737,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final long newVersion = randomLong();
         final String versionType = randomFrom("internal", "external", "external_gt", "external_gte");
@@ -783,7 +783,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest =
             new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
@@ -828,7 +828,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest =
             new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
@@ -857,7 +857,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest =
             new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
@@ -918,7 +918,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
@@ -970,7 +970,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\": {}}], \"description\": \"_description\"}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
@@ -1020,12 +1020,12 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         putRequest = new PutPipelineRequest("_id2",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked") final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -1068,7 +1068,7 @@ public class IngestServiceTests extends ESTestCase {
         putRequest = new PutPipelineRequest("_id1",
             new BytesArray("{\"processors\": [{\"mock\" : {}}, {\"mock\" : {}}]}"), XContentType.JSON);
         previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
@@ -1092,7 +1092,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"failure-mock\" : { \"on_failure\": [{\"mock\" : {}}]}}, {\"mock\" : {}}]}"),
             XContentType.JSON);
         previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
@@ -1157,7 +1157,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"drop\" : {}}, {\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest =
             new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
@@ -1203,7 +1203,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"test\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         // Sanity check that counter has been updated twice:
@@ -1220,7 +1220,7 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
             new BytesArray("{\"processors\": [{\"foo\" : {}}]}"), XContentType.JSON);
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = IngestService.innerPut(putRequest, clusterState, Collections.emptyMap());
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), notNullValue());
 

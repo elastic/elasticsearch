@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -50,7 +51,10 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             contentBuilder.generator().copyCurrentStructure(parser);
             builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
-
+        PARSER.declareField((parser, builder, aVoid) -> {
+            final Map<String, String> metadata = parser.mapStrings();
+            builder.setMetadata(metadata);
+        }, new ParseField("metadata"), ObjectParser.ValueType.OBJECT);
     }
 
     public static ContextParser<Void, PipelineConfiguration> getParser() {
@@ -60,6 +64,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
         private String id;
         private BytesReference config;
+        private Map<String, String> metadata;
         private XContentType xContentType;
 
         void setId(String id) {
@@ -71,8 +76,12 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             this.xContentType = xContentType;
         }
 
+        void setMetadata(Map<String, String> metadata) {
+            this.metadata = metadata;
+        }
+
         PipelineConfiguration build() {
-            return new PipelineConfiguration(id, config, xContentType);
+            return new PipelineConfiguration(id, config, metadata, xContentType);
         }
     }
 
@@ -82,11 +91,17 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     // also the get pipeline api just directly returns this to the caller
     private final BytesReference config;
     private final XContentType xContentType;
+    private final Map<String, String> metadata;
 
     public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
+        this(id, config, Collections.emptyMap(), xContentType);
+    }
+
+    public PipelineConfiguration(String id, BytesReference config, Map<String, String> metadata, XContentType xContentType) {
         this.id = Objects.requireNonNull(id);
         this.config = Objects.requireNonNull(config);
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.metadata = metadata;
     }
 
     public String getId() {
@@ -95,6 +110,10 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
     public Map<String, Object> getConfigAsMap() {
         return XContentHelper.convertToMap(config, true, xContentType).v2();
+    }
+
+    public Map<String, String> getMetadata() {
+        return Collections.unmodifiableMap(metadata);
     }
 
     // pkg-private for tests
@@ -112,12 +131,14 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         builder.startObject();
         builder.field("id", id);
         builder.field("config", getConfigAsMap());
+        builder.field("metadata", metadata);
         builder.endObject();
         return builder;
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
+        return new PipelineConfiguration(in.readString(), in.readBytesReference(),
+            in.readMap(StreamInput::readString, StreamInput::readString), in.readEnum(XContentType.class));
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -133,6 +154,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
+        out.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeString);
         out.writeEnum(xContentType);
     }
 

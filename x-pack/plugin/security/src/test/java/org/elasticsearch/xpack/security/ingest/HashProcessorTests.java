@@ -33,7 +33,7 @@ public class HashProcessorTests extends ESTestCase {
         Map<String, Object> fields = new HashMap<>();
         fields.put("one", "foo");
         HashProcessor processor = new HashProcessor("_tag", Arrays.asList("one", "two"),
-            "target", "_salt".getBytes(StandardCharsets.UTF_8), Method.SHA1, mac, true);
+            "target", "_salt".getBytes(StandardCharsets.UTF_8), Method.SHA1, mac, true, "", "", true);
         IngestDocument ingestDocument = new IngestDocument(fields, new HashMap<>());
         processor.execute(ingestDocument);
         Map<String, String> target = ingestDocument.getFieldValue("target", Map.class);
@@ -41,7 +41,7 @@ public class HashProcessorTests extends ESTestCase {
         assertNotNull(target.get("one"));
 
         HashProcessor failProcessor = new HashProcessor("_tag", Arrays.asList("one", "two"),
-            "target", "_salt".getBytes(StandardCharsets.UTF_8), Method.SHA1, mac, false);
+            "target", "_salt".getBytes(StandardCharsets.UTF_8), Method.SHA1, mac, false, "", "", true);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> failProcessor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [two] not present as part of path [two]"));
     }
@@ -56,7 +56,7 @@ public class HashProcessorTests extends ESTestCase {
         Map<String, Object> fields = new HashMap<>();
         fields.put("field", "0123456789");
         HashProcessor processor = new HashProcessor("_tag", Collections.singletonList("field"),
-            "target", salt, Method.SHA1, mac, false);
+            "target", salt, Method.SHA1, mac, false, "", "", true);
         IngestDocument ingestDocument = new IngestDocument(fields, new HashMap<>());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("target", String.class), equalTo("X3NhbHQMW0oHJGEEE9obGcGv5tGd7HFyDw=="));
@@ -73,7 +73,7 @@ public class HashProcessorTests extends ESTestCase {
         Method method = randomFrom(Method.values());
         Mac mac = createMac(method);
         byte[] salt = randomByteArrayOfLength(5);
-        HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac, false);
+        HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac, false, "", "", true);
         IngestDocument ingestDocument = new IngestDocument(docFields, new HashMap<>());
         processor.execute(ingestDocument);
 
@@ -101,7 +101,7 @@ public class HashProcessorTests extends ESTestCase {
         Method method = randomFrom(Method.values());
         Mac mac = createMac(method);
         byte[] salt = randomByteArrayOfLength(5);
-        HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac, false);
+        HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac, false, "", "", true);
         IngestDocument ingestDocument = new IngestDocument(docFields, new HashMap<>());
         processor.execute(ingestDocument);
 

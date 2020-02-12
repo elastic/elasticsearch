@@ -6,17 +6,17 @@
 package org.elasticsearch.xpack.security.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.ConfigurableProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -28,18 +28,18 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -47,7 +47,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 /**
  * A processor that hashes the contents of a field or fields using various hashing algorithms
  */
-public final class HashProcessor extends AbstractProcessor implements Consumer<ClusterState> {
+public final class HashProcessor extends AbstractProcessor implements ConfigurableProcessor {
     public static final String TYPE = "hash";
     public static final Setting.AffixSetting<SecureString> HMAC_KEY_SETTING = SecureSetting
         .affixKeySetting(SecurityField.setting("ingest." + TYPE) + ".", "key",
@@ -59,10 +59,12 @@ public final class HashProcessor extends AbstractProcessor implements Consumer<C
     private final Mac mac;
     private final byte[] salt;
     private final boolean ignoreMissing;
-    private final AtomicBoolean consistentHashes = new AtomicBoolean(true);
+    private final AtomicBoolean consistentHashes = new AtomicBoolean(false);
+    private final String keySettingName;
+    private final String persistedSecretKeyHash;
 
     HashProcessor(String tag, List<String> fields, String targetField, byte[] salt, Method method, @Nullable Mac mac,
-                  boolean ignoreMissing) {
+                  boolean ignoreMissing, String keySettingName, String persistedSecretKeyHash, boolean consistentHashKey) {
         super(tag);
         this.fields = fields;
         this.targetField = targetField;
@@ -70,6 +72,9 @@ public final class HashProcessor extends AbstractProcessor implements Consumer<C
         this.mac = mac;
         this.salt = salt;
         this.ignoreMissing = ignoreMissing;
+        this.keySettingName = keySettingName;
+        this.persistedSecretKeyHash = persistedSecretKeyHash;
+        this.consistentHashes.set(consistentHashKey);
     }
 
     List<String> getFields() {
@@ -105,7 +110,7 @@ public final class HashProcessor extends AbstractProcessor implements Consumer<C
             }
             return document;
         } else {
-            throw new IllegalArgumentException("inconsistent hash key");
+            throw new IllegalStateException("inconsistent hash key");
         }
     }
 
@@ -115,19 +120,19 @@ public final class HashProcessor extends AbstractProcessor implements Consumer<C
     }
 
     @Override
-    public void accept(ClusterState clusterState) {
-        // check hash keys for consistency and unset consistentHashes flag if inconsistent
+    public Map<String, String> getMetadata() {
+        return Collections.singletonMap(keySettingName, persistedSecretKeyHash);
     }
 
     public static final class Factory implements Processor.Factory {
 
         private final Settings settings;
-        private final ClusterService clusterService;
         private final Map<String, SecureString> secureKeys;
+        private final ClusterService clusterService;
 
-        public Factory(Settings settings, ClusterService clusterService) {
-            this.settings = settings;
-            this.clusterService = clusterService;
+        public Factory(Parameters parameters) {
+            this.settings = parameters.env.settings();
+            this.clusterService = parameters.ingestService.getClusterService();
             this.secureKeys = new HashMap<>();
             HMAC_KEY_SETTING.getAllConcreteSettings(settings).forEach(k -> {
                 secureKeys.put(k.getKey(), k.get(settings));
@@ -149,6 +154,12 @@ public final class HashProcessor extends AbstractProcessor implements Consumer<C
 
         @Override
         public HashProcessor create(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config) {
+            return create(registry, processorTag, config, null);
+        }
+
+        @Override
+        public HashProcessor create(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config,
+                                    Map<String, String> metadata) {
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             List<String> fields = ConfigurationUtils.readList(TYPE, processorTag, config, "fields");
             if (fields.isEmpty()) {
@@ -165,19 +176,33 @@ public final class HashProcessor extends AbstractProcessor implements Consumer<C
                     "key [" + keySettingName + "] must match [xpack.security.ingest.hash.*.key]. It is not set");
             }
 
-            Collection<Setting<?>> consistentSettings = HMAC_KEY_SETTING.getAllConcreteSettings(settings).collect(Collectors.toList());
-            ConsistentSettingsService consistentSettingsService = new ConsistentSettingsService(settings, clusterService, consistentSettings);
-            if (consistentSettingsService.areAllConsistent() == false) {
-                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "key_setting", "inconsistent hash key [" + keySettingName + "]");
-            }
-
             String saltString = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "salt");
             byte[] salt = saltString.getBytes(StandardCharsets.UTF_8);
             String methodProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "method", "SHA256");
             Method method = Method.fromString(processorTag, "method", methodProperty);
             int iterations = ConfigurationUtils.readIntProperty(TYPE, processorTag, config, "iterations", 5);
             Mac mac = createMac(method, key, salt, iterations);
-            return new HashProcessor(processorTag, fields, targetField, salt, method, mac, ignoreMissing);
+
+            // check that all nodes are V8+
+            if (clusterService.state().nodes().getMinNodeVersion().compareTo(Version.V_8_0_0) < 0) {
+                throw new ElasticsearchException("hash processor requires minimum node version of " + Version.V_8_0_0);
+            }
+
+            final boolean consistentKeys;
+            final String secretKeyHash;
+            try {
+                final MessageDigest md = MessageDigest.getInstance("SHA-256");
+                secretKeyHash = Base64.getEncoder().encodeToString(md.digest(key.toString().getBytes(StandardCharsets.UTF_8)));
+                final String configuredSecretKeyHash = metadata != null && metadata.containsKey(keySettingName)
+                    ? metadata.get(keySettingName)
+                    : secretKeyHash;
+                consistentKeys = secretKeyHash.equals(configuredSecretKeyHash);
+            } catch (NoSuchAlgorithmException e) {
+                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "key_setting", e);
+            }
+
+            return new HashProcessor(processorTag, fields, targetField, salt, method, mac, ignoreMissing, keySettingName, secretKeyHash,
+                consistentKeys);
         }
 
     }

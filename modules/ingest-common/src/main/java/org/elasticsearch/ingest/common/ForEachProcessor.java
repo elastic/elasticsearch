@@ -27,6 +27,7 @@ import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -144,7 +145,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             }
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
             Processor processor =
-                ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
+                ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue(), Collections.emptyMap());
             return new ForEachProcessor(tag, field, processor, ignoreMissing);
         }
     }

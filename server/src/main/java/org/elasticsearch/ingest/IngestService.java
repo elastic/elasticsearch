@@ -222,7 +222,7 @@ public class IngestService implements ClusterStateApplier {
     public void putPipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener) throws Exception {
             // validates the pipeline and processor configuration before submitting a cluster update task:
-            validatePipeline(ingestInfos, request);
+            final Map<String, String> pipelineMetadata = validatePipeline(ingestInfos, request);
             clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
                 new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
@@ -233,7 +233,7 @@ public class IngestService implements ClusterStateApplier {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        return innerPut(request, currentState);
+                        return innerPut(request, currentState, pipelineMetadata);
                     }
                 });
     }
@@ -293,7 +293,7 @@ public class IngestService implements ClusterStateApplier {
         return processorMetrics;
     }
 
-    static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {
+    static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState, Map<String, String> pipelineMetadata) {
         IngestMetadata currentIngestMetadata = currentState.metaData().custom(IngestMetadata.TYPE);
         Map<String, PipelineConfiguration> pipelines;
         if (currentIngestMetadata != null) {
@@ -302,7 +302,8 @@ public class IngestService implements ClusterStateApplier {
             pipelines = new HashMap<>();
         }
 
-        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()));
+        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), pipelineMetadata,
+            request.getXContentType()));
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metaData(MetaData.builder(currentState.getMetaData())
             .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines))
@@ -310,15 +311,22 @@ public class IngestService implements ClusterStateApplier {
         return newState.build();
     }
 
-    void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request) throws Exception {
+    Map<String, String> validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request) throws Exception {
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
         }
 
+        Map<String, String> pipelineMetadata = new HashMap<>();
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
+            if (processor instanceof ConfigurableProcessor) {
+                final Map<String, String> processorMetaData = ((ConfigurableProcessor) processor).getMetadata();
+                if (processorMetaData.isEmpty() == false) {
+                    pipelineMetadata.putAll(processorMetaData);
+                }
+            }
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
                 String type = processor.getType();
                 if (entry.getValue().containsProcessor(type) == false && ConditionalProcessor.TYPE.equals(type) == false) {
@@ -330,6 +338,7 @@ public class IngestService implements ClusterStateApplier {
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
+        return pipelineMetadata;
     }
 
     public void executeBulkRequest(int numberOfActionRequests,
@@ -569,12 +578,8 @@ public class IngestService implements ClusterStateApplier {
                 newPipelines = new HashMap<>(existingPipelines);
             }
             try {
-                Pipeline newPipeline =
-                    Pipeline.create(newConfiguration.getId(), newConfiguration.getConfigAsMap(), processorFactories, scriptService);
-                newPipelines.put(
-                    newConfiguration.getId(),
-                    new PipelineHolder(newConfiguration, newPipeline)
-                );
+                Pipeline newPipeline = Pipeline.create(newConfiguration, processorFactories, scriptService);
+                newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
                 if (previous == null) {
                     continue;

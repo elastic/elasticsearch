@@ -30,17 +30,15 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.query.NamedQuery;
 import org.elasticsearch.index.query.NamedSpanQuery;
-import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 

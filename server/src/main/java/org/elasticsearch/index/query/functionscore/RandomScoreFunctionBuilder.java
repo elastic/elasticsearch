@@ -161,11 +161,11 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             final MappedFieldType fieldType;
             if (field != null) {
-                fieldType = context.getMapperService().fullName(field);
+                fieldType = context.getMapperService().fieldType(field);
             } else {
                 deprecationLogger.deprecated(
                         "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
-                fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
+                fieldType = context.getMapperService().fieldType(IdFieldMapper.NAME);
             }
             if (fieldType == null) {
                 if (context.getMapperService().documentMapper() == null) {

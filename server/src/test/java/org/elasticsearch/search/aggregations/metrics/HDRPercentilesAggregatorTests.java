@@ -48,6 +48,8 @@ import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.hamcrest.Matchers.equalTo;
 
 public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
@@ -157,6 +159,18 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testHdrThenTdigestSettings() throws Exception {
+        int sigDigits = randomIntBetween(1, 5);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            percentiles("percentiles")
+                .numberOfSignificantValueDigits(sigDigits)
+                .method(PercentilesMethod.HDR)
+                .compression(100.0) // <-- this should trigger an exception
+                .field("value");
+        });
+        assertThat(e.getMessage(), equalTo("Cannot set [compression] because the method has already been configured for HDRHistogram"));
+    }
+
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalHDRPercentiles> verify) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
@@ -174,8 +188,14 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                PercentilesAggregationBuilder builder =
-                        new PercentilesAggregationBuilder("test").field(fieldName).method(PercentilesMethod.HDR);
+                PercentilesAggregationBuilder builder;
+                // TODO this randomization path should be removed when the old settings are removed
+                if (randomBoolean()) {
+                    builder = new PercentilesAggregationBuilder("test").field(fieldName).method(PercentilesMethod.HDR);
+                } else {
+                    PercentilesConfig hdr = new PercentilesConfig.Hdr();
+                    builder = new PercentilesAggregationBuilder("test").field(fieldName).percentilesConfig(hdr);
+                }
 
                 HDRPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();

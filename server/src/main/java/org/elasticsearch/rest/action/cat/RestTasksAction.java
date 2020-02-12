@@ -28,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -44,15 +43,20 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
 
 public class RestTasksAction extends AbstractCatAction {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestTasksAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
-        controller.registerHandler(GET, "/_cat/tasks", this);
+    public RestTasksAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "/_cat/tasks"));
     }
 
     @Override

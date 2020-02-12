@@ -22,9 +22,4 @@ public class CoreFullClusterRestartIT extends FullClusterRestartIT {
                 .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52031")
-    @Override
-    public void testRecovery() throws Exception {
-        super.testRecovery();
-    }
 }

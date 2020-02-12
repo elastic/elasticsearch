@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionType;
  */
 public class SamlInitiateSingleSignOnAction extends ActionType<SamlInitiateSingleSignOnResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/idp/saml/init";
+    public static final String NAME = "cluster:admin/idp/saml/init";
     public static final SamlInitiateSingleSignOnAction INSTANCE = new SamlInitiateSingleSignOnAction();
 
     private SamlInitiateSingleSignOnAction() {

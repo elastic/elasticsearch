@@ -56,7 +56,9 @@ public class RestSamlInitiateSingleSignOnAction extends BaseRestHandler {
                         builder.startObject();
                         builder.field("redirect_url", response.getRedirectUrl());
                         builder.field("response_body", response.getResponseBody());
-                        builder.field("sp_entity_id", response.getSpEntityId());
+                        builder.startObject("service_provider");
+                        builder.field("entity_id", response.getSpEntityId());
+                        builder.endObject();
                         builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }

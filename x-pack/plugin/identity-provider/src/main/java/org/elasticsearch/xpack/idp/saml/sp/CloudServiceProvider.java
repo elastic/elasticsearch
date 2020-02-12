@@ -13,13 +13,13 @@ import org.joda.time.ReadableDuration;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-public class CloudKibanaServiceProvider implements SamlServiceProvider {
+public class CloudServiceProvider implements SamlServiceProvider {
 
     private final String entityid;
     private final URI assertionConsumerService;
     private final ReadableDuration authnExpiry;
 
-    public CloudKibanaServiceProvider(String entityId, String assertionConsumerService) {
+    public CloudServiceProvider(String entityId, String assertionConsumerService) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }

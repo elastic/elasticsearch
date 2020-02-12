@@ -32,7 +32,7 @@ public class SamlInitiateSingleSignOnRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(spEntityId)) {
-            validationException = addValidationError("sp_entity_id is missing", null);
+            validationException = addValidationError("sp_entity_id is missing", validationException);
         }
         return validationException;
     }

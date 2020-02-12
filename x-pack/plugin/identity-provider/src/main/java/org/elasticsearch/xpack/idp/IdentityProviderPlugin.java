@@ -107,8 +107,6 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-
-        enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
             return Collections.emptyList();
         }

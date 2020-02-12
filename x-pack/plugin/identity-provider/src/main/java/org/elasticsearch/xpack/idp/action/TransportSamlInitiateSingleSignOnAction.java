@@ -57,7 +57,7 @@ public class TransportSamlInitiateSingleSignOnAction
         // TODO: Adjust this once secondary auth code is merged in master and use the authentication object of the user
         // Authentication authentication = authenticationService.getSecondaryAuth();
 
-        SamlServiceProvider sp = idp.getRegisteredServiceProviders().get(request.getSpEntityId());
+        SamlServiceProvider sp = idp.getRegisteredServiceProvider(request.getSpEntityId());
         if (null == sp) {
             final String message =
                 "Service Provider with Entity ID [" + request.getSpEntityId() + "] is not registered with this Identity Provider";

@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.rest.calendar;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -28,9 +26,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestGetCalendarsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetCalendarsAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -41,13 +36,13 @@ public class RestGetCalendarsAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
             new ReplacedRoute(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}", deprecationLogger),
+                GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
             new ReplacedRoute(GET, MachineLearning.BASE_PATH + "calendars/",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/", deprecationLogger),
+                GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/"),
             new ReplacedRoute(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}", deprecationLogger),
+                POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
             new ReplacedRoute(POST, MachineLearning.BASE_PATH + "calendars/",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/", deprecationLogger)
+                POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/")
         ));
     }
 

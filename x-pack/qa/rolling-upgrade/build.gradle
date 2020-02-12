@@ -9,6 +9,11 @@ dependencies {
   testCompile project(':client:rest-high-level')
 }
 
+copyRestApiSpecs {
+  includeCore '*'
+  includeXpack '*'
+}
+
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 forbiddenPatterns {

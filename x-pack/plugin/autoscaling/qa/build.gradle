@@ -4,3 +4,7 @@ test.enabled = false
 dependencies {
   compile project(':test:framework')
 }
+
+copyRestApiSpecs {
+  includeXpack 'autoscaling'
+}

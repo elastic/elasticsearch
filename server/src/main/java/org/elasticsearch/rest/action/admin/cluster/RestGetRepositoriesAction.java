@@ -32,8 +32,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.Requests.getRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -55,9 +53,9 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_snapshot"),
-            new Route(GET, "/_snapshot/{repository}")));
+            new Route(GET, "/_snapshot/{repository}"));
     }
 
     @Override

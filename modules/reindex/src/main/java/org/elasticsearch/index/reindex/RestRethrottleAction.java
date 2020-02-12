@@ -28,8 +28,6 @@ import org.elasticsearch.tasks.TaskId;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
@@ -42,10 +40,10 @@ public class RestRethrottleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_update_by_query/{taskId}/_rethrottle"),
             new Route(POST, "/_delete_by_query/{taskId}/_rethrottle"),
-            new Route(POST, "/_reindex/{taskId}/_rethrottle")));
+            new Route(POST, "/_reindex/{taskId}/_rethrottle"));
     }
 
     @Override

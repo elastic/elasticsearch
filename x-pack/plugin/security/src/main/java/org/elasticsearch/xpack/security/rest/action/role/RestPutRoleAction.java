@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -43,10 +42,10 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(POST, "/_security/role/{name}", POST, "/_xpack/security/role/{name}"),
             new ReplacedRoute(PUT, "/_security/role/{name}", PUT, "/_xpack/security/role/{name}")
-        ));
+        );
     }
 
     @Override

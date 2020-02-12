@@ -52,7 +52,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, builder, aVoid) -> {
-            final Map<String, String> metadata = parser.mapStrings();
+            final Map<String, Object> metadata = parser.map();
             builder.setMetadata(metadata);
         }, new ParseField("metadata"), ObjectParser.ValueType.OBJECT);
     }
@@ -64,7 +64,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
         private String id;
         private BytesReference config;
-        private Map<String, String> metadata;
+        private Map<String, Object> metadata;
         private XContentType xContentType;
 
         void setId(String id) {
@@ -76,7 +76,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             this.xContentType = xContentType;
         }
 
-        void setMetadata(Map<String, String> metadata) {
+        void setMetadata(Map<String, Object> metadata) {
             this.metadata = metadata;
         }
 
@@ -91,13 +91,13 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     // also the get pipeline api just directly returns this to the caller
     private final BytesReference config;
     private final XContentType xContentType;
-    private final Map<String, String> metadata;
+    private final Map<String, Object> metadata;
 
     public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
         this(id, config, Collections.emptyMap(), xContentType);
     }
 
-    public PipelineConfiguration(String id, BytesReference config, Map<String, String> metadata, XContentType xContentType) {
+    public PipelineConfiguration(String id, BytesReference config, Map<String, Object> metadata, XContentType xContentType) {
         this.id = Objects.requireNonNull(id);
         this.config = Objects.requireNonNull(config);
         this.xContentType = Objects.requireNonNull(xContentType);
@@ -112,7 +112,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         return XContentHelper.convertToMap(config, true, xContentType).v2();
     }
 
-    public Map<String, String> getMetadata() {
+    public Map<String, Object> getMetadata() {
         return Collections.unmodifiableMap(metadata);
     }
 
@@ -137,8 +137,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        return new PipelineConfiguration(in.readString(), in.readBytesReference(),
-            in.readMap(StreamInput::readString, StreamInput::readString), in.readEnum(XContentType.class));
+        return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readMap(), in.readEnum(XContentType.class));
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -154,7 +153,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        out.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(metadata);
         out.writeEnum(xContentType);
     }
 
@@ -167,7 +166,6 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
         if (!id.equals(that.id)) return false;
         return getConfigAsMap().equals(that.getConfigAsMap());
-
     }
 
     @Override

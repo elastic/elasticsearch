@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 
 public class ForEachProcessorFactoryTests extends ESTestCase {
@@ -67,8 +66,10 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
-        Map<String, String> pipelineMetadata = new HashMap<>();
-        pipelineMetadata.put("foo", "bar");
+        Map<String, String> processorMetadata = new HashMap<>();
+        processorMetadata.put("foo", "bar");
+        Map<String, Object> pipelineMetadata = new HashMap<>();
+        pipelineMetadata.put(TestConfigurableProcessor.IDENTIFIER, processorMetadata);
         ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, config, pipelineMetadata);
         assertThat(forEachProcessor, Matchers.notNullValue());
         assertThat(forEachProcessor.getField(), equalTo("_field"));
@@ -142,6 +143,8 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
 
     private static class TestConfigurableProcessor extends AbstractProcessor implements ConfigurableProcessor {
 
+        static final String IDENTIFIER = "testConfigurableProcessor";
+
         private final Map<String, String> metadata;
 
         TestConfigurableProcessor(String tag, Map<String, String> metadata) {
@@ -165,6 +168,11 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         }
 
         @Override
+        public String getIdentifier() {
+            return IDENTIFIER;
+        }
+
+        @Override
         public Map<String, String> getMetadata() {
             return metadata;
         }
@@ -177,10 +185,11 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
                 return create(processorFactories, tag, config, Collections.emptyMap());
             }
 
+            @SuppressWarnings("unchecked")
             @Override
             public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config,
-                                    Map<String, String> metadata) throws Exception {
-                return new TestConfigurableProcessor(tag, metadata);
+                                    Map<String, Object> metadata) throws Exception {
+                return new TestConfigurableProcessor(tag, (Map<String, String>) metadata.get(IDENTIFIER));
             }
         }
 

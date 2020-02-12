@@ -21,6 +21,21 @@ package org.elasticsearch.ingest;
 
 import java.util.Map;
 
+/**
+ * Ingest processors may implement this interface to supply environment-specific metadata at pipeline creation time. This
+ * metadata will be persisted in the pipeline's definition in cluster state and supplied to the processor's factory any
+ * time the processor is created on ingest nodes in the cluster.
+ */
 public interface ConfigurableProcessor {
+
+    /**
+     * Processors must supply an identifier that uniquely identifies themselves based on their configuration.
+     * @return Unique identifier
+     */
+    String getIdentifier();
+
+    /**
+     * @return Metadata to be persisted in pipeline definition for this processor.
+     */
     Map<String, String> getMetadata();
 }

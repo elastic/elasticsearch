@@ -135,7 +135,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
 
         @Override
         public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag,
-                                       Map<String, Object> config, Map<String, String> pipelineMetadata) throws Exception {
+                                       Map<String, Object> config, Map<String, Object> pipelineMetadata) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             boolean ignoreMissing = readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
             Map<String, Map<String, Object>> processorConfig = readMap(TYPE, tag, config, "processor");

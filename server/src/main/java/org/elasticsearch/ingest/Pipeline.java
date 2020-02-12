@@ -77,7 +77,7 @@ public final class Pipeline {
     }
 
     private static Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories,
-                                   ScriptService scriptService, Map<String, String> pipelineMetadata) throws Exception {
+                                   ScriptService scriptService, Map<String, Object> pipelineMetadata) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);

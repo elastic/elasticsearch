@@ -222,7 +222,7 @@ public class IngestService implements ClusterStateApplier {
     public void putPipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener) throws Exception {
             // validates the pipeline and processor configuration before submitting a cluster update task:
-            final Map<String, String> pipelineMetadata = validatePipeline(ingestInfos, request);
+            final Map<String, Object> pipelineMetadata = validatePipeline(ingestInfos, request);
             clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
                 new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
@@ -293,7 +293,7 @@ public class IngestService implements ClusterStateApplier {
         return processorMetrics;
     }
 
-    static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState, Map<String, String> pipelineMetadata) {
+    static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState, Map<String, Object> pipelineMetadata) {
         IngestMetadata currentIngestMetadata = currentState.metaData().custom(IngestMetadata.TYPE);
         Map<String, PipelineConfiguration> pipelines;
         if (currentIngestMetadata != null) {
@@ -311,20 +311,22 @@ public class IngestService implements ClusterStateApplier {
         return newState.build();
     }
 
-    Map<String, String> validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request) throws Exception {
+    Map<String, Object> validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request)
+        throws Exception {
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
         }
 
-        Map<String, String> pipelineMetadata = new HashMap<>();
+        Map<String, Object> pipelineMetadata = new HashMap<>();
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             if (processor instanceof ConfigurableProcessor) {
-                final Map<String, String> processorMetaData = ((ConfigurableProcessor) processor).getMetadata();
+                final ConfigurableProcessor cp = (ConfigurableProcessor) processor;
+                final Map<String, String> processorMetaData = cp.getMetadata();
                 if (processorMetaData.isEmpty() == false) {
-                    pipelineMetadata.putAll(processorMetaData);
+                    getOrCreateMetadataNode(pipelineMetadata, cp.getIdentifier()).putAll(processorMetaData);
                 }
             }
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
@@ -340,6 +342,16 @@ public class IngestService implements ClusterStateApplier {
         ExceptionsHelper.rethrowAndSuppress(exceptions);
         return pipelineMetadata;
     }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> getOrCreateMetadataNode(Map<String, Object> metadata, String identifier) {
+        if (metadata.containsKey(identifier) == false) {
+            Map<String, String> node = new HashMap<>();
+            metadata.put(identifier, node);
+        }
+        return (Map<String, String>) metadata.get(identifier);
+    }
+
 
     public void executeBulkRequest(int numberOfActionRequests,
                                    Iterable<DocWriteRequest<?>> actionRequests,

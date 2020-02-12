@@ -327,7 +327,7 @@ public final class ConfigurationUtils {
     public static List<Processor> readProcessorConfigs(List<Map<String, Object>> processorConfigs,
                                                        ScriptService scriptService,
                                                        Map<String, Processor.Factory> processorFactories,
-                                                       Map<String, String> pipelineMetadata) throws Exception {
+                                                       Map<String, Object> pipelineMetadata) throws Exception {
         Exception exception = null;
         List<Processor> processors = new ArrayList<>();
         if (processorConfigs != null) {
@@ -395,7 +395,7 @@ public final class ConfigurationUtils {
     @SuppressWarnings("unchecked")
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
                                           ScriptService scriptService,
-                                          String type, Object config, Map<String, String> pipelineMetadata) throws Exception {
+                                          String type, Object config, Map<String, Object> pipelineMetadata) throws Exception {
         if (config instanceof Map) {
             return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config, pipelineMetadata);
         } else if (config instanceof String && "script".equals(type)) {
@@ -412,7 +412,7 @@ public final class ConfigurationUtils {
                                           ScriptService scriptService,
                                           String type,
                                           Map<String, Object> config,
-                                          Map<String, String> pipelineMetadata) throws Exception {
+                                          Map<String, Object> pipelineMetadata) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         Script conditionalScript = extractConditional(config);
         Processor.Factory factory = processorFactories.get(type);

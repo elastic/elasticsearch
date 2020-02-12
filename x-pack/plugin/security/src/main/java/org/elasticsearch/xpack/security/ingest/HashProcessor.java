@@ -60,11 +60,11 @@ public final class HashProcessor extends AbstractProcessor implements Configurab
     private final byte[] salt;
     private final boolean ignoreMissing;
     private final AtomicBoolean consistentHashes = new AtomicBoolean(false);
-    private final String keySettingName;
+    private final String identifier;
     private final String persistedSecretKeyHash;
 
     HashProcessor(String tag, List<String> fields, String targetField, byte[] salt, Method method, @Nullable Mac mac,
-                  boolean ignoreMissing, String keySettingName, String persistedSecretKeyHash, boolean consistentHashKey) {
+                  boolean ignoreMissing, String identifier, String persistedSecretKeyHash, boolean consistentHashKey) {
         super(tag);
         this.fields = fields;
         this.targetField = targetField;
@@ -72,7 +72,7 @@ public final class HashProcessor extends AbstractProcessor implements Configurab
         this.mac = mac;
         this.salt = salt;
         this.ignoreMissing = ignoreMissing;
-        this.keySettingName = keySettingName;
+        this.identifier = identifier;
         this.persistedSecretKeyHash = persistedSecretKeyHash;
         this.consistentHashes.set(consistentHashKey);
     }
@@ -121,7 +121,12 @@ public final class HashProcessor extends AbstractProcessor implements Configurab
 
     @Override
     public Map<String, String> getMetadata() {
-        return Collections.singletonMap(keySettingName, persistedSecretKeyHash);
+        return Collections.singletonMap("keyHash", persistedSecretKeyHash);
+    }
+
+    @Override
+    public String getIdentifier() {
+        return identifier;
     }
 
     public static final class Factory implements Processor.Factory {
@@ -154,12 +159,12 @@ public final class HashProcessor extends AbstractProcessor implements Configurab
 
         @Override
         public HashProcessor create(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config) {
-            return create(registry, processorTag, config, null);
+            return create(registry, processorTag, config, Collections.emptyMap());
         }
 
         @Override
         public HashProcessor create(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config,
-                                    Map<String, String> metadata) {
+                                    Map<String, Object> metadata) {
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             List<String> fields = ConfigurationUtils.readList(TYPE, processorTag, config, "fields");
             if (fields.isEmpty()) {
@@ -188,23 +193,35 @@ public final class HashProcessor extends AbstractProcessor implements Configurab
                 throw new ElasticsearchException("hash processor requires minimum node version of " + Version.V_8_0_0);
             }
 
-            final boolean consistentKeys;
-            final String secretKeyHash;
+            final MessageDigest md;
             try {
-                final MessageDigest md = MessageDigest.getInstance("SHA-256");
-                secretKeyHash = Base64.getEncoder().encodeToString(md.digest(key.toString().getBytes(StandardCharsets.UTF_8)));
-                final String configuredSecretKeyHash = metadata != null && metadata.containsKey(keySettingName)
-                    ? metadata.get(keySettingName)
-                    : secretKeyHash;
-                consistentKeys = secretKeyHash.equals(configuredSecretKeyHash);
+                md = MessageDigest.getInstance("SHA-256");
             } catch (NoSuchAlgorithmException e) {
-                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "key_setting", e);
+                throw new ElasticsearchException("Error creating hash", e);
             }
 
-            return new HashProcessor(processorTag, fields, targetField, salt, method, mac, ignoreMissing, keySettingName, secretKeyHash,
-                consistentKeys);
-        }
+            StringBuilder identifierInput = new StringBuilder(Boolean.toString(ignoreMissing));
+            for (String field : fields) {
+                identifierInput.append(field);
+            }
+            identifierInput.append(targetField);
+            identifierInput.append(keySettingName);
+            identifierInput.append(saltString);
+            identifierInput.append(methodProperty);
+            identifierInput.append(iterations);
+            final String identifier =
+                TYPE + "_" + Base64.getEncoder().encodeToString(md.digest(identifierInput.toString().getBytes(StandardCharsets.UTF_8)));
 
+            @SuppressWarnings("unchecked")
+            Map<String, String> hashMetadata = metadata != null ? (Map<String, String>) metadata.get(identifier) : null;
+            final String secretKeyHash = Base64.getEncoder().encodeToString(md.digest(key.toString().getBytes(StandardCharsets.UTF_8)));
+            final String configuredSecretKeyHash = hashMetadata != null && hashMetadata.containsKey("keyHash")
+                ? hashMetadata.get("keyHash")
+                : secretKeyHash;
+
+            return new HashProcessor(processorTag, fields, targetField, salt, method, mac, ignoreMissing, identifier, secretKeyHash,
+                secretKeyHash.equals(configuredSecretKeyHash));
+        }
     }
 
     enum Method {

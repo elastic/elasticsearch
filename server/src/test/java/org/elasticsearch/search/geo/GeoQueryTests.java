@@ -51,24 +51,21 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         assertThat(result.getField("location"), nullValue());
     };
 
-    public void testIndexPointsFilterRectangle(String mapping) throws Exception {
+    public void testIndexPointsFilterRectangle() throws Exception {
+        String mapping = Strings.toString(createDefaultMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
-            .field("name", "Document 1")
-            .startObject("geo")
-            .field("type", "point")
-            .startArray("coordinates").value(-30).value(-30).endArray()
-            .endObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder()
+            .startObject()
+              .field("name", "Document 1")
+              .field("geo", "POINT(-30 -30)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
-            .field("name", "Document 2")
-            .startObject("geo")
-            .field("type", "point")
-            .startArray("coordinates").value(-45).value(-50).endArray()
-            .endObject()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder()
+            .startObject()
+              .field("name", "Document 2")
+              .field("geo", "POINT(-45 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));

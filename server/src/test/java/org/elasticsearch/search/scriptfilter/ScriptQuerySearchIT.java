@@ -241,7 +241,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
             // Execute with search.allow_expensive_queries = null => default value = false => success
             Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1",
                     Collections.emptyMap());
-            SearchResponse resp = client().prepareSearch("test-index", "_doc")
+            SearchResponse resp = client().prepareSearch("test-index")
                     .setQuery(scriptQuery(script))
                     .get();
             assertNoFailures(resp);

@@ -8,17 +8,21 @@ package org.elasticsearch.xpack.searchablesnapshots.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 
+import java.util.List;
+
 public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
 
-    public RestSearchableSnapshotsStatsAction(final RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_searchable_snapshots/stats", this);
-        controller.registerHandler(RestRequest.Method.GET, "/{index}/_searchable_snapshots/stats", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(RestRequest.Method.GET, "/_searchable_snapshots/stats"),
+            new Route(RestRequest.Method.GET, "/{index}/_searchable_snapshots/stats")
+        );
     }
 
     @Override

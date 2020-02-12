@@ -131,7 +131,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        return List.of(new RestSearchableSnapshotsStatsAction(restController));
+        return List.of(new RestSearchableSnapshotsStatsAction());
     }
 }
 

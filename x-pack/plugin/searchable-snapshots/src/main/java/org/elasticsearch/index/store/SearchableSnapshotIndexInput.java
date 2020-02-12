@@ -7,12 +7,14 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
+import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
@@ -120,8 +122,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
         if (optimizedReadSize < length) {
             // we did not read everything in an optimized fashion, so read the remainder directly
-            try (InputStream inputStream
-                     = blobContainer.readBlob(fileInfo.partName(part), pos + optimizedReadSize, length - optimizedReadSize)) {
+            try (InputStream inputStream = openBlobStream(part, pos + optimizedReadSize, length - optimizedReadSize)) {
                 final int directReadSize = readFully(inputStream, b, offset + optimizedReadSize, length - optimizedReadSize, () -> {
                     throw new EOFException("Read past EOF at [" + position + "] with length [" + fileInfo.partBytes(part) + "]");
                 });
@@ -195,7 +196,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
         // if we open a stream of length streamLength then it will not be completely consumed by this read, so it is worthwhile to open
         // it and keep it open for future reads
-        final InputStream inputStream = blobContainer.readBlob(fileInfo.partName(part), pos, streamLength);
+        final InputStream inputStream = openBlobStream(part, pos, streamLength);
         streamForSequentialReads = new StreamForSequentialReads(inputStream, part, pos, streamLength);
 
         final int read = streamForSequentialReads.read(b, offset, length);
@@ -258,6 +259,28 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
             ", length=" + length +
             ", position=" + position +
             '}';
+    }
+
+    private InputStream openBlobStream(int part, long pos, long length) throws IOException {
+        final InputStream stream;
+        if (fileInfo.metadata().hashEqualsContents() == false) {
+            stream = blobContainer.readBlob(fileInfo.partName(part), pos, length);
+        } else {
+            // extract blob content from metadata hash
+            final BytesRef data = fileInfo.metadata().hash();
+            if (part > 0) {
+                assert fileInfo.numberOfParts() >= part;
+                for (int i = 0; i < part; i++) {
+                    pos += fileInfo.partBytes(i);
+                }
+            }
+            if ((pos < 0L) || (length < 0L) || (pos + length > data.bytes.length)) {
+                throw new IllegalArgumentException("Invalid arguments (pos=" + pos + ", length=" + length
+                    + ") for hash content (length=" + data.bytes.length + ')');
+            }
+            stream = new ByteArrayInputStream(data.bytes, Math.toIntExact(pos), Math.toIntExact(length));
+        }
+        return stream;
     }
 
     /**

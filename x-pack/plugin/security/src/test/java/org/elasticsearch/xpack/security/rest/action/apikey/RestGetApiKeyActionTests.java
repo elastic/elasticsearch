@@ -22,7 +22,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +45,6 @@ import static org.mockito.Mockito.when;
 
 public class RestGetApiKeyActionTests extends ESTestCase {
     private final XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
-    private final RestController mockRestController = mock(RestController.class);
     private Settings settings = null;
     private ThreadPool threadPool = null;
 
@@ -114,7 +112,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 }
             }
         }) {
-            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockRestController, mockLicenseState);
+            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
 
             restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
 
@@ -182,7 +180,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 }
             }
         }) {
-            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockRestController, mockLicenseState);
+            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
 
             restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
 

@@ -20,17 +20,14 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -109,11 +106,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING =
         Setting.longSetting("index.mapping.field_name_length.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.IndexScope);
-    public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
-    @Deprecated
-    public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
-        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT,
-                Property.Dynamic, Property.IndexScope, Property.Deprecated);
 
     //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
     //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
@@ -122,8 +114,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     };
 
     private static final ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(SORTED_META_FIELDS);
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -158,11 +148,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
         this.idFieldDataEnabled = idFieldDataEnabled;
-
-        if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings()) &&
-                indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-            throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
-        }
     }
 
     public boolean hasNested() {
@@ -375,7 +360,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         checkPartitionedIndexConstraints(newMapper);
 
         // update lookup data-structures
-        fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, fieldAliasMappers);
+        fieldTypes = fieldTypes.copyAndAddAll(fieldMappers, fieldAliasMappers);
 
         for (ObjectMapper objectMapper : objectMappers) {
             if (fullPathObjectMappers == this.fullPathObjectMappers) {
@@ -599,11 +584,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns the {@link MappedFieldType} for the give fullName.
-     *
-     * If multiple types have fields with the same full name, the first is returned.
+     * Given the full name of a field, returns its {@link MappedFieldType}.
      */
-    public MappedFieldType fullName(String fullName) {
+    public MappedFieldType fieldType(String fullName) {
         return fieldTypes.get(fullName);
     }
 
@@ -703,7 +686,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            MappedFieldType fieldType = fullName(fieldName);
+            MappedFieldType fieldType = fieldType(fieldName);
             if (fieldType != null) {
                 Analyzer analyzer = extractAnalyzer.apply(fieldType);
                 if (analyzer != null) {

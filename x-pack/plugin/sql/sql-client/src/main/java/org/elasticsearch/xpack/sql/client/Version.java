@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.client;
 
 import java.io.IOException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
@@ -86,26 +87,34 @@ public class Version {
         // This is similar to how Elasticsearch's Build class digs up its build information.
         // Since version info is not critical, the parsing is lenient
         URL url = Version.class.getProtectionDomain().getCodeSource().getLocation();
-        String urlStr = url.toString();
+        CURRENT = extractVersion(url);
+    }
 
+    static Version extractVersion(URL url) {
+        String urlStr = url.toString();
         byte maj = 0, min = 0, rev = 0;
         String ver = "Unknown";
         String hash = ver;
-
-        if (urlStr.endsWith(".jar")) {
-            try (JarInputStream jar = new JarInputStream(url.openStream())) {
-                Manifest manifest = jar.getManifest();
-                hash = manifest.getMainAttributes().getValue("Change");
-                ver = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
-                byte[] vers = from(ver);
-                maj = vers[0];
-                min = vers[1];
-                rev = vers[2];
+        
+        if (urlStr.endsWith(".jar") || urlStr.endsWith(".jar!/")) {
+            try {
+                URLConnection conn = url.openConnection();
+                conn.setUseCaches(false);
+                
+                try (JarInputStream jar = new JarInputStream(conn.getInputStream())) {
+                    Manifest manifest = jar.getManifest();
+                    hash = manifest.getMainAttributes().getValue("Change");
+                    ver = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+                    byte[] vers = from(ver);
+                    maj = vers[0];
+                    min = vers[1];
+                    rev = vers[2];
+                }
             } catch (Exception ex) {
                 throw new IllegalArgumentException("Detected Elasticsearch JDBC jar but cannot retrieve its version", ex);
             }
         }
-        CURRENT = new Version(ver, hash, maj, min, rev);
+        return new Version(ver, hash, maj, min, rev);
     }
 
     @Override

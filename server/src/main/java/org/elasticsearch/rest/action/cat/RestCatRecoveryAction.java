@@ -32,7 +32,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -41,6 +40,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -50,9 +51,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestCatRecoveryAction extends AbstractCatAction {
 
-    public RestCatRecoveryAction(RestController restController) {
-        restController.registerHandler(GET, "/_cat/recovery", this);
-        restController.registerHandler(GET, "/_cat/recovery/{index}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_cat/recovery"),
+            new Route(GET, "/_cat/recovery/{index}")));
     }
 
     @Override

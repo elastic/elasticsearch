@@ -13,13 +13,13 @@ dependencies {
 // https://github.com/elastic/x-plugins/issues/724
 configurations {
   testArtifacts.extendsFrom testRuntime
-  yamlXpackSpecs
-  yamlXpackTests
+  restXpackSpecs
+  restXpackTests
 }
 
 artifacts {
-  yamlXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
-  yamlXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+  restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
+  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
 }
 
 task testJar(type: Jar) {

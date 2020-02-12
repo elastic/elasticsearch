@@ -40,7 +40,6 @@ publishing {
 copyRestApiSpecs {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
   includeCore '*'
-  includeXpack '*'
 }
 
 dependencies {

@@ -6,11 +6,11 @@ test.enabled = false
 jarHell.enabled = false
 
 configurations {
-  yamlSpecs
-  yamlTests
+  restSpecs
+  restTests
 }
 
 artifacts {
-  yamlSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
-  yamlTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+  restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
+  restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
 }

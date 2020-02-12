@@ -46,9 +46,9 @@ public class CopyRestApiPlugin implements Plugin<Project> {
             task.includeCore.set(copyTestExtension.getIncludeCore());
             task.includeXpack.set(copyTestExtension.getIncludeXpack());
             task.copyTo = "rest-api-spec/test";
-            task.coreConfig = project.getConfigurations().create("restSpecTests");
+            task.coreConfig = project.getConfigurations().create("restTest");
             if (BuildParams.isInternal()) {
-                Dependency dependency = project.getDependencies().project(Map.of("path", ":rest-api-spec", "configuration", "yamlTests"));
+                Dependency dependency = project.getDependencies().project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
                 project.getDependencies().add(task.coreConfig.getName(), dependency);
             } else {
                 Dependency dependency = project.getDependencies()
@@ -57,8 +57,8 @@ public class CopyRestApiPlugin implements Plugin<Project> {
             }
             task.dependsOn(task.coreConfig);
 
-            task.xpackConfig = project.getConfigurations().create("restSpecTestsXpack");
-            Dependency dependency = project.getDependencies().project(Map.of("path", ":x-pack:plugin", "configuration", "yamlXpackTests"));
+            task.xpackConfig = project.getConfigurations().create("restXpackTest");
+            Dependency dependency = project.getDependencies().project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
             project.getDependencies().add(task.xpackConfig.getName(), dependency);
             task.dependsOn(task.xpackConfig);
         });
@@ -72,7 +72,7 @@ public class CopyRestApiPlugin implements Plugin<Project> {
                 task.coreConfig = project.getConfigurations().create("restSpec");
                 if (BuildParams.isInternal()) {
                     Dependency dependency = project.getDependencies()
-                        .project(Map.of("path", ":rest-api-spec", "configuration", "yamlSpecs"));
+                        .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
                     project.getDependencies().add(task.coreConfig.getName(), dependency);
                 } else {
                     Dependency dependency = project.getDependencies()
@@ -81,9 +81,9 @@ public class CopyRestApiPlugin implements Plugin<Project> {
                 }
                 task.dependsOn(task.coreConfig);
 
-                task.xpackConfig = project.getConfigurations().create("restSpecXpack");
+                task.xpackConfig = project.getConfigurations().create("restXpackSpec");
                 Dependency dependency = project.getDependencies()
-                    .project(Map.of("path", ":x-pack:plugin", "configuration", "yamlXpackSpecs"));
+                    .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackSpecs"));
                 project.getDependencies().add(task.xpackConfig.getName(), dependency);
                 task.dependsOn(task.xpackConfig);
             });

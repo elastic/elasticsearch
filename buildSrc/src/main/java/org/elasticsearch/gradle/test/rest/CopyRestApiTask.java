@@ -144,13 +144,15 @@ public class CopyRestApiTask extends DefaultTask {
                 c.include(includeCore.get().stream().map(prefix -> copyTo + "/" + prefix + "*/**").collect(Collectors.toList()));
             });
         }
-
-        logger.info("X-pack YAML{} for project [{}] will be copied to the test resources.", getTestOrSpec(), project.getPath());
-        project.copy(c -> {
-            c.from(xpackConfig.getSingleFile());
-            c.into(getOutputDir());
-            c.include(xpackPatternSet.getIncludes());
-        });
+        // only include x-pack if explicitly instructed
+        if (includeXpack.get().isEmpty() == false) {
+            logger.info("X-pack YAML{} for project [{}] will be copied to the test resources.", getTestOrSpec(), project.getPath());
+            project.copy(c -> {
+                c.from(xpackConfig.getSingleFile());
+                c.into(getOutputDir());
+                c.include(xpackPatternSet.getIncludes());
+            });
+        }
     }
 
     /**

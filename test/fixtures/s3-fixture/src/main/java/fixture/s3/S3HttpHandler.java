@@ -216,13 +216,13 @@ public class S3HttpHandler implements HttpHandler {
 
                         final int start = Integer.parseInt(matcher.group(1));
                         final int end = Integer.parseInt(matcher.group(2));
-                        final int length = end - start;
 
+                        final BytesReference rangeBlob = blob.slice(start, end + 1 - start);
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders().add("Content-Range",
-                            String.format(Locale.ROOT, "bytes=%d-%d/%d", start, end, blob.length()));
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                        exchange.getResponseBody().write(BytesReference.toBytes(blob), start, length);
+                        exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d",
+                            start, end, rangeBlob.length()));
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), rangeBlob.length());
+                        rangeBlob.writeTo(exchange.getResponseBody());
                     }
                 } else {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);

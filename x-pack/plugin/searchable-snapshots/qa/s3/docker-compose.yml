@@ -1,0 +1,16 @@
+version: '3'
+services:
+  s3-fixture-for-searchable-snapshots:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.s3.S3HttpFixture
+        port: 80
+        bucket: "bucket"
+        basePath: "base_path_searchable_snapshots_tests"
+        accessKey: "access_key"
+      dockerfile: ./testfixtures_shared/shared/Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"

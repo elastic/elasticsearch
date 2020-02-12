@@ -60,7 +60,8 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
-    protected Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    protected Query getVectorQueryFromShape(
+        Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         GeoShapeIndexer geometryIndexer = new GeoShapeIndexer(true, fieldName);
 
         Geometry processedShape = geometryIndexer.prepareForIndexing(queryShape);
@@ -86,7 +87,9 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
 
         @Override
         public Query visit(Circle circle) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] found and unknown shape Circle");
+            // use Point visitor
+            Point point = new Point(circle.getX(), circle.getY());
+            return visit(point);
         }
 
         @Override

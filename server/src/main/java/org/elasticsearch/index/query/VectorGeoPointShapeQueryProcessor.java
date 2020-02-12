@@ -67,10 +67,12 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
         }
     }
 
-    protected Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        // check thst the query is shape is valid
+    protected Query getVectorQueryFromShape(
+        Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         GeoShapeIndexer geometryIndexer = new GeoShapeIndexer(true, fieldName);
+
         Geometry processedShape = geometryIndexer.prepareForIndexing(queryShape);
+
         if (processedShape == null) {
             return new MatchNoDocsQuery();
         }
@@ -111,8 +113,8 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
         @Override
         public Query visit(org.elasticsearch.geometry.Line line) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.LINESTRING +
-                " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
+                + GeoShapeType.LINESTRING + " queries");
         }
 
         @Override
@@ -122,14 +124,14 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
         @Override
         public Query visit(MultiLine multiLine) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.MULTILINESTRING +
-                " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
+                + GeoShapeType.MULTILINESTRING + " queries");
         }
 
         @Override
         public Query visit(MultiPoint multiPoint) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.MULTIPOINT +
-                " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
+                + GeoShapeType.MULTIPOINT + " queries");
         }
 
         @Override
@@ -143,6 +145,7 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
         @Override
         public Query visit(Point point) {
+            // not currently supported
             throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.POINT +
                 " queries");
         }

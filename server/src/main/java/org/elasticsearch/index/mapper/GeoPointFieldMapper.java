@@ -250,28 +250,33 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
+            throw new QueryShardException(context,
+                "Geo fields do not support exact searching, use dedicated geo queries instead: ["
                 + name() + "]");
         }
 
         @Override
         public void setGeometryIndexer(AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> geometryIndexer) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("Field type ["
+                + CONTENT_TYPE + "] does not support Indexation of Geometries");
         }
 
         @Override
         protected AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> geometryIndexer() {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("Field type ["
+                + CONTENT_TYPE + "] does not support Indexation of Geometries");
         }
 
         @Override
         public void setGeometryParser(AbstractGeometryFieldMapper.Parser<Geometry> geometryParser) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("Field type ["
+                + CONTENT_TYPE + "] does not support Parsing of Geometries");
         }
 
         @Override
         protected AbstractGeometryFieldMapper.Parser<Geometry> geometryParser() {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("Field type ["
+                + CONTENT_TYPE + "] does not support Parsing of Geometries");
         }
     }
 

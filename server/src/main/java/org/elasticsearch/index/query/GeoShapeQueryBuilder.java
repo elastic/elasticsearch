@@ -201,7 +201,10 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
         if (fieldType.typeName().equals(GeoShapeFieldMapper.CONTENT_TYPE) == false &&
             fieldType.typeName().equals(GeoPointFieldMapper.CONTENT_TYPE) == false) {
             throw new QueryShardException(context,
-                "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "]. ["
+                + NAME + "] query supports the following types ["
+                + GeoShapeFieldMapper.CONTENT_TYPE + ", "
+                + GeoPointFieldMapper.CONTENT_TYPE + "]");
         }
 
         final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;

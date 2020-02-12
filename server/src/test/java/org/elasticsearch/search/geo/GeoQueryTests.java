@@ -19,12 +19,20 @@
 
 package org.elasticsearch.search.geo;
 
+import org.apache.lucene.spatial3d.geom.GeoShape;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.locationtech.jts.geom.Coordinate;
 
@@ -81,6 +89,36 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
 
         searchResponse = client().prepareSearch("test")
             .setQuery(geoShapeQuery("geo", shape))
+            .get();
+
+        assertSearchResponse(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+    }
+    public void testIndexPointsCircle() throws Exception {
+        String mapping = Strings.toString(createDefaultMapping());
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder()
+            .startObject()
+            .field("name", "Document 1")
+            .field("geo", "POINT(-30 -30)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder()
+            .startObject()
+            .field("name", "Document 2")
+            .field("geo", "POINT(-45 -50)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        CircleBuilder shape = new CircleBuilder().center(new Coordinate(-30, -30)).radius("100m");
+        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
+        Geometry geometry = builder.buildGeometry().get(0);
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.geoShapeQuery("geo", geometry)
+                .relation(ShapeRelation.INTERSECTS))
             .get();
 
         assertSearchResponse(searchResponse);

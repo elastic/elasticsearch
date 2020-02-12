@@ -369,10 +369,10 @@ This value controls which data format to encode the REST content in. Possible
 values are:
 
 * `CBOR`: use the Concise Binary Object Representation format. This is the
-* preferred encoding, given it's more compact format.
+preferred encoding, given it's more compact format.
 
 * `JSON`: use the JavaScript Object Notation format. This format is more
-* verbose, but easier to read, handful in debugging cases.
+verbose, but easier to read, handful in debugging cases.
 
 
 `Compression` (default: `auto`)::
@@ -384,9 +384,9 @@ formats -  is going to be compressed. The possible values are:
 * `off`: disables the compression;
 
 * `auto`: enables the compression, except for the case when the data flows
-* through a secure connection; since in this case the encryption layer employs
-* its own data compression and there can be security implications when an
-* additional compression is enabled, the setting should be kept to this value.
+through a secure connection; since in this case the encryption layer employs
+its own data compression and there can be security implications when an
+additional compression is enabled, the setting should be kept to this value.
 
 
 `MaxFetchSize` (default: `0`)::

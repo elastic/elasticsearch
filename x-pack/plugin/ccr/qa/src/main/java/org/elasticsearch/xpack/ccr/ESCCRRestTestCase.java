@@ -215,7 +215,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void ensureYellow(final String index, final RestClient client) throws IOException {
-        ensureHealth(adminClient(), index, request -> {
+        ensureHealth(client, index, request -> {
             request.addParameter("wait_for_status", "yellow");
             request.addParameter("wait_for_no_relocating_shards", "true");
             request.addParameter("timeout", "5s");

@@ -36,6 +36,10 @@ public final class TestUtils {
                 randomAlphaOfLength(10));
     }
 
+    public static Literal of(Object value) {
+        return of(Source.EMPTY, value);
+    }
+
     /**
      * Utility method for creating 'in-line' Literals (out of values instead of expressions).
      */

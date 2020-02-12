@@ -156,8 +156,8 @@ public class InternalOrder extends BucketOrder {
 
             @Override
             public int compare(Bucket b1, Bucket b2) {
-                double v1 = path.resolveValue(b1);
-                double v2 = path.resolveValue(b2);
+                double v1 = path.resolveValue(((InternalAggregations) b1.getAggregations()));
+                double v2 = path.resolveValue(((InternalAggregations) b2.getAggregations()));
                 return Comparators.compareDiscardNaN(v1, v2, asc);
             }
         }

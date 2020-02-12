@@ -867,7 +867,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.timingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0, 777.0, context))),
-            e -> { throw new AssertionError(); });
+            e -> { throw new AssertionError("Failure getting timing stats", e); });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -888,7 +888,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.timingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new TimingStats("foo"))),
-            e -> { throw new AssertionError(); });
+            e -> { throw new AssertionError("Failure getting timing stats", e); });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -902,9 +902,9 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
             Arrays.asList(),
-            statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
-            e -> { throw new AssertionError(); });
-
+            ActionListener.wrap(
+                statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
+                e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }));
         verifyZeroInteractions(client);
     }
 
@@ -971,8 +971,11 @@ public class JobResultsProviderTests extends ESTestCase {
         expectedStatsByJobId.put("bar", new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar));
         provider.datafeedTimingStats(
             Arrays.asList("foo", "bar"),
-            statsByJobId -> assertThat(statsByJobId, equalTo(expectedStatsByJobId)),
-            e -> { throw new AssertionError(); });
+            ActionListener.wrap(
+                statsByJobId ->
+                    assertThat(statsByJobId, equalTo(expectedStatsByJobId)),
+                e -> fail(e.getMessage())
+            ));
 
         verify(client).threadPool();
         verify(client).prepareMultiSearch();
@@ -1009,7 +1012,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo))),
-            e -> { throw new AssertionError(); });
+            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -1030,7 +1033,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))),
-            e -> { throw new AssertionError(); });
+            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();

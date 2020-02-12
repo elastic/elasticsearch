@@ -1,2 +1,5 @@
 language: java 
 jdk: openjdk13
+
+script:
+  - ./gradlew :modules:transport-netty4:test --tests org.elasticsearch.http.netty4.Netty4HttpServerTransportTests

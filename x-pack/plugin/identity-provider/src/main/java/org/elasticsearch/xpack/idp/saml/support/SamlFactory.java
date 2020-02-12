@@ -6,10 +6,14 @@
 
 package org.elasticsearch.xpack.idp.saml.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.XMLObjectBuilderFactory;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
+import org.opensaml.core.xml.io.MarshallingException;
+import org.opensaml.core.xml.util.XMLObjectSupport;
+import org.w3c.dom.Element;
 
 import javax.xml.namespace.QName;
 import java.security.SecureRandom;
@@ -58,4 +62,11 @@ public class SamlFactory {
         return "_".concat(MessageDigests.toHexString(randomBytes));
     }
 
+    public Element toDomElement(XMLObject object) {
+        try {
+            return XMLObjectSupport.marshall(object);
+        } catch (MarshallingException e) {
+            throw new ElasticsearchException("failed to marshall SAML object to DOM element", e);
+        }
+    }
 }

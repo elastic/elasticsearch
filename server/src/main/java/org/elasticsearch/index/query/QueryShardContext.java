@@ -225,7 +225,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (name.equals(TypeFieldMapper.NAME)) {
             deprecationLogger.deprecatedAndMaybeLog("query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
-        return failIfFieldMappingNotFound(name, mapperService.fullName(name));
+        return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
 
     public ObjectMapper getObjectMapper(String name) {

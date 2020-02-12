@@ -92,13 +92,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.isNull = isNull;
     }
 
-    private static final QuerySearchResult nullInstance = new QuerySearchResult(true);
-
     /**
      * Returns an instance that contains no response.
      */
     public static QuerySearchResult nullInstance() {
-        return nullInstance;
+        return new QuerySearchResult(true);
     }
 
     /**

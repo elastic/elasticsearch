@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.common;
+package org.elasticsearch.xpack.ql.common;
 
 import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Node;
@@ -36,7 +36,7 @@ public class Failure {
 
     @Override
     public int hashCode() {
-        return Objects.hash(message, node);
+        return Objects.hash(node);
     }
 
     @Override
@@ -50,7 +50,7 @@ public class Failure {
         }
 
         Failure other = (Failure) obj;
-        return Objects.equals(message, other.message) && Objects.equals(node, other.node);
+        return Objects.equals(node, other.node);
     }
 
     @Override
@@ -67,7 +67,7 @@ public class Failure {
             Location l = f.node().source().source();
             return "line " + l.getLineNumber() + ":" + l.getColumnNumber() + ": " + f.message();
         }).collect(Collectors.joining(StringUtils.NEW_LINE,
-                format("Found {} problem{}\n", failures.size(), failures.size() > 1 ? "s" : StringUtils.EMPTY), 
+                format("Found {} problem{}\n", failures.size(), failures.size() > 1 ? "s" : StringUtils.EMPTY),
                 StringUtils.EMPTY));
     }
 }

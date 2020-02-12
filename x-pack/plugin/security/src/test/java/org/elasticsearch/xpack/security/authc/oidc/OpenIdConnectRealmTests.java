@@ -259,6 +259,20 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             containsString("&post_logout_redirect_uri=https%3A%2F%2Frp.elastic.co%2Fsucc_logout&state="));
     }
 
+    public void testBuildLogoutResponseFromEndsessionEndpointWithExistingParameters() throws Exception {
+        final Settings.Builder realmSettingsWithFunkyEndpoint = getBasicRealmSettings();
+        realmSettingsWithFunkyEndpoint.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ENDSESSION_ENDPOINT), "https://op.example.org/logout?parameter=123");
+        final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(realmSettingsWithFunkyEndpoint.build(), threadContext), null,
+            null);
+
+        // Random strings, as we will not validate the token here
+        final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
+        final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
+        assertThat(logoutResponse.getEndSessionUrl(), containsString("https://op.example.org/logout?parameter=123&id_token_hint="));
+        assertThat(logoutResponse.getEndSessionUrl(),
+            containsString("&post_logout_redirect_uri=https%3A%2F%2Frp.elastic.co%2Fsucc_logout&state="));
+    }
+
     public void testBuildingAuthenticationRequestWithExistingStateAndNonce() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")

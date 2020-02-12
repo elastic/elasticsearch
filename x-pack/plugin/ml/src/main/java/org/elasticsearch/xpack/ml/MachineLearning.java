@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -258,7 +257,9 @@ import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPostCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarJobAction;
+import org.elasticsearch.xpack.ml.rest.cat.RestCatDatafeedsAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatJobsAction;
+import org.elasticsearch.xpack.ml.rest.cat.RestCatTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
@@ -634,7 +635,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,
-            dataFrameAnalyticsAuditor, trainedModelProvider);
+            dataFrameAnalyticsAuditor, trainedModelProvider, resultsPersisterService);
         MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
             new MemoryUsageEstimationProcessManager(
                 threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
@@ -714,66 +715,68 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             return emptyList();
         }
         return Arrays.asList(
-            new RestGetJobsAction(restController),
-            new RestGetJobStatsAction(restController),
-            new RestMlInfoAction(restController),
-            new RestPutJobAction(restController),
-            new RestPostJobUpdateAction(restController),
-            new RestDeleteJobAction(restController),
-            new RestOpenJobAction(restController),
-            new RestGetFiltersAction(restController),
-            new RestPutFilterAction(restController),
-            new RestUpdateFilterAction(restController),
-            new RestDeleteFilterAction(restController),
-            new RestGetInfluencersAction(restController),
-            new RestGetRecordsAction(restController),
-            new RestGetBucketsAction(restController),
-            new RestGetOverallBucketsAction(restController),
-            new RestPostDataAction(restController),
-            new RestCloseJobAction(restController),
-            new RestFlushJobAction(restController),
-            new RestValidateDetectorAction(restController),
-            new RestValidateJobConfigAction(restController),
-            new RestGetCategoriesAction(restController),
-            new RestGetModelSnapshotsAction(restController),
-            new RestRevertModelSnapshotAction(restController),
-            new RestUpdateModelSnapshotAction(restController),
-            new RestGetDatafeedsAction(restController),
-            new RestGetDatafeedStatsAction(restController),
-            new RestPutDatafeedAction(restController),
-            new RestUpdateDatafeedAction(restController),
-            new RestDeleteDatafeedAction(restController),
-            new RestPreviewDatafeedAction(restController),
-            new RestStartDatafeedAction(restController),
-            new RestStopDatafeedAction(restController),
-            new RestDeleteModelSnapshotAction(restController),
-            new RestDeleteExpiredDataAction(restController),
-            new RestForecastJobAction(restController),
-            new RestDeleteForecastAction(restController),
-            new RestGetCalendarsAction(restController),
-            new RestPutCalendarAction(restController),
-            new RestDeleteCalendarAction(restController),
-            new RestDeleteCalendarEventAction(restController),
-            new RestDeleteCalendarJobAction(restController),
-            new RestPutCalendarJobAction(restController),
-            new RestGetCalendarEventsAction(restController),
-            new RestPostCalendarEventAction(restController),
-            new RestFindFileStructureAction(restController),
-            new RestSetUpgradeModeAction(restController),
-            new RestGetDataFrameAnalyticsAction(restController),
-            new RestGetDataFrameAnalyticsStatsAction(restController),
-            new RestPutDataFrameAnalyticsAction(restController),
-            new RestDeleteDataFrameAnalyticsAction(restController),
-            new RestStartDataFrameAnalyticsAction(restController),
-            new RestStopDataFrameAnalyticsAction(restController),
-            new RestEvaluateDataFrameAction(restController),
-            new RestExplainDataFrameAnalyticsAction(restController),
-            new RestGetTrainedModelsAction(restController),
-            new RestDeleteTrainedModelAction(restController),
-            new RestGetTrainedModelsStatsAction(restController),
-            new RestPutTrainedModelAction(restController),
+            new RestGetJobsAction(),
+            new RestGetJobStatsAction(),
+            new RestMlInfoAction(),
+            new RestPutJobAction(),
+            new RestPostJobUpdateAction(),
+            new RestDeleteJobAction(),
+            new RestOpenJobAction(),
+            new RestGetFiltersAction(),
+            new RestPutFilterAction(),
+            new RestUpdateFilterAction(),
+            new RestDeleteFilterAction(),
+            new RestGetInfluencersAction(),
+            new RestGetRecordsAction(),
+            new RestGetBucketsAction(),
+            new RestGetOverallBucketsAction(),
+            new RestPostDataAction(),
+            new RestCloseJobAction(),
+            new RestFlushJobAction(),
+            new RestValidateDetectorAction(),
+            new RestValidateJobConfigAction(),
+            new RestGetCategoriesAction(),
+            new RestGetModelSnapshotsAction(),
+            new RestRevertModelSnapshotAction(),
+            new RestUpdateModelSnapshotAction(),
+            new RestGetDatafeedsAction(),
+            new RestGetDatafeedStatsAction(),
+            new RestPutDatafeedAction(),
+            new RestUpdateDatafeedAction(),
+            new RestDeleteDatafeedAction(),
+            new RestPreviewDatafeedAction(),
+            new RestStartDatafeedAction(),
+            new RestStopDatafeedAction(),
+            new RestDeleteModelSnapshotAction(),
+            new RestDeleteExpiredDataAction(),
+            new RestForecastJobAction(),
+            new RestDeleteForecastAction(),
+            new RestGetCalendarsAction(),
+            new RestPutCalendarAction(),
+            new RestDeleteCalendarAction(),
+            new RestDeleteCalendarEventAction(),
+            new RestDeleteCalendarJobAction(),
+            new RestPutCalendarJobAction(),
+            new RestGetCalendarEventsAction(),
+            new RestPostCalendarEventAction(),
+            new RestFindFileStructureAction(),
+            new RestSetUpgradeModeAction(),
+            new RestGetDataFrameAnalyticsAction(),
+            new RestGetDataFrameAnalyticsStatsAction(),
+            new RestPutDataFrameAnalyticsAction(),
+            new RestDeleteDataFrameAnalyticsAction(),
+            new RestStartDataFrameAnalyticsAction(),
+            new RestStopDataFrameAnalyticsAction(),
+            new RestEvaluateDataFrameAction(),
+            new RestExplainDataFrameAnalyticsAction(),
+            new RestGetTrainedModelsAction(),
+            new RestDeleteTrainedModelAction(),
+            new RestGetTrainedModelsStatsAction(),
+            new RestPutTrainedModelAction(),
             // CAT Handlers
-            new RestCatJobsAction(restController)
+            new RestCatJobsAction(),
+            new RestCatTrainedModelsAction(),
+            new RestCatDatafeedsAction()
         );
     }
 
@@ -887,13 +890,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
-            final TimeValue delayedNodeTimeOutSetting;
-            // Whether we are using native process is a good way to detect whether we are in dev / test mode:
-            if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
-                delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
-            } else {
-                delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
-            }
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate =
@@ -905,8 +901,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .build();
                 templates.put(AuditorField.NOTIFICATIONS_INDEX, notificationMessageTemplate);
             } catch (IOException e) {
@@ -921,8 +916,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .version(Version.CURRENT.id)
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .build();
@@ -940,7 +934,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
                                         AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
                         .version(Version.CURRENT.id)
@@ -957,8 +950,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexPattern()))
                         // TODO review these settings
                         .settings(Settings.builder()
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();
@@ -974,7 +966,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 // Sacrifice durability for performance: in the event of power
                                 // failure we can lose the last 5 seconds of changes, but it's
                                 // much faster

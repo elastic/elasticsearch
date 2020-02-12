@@ -19,14 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a single variable declaration.
@@ -35,23 +34,16 @@ public final class SDeclaration extends AStatement {
 
     private DType type;
     protected final String name;
+    protected final boolean requiresDefault;
     private AExpression expression;
 
-    public SDeclaration(Location location, DType type, String name, AExpression expression) {
+    public SDeclaration(Location location, DType type, String name, boolean requiresDefault, AExpression expression) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
         this.name = Objects.requireNonNull(name);
+        this.requiresDefault = requiresDefault;
         this.expression = expression;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-
-        if (expression != null) {
-            expression.extractVariables(variables);
-        }
     }
 
     @Override
@@ -77,6 +69,7 @@ public final class SDeclaration extends AStatement {
         declarationNode.setLocation(location);
         declarationNode.setDeclarationType(((DResolvedType)type).getType());
         declarationNode.setName(name);
+        declarationNode.setRequiresDefault(requiresDefault);
 
         return declarationNode;
     }

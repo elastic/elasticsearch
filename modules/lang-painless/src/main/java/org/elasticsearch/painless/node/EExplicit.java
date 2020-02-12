@@ -19,14 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an explicit cast.
@@ -41,11 +40,6 @@ public final class EExplicit extends AExpression {
 
         this.type = Objects.requireNonNull(type);
         this.child = Objects.requireNonNull(child);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        child.extractVariables(variables);
     }
 
     @Override

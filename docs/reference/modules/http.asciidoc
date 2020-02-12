@@ -108,3 +108,33 @@ client HTTP responses, defaults to unbounded.
 
 It also uses the common
 <<modules-network,network settings>>.
+
+[float]
+=== Rest Request Tracer
+
+The http module has a dedicated tracer logger which, when activated, logs incoming requests. The log can be dynamically activated
+by setting the level of the `org.elasticsearch.http.HttpTracer` logger to `TRACE`:
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+   "transient" : {
+      "logger.org.elasticsearch.http.HttpTracer" : "TRACE"
+   }
+}
+--------------------------------------------------
+
+You can also control which uris will be traced, using a set of include and exclude wildcard patterns. By default every request will be
+traced.
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+   "transient" : {
+      "http.tracer.include" : "*",
+      "http.tracer.exclude" : ""
+   }
+}
+--------------------------------------------------

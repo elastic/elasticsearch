@@ -151,6 +151,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 `analysis`.`classification`.`num_top_feature_importance_values`::::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
++
+See
+{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[Feature importance in {classification}].
 
 `analysis`.`classification`.`training_percent`::::
 (Optional, integer)
@@ -234,6 +237,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 `analysis`.`regression`.`num_top_feature_importance_values`::::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
++
+See {ml-docs}/dfa-regression.html#dfa-regression-feature-importance[Feature importance in {regression}].
 
 `analysis`.`regression`.`training_percent`::::
 (Optional, integer)

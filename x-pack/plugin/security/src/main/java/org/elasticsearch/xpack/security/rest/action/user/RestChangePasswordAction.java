@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -37,7 +35,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestChangePasswordAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestChangePasswordAction.class));
     private final SecurityContext securityContext;
     private final Hasher passwordHasher;
 
@@ -57,13 +54,13 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
             new ReplacedRoute(PUT, "/_security/user/{username}/_password",
-                PUT, "/_xpack/security/user/{username}/_password", deprecationLogger),
+                PUT, "/_xpack/security/user/{username}/_password"),
             new ReplacedRoute(POST, "/_security/user/{username}/_password",
-                POST, "/_xpack/security/user/{username}/_password", deprecationLogger),
+                POST, "/_xpack/security/user/{username}/_password"),
             new ReplacedRoute(PUT, "/_security/user/_password",
-                PUT, "/_xpack/security/user/_password", deprecationLogger),
+                PUT, "/_xpack/security/user/_password"),
             new ReplacedRoute(POST, "/_security/user/_password",
-                POST, "/_xpack/security/user/_password", deprecationLogger)
+                POST, "/_xpack/security/user/_password")
         ));
     }
 

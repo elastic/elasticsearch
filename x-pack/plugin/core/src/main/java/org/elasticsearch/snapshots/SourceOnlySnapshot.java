@@ -44,6 +44,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -51,9 +52,14 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_EXTENSION;
-import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_INDEX_EXTENSION;
+import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.INDEX_EXTENSION_PREFIX;
+import static org.apache.lucene.codecs.compressing.FieldsIndexWriter.FIELDS_INDEX_EXTENSION_SUFFIX;
+import static org.apache.lucene.codecs.compressing.FieldsIndexWriter.FIELDS_META_EXTENSION_SUFFIX;
 
 public class SourceOnlySnapshot {
+
+    private static final String FIELDS_INDEX_EXTENSION = INDEX_EXTENSION_PREFIX + FIELDS_INDEX_EXTENSION_SUFFIX;
+    private static final String FIELDS_META_EXTENSION = INDEX_EXTENSION_PREFIX + FIELDS_META_EXTENSION_SUFFIX;
     private final Directory targetDirectory;
     private final Supplier<Query> deleteByQuerySupplier;
 
@@ -208,12 +214,16 @@ public class SourceOnlySnapshot {
             newInfo.setFieldInfosFiles(trackingDir.getCreatedFiles());
             String idxFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, FIELDS_INDEX_EXTENSION);
             String dataFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, FIELDS_EXTENSION);
+            String metaFile = IndexFileNames.segmentFileName(newSegmentInfo.name, segmentSuffix, FIELDS_META_EXTENSION);
             Directory sourceDir = newSegmentInfo.dir;
             if (si.getUseCompoundFile()) {
                 sourceDir = codec.compoundFormat().getCompoundReader(sourceDir, si, IOContext.DEFAULT);
             }
             trackingDir.copyFrom(sourceDir, idxFile, idxFile, IOContext.DEFAULT);
             trackingDir.copyFrom(sourceDir, dataFile, dataFile, IOContext.DEFAULT);
+             if (Arrays.asList(sourceDir.listAll()).contains(metaFile)) { // only exists for Lucene 8.5+ indices
+                 trackingDir.copyFrom(sourceDir, metaFile, metaFile, IOContext.DEFAULT);
+             }
             if (sourceDir != newSegmentInfo.dir) {
                 sourceDir.close();
             }

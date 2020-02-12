@@ -98,3 +98,7 @@ adjacent characters (ab → ba). Defaults to `true`.
 `rewrite`::
 (Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
+
+==== Notes
+Fuzzy queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

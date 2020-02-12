@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -95,33 +97,30 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
     }
 
     public void testMaxDynamicKeyDepth() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        assertEquals(0, lookup.maxKeyedLookupDepth());
+        Map<String, DynamicKeyFieldMapper> mappers = new HashMap<>();
+        Map<String, String> aliases = new HashMap<>();
+        assertEquals(0, DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
 
         // Add a flattened object field.
         String flatObjectName = "object1.object2.field";
         FlatObjectFieldMapper flatObjectField = createFlatObjectMapper(flatObjectName);
-        lookup = lookup.copyAndAddAll(singletonList(flatObjectField), emptyList());
-        assertEquals(3, lookup.maxKeyedLookupDepth());
+        mappers.put(flatObjectName, flatObjectField);
+        assertEquals(3, DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
 
         // Add a short alias to that field.
         String aliasName = "alias";
-        FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, flatObjectName);
-        lookup = lookup.copyAndAddAll(emptyList(), singletonList(alias));
-        assertEquals(3, lookup.maxKeyedLookupDepth());
+        aliases.put(aliasName, flatObjectName);
+        assertEquals(3,  DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
 
         // Add a longer alias to that field.
         String longAliasName = "object1.object2.object3.alias";
-        FieldAliasMapper longAlias = new FieldAliasMapper(longAliasName, longAliasName, flatObjectName);
-        lookup = lookup.copyAndAddAll(emptyList(), singletonList(longAlias));
-        assertEquals(4, lookup.maxKeyedLookupDepth());
+        aliases.put(longAliasName, flatObjectName);
+        assertEquals(4,  DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
 
         // Update the long alias to refer to a non-flattened object field.
         String fieldName = "field";
-        MockFieldMapper field = new MockFieldMapper(fieldName);
-        longAlias = new FieldAliasMapper(longAliasName, longAliasName, fieldName);
-        lookup = lookup.copyAndAddAll(singletonList(field), singletonList(longAlias));
-        assertEquals(3, lookup.maxKeyedLookupDepth());
+        aliases.put(longAliasName, fieldName);
+        assertEquals(3,  DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
     }
 
     public void testFieldLookupIterator() {

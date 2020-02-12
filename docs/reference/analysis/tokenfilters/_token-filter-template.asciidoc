@@ -4,7 +4,7 @@ This is a template for token filter reference documentation.
 To document a new token filter, copy this file, remove comments like this, and
 replace "sample" with the appropriate filter name.
 
-Ensure the new filter is linked and included in
+Ensure the new filter docs are linked and included in
 docs/reference/analysis/tokefilters.asciidoc
 ////
 

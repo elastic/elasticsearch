@@ -19,21 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -55,18 +51,7 @@ public final class EMapInit extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression key : keys) {
-            key.extractVariables(variables);
-        }
-
-        for (AExpression value : values) {
-            value.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from map initializer."));
         }
@@ -95,8 +80,8 @@ public final class EMapInit extends AExpression {
 
             expression.expected = def.class;
             expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            keys.set(index, expression.cast(scriptRoot, locals));
+            expression.analyze(scriptRoot, scope);
+            keys.set(index, expression.cast(scriptRoot, scope));
         }
 
         for (int index = 0; index < values.size(); ++index) {
@@ -104,30 +89,25 @@ public final class EMapInit extends AExpression {
 
             expression.expected = def.class;
             expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            values.set(index, expression.cast(scriptRoot, locals));
+            expression.analyze(scriptRoot, scope);
+            values.set(index, expression.cast(scriptRoot, scope));
         }
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.newInstance(MethodWriter.getType(actual));
-        methodWriter.dup();
-        methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+    MapInitializationNode write(ClassNode classNode) {
+        MapInitializationNode mapInitializationNode = new MapInitializationNode();
 
         for (int index = 0; index < keys.size(); ++index) {
-            AExpression key = keys.get(index);
-            AExpression value = values.get(index);
-
-            methodWriter.dup();
-            key.write(classWriter, methodWriter, globals);
-            value.write(classWriter, methodWriter, globals);
-            methodWriter.invokeMethodCall(method);
-            methodWriter.pop();
+            mapInitializationNode.addArgumentNode(keys.get(index).write(classNode), values.get(index).write(classNode));
         }
+
+        mapInitializationNode.setLocation(location);
+        mapInitializationNode.setExpressionType(actual);
+        mapInitializationNode.setConstructor(constructor);
+        mapInitializationNode.setMethod(method);
+
+        return mapInitializationNode;
     }
 
     @Override

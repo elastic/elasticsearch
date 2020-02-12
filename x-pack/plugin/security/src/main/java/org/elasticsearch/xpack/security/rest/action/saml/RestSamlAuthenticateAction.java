@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -16,8 +17,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRespons
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -34,10 +34,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * A REST handler that attempts to authenticate a user based on the provided SAML response/assertion.
  */
-public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements RestHandler {
+public class RestSamlAuthenticateAction extends SamlBaseRestHandler {
+    private static final Logger logger = LogManager.getLogger();
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestSamlAuthenticateAction.class));
     static class Input {
         String content;
         List<String> ids;
@@ -62,13 +62,22 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
         PARSER.declareStringOrNull(Input::setRealm, new ParseField("realm"));
     }
 
-    public RestSamlAuthenticateAction(Settings settings, RestController controller,
-                                      XPackLicenseState licenseState) {
+    public RestSamlAuthenticateAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/saml/authenticate", this,
-            POST, "/_xpack/security/saml/authenticate", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRoute(POST, "/_security/saml/authenticate",
+                POST, "/_xpack/security/saml/authenticate", deprecationLogger)
+        );
     }
 
     @Override

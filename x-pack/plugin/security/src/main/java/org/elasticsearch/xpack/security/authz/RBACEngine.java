@@ -524,9 +524,12 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         assert realmType != null;
-        // ensure the user was authenticated by a realm that we can change a password for. The native realm is an internal realm and
-        // right now only one can exist in the realm configuration - if this changes we should update this check
-        return ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
+        // Ensure that the user is not authenticated with an access token or an API key.
+        // Also ensure that the user was authenticated by a realm that we can change a password for. The native realm is an internal realm
+        // and right now only one can exist in the realm configuration - if this changes we should update this check
+        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
+        return (authType.equals(Authentication.AuthenticationType.REALM)
+            && (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType)));
     }
 
     static class RBACAuthorizationInfo implements AuthorizationInfo {

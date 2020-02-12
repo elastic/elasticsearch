@@ -118,9 +118,9 @@ public class SimpleSortIT extends ESIntegTestCase {
     public void testSimpleSorts() throws Exception {
         Random random = random();
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("type1")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("str_value")
                                         .field("type", "keyword")
@@ -445,9 +445,9 @@ public class SimpleSortIT extends ESIntegTestCase {
 
     public void test2920() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("test", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("test")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("value")
                                         .field("type", "keyword")

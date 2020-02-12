@@ -384,7 +384,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
-    public void testPersistentNodeId() throws IOException {
+    public void testNodeIdNotPersistedAtInitialization() throws IOException {
         NodeEnvironment env = newNodeEnvironment(new String[0], Settings.builder()
             .put("node.local_storage", false)
             .put("node.master", false)
@@ -398,7 +398,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         nodeID = env.nodeId();
         env.close();
         env = newNodeEnvironment(paths, Settings.EMPTY);
-        assertThat(env.nodeId(), equalTo(nodeID));
+        assertThat(env.nodeId(), not(equalTo(nodeID)));
         env.close();
         env = newNodeEnvironment(Settings.EMPTY);
         assertThat(env.nodeId(), not(equalTo(nodeID)));

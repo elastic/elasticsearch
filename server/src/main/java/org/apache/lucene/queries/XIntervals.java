@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -111,7 +112,7 @@ public final class XIntervals {
         }
 
         @Override
-        public MatchesIterator matches(String field, LeafReaderContext ctx, int doc) throws IOException {
+        public IntervalMatchesIterator matches(String field, LeafReaderContext ctx, int doc) throws IOException {
             Terms terms = ctx.reader().terms(field);
             if (terms == null) {
                 return null;
@@ -129,7 +130,56 @@ public final class XIntervals {
                     }
                 }
             }
-            return MatchesUtils.disjunction(subMatches);
+            MatchesIterator mi = MatchesUtils.disjunction(subMatches);
+            if (mi == null) {
+                return null;
+            }
+            return new IntervalMatchesIterator() {
+                @Override
+                public int gaps() {
+                    return 0;
+                }
+
+                @Override
+                public int width() {
+                    return 1;
+                }
+
+                @Override
+                public boolean next() throws IOException {
+                    return mi.next();
+                }
+
+                @Override
+                public int startPosition() {
+                    return mi.startPosition();
+                }
+
+                @Override
+                public int endPosition() {
+                    return mi.endPosition();
+                }
+
+                @Override
+                public int startOffset() throws IOException {
+                    return mi.startOffset();
+                }
+
+                @Override
+                public int endOffset() throws IOException {
+                    return mi.endOffset();
+                }
+
+                @Override
+                public MatchesIterator getSubMatches() throws IOException {
+                    return mi.getSubMatches();
+                }
+
+                @Override
+                public Query getQuery() {
+                    return mi.getQuery();
+                }
+            };
         }
 
         @Override
@@ -684,7 +734,7 @@ public final class XIntervals {
         }
 
         @Override
-        public MatchesIterator matches(String field, LeafReaderContext ctx, int doc) throws IOException {
+        public IntervalMatchesIterator matches(String field, LeafReaderContext ctx, int doc) throws IOException {
             Terms terms = ctx.reader().terms(field);
             if (terms == null)
                 return null;
@@ -699,12 +749,22 @@ public final class XIntervals {
             return matches(te, doc);
         }
 
-        static MatchesIterator matches(TermsEnum te, int doc) throws IOException {
+        static IntervalMatchesIterator matches(TermsEnum te, int doc) throws IOException {
             PostingsEnum pe = te.postings(null, PostingsEnum.OFFSETS);
             if (pe.advance(doc) != doc) {
                 return null;
             }
-            return new MatchesIterator() {
+            return new IntervalMatchesIterator() {
+
+                @Override
+                public int gaps() {
+                    return 0;
+                }
+
+                @Override
+                public int width() {
+                    return 1;
+                }
 
                 int upto = pe.freq();
                 int pos = -1;

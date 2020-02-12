@@ -246,6 +246,30 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public static Match fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
+
+        String getQuery() {
+            return query;
+        }
+
+        int getMaxGaps() {
+            return maxGaps;
+        }
+
+        boolean isOrdered() {
+            return ordered;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        IntervalFilter getFilter() {
+            return filter;
+        }
+
+        String getUseField() {
+            return useField;
+        }
     }
 
     public static class Disjunction extends IntervalsSourceProvider {
@@ -290,12 +314,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Disjunction that = (Disjunction) o;
-            return Objects.equals(subSources, that.subSources);
+            return Objects.equals(subSources, that.subSources) &&
+                Objects.equals(filter, that.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources);
+            return Objects.hash(subSources, filter);
         }
 
         @Override
@@ -341,6 +366,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public static Disjunction fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
+        }
+
+        List<IntervalsSourceProvider> getSubSources() {
+            return subSources;
+        }
+
+        IntervalFilter getFilter() {
+            return filter;
         }
     }
 
@@ -393,12 +426,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (o == null || getClass() != o.getClass()) return false;
             Combine combine = (Combine) o;
             return Objects.equals(subSources, combine.subSources) &&
-                ordered == combine.ordered && maxGaps == combine.maxGaps;
+                ordered == combine.ordered &&
+                maxGaps == combine.maxGaps &&
+                Objects.equals(filter, combine.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources, ordered, maxGaps);
+            return Objects.hash(subSources, ordered, maxGaps, filter);
         }
 
         @Override
@@ -451,6 +486,22 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public static Combine fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
+        }
+
+        List<IntervalsSourceProvider> getSubSources() {
+            return subSources;
+        }
+
+        boolean isOrdered() {
+            return ordered;
+        }
+
+        int getMaxGaps() {
+            return maxGaps;
+        }
+
+        IntervalFilter getFilter() {
+            return filter;
         }
     }
 
@@ -746,8 +797,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), term);
             FuzzyQuery fq = new FuzzyQuery(new Term(fieldType.name(), normalizedTerm),
                 fuzziness.asDistance(term), prefixLength, 128, transpositions);
-            CompiledAutomaton ca = new CompiledAutomaton(fq.toAutomaton());
-            source = XIntervals.multiterm(ca, term);
+            CompiledAutomaton[] automata = fq.getAutomata();
+            source = XIntervals.multiterm(automata[automata.length - 1], term);
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }
@@ -837,6 +888,30 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public static Fuzzy fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
+        }
+
+        String getTerm() {
+            return term;
+        }
+
+        int getPrefixLength() {
+            return prefixLength;
+        }
+
+        boolean isTranspositions() {
+            return transpositions;
+        }
+
+        Fuzziness getFuzziness() {
+            return fuzziness;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
         }
     }
 
@@ -984,6 +1059,18 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 throw new ParsingException(parser.getTokenLocation(), "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
             }
             return new IntervalFilter(intervals, type);
+        }
+
+        String getType() {
+            return type;
+        }
+
+        IntervalsSourceProvider getFilter() {
+            return filter;
+        }
+
+        Script getScript() {
+            return script;
         }
     }
 

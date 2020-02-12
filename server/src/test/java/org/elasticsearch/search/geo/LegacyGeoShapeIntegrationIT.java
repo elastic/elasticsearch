@@ -74,7 +74,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
         // left orientation test
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
         IndexService indexService = indicesService.indexService(resolveIndex(idxName));
-        MappedFieldType fieldType = indexService.mapperService().fullName("location");
+        MappedFieldType fieldType = indexService.mapperService().fieldType("location");
         assertThat(fieldType, instanceOf(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class));
 
         LegacyGeoShapeFieldMapper.GeoShapeFieldType gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;
@@ -86,7 +86,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
         indexService = indicesService.indexService(resolveIndex((idxName+"2")));
-        fieldType = indexService.mapperService().fullName("location");
+        fieldType = indexService.mapperService().fieldType("location");
         assertThat(fieldType, instanceOf(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class));
 
         gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;
@@ -102,7 +102,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
+            .setMapping("shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -169,7 +169,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
     public void testLegacyCircle() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
+            .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {

@@ -1,8 +1,8 @@
-== Testing analyzers
+[[test-analyzer]]
+=== Test an analyzer
 
 The <<indices-analyze,`analyze` API>> is an invaluable tool for viewing the
-terms produced by an analyzer. A built-in analyzer (or combination of built-in
-tokenizer, token filters, and character filters) can be specified inline in
+terms produced by an analyzer. A built-in analyzer can be specified inline in
 the request:
 
 [source,console]
@@ -12,7 +12,54 @@ POST _analyze
   "analyzer": "whitespace",
   "text":     "The quick brown fox."
 }
+-------------------------------------
 
+The API returns the following response:
+
+[source,console-result]
+-------------------------------------
+{
+  "tokens": [
+    {
+      "token": "The",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "quick",
+      "start_offset": 4,
+      "end_offset": 9,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "brown",
+      "start_offset": 10,
+      "end_offset": 15,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "fox.",
+      "start_offset": 16,
+      "end_offset": 20,
+      "type": "word",
+      "position": 3
+    }
+  ]
+}
+-------------------------------------
+
+You can also test combinations of:
+
+* A tokenizer
+* Zero or token filters
+* Zero or more character filters
+
+[source,console]
+-------------------------------------
 POST _analyze
 {
   "tokenizer": "standard",
@@ -21,7 +68,43 @@ POST _analyze
 }
 -------------------------------------
 
+The API returns the following response:
 
+[source,console-result]
+-------------------------------------
+{
+  "tokens": [
+    {
+      "token": "is",
+      "start_offset": 0,
+      "end_offset": 2,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "this",
+      "start_offset": 3,
+      "end_offset": 7,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "deja",
+      "start_offset": 8,
+      "end_offset": 12,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "vu",
+      "start_offset": 13,
+      "end_offset": 15,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+-------------------------------------
 
 .Positions and character offsets
 *********************************************************
@@ -76,6 +159,44 @@ GET my_index/_analyze <3>
 {
   "field": "my_text", <5>
   "text":  "Is this déjà vu?"
+}
+-------------------------------------
+
+The API returns the following response:
+
+[source,console-result]
+-------------------------------------
+{
+  "tokens": [
+    {
+      "token": "is",
+      "start_offset": 0,
+      "end_offset": 2,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "this",
+      "start_offset": 3,
+      "end_offset": 7,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "deja",
+      "start_offset": 8,
+      "end_offset": 12,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "vu",
+      "start_offset": 13,
+      "end_offset": 15,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
 }
 -------------------------------------
 

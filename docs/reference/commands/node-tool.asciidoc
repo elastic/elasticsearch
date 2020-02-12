@@ -3,9 +3,9 @@
 
 The `elasticsearch-node` command enables you to perform certain unsafe
 operations on a node that are only possible while it is shut down. This command
-allows you to adjust the <<modules-node,role>> of a node and may be able to
-recover some data after a disaster or start a node even if it is incompatible
-with the data on disk.
+allows you to adjust the <<modules-node,role>> of a node, unsafely edit cluster
+settings and may be able to recover some data after a disaster or start a node
+even if it is incompatible with the data on disk.
 
 [float]
 === Synopsis
@@ -20,12 +20,20 @@ bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-versio
 [float]
 === Description
 
-This tool has four modes:
+This tool has a number of modes:
 
 * `elasticsearch-node repurpose` can be used to delete unwanted data from a
   node if it used to be a <<data-node,data node>> or a
   <<master-node,master-eligible node>> but has been repurposed not to have one
   or other of these roles.
+
+* `elasticsearch-node remove-settings` can be used to remove persistent settings
+  from the cluster state in case where it contains incompatible settings that
+  prevent the cluster from forming.
+
+* `elasticsearch-node remove-customs` can be used to remove custom metadata
+  from the cluster state in case where it contains broken metadata that
+  prevents the cluster state from being loaded.
 
 * `elasticsearch-node unsafe-bootstrap` can be used to perform _unsafe cluster
   bootstrapping_.  It forces one of the nodes to form a brand-new cluster on
@@ -33,7 +41,7 @@ This tool has four modes:
 
 * `elasticsearch-node detach-cluster` enables you to move nodes from one
   cluster to another.  This can be used to move nodes into a new cluster
-  created with the `elasticsearch-node unsafe-bootstap` command. If unsafe
+  created with the `elasticsearch-node unsafe-bootstrap` command. If unsafe
   cluster bootstrapping was not possible, it also enables you to move nodes
   into a brand-new cluster.
 
@@ -75,6 +83,44 @@ determining that the node cannot be repurposed cleanly.
 The tool provides a summary of the data to be deleted and asks for confirmation
 before making any changes. You can get detailed information about the affected
 indices and shards by passing the verbose (`-v`) option.
+
+[float]
+==== Removing persistent cluster settings
+
+There may be situations where a node contains persistent cluster
+settings that prevent the cluster from forming. Since the cluster cannot form,
+it is not possible to remove these settings using the
+<<cluster-update-settings>> API.
+
+The `elasticsearch-node remove-settings` tool allows you to forcefully remove
+those persistent settings from the on-disk cluster state. The tool takes a
+list of settings as parameters that should be removed, and also supports
+wildcard patterns.
+
+The intended use is:
+
+* Stop the node
+* Run `elasticsearch-node remove-settings name-of-setting-to-remove` on the node
+* Repeat for all other master-eligible nodes
+* Start the nodes
+
+[float]
+==== Removing custom metadata from the cluster state
+
+There may be situations where a node contains custom metadata, typically
+provided by plugins, that prevent the node from starting up and loading
+the cluster from disk.
+
+The `elasticsearch-node remove-customs` tool allows you to forcefully remove
+the problematic custom metadata. The tool takes a list of custom metadata names
+as parameters that should be removed, and also supports wildcard patterns.
+
+The intended use is:
+
+* Stop the node
+* Run `elasticsearch-node remove-customs name-of-custom-to-remove` on the node
+* Repeat for all other master-eligible nodes
+* Start the nodes
 
 [float]
 ==== Recovering data after a disaster
@@ -143,9 +189,9 @@ If there is at least one remaining master-eligible node, but it is not possible
 to restart a majority of them, then the `elasticsearch-node unsafe-bootstrap`
 command will unsafely override the cluster's <<modules-discovery-voting,voting
 configuration>> as if performing another
-<<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>. 
+<<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>.
 The target node can then form a new cluster on its own by using
-the cluster metadata held locally on the target node. 
+the cluster metadata held locally on the target node.
 
 [WARNING]
 These steps can lead to arbitrary data loss since the target node may not hold the latest cluster
@@ -290,6 +336,9 @@ it can join a different cluster.
 `override-version`:: Overwrites the version number stored in the data path so
 that a node can start despite being incompatible with the on-disk data.
 
+`remove-settings`:: Forcefully removes the provided persistent cluster settings
+from the on-disk cluster state.
+
 `-E <KeyValuePair>`:: Configures a setting.
 
 `-h, --help`:: Returns all of the command parameters.
@@ -344,6 +393,67 @@ Node is being re-purposed as no-master and no-data. Clean-up of index data will 
 Do you want to proceed?
 Confirm [y/N] y
 Node successfully repurposed to no-master and no-data.
+----
+
+[float]
+==== Removing persistent cluster settings
+
+If your nodes contain persistent cluster settings that prevent the cluster
+from forming, i.e., can't be removed using the <<cluster-update-settings>> API,
+you can run the following commands to remove one or more cluster settings.
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.exporters.my_exporter.host
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+The following settings will be removed:
+xpack.monitoring.exporters.my_exporter.host: "10.1.2.3"
+
+You should only run this tool if you have incompatible settings in the
+cluster state that prevent the cluster from forming.
+This tool can cause data loss and its use should be your last resort.
+
+Do you want to proceed?
+
+Confirm [y/N] y
+
+Settings were successfully removed from the cluster state
+----
+
+You can also use wildcards to remove multiple settings, for example using
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.*
+----
+
+[float]
+==== Removing custom metadata from the cluster state
+
+If the on-disk cluster state contains custom metadata that prevents the node
+from starting up and loading the cluster state, you can run the following
+commands to remove this custom metadata.
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-customs snapshot_lifecycle
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+The following customs will be removed:
+snapshot_lifecycle
+
+You should only run this tool if you have broken custom metadata in the
+cluster state that prevents the cluster state from being loaded.
+This tool can cause data loss and its use should be your last resort.
+
+Do you want to proceed?
+
+Confirm [y/N] y
+
+Customs were successfully removed from the cluster state
 ----
 
 [float]

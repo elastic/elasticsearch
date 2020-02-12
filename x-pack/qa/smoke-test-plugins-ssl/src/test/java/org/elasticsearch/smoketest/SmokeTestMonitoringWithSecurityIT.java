@@ -160,7 +160,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
             .build();
         ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), getRequestOptions());
         assertTrue(response.isAcknowledged());
     }
 
@@ -177,8 +177,15 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
             .build();
         ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), getRequestOptions());
         assertTrue(response.isAcknowledged());
+    }
+
+    private RequestOptions getRequestOptions() {
+        String deprecationWarning = "[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will " +
+            "be removed in a future release! See the breaking changes documentation for the next major version.";
+        return RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.size() != 1 ||
+            warnings.get(0).equals(deprecationWarning) == false).build();
     }
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {
@@ -192,6 +199,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         return exporters != null && exporters.isEmpty() == false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
     public void testHTTPExporterWithSSL() throws Exception {
         // Ensures that the exporter is actually on
         assertBusy(() -> assertThat("[_http] exporter is not defined", getMonitoringUsageExportersDefined(), is(true)));
@@ -238,6 +246,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
     public void testSettingsFilter() throws IOException {
         final Request request = new Request("GET", "/_cluster/settings");
         final Response response = client().performRequest(request);

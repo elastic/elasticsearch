@@ -96,9 +96,12 @@ re-started.
 `timing_stats`::
 (object) An object that provides statistical information about timing aspect of
 this {dfeed}.
-//average_search_time_per_bucket_ms
-//bucket_count
-//exponential_average_search_time_per_hour_ms
+`timing_stats`.`average_search_time_per_bucket_ms`:::
+(double) Average of the {dfeed} search times in milliseconds.
+`timing_stats`.`bucket_count`:::
+(long) The number of buckets processed. 
+`timing_stats`.`exponential_average_search_time_per_hour_ms`:::
+(double) Exponential moving average of the {dfeed} search times in milliseconds.
 `timing_stats`.`job_id`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 `timing_stats`.`search_count`::: Number of searches performed by this {dfeed}.

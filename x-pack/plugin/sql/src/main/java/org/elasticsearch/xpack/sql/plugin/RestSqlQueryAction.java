@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -25,15 +24,20 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
-    public RestSqlQueryAction(RestController controller) {
-        controller.registerHandler(GET, Protocol.SQL_QUERY_REST_ENDPOINT, this);
-        controller.registerHandler(POST, Protocol.SQL_QUERY_REST_ENDPOINT, this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
+            new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT)));
     }
 
     @Override
@@ -49,17 +53,17 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * {@link XContent} outputs we can't use {@link RestToXContentListener}
          * like everything else. We want to stick as closely as possible to
          * Elasticsearch's defaults though, while still layering in ways to
-         * control the output more easilly.
+         * control the output more easily.
          *
          * First we find the string that the user used to specify the response
-         * format. If there is a {@code format} paramter we use that. If there
+         * format. If there is a {@code format} parameter we use that. If there
          * isn't but there is a {@code Accept} header then we use that. If there
          * isn't then we use the {@code Content-Type} header which is required.
          */
         String accept = null;
-        
+
         if ((Mode.isDriver(sqlRequest.requestInfo().mode()) || sqlRequest.requestInfo().mode() == Mode.CLI)
-                && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication() == true)) {
+                && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             accept = XContentType.CBOR.name();
         } else {

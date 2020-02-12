@@ -100,7 +100,13 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 } else {
   /* Set up tasks to unzip and run the old versions of ES before running the
    * integration tests. */
-  for (String version : ['2', '1', '090']) {
+  def versions = ['2', '1', '090']
+  if (Os.isFamily(Os.FAMILY_MAC)) {
+    // 0.90 fails sometimes on mac, given that it is so old, let us disable it
+    // see: https://github.com/elastic/elasticsearch/issues/51202
+    versions = ['2', '1']
+  }
+  for (String version : versions) {
     Task unzip = task("unzipEs${version}", type: Sync) {
       Configuration oldEsDependency = configurations['es' + version]
       dependsOn oldEsDependency

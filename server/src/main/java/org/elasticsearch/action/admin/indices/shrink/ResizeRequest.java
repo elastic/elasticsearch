@@ -45,7 +45,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 
-    public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request", null);
+    public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
     static {
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);

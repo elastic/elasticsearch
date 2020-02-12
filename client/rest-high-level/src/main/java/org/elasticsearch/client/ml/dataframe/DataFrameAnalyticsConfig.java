@@ -58,7 +58,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField ALLOW_LAZY_START = new ParseField("allow_lazy_start");
 
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_config", true, Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_config", true, Builder::new);
 
     static {
         PARSER.declareString(Builder::setId, ID);

@@ -322,6 +322,7 @@ public final class ReservedFieldNames {
             BoostedTreeParams.ETA.getPreferredName(),
             BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName(),
             BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
+            BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 

@@ -32,6 +32,11 @@ public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> ex
             }
         }
     }
+    
+    /**
+     * Returns a {@link Writeable.Reader} that can be used to de-serialize the instance
+     */
+    protected abstract Writeable.Reader<T> instanceReader();
 
     protected ZoneId instanceZoneId(T instance) {
         return randomSafeZone();

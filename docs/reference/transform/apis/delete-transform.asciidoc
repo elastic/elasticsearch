@@ -10,8 +10,6 @@
 
 Deletes an existing {transform}.
 
-beta[]
-
 [[delete-transform-request]]
 ==== {api-request-title}
 

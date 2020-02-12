@@ -6,22 +6,8 @@
 <titleabbrev>Limitations</titleabbrev>
 ++++
 
-beta[]
-
 The following limitations and known problems apply to the {version} release of 
 the Elastic {transform} feature:
-
-
-[float]
-[[transform-compatibility-limitations]]
-==== Beta {transforms} do not have guaranteed backwards or forwards compatibility
-
-Whilst {transforms} are beta, it is not guaranteed that a {transform} created in 
-a previous version of the {stack} will be able to start and operate in a future 
-version. Neither can support be provided for {transform} tasks to be able to 
-operate in a cluster with mixed node versions. Please note that the output of a 
-{transform} is persisted to a destination index. This is a normal {es} index and 
-is not affected by the beta status. 
 
 
 [float]
@@ -52,13 +38,6 @@ table.
 
 
 [float]
-[[transform-ccs-limitations]]
-==== {ccs-cap} is not supported
-
-{ccs-cap} is not supported for {transforms}.
-
-
-[float]
 [[transform-kibana-limitations]]
 ==== Up to 1,000 {transforms} are supported
 
@@ -66,6 +45,16 @@ A single cluster will support up to 1,000 {transforms}. When using the
 {ref}/get-transform.html[GET {transforms} API] a total `count` of {transforms} 
 is returned. Use the `size` and `from` parameters to enumerate through the full 
 list.
+
+
+[float]
+[[transform-node-assignment-limitations]]
+==== {transforms-cap} node assignment not configurable
+
+{transforms-cap} persistent tasks are assigned to the data node running
+fewest persistent tasks at the time of assignment. This cannot be customized.
+It means that if {transforms} are being used then `xpack.transform.enabled`
+must be set to `true` (which is the default) on every data node in the cluster.
 
 
 [float]

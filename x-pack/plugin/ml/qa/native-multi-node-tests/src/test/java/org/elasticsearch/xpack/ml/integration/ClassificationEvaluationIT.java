@@ -309,7 +309,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     private static void createAnimalsIndex(String indexName) {
         client().admin().indices().prepareCreate(indexName)
-            .addMapping("_doc",
+            .setMapping(
                 ANIMAL_NAME_FIELD, "type=keyword",
                 ANIMAL_NAME_PREDICTION_FIELD, "type=keyword",
                 NO_LEGS_FIELD, "type=integer",

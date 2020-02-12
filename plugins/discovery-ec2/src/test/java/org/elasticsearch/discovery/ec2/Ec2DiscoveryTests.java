@@ -358,9 +358,9 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                 return new ArrayList<>();
             }
         };
-        for (int i=0; i<3; i++) {
+        for (int i = 0; i < 3; i++) {
             provider.getSeedAddresses(null);
         }
-        assertThat(provider.fetchCount, is(3));
+        assertThat(provider.fetchCount, is(1));
     }
 }

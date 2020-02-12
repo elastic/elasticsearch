@@ -140,9 +140,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("foo_template")
                 .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
-                .addMapping("type1", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                     .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                             .startObject("properties")
                                 .startObject("field1")
                                     .field("type", "text")
@@ -160,9 +160,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("fuu_template")
                 .setPatterns(Collections.singletonList("test*"))
                 .setOrder(1)
-                .addMapping("type1", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                         .startObject()
-                            .startObject("type1")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("field2")
                                         .field("type", "text")
@@ -219,7 +219,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int estimatedBytesSize = scaledRandomIntBetween(
             ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
             ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt());
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         int counter = 0;
         int numberOfFields = 0;
         while (true) {
@@ -240,7 +240,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE))
-                .addMapping("type", mapping)
+                .setMapping(mapping)
                 .setTimeout("60s").get());
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
         MappingMetaData masterMappingMetaData = client().admin().indices()

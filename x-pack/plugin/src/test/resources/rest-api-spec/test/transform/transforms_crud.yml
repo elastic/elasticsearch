@@ -79,7 +79,7 @@ setup:
 ---
 "Test put transform with invalid source index":
   - do:
-      catch: /.*reason=Validation Failed.* no such index \[missing-index\]/
+      catch: /.*Validation Failed.* no such index \[missing-index\]/
       transform.put_transform:
         transform_id: "missing-source-transform"
         body: >
@@ -119,6 +119,22 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             },
             "description": "yaml test transform on airline-data"
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "airline-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "some_field",
+                  "value" : 42
+                }
+              }
+            ]
           }
   - match: { acknowledged: true }
 
@@ -384,7 +400,7 @@ setup:
         name: source-index
 
   - do:
-      catch: /.*reason=Validation Failed.* Destination index \[created-destination-index\] is included in source expression \[airline-data,created-destination-index\]/
+      catch: /.*Validation Failed.* Destination index \[created-destination-index\] is included in source expression \[airline-data,created-destination-index\]/
       transform.put_transform:
         transform_id: "transform-from-aliases-failures"
         body: >
@@ -410,7 +426,7 @@ setup:
         name: dest-index
 
   - do:
-      catch: /.*reason=Validation Failed.* no write index is defined for alias [dest2-index].*/
+      catch: /.*Validation Failed.* no write index is defined for alias [dest2-index].*/
       transform.put_transform:
         transform_id: "airline-transform"
         body: >
@@ -521,7 +537,7 @@ setup:
 ---
 "Test invalid destination index name":
   - do:
-      catch: /.*reason=Validation Failed.* Destination index \[DeStInAtIoN\] must be lowercase/
+      catch: /.*Validation Failed.* Destination index \[DeStInAtIoN\] must be lowercase/
       transform.put_transform:
         transform_id: "airline-transform"
         body: >
@@ -631,3 +647,36 @@ setup:
         transform_id: "airline-transform-start-delete"
         force: true
   - match: { acknowledged: true }
+---
+"Test put transform with missing pipeline":
+  - do:
+      catch: /Pipeline with id \[missing-transform-pipeline\] could not be found/
+      transform.put_transform:
+        transform_id: "airline-transform-with-missing-pipeline-crud"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-with-pipeline", "pipeline": "missing-transform-pipeline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data"
+          }
+---
+"Test put transform with missing pipeline and defer validations":
+  - do:
+      transform.put_transform:
+        defer_validation: true
+        transform_id: "airline-transform-with-missing-pipeline-crud-defer"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline", "pipeline": "missing-transform-pipeline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data"
+          }
+  - match: {acknowledged: true}

@@ -42,7 +42,7 @@ using the <<index-refresh-interval-setting,`index.refresh_interval`>> setting.
 
 [IMPORTANT]
 ====
-Refreshes are a resource-intensive.
+Refreshes are resource-intensive.
 To ensure good cluster performance,
 we recommend waiting for {es}'s periodic refresh 
 rather than performing an explicit refresh

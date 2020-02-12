@@ -82,7 +82,7 @@ public class WatcherStatsResponse {
     }
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<WatcherStatsResponse, Void> PARSER =
+    private static final ConstructingObjectParser<WatcherStatsResponse, Void> PARSER =
         new ConstructingObjectParser<>("watcher_stats_response", true,
             a -> new WatcherStatsResponse((NodesResponseHeader) a[0], (String) a[1], new WatcherMetaData((boolean) a[2]),
                 (List<Node>) a[3]));

@@ -5,8 +5,6 @@
 <titleabbrev>Overview</titleabbrev>
 ++++
 
-beta[]
-
 You can use {transforms} to _pivot_ your data into a new entity-centric index. 
 By transforming and summarizing your data, it becomes possible to visualize and 
 analyze it in alternative and interesting ways.

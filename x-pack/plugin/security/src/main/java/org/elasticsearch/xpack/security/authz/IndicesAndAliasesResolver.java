@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -120,16 +121,15 @@ class IndicesAndAliasesResolver {
                     : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices, metaData));
         } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
-            IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
-            final boolean replaceWildcards = indicesRequest.indicesOptions().expandWildcardsOpen()
-                    || indicesRequest.indicesOptions().expandWildcardsClosed();
-            IndicesOptions indicesOptions = indicesRequest.indicesOptions();
+            final IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
+            final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
+            final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
 
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
-                        if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
+                        if (isIndexVisible("*", authorizedIndex, indicesOptions, metaData)) {
                             resolvedIndicesBuilder.addLocal(authorizedIndex);
                         }
                     }
@@ -356,7 +356,8 @@ class IndicesAndAliasesResolver {
                 if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
                     aliasOrIndex = dateMathName;
-                } else if (authorizedIndices.contains(dateMathName) && isIndexVisible(dateMathName, indicesOptions, metaData, true)) {
+                } else if (authorizedIndices.contains(dateMathName) &&
+                    isIndexVisible(aliasOrIndex, dateMathName, indicesOptions, metaData, true)) {
                     if (minus) {
                         finalIndices.remove(dateMathName);
                     } else {
@@ -373,7 +374,8 @@ class IndicesAndAliasesResolver {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : authorizedIndices) {
-                    if (Regex.simpleMatch(aliasOrIndex, authorizedIndex) && isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
+                    if (Regex.simpleMatch(aliasOrIndex, authorizedIndex) &&
+                        isIndexVisible(aliasOrIndex, authorizedIndex, indicesOptions, metaData)) {
                         resolvedIndices.add(authorizedIndex);
                     }
                 }
@@ -408,11 +410,12 @@ class IndicesAndAliasesResolver {
         return finalIndices;
     }
 
-    private static boolean isIndexVisible(String index, IndicesOptions indicesOptions, MetaData metaData) {
-        return isIndexVisible(index, indicesOptions, metaData, false);
+    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, MetaData metaData) {
+        return isIndexVisible(expression, index, indicesOptions, metaData, false);
     }
 
-    private static boolean isIndexVisible(String index, IndicesOptions indicesOptions, MetaData metaData, boolean dateMathExpression) {
+    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, MetaData metaData,
+                                          boolean dateMathExpression) {
         AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(index);
         if (aliasOrIndex.isAlias()) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
@@ -422,13 +425,27 @@ class IndicesAndAliasesResolver {
         }
         assert aliasOrIndex.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
-        if (indexMetaData.getState() == IndexMetaData.State.CLOSE && (indicesOptions.expandWildcardsClosed() || dateMathExpression)) {
+        final boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(indexMetaData.getSettings());
+        if (isHidden && indicesOptions.expandWildcardsHidden() == false && isVisibleDueToImplicitHidden(expression, index) == false) {
+            return false;
+        }
+
+        // the index is not hidden and since it is a date math expression, we consider it visible regardless of open/closed
+        if (dateMathExpression) {
+            assert State.values().length == 2 : "a new IndexMetaData.State value may need to be handled!";
             return true;
         }
-        if (indexMetaData.getState() == IndexMetaData.State.OPEN && (indicesOptions.expandWildcardsOpen() || dateMathExpression)) {
+        if (indexMetaData.getState() == IndexMetaData.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
+            return true;
+        }
+        if (indexMetaData.getState() == IndexMetaData.State.OPEN && indicesOptions.expandWildcardsOpen()) {
             return true;
         }
         return false;
+    }
+
+    private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
+        return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
     }
 
     private static List<String> indicesList(String[] list) {

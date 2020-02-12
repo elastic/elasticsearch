@@ -87,7 +87,7 @@ setup:
 ---
 "Test put config with security headers in the body":
   - do:
-      catch: /unknown field \[headers\], parser not found/
+      catch: /unknown field \[headers\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_header"
         body:  >
@@ -107,7 +107,7 @@ setup:
 "Test put config with create_time in the body":
 
   - do:
-      catch: /unknown field \[create_time\], parser not found/
+      catch: /unknown field \[create_time\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_create_time"
         body: >
@@ -126,7 +126,7 @@ setup:
 "Test put config with version in the body":
 
   - do:
-      catch: /unknown field \[version\], parser not found/
+      catch: /unknown field \[version\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_version"
         body: >
@@ -269,6 +269,24 @@ setup:
           }
 
 ---
+"Test put config given dest index contains uppercase chars":
+
+  - do:
+      catch: /.*Validation Failed.* Destination index \[Foo\] must be lowercase;.*/
+      ml.put_data_frame_analytics:
+        id: "config-given-dest-index-uppercase"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "Foo"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
 "Test put config with pattern dest index name":
 
   - do:
@@ -290,7 +308,7 @@ setup:
 "Test put config with missing concrete source index":
 
   - do:
-      catch: /No index matches source index \[missing]/
+      catch: /.*Validation Failed.* no such index \[missing\]/
       ml.put_data_frame_analytics:
         id: "config-with-missing-concrete-source-index"
         body: >
@@ -308,7 +326,6 @@ setup:
 "Test put config with missing wildcard source index":
 
   - do:
-      catch: /No index matches source index \[missing\*\]/
       ml.put_data_frame_analytics:
         id: "config-with-missing-wildcard-source-index"
         body: >
@@ -321,12 +338,13 @@ setup:
             },
             "analysis": {"outlier_detection":{}}
           }
+  - match: { id: "config-with-missing-wildcard-source-index" }
 
 ---
 "Test put config with dest index same as source index":
 
   - do:
-      catch: /Destination index \[index-source\] must not be included in source index \[index-source\]/
+      catch: /.*Validation Failed.* Destination index \[index-source\] is included in source expression \[index-source\]/
       ml.put_data_frame_analytics:
         id: "config-with-same-source-dest-index"
         body: >
@@ -362,7 +380,7 @@ setup:
         name: multiple-dest-index
 
   - do:
-      catch: /Destination index \[multiple-dest-index\] should match a single index; matches \[multiple-dest-index-[12], multiple-dest-index-[12]\]/
+      catch: /.*Validation Failed.* no write index is defined for alias \[multiple-dest-index\].*/
       ml.put_data_frame_analytics:
         id: "config-with-dest-index-matching-multiple-indices"
         body: >
@@ -389,7 +407,7 @@ setup:
         name: dest-alias
 
   - do:
-      catch: /Destination index \[dest-alias\], which is an alias for \[another-source-index\], must not be included in source index \[another-source-index\]/
+      catch: /.*Validation Failed.* Destination index \[another-source-index\] is included in source expression \[another-source-index\]/
       ml.put_data_frame_analytics:
         id: "config-with-dest-index-included-in-source-via-alias"
         body: >
@@ -404,10 +422,28 @@ setup:
           }
 
 ---
+"Test put config with remote source index":
+
+  - do:
+      catch: /.*Validation Failed.* remote source indices are not supported/
+      ml.put_data_frame_analytics:
+        id: "config-with-missing-concrete-source-index"
+        body: >
+          {
+            "source": {
+              "index": "remote_cluster:foo"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
 "Test put config with unknown top level field":
 
   - do:
-      catch: /unknown field \[unknown_field\], parser not found/
+      catch: /unknown field \[unknown_field\]/
       ml.put_data_frame_analytics:
         id: "unknown_field"
         body: >

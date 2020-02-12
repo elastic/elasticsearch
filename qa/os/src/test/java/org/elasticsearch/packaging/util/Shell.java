@@ -88,9 +88,13 @@ public class Shell {
         Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
         Platforms.onWindows(() -> run(
             "$account = New-Object System.Security.Principal.NTAccount '" + System.getenv("username")  + "'; " +
-                "$tempConf = Get-ChildItem '" + path + "' -Recurse; " +
-                "$tempConf += Get-Item '" + path + "'; " +
-                "$tempConf | ForEach-Object { " +
+                "$pathInfo = Get-Item '" + path + "'; " +
+                "$toChown = @(); " +
+                "if ($pathInfo.PSIsContainer) { " +
+                "  $toChown += Get-ChildItem '" + path + "' -Recurse; " +
+                "}" +
+                "$toChown += $pathInfo; " +
+                "$toChown | ForEach-Object { " +
                 "$acl = Get-Acl $_.FullName; " +
                 "$acl.SetOwner($account); " +
                 "Set-Acl $_.FullName $acl " +
@@ -98,7 +102,12 @@ public class Shell {
         ));
     }
 
-    public Result run( String command, Object... args) {
+    public void extractZip(Path zipPath, Path destinationDir) throws Exception {
+        Platforms.onLinux(() -> run("unzip \"" + zipPath + "\" -d \"" + destinationDir + "\""));
+        Platforms.onWindows(() -> run("Expand-Archive -Path \"" + zipPath + "\" -DestinationPath \"" + destinationDir + "\""));
+    }
+
+    public Result run(String command, Object... args) {
         String formattedCommand = String.format(Locale.ROOT, command, args);
         return run(formattedCommand);
     }
@@ -162,7 +171,7 @@ public class Shell {
                     readFileIfExists(stdErr)
                 );
                 throw new IllegalStateException(
-                    "Timed out running shell command: " + command + "\n" +
+                    "Timed out running shell command: " + Arrays.toString(command) + "\n" +
                     "Result:\n" + result
                 );
             }

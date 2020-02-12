@@ -31,6 +31,10 @@ public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTes
 
     @Override
     protected Wildcard createTestInstance() {
+        return createRandomWildcard();
+    }
+
+    static Wildcard createRandomWildcard() {
         return new Wildcard(
             randomAlphaOfLength(10),
             randomBoolean() ? randomAlphaOfLength(10) : null,

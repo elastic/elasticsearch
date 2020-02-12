@@ -145,7 +145,7 @@ public final class RetentionLease implements ToXContentObject, Writeable {
     private static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");
     private static final ParseField SOURCE_FIELD = new ParseField("source");
 
-    private static ConstructingObjectParser<RetentionLease, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RetentionLease, Void> PARSER = new ConstructingObjectParser<>(
             "retention_leases",
             (a) -> new RetentionLease((String) a[0], (Long) a[1], (Long) a[2], (String) a[3]));
 

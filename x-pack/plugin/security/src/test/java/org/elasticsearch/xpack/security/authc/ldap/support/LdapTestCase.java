@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapLoadBalancingSettings;
@@ -172,6 +173,7 @@ public abstract class LdapTestCase extends ESTestCase {
         if (serverSetType != null) {
             builder.put(getFullSettingKey(realmId, LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING), serverSetType.toString());
         }
+        builder.put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0);
         return builder.build();
     }
 
@@ -192,6 +194,7 @@ public abstract class LdapTestCase extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(getFullSettingKey(REALM_IDENTIFIER, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true)
                 .put("path.home", createTempDir())
+                .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
                 TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));

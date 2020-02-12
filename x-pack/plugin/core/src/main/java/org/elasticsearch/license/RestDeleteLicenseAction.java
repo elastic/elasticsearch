@@ -9,18 +9,22 @@ package org.elasticsearch.license;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteLicenseAction extends BaseRestHandler {
 
-    RestDeleteLicenseAction(RestController controller) {
-        controller.registerHandler(DELETE, "/_license", this);
+    RestDeleteLicenseAction() {}
+
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(DELETE, "/_license"));
     }
 
     @Override

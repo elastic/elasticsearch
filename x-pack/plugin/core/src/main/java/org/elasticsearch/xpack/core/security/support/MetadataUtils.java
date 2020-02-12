@@ -11,6 +11,8 @@ public class MetadataUtils {
 
     public static final String RESERVED_PREFIX = "_";
     public static final String RESERVED_METADATA_KEY = RESERVED_PREFIX + "reserved";
+    public static final String DEPRECATED_METADATA_KEY = RESERVED_PREFIX + "deprecated";
+    public static final String DEPRECATED_REASON_METADATA_KEY = RESERVED_PREFIX + "deprecated_reason";
     public static final Map<String, Object> DEFAULT_RESERVED_METADATA = Map.of(RESERVED_METADATA_KEY, true);
 
     private MetadataUtils() {
@@ -23,5 +25,13 @@ public class MetadataUtils {
             }
         }
         return false;
+    }
+
+    public static Map<String, Object> getDeprecatedReservedMetadata(String reason) {
+        return Map.of(
+            RESERVED_METADATA_KEY, true,
+            DEPRECATED_METADATA_KEY, true,
+            DEPRECATED_REASON_METADATA_KEY, reason
+        );
     }
 }

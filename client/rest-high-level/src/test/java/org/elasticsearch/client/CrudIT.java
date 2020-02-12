@@ -38,6 +38,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
@@ -64,6 +66,7 @@ import org.joda.time.format.DateTimeFormat;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -178,7 +181,9 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testSourceExists() throws IOException {
+    // used deprecated API existsSource(GetRequest, RequestOptions)
+    // see test `testSourceExists` with new API tests
+    public void testDeprecatedSourceExists() throws IOException {
         {
             GetRequest getRequest = new GetRequest("index", "id");
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
@@ -197,6 +202,25 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             GetRequest getRequest = new GetRequest("index", "does_not_exist").version(1);
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+    }
+
+    public void testSourceExists() throws IOException {
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        IndexRequest index = new IndexRequest("index").id("id");
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index, RequestOptions.DEFAULT);
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            assertTrue(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "does_not_exist");
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }
@@ -227,7 +251,11 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             GetRequest getRequest = new GetRequest(noSourceIndex, "1");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
+            // used deprecated API existsSource(GetRequest, RequestOptions)
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+            // used new API existsSource(GetSourceRequest, RequestOptions)
+            GetSourceRequest getSourceRequest = new GetSourceRequest(noSourceIndex, "1");
+            assertFalse(execute(getSourceRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }
 
@@ -356,6 +384,71 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id2", response.getResponses()[1].getId());
             assertEquals("index", response.getResponses()[1].getIndex());
             assertEquals(Collections.singletonMap("field", "value2"), response.getResponses()[1].getResponse().getSource());
+        }
+    }
+
+    public void testGetSource() throws IOException {
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
+            assertEquals("index", exception.getMetadata("es.index").get(0));
+        }
+        IndexRequest index = new IndexRequest("index").id("id");
+        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
+        index.source(document, XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index, RequestOptions.DEFAULT);
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
+            Map<String, Object> expectedResponse = new HashMap<>();
+            expectedResponse.put("field1", "value1");
+            expectedResponse.put("field2", "value2");
+            assertEquals(expectedResponse, response.getSource());
+        }
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "does_not_exist");
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals("Elasticsearch exception [type=resource_not_found_exception, " +
+                "reason=Document not found [index]/[does_not_exist]]", exception.getMessage());
+        }
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY));
+            GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
+            Map<String, Object> expectedResponse = new HashMap<>();
+            expectedResponse.put("field1", "value1");
+            expectedResponse.put("field2", "value2");
+            assertEquals(expectedResponse, response.getSource());
+        }
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            getRequest.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1"}, Strings.EMPTY_ARRAY));
+            GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
+            Map<String, Object> expectedResponse = new HashMap<>();
+            expectedResponse.put("field1", "value1");
+            assertEquals(expectedResponse, response.getSource());
+        }
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, new String[]{"field1"}));
+            GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
+            Map<String, Object> expectedResponse = new HashMap<>();
+            expectedResponse.put("field2", "value2");
+            assertEquals(expectedResponse, response.getSource());
+        }
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            getRequest.fetchSourceContext(new FetchSourceContext(false));
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
+            assertEquals("Elasticsearch exception [type=action_request_validation_exception, " +
+                "reason=Validation Failed: 1: fetching source can not be disabled;]", exception.getMessage());
         }
     }
 

@@ -19,15 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Type;
-
-import java.util.Set;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.FieldNode;
 
 /**
  * Represents a member field for its parent class (internal only).
@@ -65,23 +59,16 @@ public class SField extends ANode {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
-    }
+    FieldNode write(ClassNode classNode) {
+        FieldNode fieldNode = new FieldNode();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
-    }
+        fieldNode.setLocation(location);
+        fieldNode.setModifiers(modifiers);
+        fieldNode.setName(name);
+        fieldNode.setFieldType(type);
+        fieldNode.setInstance(instance);
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
-    }
-
-    void write(ClassWriter classWriter) {
-        classWriter.getClassVisitor().visitField(
-                ClassWriter.buildAccess(modifiers, true), name, Type.getType(type).getDescriptor(), null, null).visitEnd();
+        return fieldNode;
     }
 
     @Override

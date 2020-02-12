@@ -10,8 +10,6 @@
 
 Instantiates a {transform}.
 
-beta[]
-
 [[put-transform-request]]
 ==== {api-request-title}
 
@@ -195,7 +193,7 @@ PUT _transform/ecommerce_transform
   }
 }
 --------------------------------------------------
-// TEST[setup:kibana_sample_data_ecommerce]
+// TEST[setup:kibana_sample_data_ecommerce,add_timestamp_pipeline]
 
 When the {transform} is created, you receive the following results:
 

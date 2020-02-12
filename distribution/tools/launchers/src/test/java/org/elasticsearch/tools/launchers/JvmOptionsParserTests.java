@@ -22,6 +22,10 @@ package org.elasticsearch.tools.launchers;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,7 +35,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -146,6 +153,113 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
             BufferedReader br = new BufferedReader(sr)
         ) {
             assertExpectedJvmOptions(javaMajorVersion, br, Arrays.asList("-Xms1g", "-Xmx1g", "-XX:+UseG1GC", "-Xlog:gc"));
+        }
+    }
+
+    public void testMissingRootJvmOptions() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
+        final Path config = newTempDir();
+        try {
+            final JvmOptionsParser parser = new JvmOptionsParser();
+            parser.readJvmOptionsFiles(config);
+            fail("expected no such file exception, the root jvm.options file does not exist");
+        } catch (final NoSuchFileException expected) {
+            // this is expected, the root JVM options file must exist
+        }
+    }
+
+    public void testReadRootJvmOptions() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
+        final Path config = newTempDir();
+        final Path rootJvmOptions = config.resolve("jvm.options");
+        Files.write(
+            rootJvmOptions,
+            Arrays.asList("# comment", "-Xms256m", "-Xmx256m"),
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
+        );
+        if (randomBoolean()) {
+            // an empty jvm.options.d directory should be irrelevant
+            Files.createDirectory(config.resolve("jvm.options.d"));
+        }
+        final JvmOptionsParser parser = new JvmOptionsParser();
+        final List<String> jvmOptions = parser.readJvmOptionsFiles(config);
+        assertThat(jvmOptions, contains("-Xms256m", "-Xmx256m"));
+    }
+
+    public void testReadJvmOptionsDirectory() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
+        final Path config = newTempDir();
+        Files.createDirectory(config.resolve("jvm.options.d"));
+        Files.write(
+            config.resolve("jvm.options"),
+            Arrays.asList("# comment", "-Xms256m", "-Xmx256m"),
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
+        );
+        Files.write(
+            config.resolve("jvm.options.d").resolve("heap.options"),
+            Arrays.asList("# comment", "-Xms384m", "-Xmx384m"),
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
+        );
+        final JvmOptionsParser parser = new JvmOptionsParser();
+        final List<String> jvmOptions = parser.readJvmOptionsFiles(config);
+        assertThat(jvmOptions, contains("-Xms256m", "-Xmx256m", "-Xms384m", "-Xmx384m"));
+    }
+
+    public void testReadJvmOptionsDirectoryInOrder() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
+        final Path config = newTempDir();
+        Files.createDirectory(config.resolve("jvm.options.d"));
+        Files.write(
+            config.resolve("jvm.options"),
+            Arrays.asList("# comment", "-Xms256m", "-Xmx256m"),
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
+        );
+        Files.write(
+            config.resolve("jvm.options.d").resolve("first.options"),
+            Arrays.asList("# comment", "-Xms384m", "-Xmx384m"),
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
+        );
+        Files.write(
+            config.resolve("jvm.options.d").resolve("second.options"),
+            Arrays.asList("# comment", "-Xms512m", "-Xmx512m"),
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
+        );
+        final JvmOptionsParser parser = new JvmOptionsParser();
+        final List<String> jvmOptions = parser.readJvmOptionsFiles(config);
+        assertThat(jvmOptions, contains("-Xms256m", "-Xmx256m", "-Xms384m", "-Xmx384m", "-Xms512m", "-Xmx512m"));
+    }
+
+    public void testReadJvmOptionsDirectoryIgnoresFilesNotNamedOptions() throws IOException,
+        JvmOptionsParser.JvmOptionsFileParserException {
+        final Path config = newTempDir();
+        Files.createFile(config.resolve("jvm.options"));
+        Files.createDirectory(config.resolve("jvm.options.d"));
+        Files.write(
+            config.resolve("jvm.options.d").resolve("heap.not-named-options"),
+            Arrays.asList("# comment", "-Xms256m", "-Xmx256m"),
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.APPEND
+        );
+        final JvmOptionsParser parser = new JvmOptionsParser();
+        final List<String> jvmOptions = parser.readJvmOptionsFiles(config);
+        assertThat(jvmOptions, empty());
+    }
+
+    public void testFileContainsInvalidLinesThrowsParserException() throws IOException {
+        final Path config = newTempDir();
+        final Path rootJvmOptions = config.resolve("jvm.options");
+        Files.write(rootJvmOptions, Arrays.asList("XX:+UseG1GC"), StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
+        try {
+            final JvmOptionsParser parser = new JvmOptionsParser();
+            parser.readJvmOptionsFiles(config);
+            fail("expected JVM options file parser exception, XX:+UseG1GC is improperly formatted");
+        } catch (final JvmOptionsParser.JvmOptionsFileParserException expected) {
+            assertThat(expected.jvmOptionsFile(), equalTo(rootJvmOptions));
+            assertThat(expected.invalidLines().entrySet(), hasSize(1));
+            assertThat(expected.invalidLines(), hasKey(1));
+            assertThat(expected.invalidLines().get(1), equalTo("XX:+UseG1GC"));
         }
     }
 

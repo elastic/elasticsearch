@@ -50,7 +50,7 @@ import java.util.stream.StreamSupport;
  */
 final class JvmOptionsParser {
 
-    private static class JvmOptionsFileParserException extends Exception {
+    static class JvmOptionsFileParserException extends Exception {
 
         private final Path jvmOptionsFile;
 
@@ -126,6 +126,29 @@ final class JvmOptionsParser {
         throws InterruptedException,
         IOException,
         JvmOptionsFileParserException {
+
+        final List<String> jvmOptions = readJvmOptionsFiles(config);
+
+        if (esJavaOpts != null) {
+            jvmOptions.addAll(
+                Arrays.stream(esJavaOpts.split("\\s+")).filter(s -> s.trim().isEmpty() == false).collect(Collectors.toList())
+            );
+        }
+
+        final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
+        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
+        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
+        final List<String> finalJvmOptions = new ArrayList<>(
+            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size()
+        );
+        finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
+        finalJvmOptions.addAll(substitutedJvmOptions);
+        finalJvmOptions.addAll(ergonomicJvmOptions);
+
+        return finalJvmOptions;
+    }
+
+    List<String> readJvmOptionsFiles(final Path config) throws IOException, JvmOptionsFileParserException {
         final ArrayList<Path> jvmOptionsFiles = new ArrayList<>();
         jvmOptionsFiles.add(config.resolve("jvm.options"));
 
@@ -154,23 +177,7 @@ final class JvmOptionsParser {
             }
         }
 
-        if (esJavaOpts != null) {
-            jvmOptions.addAll(
-                Arrays.stream(esJavaOpts.split("\\s+")).filter(s -> s.trim().isEmpty() == false).collect(Collectors.toList())
-            );
-        }
-
-        final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
-        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
-        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
-        final List<String> finalJvmOptions = new ArrayList<>(
-            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size()
-        );
-        finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
-        finalJvmOptions.addAll(substitutedJvmOptions);
-        finalJvmOptions.addAll(ergonomicJvmOptions);
-
-        return finalJvmOptions;
+        return jvmOptions;
     }
 
     static List<String> substitutePlaceholders(final List<String> jvmOptions, final Map<String, String> substitutions) {

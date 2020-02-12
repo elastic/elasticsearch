@@ -272,7 +272,8 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
                 }
             }
             if ((pos < 0L) || (length < 0L) || (pos + length > data.bytes.length)) {
-                throw new IllegalArgumentException("Invalid arguments (pos=" + pos + ", length=" + length + ") for hash content");
+                throw new IllegalArgumentException("Invalid arguments (pos=" + pos + ", length=" + length
+                    + ") for hash content (length=" + data.bytes.length + ')');
             }
             stream = new ByteArrayInputStream(data.bytes, Math.toIntExact(pos), Math.toIntExact(length));
         }

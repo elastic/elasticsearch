@@ -1,7 +1,10 @@
 setup:
-  - skip:
-      version: "all"
-      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/42258"
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 3
+        # wait for long enough that we give delayed unassigned shards to stop being delayed
+        timeout: 70s
 
 ---
 "Test old cluster datafeed without aggs":
@@ -23,7 +26,8 @@ setup:
 ---
 "Test old cluster datafeed with aggs":
   - skip:
-      features: "warnings"
+      version: "all"
+      reason: "If we hit the old node we get a warning. If we hit the new node, we don't"
   - do:
       warnings:
         - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
@@ -88,9 +92,6 @@ setup:
 
 ---
 "Put job and datafeed with aggs in mixed cluster":
-  - skip:
-      features: "warnings"
-
   - do:
       ml.put_job:
         job_id: mixed-cluster-datafeed-job-with-aggs
@@ -112,9 +113,6 @@ setup:
           }
 
   - do:
-      warnings:
-        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
-        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.put_datafeed:
         datafeed_id: mixed-cluster-datafeed-with-aggs
         body:  >
@@ -126,7 +124,7 @@ setup:
               "buckets": {
                 "date_histogram": {
                   "field": "time",
-                  "interval": "30s",
+                  "fixed_interval": "30s",
                   "time_zone": "UTC"
                 },
                 "aggregations": {

@@ -33,6 +33,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 
 
@@ -87,5 +90,11 @@ public class GeoTestUtils {
         parser.nextToken();
         Geometry geometry = new GeometryParser(true, true, true).parse(parser);
         return new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometry);
+    }
+
+    public static Polygon polyFrom(Rectangle rectangle) {
+        return new Polygon(new LinearRing(
+            new double[] { rectangle.getMinX(), rectangle.getMaxX(), rectangle.getMaxX(), rectangle.getMinX(), rectangle.getMinX()},
+            new double[] { rectangle.getMinY(), rectangle.getMinY(), rectangle.getMaxY(), rectangle.getMaxY(), rectangle.getMinY()}));
     }
 }

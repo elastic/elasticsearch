@@ -362,7 +362,7 @@ public class GeoGridTilerTests extends ESTestCase {
     }
 
 
-    private Geometry boxToGeo(GeoBoundingBox geoBox) {
+    static Geometry boxToGeo(GeoBoundingBox geoBox) {
         // turn into polygon
         if (geoBox.right() < geoBox.left() && geoBox.right() != -180) {
             return new MultiPolygon(List.of(

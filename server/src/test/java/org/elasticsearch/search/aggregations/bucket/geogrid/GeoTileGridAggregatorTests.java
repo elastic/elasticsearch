@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.geometry.Rectangle;
+
 public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<InternalGeoTileGridBucket> {
 
     @Override
@@ -34,6 +36,13 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
     @Override
     protected GeoGridAggregationBuilder createBuilder(String name) {
         return new GeoTileGridAggregationBuilder(name);
+    }
+
+    @Override
+    Rectangle expandToGrid(Rectangle rectangle, int precision) {
+        Rectangle topLeft = GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(rectangle.getMinX(), rectangle.getMaxY(), precision));
+        Rectangle bottomRight = GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(rectangle.getMaxX(), rectangle.getMinY(), precision));
+        return new Rectangle(topLeft.getMinX(), bottomRight.getMaxX(), topLeft.getMaxY(), bottomRight.getMinY());
     }
 
     public void testPrecision() {

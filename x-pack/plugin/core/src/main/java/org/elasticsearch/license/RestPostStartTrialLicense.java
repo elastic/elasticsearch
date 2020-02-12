@@ -6,8 +6,6 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -26,8 +24,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends XPackRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPostStartTrialLicense.class));
-
     RestPostStartTrialLicense() {}
 
     @Override
@@ -37,7 +33,7 @@ public class RestPostStartTrialLicense extends XPackRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(POST, "/_license/start_trial", POST, URI_BASE + "/license/start_trial", deprecationLogger));
+        return singletonList(new ReplacedRoute(POST, "/_license/start_trial", POST, URI_BASE + "/license/start_trial"));
     }
 
     @Override

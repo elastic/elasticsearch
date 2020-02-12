@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.results;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -28,9 +26,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestGetCategoriesAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetCategoriesAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -44,21 +39,17 @@ public class RestGetCategoriesAction extends BaseRestHandler {
                 GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories/{"
                 + Request.CATEGORY_ID.getPreferredName() + "}",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories/{"
-                + Request.CATEGORY_ID.getPreferredName() + "}",
-                deprecationLogger),
+                + Request.CATEGORY_ID.getPreferredName() + "}"),
             new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
                 "}/results/categories/{" + Request.CATEGORY_ID.getPreferredName() + "}",
                 POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/results/categories/{" + Request.CATEGORY_ID.getPreferredName() + "}",
-                deprecationLogger),
+                "}/results/categories/{" + Request.CATEGORY_ID.getPreferredName() + "}"),
             new ReplacedRoute(
                 GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories",
-                deprecationLogger),
+                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories"),
             new ReplacedRoute(
                 POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories",
-                deprecationLogger)
+                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories")
         ));
     }
 

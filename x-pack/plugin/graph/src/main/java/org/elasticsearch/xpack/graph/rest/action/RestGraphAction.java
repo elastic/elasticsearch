@@ -73,14 +73,14 @@ public class RestGraphAction extends XPackRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(GET, "/{index}/_graph/explore", GET, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger),
-            new ReplacedRoute(POST, "/{index}/_graph/explore", POST, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger),
+            new ReplacedRoute(GET, "/{index}/_graph/explore", GET, "/{index}" + URI_BASE + "/graph/_explore"),
+            new ReplacedRoute(POST, "/{index}/_graph/explore", POST, "/{index}" + URI_BASE + "/graph/_explore"),
             new ReplacedRoute(
                 GET, "/{index}/{type}/_graph/explore",
-                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger),
+                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore"),
             new ReplacedRoute(
                 POST, "/{index}/{type}_graph/explore",
-                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger)));
+                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore")));
     }
 
     @Override

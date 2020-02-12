@@ -45,6 +45,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -375,13 +376,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.
                     try {
-                        long startTime = System.nanoTime();
+                        long startNanos = System.nanoTime();
                         channel.force(false);
                         writeCheckpoint(channelFactory, path.getParent(), checkpointToSync);
                         // Record both translog and checkpoint force
                         Recorder fsyncRecorder = IndexShard.indexRecorder;
                         if (fsyncRecorder != null) {
-                            fsyncRecorder.recordValue(System.nanoTime() - startTime);
+                            long microsTook = TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - startNanos);
+                            fsyncRecorder.recordValue(microsTook);
                         }
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);

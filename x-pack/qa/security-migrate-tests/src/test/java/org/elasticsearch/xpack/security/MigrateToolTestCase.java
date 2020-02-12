@@ -76,7 +76,7 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
                 .put("client.transport.ignore_cluster_name", true)
                 .put("path.home", tempDir)
                 .put(SecurityField.USER_SETTING.getKey(), "transport_user:x-pack-test-password");
-        if (Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP)) && JavaVersion.current().getVersion().get(0) == 8){
+        if (Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP)) && JavaVersion.current().getVersion().get(0) == 8) {
             clientSettingsBuilder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         TransportClient client = new PreBuiltXPackTransportClient(clientSettingsBuilder.build()).addTransportAddresses(transportAddresses);

@@ -44,7 +44,7 @@ public class RestSqlIT extends RestSqlTestCase {
         expectBadRequest(() -> runTranslateSql(
             "{\"query\":\"SELECT null WHERE 0 = ? \", \"mode\": \"odbc\", \"params\":[{\"type\":\"invalid\", \"value\":\"irrelevant\"}]}"
             ),
-            containsString("Invalid parameter data type [invalid]")
+            containsString("Cannot cast value [irrelevant] of type [KEYWORD] to parameter type [UNSUPPORTED]")
         );
     }
 

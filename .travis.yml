@@ -1,4 +1,2 @@
 language: java 
-jdk:
-  - openjdk13
-  - openjdk8
+jdk: openjdk13

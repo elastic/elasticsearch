@@ -46,11 +46,17 @@ public class ClientYamlTestResponse {
     private final Response response;
     private final byte[] body;
     private final XContentType bodyContentType;
+    private final String expectedDeprecation;
     private ObjectPath parsedResponse;
     private String bodyAsString;
 
     public ClientYamlTestResponse(Response response) throws IOException {
+        this(response, null);
+    }
+
+    public ClientYamlTestResponse(Response response, String expectedDeprecation) throws IOException {
         this.response = response;
+        this.expectedDeprecation = expectedDeprecation;
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
             this.bodyContentType = XContentType.fromMediaTypeOrFormat(contentType);
@@ -90,6 +96,10 @@ public class ClientYamlTestResponse {
             }
         }
         return warningHeaders;
+    }
+
+    public String getExpectedDeprecation() {
+        return expectedDeprecation;
     }
 
     /**

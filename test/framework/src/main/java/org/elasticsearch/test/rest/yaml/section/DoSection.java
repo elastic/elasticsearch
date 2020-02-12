@@ -254,7 +254,7 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
-            checkWarningHeaders(response.getWarningHeaders(), executionContext.masterVersion());
+            checkWarningHeaders(response.getWarningHeaders(), response.getExpectedDeprecation(), executionContext.masterVersion());
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (!Strings.hasLength(catchParam)) {
@@ -280,13 +280,16 @@ public class DoSection implements ExecutableSection {
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders, final Version masterVersion) {
+    void checkWarningHeaders(final List<String> warningHeaders, final String pathDeprecation, final Version masterVersion) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
         // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
         final Set<String> expected =
                 new LinkedHashSet<>(expectedWarningHeaders.stream().map(DeprecationLogger::escapeAndEncode).collect(Collectors.toList()));
+        if (pathDeprecation != null && expected.contains(pathDeprecation) == false) {
+            expected.add(pathDeprecation);
+        }
         for (final String header : warningHeaders) {
             final Matcher matcher = WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();

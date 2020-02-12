@@ -20,6 +20,9 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.ConfigurableProcessor;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.script.ScriptService;
@@ -32,6 +35,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 
 public class ForEachProcessorFactoryTests extends ESTestCase {
@@ -52,6 +56,24 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         assertThat(forEachProcessor, Matchers.notNullValue());
         assertThat(forEachProcessor.getField(), equalTo("_field"));
         assertThat(forEachProcessor.getInnerProcessor(), Matchers.sameInstance(processor));
+        assertFalse(forEachProcessor.isIgnoreMissing());
+    }
+
+    public void testCreatePassesPipelineMetadataToChildProcessors() throws Exception {
+        Map<String, Processor.Factory> registry = new HashMap<>();
+        registry.put("_name", new TestConfigurableProcessor.Factory());
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
+        Map<String, String> pipelineMetadata = new HashMap<>();
+        pipelineMetadata.put("foo", "bar");
+        ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, config, pipelineMetadata);
+        assertThat(forEachProcessor, Matchers.notNullValue());
+        assertThat(forEachProcessor.getField(), equalTo("_field"));
+        assertThat(forEachProcessor.getInnerProcessor(), Matchers.instanceOf(ConfigurableProcessor.class));
+        assertThat(((ConfigurableProcessor) forEachProcessor.getInnerProcessor()).getMetadata(), equalTo(pipelineMetadata));
         assertFalse(forEachProcessor.isIgnoreMissing());
     }
 
@@ -116,6 +138,52 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         Exception exception = expectThrows(Exception.class, () -> forEachFactory.create(Collections.emptyMap(), null, config));
         assertThat(exception.getMessage(), equalTo("[processor] required property is missing"));
+    }
+
+    private static class TestConfigurableProcessor extends AbstractProcessor implements ConfigurableProcessor {
+
+        private final Map<String, String> metadata;
+
+        TestConfigurableProcessor(String tag, Map<String, String> metadata) {
+            super(tag);
+            this.metadata = Collections.unmodifiableMap(metadata);
+        }
+
+        @Override
+        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+            return ingestDocument;
+        }
+
+        @Override
+        public String getType() {
+            return null;
+        }
+
+        @Override
+        public String getTag() {
+            return null;
+        }
+
+        @Override
+        public Map<String, String> getMetadata() {
+            return metadata;
+        }
+
+        public static final class Factory implements Processor.Factory {
+
+            @Override
+            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config)
+                throws Exception {
+                return create(processorFactories, tag, config, Collections.emptyMap());
+            }
+
+            @Override
+            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config,
+                                    Map<String, String> metadata) throws Exception {
+                return new TestConfigurableProcessor(tag, metadata);
+            }
+        }
+
     }
 
 }

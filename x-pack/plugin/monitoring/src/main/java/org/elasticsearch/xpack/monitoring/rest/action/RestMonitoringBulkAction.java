@@ -5,12 +5,9 @@
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -40,8 +37,6 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
-    private static final Logger logger = LogManager.getLogger(RestMonitoringBulkAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private static final List<String> ALL_VERSIONS = asList(
         MonitoringTemplateUtils.TEMPLATE_VERSION,
@@ -65,10 +60,10 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
         return unmodifiableList(asList(
             new ReplacedRoute(
                 POST, "/_monitoring/bulk",
-                POST, "/_xpack/monitoring/_bulk", deprecationLogger),
+                POST, "/_xpack/monitoring/_bulk"),
             new ReplacedRoute(
                 PUT, "/_monitoring/bulk",
-                PUT, "/_xpack/monitoring/_bulk", deprecationLogger)));
+                PUT, "/_xpack/monitoring/_bulk")));
     }
 
     @Override

@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -29,8 +27,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestDeleteWatchAction extends WatcherRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestDeleteWatchAction.class));
-
     @Override
     public List<Route> routes() {
         return emptyList();
@@ -39,7 +35,7 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         return singletonList(
-            new ReplacedRoute(DELETE, "/_watcher/watch/{id}", DELETE, URI_BASE + "/watcher/watch/{id}", deprecationLogger));
+            new ReplacedRoute(DELETE, "/_watcher/watch/{id}", DELETE, URI_BASE + "/watcher/watch/{id}"));
     }
 
     @Override

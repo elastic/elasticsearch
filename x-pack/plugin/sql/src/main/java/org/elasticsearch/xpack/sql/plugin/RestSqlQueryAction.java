@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,8 +34,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
-
     @Override
     public List<Route> routes() {
         return emptyList();
@@ -48,10 +44,10 @@ public class RestSqlQueryAction extends BaseRestHandler {
         return unmodifiableList(asList(
             new ReplacedRoute(
                 GET, Protocol.SQL_QUERY_REST_ENDPOINT,
-                GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger),
+                GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT),
             new ReplacedRoute(
                 POST, Protocol.SQL_QUERY_REST_ENDPOINT,
-                POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger)));
+                POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT)));
     }
 
     @Override

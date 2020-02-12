@@ -6,8 +6,6 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
@@ -21,8 +19,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetTrialStatus extends XPackRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetTrialStatus.class));
-
     RestGetTrialStatus() {}
 
     @Override
@@ -32,7 +28,7 @@ public class RestGetTrialStatus extends XPackRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(GET, "/_license/trial_status", GET, URI_BASE + "/license/trial_status", deprecationLogger));
+        return singletonList(new ReplacedRoute(GET, "/_license/trial_status", GET, URI_BASE + "/license/trial_status"));
     }
 
     @Override

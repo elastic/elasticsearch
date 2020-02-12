@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -33,8 +31,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetRoleMappingsAction.class));
-
     public RestGetRoleMappingsAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
@@ -48,8 +44,8 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(GET, "/_security/role_mapping/", GET, "/_xpack/security/role_mapping/", deprecationLogger),
-            new ReplacedRoute(GET, "/_security/role_mapping/{name}", GET, "/_xpack/security/role_mapping/{name}", deprecationLogger)
+            new ReplacedRoute(GET, "/_security/role_mapping/", GET, "/_xpack/security/role_mapping/"),
+            new ReplacedRoute(GET, "/_security/role_mapping/{name}", GET, "/_xpack/security/role_mapping/{name}")
         ));
     }
 

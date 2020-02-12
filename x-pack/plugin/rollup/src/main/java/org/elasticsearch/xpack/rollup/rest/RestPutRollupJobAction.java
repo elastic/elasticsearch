@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.rollup.rest;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -23,8 +21,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutRollupJobAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutRollupJobAction.class));
-
     @Override
     public List<Route> routes() {
         return emptyList();
@@ -32,7 +28,7 @@ public class RestPutRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(PUT, "/_rollup/job/{id}", PUT, "/_xpack/rollup/job/{id}", deprecationLogger));
+        return singletonList(new ReplacedRoute(PUT, "/_rollup/job/{id}", PUT, "/_xpack/rollup/job/{id}"));
     }
 
     @Override

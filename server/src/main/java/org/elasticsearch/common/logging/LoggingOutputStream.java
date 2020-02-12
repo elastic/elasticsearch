@@ -91,7 +91,16 @@ class LoggingOutputStream extends OutputStream {
     public void flush() {
         Buffer buffer = threadLocal.get();
         if (buffer.used == 0) return;
-        log(new String(buffer.bytes, 0, buffer.used, StandardCharsets.UTF_8));
+        int used = buffer.used;
+        if (buffer.bytes[used - 1] == '\r') {
+            // windows case: remove the first part of newlines there too
+            --used;
+        }
+        if (used == 0) {
+            // only windows \r was in the buffer
+            return;
+        }
+        log(new String(buffer.bytes, 0, used, StandardCharsets.UTF_8));
         if (buffer.bytes.length != DEFAULT_BUFFER_LENGTH) {
             threadLocal.set(new Buffer()); // reset size
         } else {

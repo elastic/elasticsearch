@@ -69,6 +69,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -108,6 +109,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
+    private static ValuesSourceRegistry valuesSourceRegistry;
 
     /**
      * Allows subclasses to provide alternate names for the provided field type, which
@@ -123,14 +125,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
             String fieldName = entry.getKey();
             MappedFieldType fieldType = entry.getValue();
 
-            when(mapperService.fullName(fieldName)).thenReturn(fieldType);
+            when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
             when(searchContext.smartNameFieldType(fieldName)).thenReturn(fieldType);
         }
     }
 
     @BeforeClass
     public static void initValuesSourceRegistry() {
-        new SearchModule(Settings.EMPTY, List.of());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
@@ -287,7 +290,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
-            writableRegistry(), null, searcher, System::currentTimeMillis, null, null);
+            writableRegistry(), null, searcher, System::currentTimeMillis, null, null,
+            valuesSourceRegistry);
     }
 
     /**

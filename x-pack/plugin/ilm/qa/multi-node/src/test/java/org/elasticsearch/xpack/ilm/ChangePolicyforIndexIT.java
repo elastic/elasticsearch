@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.io.IOException;
@@ -113,7 +113,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
 
         // Check the index goes to the warm phase and completes
-        assertBusy(() -> assertStep(indexName, TerminalPolicyStep.KEY), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertStep(indexName, PhaseCompleteStep.finalStep("warm").getKey()), 30, TimeUnit.SECONDS);
 
         // Check index is allocated on integTest-1 and integTest-2 as per policy_2
         Request getSettingsRequest = new Request("GET", "/" + indexName + "/_settings");

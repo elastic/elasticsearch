@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
@@ -73,6 +76,43 @@ public class QueryShardContextTests extends ESTestCase {
         assertThat(result.name(), equalTo("name"));
     }
 
+    public void testToQueryFails() {
+        QueryShardContext context = createQueryShardContext(IndexMetaData.INDEX_UUID_NA_VALUE, null);
+        Exception exc = expectThrows(Exception.class,
+            () -> context.toQuery(new AbstractQueryBuilder() {
+                @Override
+                public String getWriteableName() {
+                    return null;
+                }
+
+                @Override
+                protected void doWriteTo(StreamOutput out) throws IOException {
+
+                }
+
+                @Override
+                protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+
+                }
+
+                @Override
+                protected Query doToQuery(QueryShardContext context) throws IOException {
+                    throw new RuntimeException("boom");
+                }
+
+                @Override
+                protected boolean doEquals(AbstractQueryBuilder other) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            }));
+        assertThat(exc.getMessage(), equalTo("failed to create query: boom"));
+    }
+
     public void testClusterAlias() throws IOException {
         final String clusterAlias = randomBoolean() ? null : "remote_cluster";
         QueryShardContext context = createQueryShardContext(IndexMetaData.INDEX_UUID_NA_VALUE, clusterAlias);
@@ -113,6 +153,6 @@ public class QueryShardContextTests extends ESTestCase {
                 (mappedFieldType, idxName) ->
                     mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> nowInMillis, clusterAlias, null);
+            null, null, () -> nowInMillis, clusterAlias, null, null);
     }
 }

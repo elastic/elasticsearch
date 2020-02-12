@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder.PercentilesConfig;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -40,7 +39,8 @@ import java.util.List;
 import java.util.Map;
 
 class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private final double[] values;
+
+    private final double[] percents;
     private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
 
@@ -53,62 +53,46 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         double[] percents, PercentilesConfig percentilesConfig, boolean keyed, DocValueFormat formatter,
                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
-                    if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-                        double compression = ((PercentilesConfig.TDigestConfig)percentilesConfig).getCompression();
-                        return new TDigestPercentileRanksAggregator(name, valuesSource, context, parent, percents, compression, keyed,
-                            formatter, pipelineAggregators, metaData);
-                    } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-                        int numSigFig = ((PercentilesConfig.HdrHistoConfig)percentilesConfig).getNumberOfSignificantValueDigits();
-                        return new HDRPercentileRanksAggregator(name, valuesSource, context, parent, percents, numSigFig, keyed,
-                            formatter, pipelineAggregators, metaData);
-                    }
-
-                    // This should already have thrown but just in case
-                    throw new IllegalStateException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
+                    return percentilesConfig.createPercentileRanksAggregator(name, valuesSource, context, parent, percents, keyed,
+                        formatter, pipelineAggregators, metaData);
                 }
             }
         );
     }
 
-    PercentileRanksAggregatorFactory(String name, ValuesSourceConfig config, double[] values,
-                                     PercentilesConfig percentilesConfig, boolean keyed,
-                                     QueryShardContext queryShardContext, AggregatorFactory parent,
+    PercentileRanksAggregatorFactory(String name,
+                                     ValuesSourceConfig config,
+                                     double[] percents,
+                                     PercentilesConfig percentilesConfig,
+                                     boolean keyed,
+                                     QueryShardContext queryShardContext,
+                                     AggregatorFactory parent,
                                      AggregatorFactories.Builder subFactoriesBuilder,
                                      Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
-        this.values = values;
+        this.percents = percents;
         this.percentilesConfig = percentilesConfig;
         this.keyed = keyed;
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-            double compression = ((PercentilesConfig.TDigestConfig)percentilesConfig).getCompression();
-            return new TDigestPercentileRanksAggregator(name, null, searchContext, parent, values, compression, keyed, config.format(),
-                pipelineAggregators, metaData);
-        } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-            int numSigFig = ((PercentilesConfig.HdrHistoConfig)percentilesConfig).getNumberOfSignificantValueDigits();
-            return new HDRPercentileRanksAggregator(name, null, searchContext, parent, values, numSigFig, keyed,
-                config.format(), pipelineAggregators, metaData);
-        }
+                                        Aggregator parent,
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
 
-        // This should already have thrown but just in case
-        throw new IllegalStateException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
+        return percentilesConfig.createPercentileRanksAggregator(name, null, searchContext, parent, percents, keyed,
+                config.format(), pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-
-        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.getInstance().getAggregator(config.valueSourceType(),
+                                          SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          List<PipelineAggregator> pipelineAggregators,
+                                          Map<String, Object> metaData) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             PercentileRanksAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof PercentilesAggregatorSupplier == false) {
@@ -116,8 +100,7 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         PercentilesAggregatorSupplier percentilesAggregatorSupplier = (PercentilesAggregatorSupplier) aggregatorSupplier;
-        return percentilesAggregatorSupplier.build(name, valuesSource, searchContext, parent, values, percentilesConfig, keyed,
+        return percentilesAggregatorSupplier.build(name, valuesSource, searchContext, parent, percents, percentilesConfig, keyed,
             config.format(), pipelineAggregators, metaData);
     }
-
 }

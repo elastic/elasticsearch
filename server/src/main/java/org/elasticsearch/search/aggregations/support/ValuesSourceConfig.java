@@ -120,7 +120,7 @@ public class ValuesSourceConfig {
                 }
             } else {
                 IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-                valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, aggregationName, indexFieldData,
+                valuesSourceType = context.getValuesSourceRegistry().getValuesSourceType(fieldType, aggregationName, indexFieldData,
                     userValueTypeHint, script, defaultValueSourceType);
                 config = new ValuesSourceConfig(valuesSourceType);
 
@@ -195,7 +195,7 @@ public class ValuesSourceConfig {
         return this;
     }
 
-    public ValuesSourceConfig scriptValueType(ValueType scriptValueType) {
+    private ValuesSourceConfig scriptValueType(ValueType scriptValueType) {
         this.scriptValueType = scriptValueType;
         return this;
     }

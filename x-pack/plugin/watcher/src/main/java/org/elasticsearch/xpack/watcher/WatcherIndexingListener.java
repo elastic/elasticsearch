@@ -371,7 +371,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
          * @return false if watcher is not active or the passed index is not the watcher index
          */
         public boolean isIndexAndActive(String index) {
-            return active == true && index.equals(this.index);
+            return active && index.equals(this.index);
         }
     }
 

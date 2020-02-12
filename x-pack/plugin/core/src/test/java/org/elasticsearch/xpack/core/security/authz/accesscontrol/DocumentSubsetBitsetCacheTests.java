@@ -337,6 +337,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             cache.verifyInternalConsistency();
         });
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51914")
     public void testCacheUnderConcurrentAccess() throws Exception {
         // This value is based on the internal implementation details of lucene's FixedBitSet
         // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
@@ -519,7 +521,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
             final QueryShardContext shardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null);
+                client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, null);
 
             context = new TestIndexContext(directory, iw, directoryReader, shardContext, leaf);
             return context;

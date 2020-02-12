@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -25,13 +24,19 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCatJobsAction extends AbstractCatAction {
 
-    public RestCatJobsAction(RestController controller) {
-        controller.registerHandler(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
-        controller.registerHandler(GET, "_cat/ml/anomaly_detectors", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
+            new Route(GET, "_cat/ml/anomaly_detectors")));
     }
 
     @Override
@@ -183,6 +188,31 @@ public class RestCatJobsAction extends AbstractCatAction {
             TableColumnAttributeBuilder.builder("number of bucket allocation failures", false)
                 .setAliases("mbaf", "modelBucketAllocationFailures")
                 .build());
+        table.addCell("model.categorization_status",
+            TableColumnAttributeBuilder.builder("current categorization status", false)
+                .setAliases("mcs", "modelCategorizationStatus")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build());
+        table.addCell("model.categorized_doc_count",
+            TableColumnAttributeBuilder.builder("count of categorized documents", false)
+                .setAliases("mcdc", "modelCategorizedDocCount")
+                .build());
+        table.addCell("model.total_category_count",
+            TableColumnAttributeBuilder.builder("count of categories", false)
+                .setAliases("mtcc", "modelTotalCategoryCount")
+                .build());
+        table.addCell("model.frequent_category_count",
+            TableColumnAttributeBuilder.builder("count of frequent categories", false)
+                .setAliases("mfcc", "modelFrequentCategoryCount")
+                .build());
+        table.addCell("model.rare_category_count",
+            TableColumnAttributeBuilder.builder("count of rare categories", false)
+                .setAliases("mrcc", "modelRareCategoryCount")
+                .build());
+        table.addCell("model.dead_category_count",
+            TableColumnAttributeBuilder.builder("count of dead categories", false)
+                .setAliases("mdcc", "modelDeadCategoryCount")
+                .build());
         table.addCell("model.log_time",
             TableColumnAttributeBuilder.builder("when the model stats were gathered", false)
                 .setAliases("mlt", "modelLogTime")
@@ -318,7 +348,6 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(dataCounts.getLatestEmptyBucketTimeStamp());
             table.addCell(dataCounts.getLatestSparseBucketTimeStamp());
 
-
             ModelSizeStats modelSizeStats = job.getModelSizeStats();
             table.addCell(modelSizeStats == null ? null : new ByteSizeValue(modelSizeStats.getModelBytes()));
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getMemoryStatus().toString());
@@ -332,6 +361,12 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalOverFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalPartitionFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getBucketAllocationFailuresCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizationStatus().toString());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizedDocCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getRareCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getDeadCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getLogTime());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTimestamp());
 

@@ -28,10 +28,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 public final class MultiValuesSourceParseHelper {
 
     public static <VS extends ValuesSource, T> void declareCommon(
-        AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<VS, ?>, T> objectParser, boolean formattable,
-        ValueType expectedValueType) {
+            AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser, boolean formattable,
+            ValueType expectedValueType) {
 
-        objectParser.declareField(MultiValuesSourceAggregationBuilder::valueType, p -> {
+        objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
             ValueType valueType = ValueType.resolveForScript(p.text());
             if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
@@ -49,7 +49,7 @@ public final class MultiValuesSourceParseHelper {
     }
 
     public static <VS extends ValuesSource, T> void declareField(String fieldName,
-        AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<VS, ?>, T> objectParser,
+        AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable, boolean timezoneAware) {
 
         objectParser.declareField((o, fieldConfig) -> o.field(fieldName, fieldConfig.build()),

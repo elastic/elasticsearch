@@ -287,6 +287,7 @@ public class SearchModule {
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
+    private ValuesSourceRegistry valuesSourceRegistry;
 
     /**
      * Constructs a new SearchModule object
@@ -298,6 +299,7 @@ public class SearchModule {
      */
     public SearchModule(Settings settings, List<SearchPlugin> plugins) {
         this.settings = settings;
+        this.valuesSourceRegistry = new ValuesSourceRegistry();
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
@@ -320,6 +322,10 @@ public class SearchModule {
 
     public List<NamedXContentRegistry.Entry> getNamedXContents() {
         return namedXContents;
+    }
+
+    public ValuesSourceRegistry getValuesSourceRegistry() {
+        return valuesSourceRegistry;
     }
 
     /**
@@ -448,7 +454,7 @@ public class SearchModule {
         }
         Consumer<ValuesSourceRegistry> register = spec.getAggregatorRegistrar();
         if (register != null) {
-            register.accept(ValuesSourceRegistry.getInstance());
+            register.accept(this.valuesSourceRegistry);
         }
     }
 

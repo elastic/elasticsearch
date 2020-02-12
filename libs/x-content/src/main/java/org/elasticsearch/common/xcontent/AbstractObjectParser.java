@@ -37,6 +37,8 @@ import java.util.function.Consumer;
 public abstract class AbstractObjectParser<Value, Context>
         implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
 
+    final List<String[]> requiredFieldSets = new ArrayList<>();
+
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
      * {@link #declareObject(BiConsumer, ContextParser, ParseField)} rather than call this directly.
@@ -209,6 +211,61 @@ public abstract class AbstractObjectParser<Value, Context>
     public <T> void declareFieldArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> itemParser,
                                       ParseField field, ValueType type) {
         declareField(consumer, (p, c) -> parseArray(p, () -> itemParser.parse(p, c)), field, type);
+    }
+
+    /**
+     * Declares a set of fields that are required for parsing to succeed. Only one of the values
+     * provided per String[] must be matched.
+     *
+     * E.g. <code>declareRequiredFieldSet("foo", "bar");</code> means at least one of "foo" or
+     * "bar" fields must be present.  If neither of those fields are present, an exception will be thrown.
+     *
+     * Multiple required sets can be configured:
+     *
+     * <pre><code>
+     *   parser.declareRequiredFieldSet("foo", "bar");
+     *   parser.declareRequiredFieldSet("bizz", "buzz");
+     * </code></pre>
+     *
+     * requires that one of "foo" or "bar" fields are present, and also that one of "bizz" or
+     * "buzz" fields are present.
+     *
+     * In JSON, it means any of these combinations are acceptable:
+     *
+     * <ul>
+     *   <li><code>{"foo":"...", "bizz": "..."}</code></li>
+     *   <li><code>{"bar":"...", "bizz": "..."}</code></li>
+     *   <li><code>{"foo":"...", "buzz": "..."}</code></li>
+     *   <li><code>{"bar":"...", "buzz": "..."}</code></li>
+     *   <li><code>{"foo":"...", "bar":"...", "bizz": "..."}</code></li>
+     *   <li><code>{"foo":"...", "bar":"...", "buzz": "..."}</code></li>
+     *   <li><code>{"foo":"...", "bizz":"...", "buzz": "..."}</code></li>
+     *   <li><code>{"bar":"...", "bizz":"...", "buzz": "..."}</code></li>
+     *   <li><code>{"foo":"...", "bar":"...", "bizz": "...", "buzz": "..."}</code></li>
+     * </ul>
+     *
+     * The following would however be rejected:
+     *
+     * <table>
+     *   <caption>failure cases</caption>
+     *   <tr><th>Provided JSON</th><th>Reason for failure</th></tr>
+     *   <tr><td><code>{"foo":"..."}</code></td><td>Missing "bizz" or "buzz" field</td></tr>
+     *   <tr><td><code>{"bar":"..."}</code></td><td>Missing "bizz" or "buzz" field</td></tr>
+     *   <tr><td><code>{"bizz": "..."}</code></td><td>Missing "foo" or "bar" field</td></tr>
+     *   <tr><td><code>{"buzz": "..."}</code></td><td>Missing "foo" or "bar" field</td></tr>
+     *   <tr><td><code>{"foo":"...", "bar": "..."}</code></td><td>Missing "bizz" or "buzz" field</td></tr>
+     *   <tr><td><code>{"bizz":"...", "buzz": "..."}</code></td><td>Missing "foo" or "bar" field</td></tr>
+     *   <tr><td><code>{"unrelated":"..."}</code></td>  <td>Missing "foo" or "bar" field, and missing "bizz" or "buzz" field</td></tr>
+     * </table>
+     *
+     * @param requiredSet
+     *          A set of required fields, where at least one of the fields in the array _must_ be present
+     */
+    public void declareRequiredFieldSet(String... requiredSet) {
+        if (requiredSet.length == 0) {
+            return;
+        }
+        this.requiredFieldSets.add(requiredSet);
     }
 
     private interface IOSupplier<T> {

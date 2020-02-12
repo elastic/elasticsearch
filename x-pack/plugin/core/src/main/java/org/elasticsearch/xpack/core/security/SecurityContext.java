@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -29,17 +30,12 @@ public class SecurityContext {
     private final Logger logger = LogManager.getLogger(SecurityContext.class);
 
     private final ThreadContext threadContext;
-    private final UserSettings userSettings;
+    private final AuthenticationContextSerializer authenticationSerializer;
     private final String nodeName;
 
-    /**
-     * Creates a new security context.
-     * If cryptoService is null, security is disabled and {@link UserSettings#getUser()}
-     * and {@link UserSettings#getAuthentication()} will always return null.
-     */
     public SecurityContext(Settings settings, ThreadContext threadContext) {
         this.threadContext = threadContext;
-        this.userSettings = new UserSettings(threadContext);
+        this.authenticationSerializer = new AuthenticationContextSerializer();
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
     }
 
@@ -52,11 +48,15 @@ public class SecurityContext {
     /** Returns the authentication information, or null if the current request has no authentication info. */
     public Authentication getAuthentication() {
         try {
-            return Authentication.readFromContext(threadContext);
+            return authenticationSerializer.readFromContext(threadContext);
         } catch (IOException e) {
             logger.error("failed to read authentication", e);
             throw new UncheckedIOException(e);
         }
+    }
+
+    public ThreadContext getThreadContext() {
+        return threadContext;
     }
 
     /**
@@ -103,7 +103,7 @@ public class SecurityContext {
      */
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
         final StoredContext original = threadContext.newStoredContext(true);
-        final Authentication authentication = Objects.requireNonNull(userSettings.getAuthentication());
+        final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
                 authentication.getLookedUpBy(), version, authentication.getAuthenticationType(), authentication.getMetadata()));

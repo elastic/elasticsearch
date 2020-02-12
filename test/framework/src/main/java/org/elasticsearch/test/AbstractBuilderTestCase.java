@@ -414,7 +414,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
                 indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
-                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher());
+                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher(), () -> true);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

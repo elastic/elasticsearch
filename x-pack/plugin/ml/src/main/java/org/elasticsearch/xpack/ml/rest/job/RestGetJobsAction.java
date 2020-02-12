@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -26,9 +24,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetJobsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetJobsAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -39,10 +34,9 @@ public class RestGetJobsAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
             new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}",
-                deprecationLogger),
+                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
             new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors", deprecationLogger)
+                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors")
         ));
     }
 

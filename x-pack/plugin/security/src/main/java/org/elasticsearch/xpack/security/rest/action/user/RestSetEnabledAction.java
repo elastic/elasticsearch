@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -34,8 +32,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestSetEnabledAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSetEnabledAction.class));
-
     public RestSetEnabledAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
@@ -50,13 +46,13 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
             new ReplacedRoute(POST, "/_security/user/{username}/_enable",
-                POST, "/_xpack/security/user/{username}/_enable", deprecationLogger),
+                POST, "/_xpack/security/user/{username}/_enable"),
             new ReplacedRoute(PUT, "/_security/user/{username}/_enable",
-                PUT, "/_xpack/security/user/{username}/_enable", deprecationLogger),
+                PUT, "/_xpack/security/user/{username}/_enable"),
             new ReplacedRoute(POST, "/_security/user/{username}/_disable",
-                POST, "/_xpack/security/user/{username}/_disable", deprecationLogger),
+                POST, "/_xpack/security/user/{username}/_disable"),
             new ReplacedRoute(PUT, "/_security/user/{username}/_disable",
-                PUT, "/_xpack/security/user/{username}/_disable", deprecationLogger)
+                PUT, "/_xpack/security/user/{username}/_disable")
         ));
     }
 

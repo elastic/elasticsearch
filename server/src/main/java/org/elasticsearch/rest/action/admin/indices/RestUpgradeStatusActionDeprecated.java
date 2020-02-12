@@ -46,8 +46,8 @@ public class RestUpgradeStatusActionDeprecated extends BaseRestHandler {
     @Override
     public List<DeprecatedRoute> deprecatedRoutes() {
         return unmodifiableList(asList(
-            new DeprecatedRoute(GET, "/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger),
-            new DeprecatedRoute(GET, "/{index}/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger)));
+            new DeprecatedRoute(GET, "/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE),
+            new DeprecatedRoute(GET, "/{index}/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE)));
     }
 
     @Override

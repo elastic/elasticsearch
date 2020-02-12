@@ -100,6 +100,15 @@ This field allows a arbitrary text; generally used for short notes about the con
 +
 Example: _Clear-text connection to the local [::1]:9200._
 +
+* Cloud ID
++
+The _Cloud ID_ is a string that simplifies the configuration when connecting to
+Elastic's Cloud {ess}; it is obtained from within the Cloud console of each
+{es} cluster and encodes the connection parameters to that cluster.
++
+NOTE: When this field is provisioned, the _Hostname_, _Port_ and the security
+settings are provisioned as well and their respective inputs disabled.
++
 * Hostname
 +
 This field requires an IP address or a resolvable DNS name of the {es} instance that the driver will connect to.
@@ -172,7 +181,71 @@ will be considered by default. Choose _All Files (\*.*)_ from the drop down, if 
 image:images/sql/odbc/dsn_editor_security_cert.png[]
 
 [float]
-===== 2.4 Logging parameters
+===== 2.4 Connection parameters
+The connection configuration can further be tweaked by the following parameters, but these should only need to be changed in rare cases.
+
+* Request timeout (s)
++
+The maximum number of seconds a request to the server can take. The value 0 disables disables the timeout.
+This corresponds to the `Timeout` setting in <<odbc-cfg-dsnparams>>.
++
+* Max page size (rows)
++
+The maximum number of rows that Elasticsearch SQL server should send the driver for one page.
+This corresponds to the `MaxFetchSize` setting in <<odbc-cfg-dsnparams>>.
++
+* Max page length (MB)
++
+The maximum number of megabytes that the driver will accept for one page.
+This corresponds to the `MaxBodySizeMB` setting in <<odbc-cfg-dsnparams>>.
++
+* Floats format
++
+How should the floating point numbers be printed, when these are converted to string by the driver.
+This corresponds to the `ScientificFloats` setting in <<odbc-cfg-dsnparams>>.
++
+* Data encoding
++
+How should the data between the server and the driver be encoded as.
+This corresponds to the `Packing` setting in <<odbc-cfg-dsnparams>>.
++
+* Data compression
++
+Should the data between the server and the driver be compressed?
+This corresponds to the `Compression` setting in <<odbc-cfg-dsnparams>>.
++
+* Follow HTTP redirects?
++
+Should the driver follow HTTP redirects of the requests to the server?
+This corresponds to the `Follow` setting in <<odbc-cfg-dsnparams>>.
++
+* Use local timezone?
++
+Should the driver use machine's local timezone? The default is UTC.
+This corresponds to the `ApplyTZ` setting in <<odbc-cfg-dsnparams>>.
++
+* Auto-escape PVAs?
++
+Should the driver auto-escape the pattern-value arguments?
+This corresponds to the `AutoEscapePVA` setting in <<odbc-cfg-dsnparams>>.
++
+* Multi value field lenient?
++
+Should the server return one value out of a multi-value field (instead of rejecting the request)?
+This corresponds to the `MultiFieldLenient` setting in <<odbc-cfg-dsnparams>>.
++
+* Include frozen indices?
++
+Should the server consider the frozen indices when servicing a request?
+This corresponds to the `IndexIncludeFrozen` setting in <<odbc-cfg-dsnparams>>.
+
+
+[[dsn_editor_misc]]
+.Connection parameters
+image:images/sql/odbc/dsn_editor_misc.png[]
+
+[float]
+===== 2.5 Logging parameters
 For troubleshooting purposes, the {odbc} offers functionality to log the API calls that an application makes; this is enabled in the Administrator application:
 
 [[administrator_tracing]]
@@ -285,9 +358,35 @@ The maximum time (in seconds) a request to the server can take. This can be
 overridden by a larger statement-level timeout setting. The value 0 means no
 timeout.
 
+
 `Follow` (default: `yes`)::
 A boolean value (`yes`|`no` / `true`|`false` / `0`|`1`) controlling if the
 driver will follow HTTP redirects.
+
+
+`Packing` (default: `CBOR`)::
+This value controls which data format to encode the REST content in. Possible
+values are:
+
+* `CBOR`: use the Concise Binary Object Representation format. This is the
+* preferred encoding, given it's more compact format.
+
+* `JSON`: use the JavaScript Object Notation format. This format is more
+* verbose, but easier to read, handful in debugging cases.
+
+
+`Compression` (default: `auto`)::
+This value controls if and when the REST content - encoded in one of the above
+formats -  is going to be compressed. The possible values are:
+
+* `on`: enables the compression;
+
+* `off`: disables the compression;
+
+* `auto`: enables the compression, except for the case when the data flows
+* through a secure connection; since in this case the encryption layer employs
+* its own data compression and there can be security implications when an
+* additional compression is enabled, the setting should be kept to this value.
 
 
 `MaxFetchSize` (default: `0`)::

@@ -187,7 +187,7 @@ pattern then you should set this setting to `true` when upgrading.
 `region`::
 
     Allows specifying the signing region to use. Specificing this setting manually should not be necessary for most use cases. Generally,
-    the SDK will correctly guess the singing region to use. It should be considered an expert level setting to support S3-compatible APIs
+    the SDK will correctly guess the signing region to use. It should be considered an expert level setting to support S3-compatible APIs
     that require https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html[v4 signatures] and use a region other than the
     default `us-east-1`. Defaults to empty string which means that the SDK will try to automatically determine the correct signing region.
 

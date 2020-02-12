@@ -391,6 +391,11 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public List<Query> getNamedQueries() {
+        return namedQueries;
+    }
+
+    @Override
     public MatchesContext matches() {
         return matches;
     }

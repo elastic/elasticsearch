@@ -56,6 +56,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -102,6 +103,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private final List<MatchesResult> matches = new ArrayList<>();
 
+    private String[] matchedQueries = Strings.EMPTY_ARRAY;
     private SearchSortValues sortValues = SearchSortValues.EMPTY;
 
     private Explanation explanation;
@@ -189,16 +191,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         sortValues = new SearchSortValues(in);
 
-        if (in.getVersion().before(Version.V_8_0_0)) {  // TODO: backport to 7.7
-            size = in.readVInt();
-            if (size > 0) {
-                List<String> matchedQueries = new ArrayList<>(size);
-                for (int i = 0; i < size; i++) {
-                    matchedQueries.add(in.readString());
-                }
-                this.matches.add(new NamedQueries(matchedQueries));
+        size = in.readVInt();
+        if (size > 0) {
+            matchedQueries = new String[size];
+            for (int i = 0; i < size; i++) {
+                matchedQueries[i] = in.readString();
             }
-        } else {
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             this.matches.addAll(in.readNamedWriteableList(MatchesResult.class));
         }
 
@@ -255,17 +255,16 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         sortValues.writeTo(out);
 
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            List<String> matchedQueries = findNamedQueries();
-            if (matchedQueries.size() == 0) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(matchedQueries.size());
-                for (String matchedFilter : matchedQueries) {
-                    out.writeString(matchedFilter);
-                }
+        if (matchedQueries.length == 0) {
+            out.writeVInt(0);
+        }
+        else {
+            out.writeVInt(matchedQueries.length);
+            for (String matchedFilter : matchedQueries) {
+                out.writeString(matchedFilter);
             }
-        } else {
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeNamedWriteableList(matches);
         }
 
@@ -545,11 +544,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return clusterAlias;
     }
 
+    public void matchedQueries(String[] matchedQueries) {
+        this.matchedQueries = matchedQueries;
+    }
+
     /**
      * The set of query and filter names the query matched with. Mainly makes sense for compound filters and queries.
      */
     public String[] getMatchedQueries() {
-        return findNamedQueries().toArray(new String[0]);
+        return this.matchedQueries;
     }
 
     /**
@@ -665,21 +668,19 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.endObject();
         }
         sortValues.toXContent(builder, params);
+        if (matchedQueries.length > 0) {
+            builder.startArray(Fields.MATCHED_QUERIES);
+            for (String matchedFilter : matchedQueries) {
+                builder.value(matchedFilter);
+            }
+            builder.endArray();
+        }
         if (matches.isEmpty() == false) {
             builder.startObject(Fields.MATCHES);
             for (MatchesResult m : matches) {
                 m.toXContent(builder, params);
             }
             builder.endObject();
-        }
-        // TODO: this is a good case for REST-level versioning
-        List<String> matchedQueries = findNamedQueries();
-        if (matchedQueries.size() > 0) {
-            builder.startArray(Fields.MATCHED_QUERIES);
-            for (String matchedFilter : matchedQueries) {
-                builder.value(matchedFilter);
-            }
-            builder.endArray();
         }
         if (getExplanation() != null) {
             builder.field(Fields._EXPLANATION);
@@ -786,10 +787,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         searchHit.explanation(get(Fields._EXPLANATION, values, null));
         searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
         List<String> matchedQueries = get(Fields.MATCHED_QUERIES, values, null);
-        Map<String, MatchesResult> matchesResults = get(Fields.MATCHES, values, null);
-        if (matchesResults == null && matchedQueries != null) {
-            searchHit.matches.add(new NamedQueries(matchedQueries));
+        if (matchedQueries != null) {
+            searchHit.matchedQueries(matchedQueries.toArray(new String[0]));
         }
+        Map<String, MatchesResult> matchesResults = get(Fields.MATCHES, values, null);
         if (matchesResults != null) {
             searchHit.matches.addAll(matchesResults.values());
         }
@@ -950,6 +951,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 && Objects.equals(source, other.source)
                 && Objects.equals(getFields(), other.getFields())
                 && Objects.equals(getHighlightFields(), other.getHighlightFields())
+                && Arrays.equals(matchedQueries, other.matchedQueries)
                 && Objects.equals(matches, other.matches)
                 && Objects.equals(explanation, other.explanation)
                 && Objects.equals(shard, other.shard)

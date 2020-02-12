@@ -910,7 +910,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>comment</em>"));
 
         Explanation explanation = searchHit.getExplanation();
-        assertTrue(explanation.isMatch());
+        assertFalse(explanation.isMatch());
 
         // Returns the version of the root document. Nested docs don't have a separate version
         long version = searchHit.getVersion();

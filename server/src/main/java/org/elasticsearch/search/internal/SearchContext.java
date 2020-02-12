@@ -273,6 +273,8 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext setQuery(QueryBuilder query, QueryBuilder postFilter, Function<QueryBuilder, Query> parser);
 
+    public abstract List<Query> getNamedQueries();
+
     /**
      * The query to execute, might be rewritten.
      */

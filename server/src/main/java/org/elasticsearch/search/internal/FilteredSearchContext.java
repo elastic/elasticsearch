@@ -367,6 +367,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public List<Query> getNamedQueries() {
+        return in.getNamedQueries();
+    }
+
+    @Override
     public int from() {
         return in.from();
     }

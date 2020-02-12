@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -111,7 +112,8 @@ public abstract class InnerHitContextBuilder {
         if (innerHitBuilder.getHighlightBuilder() != null) {
             innerHitsContext.highlight(innerHitBuilder.getHighlightBuilder().build(queryShardContext));
         }
-        innerHitsContext.setQuery(query, null, queryShardContext::toQuery);
+        Query q = query.toQuery(queryShardContext);
+        innerHitsContext.setQuery(q);
         Map<String, InnerHitsContext.InnerHitSubContext> baseChildren =
             buildChildInnerHits(innerHitsContext.parentSearchContext(), children);
         innerHitsContext.setChildInnerHits(baseChildren);

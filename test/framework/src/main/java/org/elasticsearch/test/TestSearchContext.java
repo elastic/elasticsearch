@@ -446,6 +446,11 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public List<Query> getNamedQueries() {
+        return Collections.emptyList();
+    }
+
+    @Override
     public Query query() {
         return query;
     }

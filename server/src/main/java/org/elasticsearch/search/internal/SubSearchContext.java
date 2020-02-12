@@ -220,6 +220,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     public void setQuery(Query query) {
+        this.originalQuery = query;
         this.query = query;
     }
 

@@ -28,9 +28,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -134,7 +133,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
-public class IndexLifecycle extends Plugin implements SystemIndexPlugin {
+public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<ILMHistoryStore> ilmHistoryStore = new SetOnce<>();
     private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
@@ -242,29 +241,29 @@ public class IndexLifecycle extends Plugin implements SystemIndexPlugin {
         List<RestHandler> handlers = new ArrayList<>();
         if (ilmEnabled) {
             handlers.addAll(Arrays.asList(
-                new RestPutLifecycleAction(restController),
-                new RestGetLifecycleAction(restController),
-                new RestDeleteLifecycleAction(restController),
-                new RestExplainLifecycleAction(restController),
-                new RestRemoveIndexLifecyclePolicyAction(restController),
-                new RestMoveToStepAction(restController),
-                new RestRetryAction(restController),
-                new RestStopAction(restController),
-                new RestStartILMAction(restController),
-                new RestGetStatusAction(restController)
+                new RestPutLifecycleAction(),
+                new RestGetLifecycleAction(),
+                new RestDeleteLifecycleAction(),
+                new RestExplainLifecycleAction(),
+                new RestRemoveIndexLifecyclePolicyAction(),
+                new RestMoveToStepAction(),
+                new RestRetryAction(),
+                new RestStopAction(),
+                new RestStartILMAction(),
+                new RestGetStatusAction()
             ));
         }
         if (slmEnabled) {
             handlers.addAll(Arrays.asList(
-                new RestPutSnapshotLifecycleAction(restController),
-                new RestDeleteSnapshotLifecycleAction(restController),
-                new RestGetSnapshotLifecycleAction(restController),
-                new RestExecuteSnapshotLifecycleAction(restController),
-                new RestGetSnapshotLifecycleStatsAction(restController),
-                new RestExecuteSnapshotRetentionAction(restController),
-                new RestStopSLMAction(restController),
-                new RestStartSLMAction(restController),
-                new RestGetSLMStatusAction(restController)
+                new RestPutSnapshotLifecycleAction(),
+                new RestDeleteSnapshotLifecycleAction(),
+                new RestGetSnapshotLifecycleAction(),
+                new RestExecuteSnapshotLifecycleAction(),
+                new RestGetSnapshotLifecycleStatsAction(),
+                new RestExecuteSnapshotRetentionAction(),
+                new RestStopSLMAction(),
+                new RestStartSLMAction(),
+                new RestGetSLMStatusAction()
             ));
         }
         return handlers;
@@ -327,13 +326,5 @@ public class IndexLifecycle extends Plugin implements SystemIndexPlugin {
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close index lifecycle services", e);
         }
-    }
-
-    @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        //TODO: The SLM history store should be non-dot-prefixed hidden indices, but need to be here for now
-        // to prevent warnings
-        return Collections.singletonList(new SystemIndexDescriptor(".slm-history-*",
-            "Contains a history of Snapshot Lifecycle Management operations"));
     }
 }

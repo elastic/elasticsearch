@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -45,7 +46,6 @@ import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
@@ -812,7 +812,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (p.child() instanceof Filter) {
                     Filter f = (Filter) p.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
                         if (newCondition != condition) {
                             return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
@@ -826,7 +826,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (a.child() instanceof Filter) {
                     Filter f = (Filter) a.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
                         if (newCondition != condition) {
                             return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
@@ -998,7 +998,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (n.foldable() == false && Functions.isAggregate(n) == false
                             // folding might not work (it might wait for the optimizer)
                             // so check whether any column is referenced
-                            && n.anyMatch(e -> e instanceof FieldAttribute) == true) {
+                            && n.anyMatch(e -> e instanceof FieldAttribute)) {
                         return f;
                     }
                 }

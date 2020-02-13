@@ -46,6 +46,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -87,6 +88,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
@@ -126,7 +128,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         queryShardContext = new QueryShardContext(0,
             new IndexSettings(IndexMetaData.builder("test").settings(indexSettings).build(), indexSettings),
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> randomNonNegativeLong(), null, null);
+            null, null, () -> randomNonNegativeLong(), null, null, () -> true);
     }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
@@ -497,7 +499,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     private void validateIndexName(MetaDataCreateIndexService metaDataCreateIndexService, String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
             () -> metaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
-                .getDefault(Settings.EMPTY)).build(), false));
+                .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
 
@@ -560,7 +562,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertThat(e, hasToString(containsString(expectedMessage)));
     }
 
-    public void testValidateIndexNameChecksSystemIndexNames() {
+    public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test3", "test"));
@@ -583,30 +585,69 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 false
             );
             // Check deprecations
-            checkerService.validateIndexName(".test2", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".test2", ClusterState.EMPTY_STATE, false);
             assertWarnings("index name [.test2] starts with a dot '.', in the next major version, index " +
                 "names starting with a dot are reserved for hidden indices and system indices");
 
             // Check non-system hidden indices don't trigger a warning
-            checkerService.validateIndexName(".test2", ClusterState.EMPTY_STATE, true);
+            checkerService.validateDotIndex(".test2", ClusterState.EMPTY_STATE, true);
 
             // Check NO deprecation warnings if we give the index name
-            checkerService.validateIndexName(".test", ClusterState.EMPTY_STATE, false);
-            checkerService.validateIndexName(".test3", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".test", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".test3", ClusterState.EMPTY_STATE, false);
 
             // Check that patterns with wildcards work
-            checkerService.validateIndexName(".pattern-test", ClusterState.EMPTY_STATE, false);
-            checkerService.validateIndexName(".pattern-test-with-suffix", ClusterState.EMPTY_STATE, false);
-            checkerService.validateIndexName(".pattern-test-other-suffix", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".pattern-test", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".pattern-test-with-suffix", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".pattern-test-other-suffix", ClusterState.EMPTY_STATE, false);
 
             // Check that an exception is thrown if more than one descriptor matches the index name
             AssertionError exception = expectThrows(AssertionError.class,
-                () -> checkerService.validateIndexName(".pattern-test-overlapping", ClusterState.EMPTY_STATE, false));
+                () -> checkerService.validateDotIndex(".pattern-test-overlapping", ClusterState.EMPTY_STATE, false));
             assertThat(exception.getMessage(),
                 containsString("index name [.pattern-test-overlapping] is claimed as a system index by multiple system index patterns:"));
             assertThat(exception.getMessage(), containsString("pattern: [.pattern-test*], description: [test-1]"));
             assertThat(exception.getMessage(), containsString("pattern: [.pattern-test-overlapping], description: [test-2]"));
 
+        } finally {
+            testThreadPool.shutdown();
+        }
+    }
+
+    public void testIndexNameExclusionsList() {
+        // this test case should be removed when DOT_INDICES_EXCLUSIONS is empty
+        List<String> excludedNames = Arrays.asList(
+            ".watch-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".ml-anomalies-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".ml-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".ml-annotations-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".data-frame-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".transform-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT)
+        );
+
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            MetaDataCreateIndexService checkerService = new MetaDataCreateIndexService(
+                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(testThreadPool),
+                null,
+                null,
+                null,
+                null,
+                null,
+                testThreadPool,
+                null,
+                Collections.emptyList(),
+                false
+            );
+
+            excludedNames.forEach(name -> {
+                checkerService.validateDotIndex(name, ClusterState.EMPTY_STATE, false);
+            });
+
+            excludedNames.forEach(name -> {
+                expectThrows(AssertionError.class, () -> checkerService.validateDotIndex(name, ClusterState.EMPTY_STATE, true));
+            });
         } finally {
             testThreadPool.shutdown();
         }
@@ -908,6 +949,42 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         });
         assertThat(error.getMessage(), equalTo("Creating indices with soft-deletes disabled is no longer supported. "
             + "Please do not specify a value for setting [index.soft_deletes.enabled]."));
+    }
+
+    public void testRejectTranslogRetentionSettings() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 120)));
+        } else {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
+        }
+        if (randomBoolean()) {
+            settings.put(SETTING_INDEX_VERSION_CREATED.getKey(),
+                VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT));
+        }
+        request.settings(settings.build());
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS));
+        assertThat(error.getMessage(), equalTo("Translog retention settings [index.translog.retention.age] " +
+            "and [index.translog.retention.size] are no longer supported. Please do not specify values for these settings"));
+    }
+
+    public void testDeprecateTranslogRetentionSettings() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 120)));
+        } else {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
+        }
+        settings.put(SETTING_INDEX_VERSION_CREATED.getKey(), VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0));
+        request.settings(settings.build());
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        assertWarnings("Translog retention settings [index.translog.retention.age] "
+            + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
     }
 
     private IndexTemplateMetaData addMatchingTemplate(Consumer<IndexTemplateMetaData.Builder> configurator) {

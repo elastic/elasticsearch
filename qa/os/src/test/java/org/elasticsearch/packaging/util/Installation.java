@@ -135,6 +135,10 @@ public class Installation {
         return config.resolve(configFileName);
     }
 
+    public Path config(Path configFileName) {
+        return config.resolve(configFileName);
+    }
+
     public Executables executables() {
         return new Executables();
     }

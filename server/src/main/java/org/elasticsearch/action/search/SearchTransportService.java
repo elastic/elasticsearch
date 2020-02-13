@@ -55,7 +55,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -306,27 +305,11 @@ public class SearchTransportService {
             (in) -> TransportResponse.Empty.INSTANCE);
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeDfsPhase(request, (SearchShardTask) task, new ActionListener<SearchPhaseResult>() {
-                    @Override
-                    public void onResponse(SearchPhaseResult searchPhaseResult) {
-                        try {
-                            channel.sendResponse(searchPhaseResult);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
+            (request, channel, task) ->
+                searchService.executeDfsPhase(request, (SearchShardTask) task,
+                    new ChannelActionListener<>(channel, DFS_ACTION_NAME, request))
+        );
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
-                    }
-                });
-            });
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,

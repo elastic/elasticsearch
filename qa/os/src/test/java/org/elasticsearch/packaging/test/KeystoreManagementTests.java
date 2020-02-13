@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
@@ -56,12 +57,15 @@ import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallatio
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
 public class KeystoreManagementTests extends PackagingTestCase {
 
     public static final String ERROR_INCORRECT_PASSWORD = "Provided keystore password was incorrect";
+    public static final String ERROR_CORRUPTED_KEYSTORE = "Keystore has been corrupted or tampered with";
     public static final String ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED = "ERROR: Keystore is not password-protected";
     public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
 
@@ -171,7 +175,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         Shell.Result result = startElasticsearchStandardInputPassword("wrong");
-        assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD, null);
+        assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), null);
     }
 
     @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
@@ -207,7 +211,26 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Shell.Result result = startElasticsearchTtyPassword("wrong");
         // error will be on stdout for "expect"
-        assertThat(result.stdout, containsString(ERROR_INCORRECT_PASSWORD));
+        assertThat(result.stdout, anyOf(containsString(ERROR_INCORRECT_PASSWORD), containsString(ERROR_CORRUPTED_KEYSTORE)));
+    }
+
+    /**
+     * If we have an encrypted keystore, we shouldn't require a password to
+     * view help information.
+     */
+    public void test44EncryptedKeystoreAllowsHelpMessage() throws Exception {
+        assumeTrue("users call elasticsearch directly in archive case",
+            distribution.isArchive());
+
+        String password = "keystorepass";
+
+        rmKeystoreIfExists();
+        createKeystore();
+        setKeystorePassword(password);
+
+        assertPasswordProtectedKeystore();
+        Shell.Result r = installation.executables().elasticsearch.run("--help");
+        assertThat(r.stdout, startsWith("Starts Elasticsearch"));
     }
 
     public void test50KeystorePasswordFromFile() throws Exception {
@@ -257,7 +280,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             Packages.JournaldWrapper journaldWrapper = new Packages.JournaldWrapper(sh);
             Shell.Result result = runElasticsearchStartCommand();
-            assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD, journaldWrapper);
+            assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), journaldWrapper);
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
         }

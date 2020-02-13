@@ -162,24 +162,24 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         }
 
         return Arrays.asList(
-            new RestPutTransformAction(restController),
-            new RestStartTransformAction(restController),
-            new RestStopTransformAction(restController),
-            new RestDeleteTransformAction(restController),
-            new RestGetTransformAction(restController),
-            new RestGetTransformStatsAction(restController),
-            new RestPreviewTransformAction(restController),
-            new RestUpdateTransformAction(restController),
+            new RestPutTransformAction(),
+            new RestStartTransformAction(),
+            new RestStopTransformAction(),
+            new RestDeleteTransformAction(),
+            new RestGetTransformAction(),
+            new RestGetTransformStatsAction(),
+            new RestPreviewTransformAction(),
+            new RestUpdateTransformAction(),
 
             // deprecated endpoints, to be removed for 8.0.0
-            new RestPutTransformActionDeprecated(restController),
-            new RestStartTransformActionDeprecated(restController),
-            new RestStopTransformActionDeprecated(restController),
-            new RestDeleteTransformActionDeprecated(restController),
-            new RestGetTransformActionDeprecated(restController),
-            new RestGetTransformStatsActionDeprecated(restController),
-            new RestPreviewTransformActionDeprecated(restController),
-            new RestUpdateTransformActionDeprecated(restController)
+            new RestPutTransformActionDeprecated(),
+            new RestStartTransformActionDeprecated(),
+            new RestStopTransformActionDeprecated(),
+            new RestDeleteTransformActionDeprecated(),
+            new RestGetTransformActionDeprecated(),
+            new RestGetTransformStatsActionDeprecated(),
+            new RestPreviewTransformActionDeprecated(),
+            new RestUpdateTransformActionDeprecated()
         );
     }
 
@@ -317,11 +317,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return Collections.unmodifiableList(Arrays.asList(
-            // TODO: Verify that these should be system indices, rather than hidden indices
-            new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED, this.getClass().getSimpleName())
-        ));
+        return Collections.singletonList(
+            new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
+        );
     }
 }

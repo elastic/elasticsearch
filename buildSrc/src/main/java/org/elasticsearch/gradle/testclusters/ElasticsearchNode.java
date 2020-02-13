@@ -651,7 +651,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Map<String, String> getESEnvironment() {
         Map<String, String> defaultEnv = new HashMap<>();
         // If we are testing the current version of Elasticsearch, use the configured runtime Java, otherwise use the bundled JDK
-        if (getTestDistribution() == TestDistribution.INTEG_TEST || getVersion().toString().equals(VersionProperties.getElasticsearch())) {
+        if (getTestDistribution() == TestDistribution.INTEG_TEST || getVersion().equals(VersionProperties.getElasticsearchVersion())) {
             defaultEnv.put("JAVA_HOME", BuildParams.getRuntimeJavaHome().getAbsolutePath());
         }
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
@@ -1209,10 +1209,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ElasticsearchNode that = (ElasticsearchNode) o;
         return Objects.equals(name, that.name) && Objects.equals(path, that.path);
     }

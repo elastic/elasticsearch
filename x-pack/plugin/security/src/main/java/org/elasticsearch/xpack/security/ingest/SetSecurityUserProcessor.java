@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.security.ingest;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -18,7 +19,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
@@ -31,20 +34,21 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set_security_user";
 
-    private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
     private final String field;
     private final Set<Property> properties;
 
-    public SetSecurityUserProcessor(String tag, ThreadContext threadContext, String field, Set<Property> properties) {
+    public
+    SetSecurityUserProcessor(String tag, SecurityContext securityContext, String field, Set<Property> properties) {
         super(tag);
-        this.threadContext = threadContext;
+        this.securityContext = Objects.requireNonNull(securityContext, "security context must be provided");
         this.field = field;
         this.properties = properties;
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        Authentication authentication = Authentication.getAuthentication(threadContext);
+        Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             throw new IllegalStateException("No user authenticated, only use this processor via authenticated user");
         }
@@ -85,6 +89,54 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         userObject.put("metadata", user.metadata());
                     }
                     break;
+                case API_KEY:
+                    final String apiKey = "api_key";
+                    final Object existingApiKeyField = userObject.get(apiKey);
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> apiKeyField =
+                        existingApiKeyField instanceof Map ? (Map<String, Object>) existingApiKeyField : new HashMap<>();
+                    Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
+                    if (apiKeyName != null) {
+                        apiKeyField.put("name", apiKeyName);
+                    }
+                    Object apiKeyId = authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                    if (apiKeyId != null) {
+                        apiKeyField.put("id", apiKeyId);
+                    }
+                    if (false == apiKeyField.isEmpty()) {
+                        userObject.put(apiKey, apiKeyField);
+                    }
+                    break;
+                case REALM:
+                    final String realmKey = "realm";
+                    final Object existingRealmField = userObject.get(realmKey);
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> realmField =
+                        existingRealmField instanceof Map ? (Map<String, Object>) existingRealmField : new HashMap<>();
+
+                    final Object realmName, realmType;
+                    if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+                        realmName = authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
+                        realmType = authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_TYPE);
+                    } else {
+                        realmName = authentication.getSourceRealm().getName();
+                        realmType = authentication.getSourceRealm().getType();
+                    }
+                    if (realmName != null) {
+                        realmField.put("name", realmName);
+                    }
+                    if (realmType != null) {
+                        realmField.put("type", realmType);
+                    }
+                    if (false == realmField.isEmpty()) {
+                        userObject.put(realmKey, realmField);
+                    }
+                    break;
+                case AUTHENTICATION_TYPE:
+                    if (authentication.getAuthenticationType() != null) {
+                        userObject.put("authentication_type", authentication.getAuthenticationType().toString());
+                    }
+                    break;
                 default:
                     throw new UnsupportedOperationException("unsupported property [" + property + "]");
             }
@@ -108,10 +160,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final ThreadContext threadContext;
+        private final Supplier<SecurityContext> securityContext;
 
-        public Factory(ThreadContext threadContext) {
-            this.threadContext = threadContext;
+        public Factory(Supplier<SecurityContext> securityContext) {
+            this.securityContext = securityContext;
         }
 
         @Override
@@ -128,7 +180,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             } else {
                 properties = EnumSet.allOf(Property.class);
             }
-            return new SetSecurityUserProcessor(tag, threadContext, field, properties);
+            return new SetSecurityUserProcessor(tag, securityContext.get(), field, properties);
         }
     }
 
@@ -138,7 +190,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         FULL_NAME,
         EMAIL,
         ROLES,
-        METADATA;
+        METADATA,
+        API_KEY,
+        REALM,
+        AUTHENTICATION_TYPE;
 
         static Property parse(String tag, String value) {
             try {

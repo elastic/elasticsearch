@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -16,7 +17,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,6 +33,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public final class AnomalyDetectorsIndex {
 
     public static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
+
+    private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
 
     private AnomalyDetectorsIndex() {
     }
@@ -144,4 +150,12 @@ public final class AnomalyDetectorsIndex {
         }
     }
 
+    public static String resultsMapping() {
+        return resultsMapping(MapperService.SINGLE_MAPPING_NAME);
+    }
+
+    public static String resultsMapping(String mappingType) {
+        return TemplateUtils.loadTemplate(RESOURCE_PATH + "results_index_mappings.json",
+            Version.CURRENT.toString(), RESULTS_MAPPINGS_VERSION_VARIABLE, Collections.singletonMap("xpack.ml.mapping_type", mappingType));
+    }
 }

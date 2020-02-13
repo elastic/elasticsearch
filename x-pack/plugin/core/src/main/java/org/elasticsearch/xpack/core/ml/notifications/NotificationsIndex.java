@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.notifications;
 
-public final class AuditorField {
+public final class NotificationsIndex {
 
     public static final String NOTIFICATIONS_INDEX = ".ml-notifications-000001";
 
-    private AuditorField() {}
+    private NotificationsIndex() {}
 }

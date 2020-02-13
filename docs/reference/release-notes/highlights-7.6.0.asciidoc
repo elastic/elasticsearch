@@ -61,3 +61,12 @@ index. Now you can have separate clusters (for example, project clusters) build
 entity-centric or feature indices against a primary cluster.
 
 // end::notable-highlights[]
+
+[float]
+=== Learn more
+
+Get more details on these features in the
+https://www.elastic.co/blog/elasticsearch-7-6-0-released[{es} 7.6 release blog].
+For a complete list of enhancements and other changes, check out the
+<<release-notes-7.6.0,{es} 7.6 release notes>>.
+

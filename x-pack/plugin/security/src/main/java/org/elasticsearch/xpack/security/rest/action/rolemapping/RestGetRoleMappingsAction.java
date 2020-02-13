@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -22,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -32,8 +29,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Rest endpoint to retrieve a role-mapping from the org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
 public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetRoleMappingsAction.class));
 
     public RestGetRoleMappingsAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -47,10 +42,10 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(GET, "/_security/role_mapping/", GET, "/_xpack/security/role_mapping/", deprecationLogger),
-            new ReplacedRoute(GET, "/_security/role_mapping/{name}", GET, "/_xpack/security/role_mapping/{name}", deprecationLogger)
-        ));
+        return List.of(
+            new ReplacedRoute(GET, "/_security/role_mapping/", GET, "/_xpack/security/role_mapping/"),
+            new ReplacedRoute(GET, "/_security/role_mapping/{name}", GET, "/_xpack/security/role_mapping/{name}")
+        );
     }
 
     @Override

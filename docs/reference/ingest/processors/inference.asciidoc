@@ -44,12 +44,9 @@ include::common-options.asciidoc[]
 Specifies the field to which the inference prediction is written. Defaults to 
 `predicted_value`.
 
-`num_top_feature_importance_values`::
+`num_top_feature_importance_values`::::
 (Optional, integer)
-If set, feature importance for the top
-most important features will be computed. Importance is calculated
-using the SHAP (SHapley Additive exPlanations) method as described in
-https://papers.nips.cc/paper/7062-a-unified-approach-to-interpreting-model-predictions.pdf[Lundberg, S. M., & Lee, S.-I. A Unified Approach to Interpreting Model Predictions. In NeurIPS 2017.].
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
 
 [discrete]
 [[inference-processor-classification-opt]]
@@ -69,6 +66,9 @@ Specifies the number of top class predictions to return. Defaults to 0.
 Specifies the field to which the top classes are written. Defaults to 
 `top_classes`.
 
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
 
 [discrete]
 [[inference-processor-config-example]]

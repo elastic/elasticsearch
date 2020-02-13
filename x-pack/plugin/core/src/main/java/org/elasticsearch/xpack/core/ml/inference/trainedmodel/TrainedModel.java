@@ -18,6 +18,8 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
     /**
      * Infer against the provided fields
      *
+     * NOTE: Must be thread safe
+     *
      * @param fields The fields and their values to infer against
      * @param config The configuration options for inference
      * @param featureDecoderMap A map for decoding feature value names to their originating feature.
@@ -54,6 +56,7 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
     /**
      * Calculates the importance of each feature reference by the model for the passed in field values
      *
+     * NOTE: Must be thread safe
      * @param fields The fields inferring against
      * @param featureDecoder A Map translating processed feature names to their original feature names
      * @return A {@code Map<String, Double>} mapping each featureName to its importance

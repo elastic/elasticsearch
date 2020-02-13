@@ -88,8 +88,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     private final TargetType targetType;
     private final List<String> classificationLabels;
     private final CachedSupplier<Double> highestOrderCategory;
-    private volatile double[] nodeEstimates;
-    private volatile int maxDepth;
+    // populated lazily when feature importance is calculated
+    private double[] nodeEstimates;
+    private Integer maxDepth;
 
     Tree(List<String> featureNames, List<TreeNode> nodes, TargetType targetType, List<String> classificationLabels) {
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
@@ -289,14 +290,18 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                 .collect(Collectors.toMap(featureNames::get, i -> featureImportance[i])));
     }
 
-    //TODO synchronized?
     private void calculateNodeEstimatesIfNeeded() {
-        if (this.nodeEstimates != null) {
+        if (this.nodeEstimates != null && this.maxDepth != null) {
             return;
         }
-        double[] estimates = new double[nodes.size()];
-        maxDepth = fillNodeEstimates(estimates, 0, 0);
-        this.nodeEstimates = estimates;
+        synchronized (this) {
+            if (this.nodeEstimates != null && this.maxDepth != null) {
+                return;
+            }
+            double[] estimates = new double[nodes.size()];
+            this.maxDepth = fillNodeEstimates(estimates, 0, 0);
+            this.nodeEstimates = estimates;
+        }
     }
 
     /**

@@ -131,7 +131,7 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final Authentication.RealmRef lookedUpBy = mock(Authentication.RealmRef.class);
         when(lookedUpBy.getName()).thenReturn(runAsRealmName);
         when(lookedUpBy.getType()).thenReturn(runAsRealmType);
-        final User user = new User(username, new String[0], new User(runAsUsername));
+        final User user = new User(runAsUsername, new String[0], new User(username));
         final Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);

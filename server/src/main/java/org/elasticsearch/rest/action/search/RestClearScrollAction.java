@@ -30,16 +30,15 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestClearScrollAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(DELETE, "/_search/scroll"),
-            new Route(DELETE, "/_search/scroll/{scroll_id}")));
+            new Route(DELETE, "/_search/scroll/{scroll_id}"));
     }
 
     @Override

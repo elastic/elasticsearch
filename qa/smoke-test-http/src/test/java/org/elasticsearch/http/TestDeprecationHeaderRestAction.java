@@ -76,7 +76,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     @Override
     public List<DeprecatedRoute> deprecatedRoutes() {
         return singletonList(
-            new DeprecatedRoute(GET, "/_test_cluster/deprecated_settings", DEPRECATED_ENDPOINT, deprecationLogger));
+            new DeprecatedRoute(GET, "/_test_cluster/deprecated_settings", DEPRECATED_ENDPOINT));
     }
 
     @Override

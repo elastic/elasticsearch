@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -35,7 +34,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
@@ -52,7 +51,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
                 + "}/results/buckets",
                 POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets")
-        ));
+        );
     }
 
     @Override

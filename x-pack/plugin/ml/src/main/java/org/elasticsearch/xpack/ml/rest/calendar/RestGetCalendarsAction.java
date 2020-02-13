@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -34,7 +33,7 @@ public class RestGetCalendarsAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
             new ReplacedRoute(GET, MachineLearning.BASE_PATH + "calendars/",
@@ -43,7 +42,7 @@ public class RestGetCalendarsAction extends BaseRestHandler {
                 POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
             new ReplacedRoute(POST, MachineLearning.BASE_PATH + "calendars/",
                 POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/")
-        ));
+        );
     }
 
     @Override

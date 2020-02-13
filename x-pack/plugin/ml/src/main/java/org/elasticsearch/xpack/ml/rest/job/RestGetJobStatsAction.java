@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -32,12 +31,12 @@ public class RestGetJobStatsAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats"),
             new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/_stats",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/_stats")
-        ));
+        );
     }
 
     @Override

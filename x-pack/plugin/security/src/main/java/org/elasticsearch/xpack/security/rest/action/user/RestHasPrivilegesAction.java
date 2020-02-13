@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -55,7 +54,7 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(GET, "/_security/user/{username}/_has_privileges",
                 GET, "/_xpack/security/user/{username}/_has_privileges"),
             new ReplacedRoute(POST, "/_security/user/{username}/_has_privileges",
@@ -64,7 +63,7 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
                 GET, "/_xpack/security/user/_has_privileges"),
             new ReplacedRoute(POST, "/_security/user/_has_privileges",
                 POST, "/_xpack/security/user/_has_privileges")
-        ));
+        );
     }
 
     @Override

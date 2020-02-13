@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -47,10 +46,10 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(PUT, "/_security/privilege/", PUT, "/_xpack/security/privilege/"),
             new ReplacedRoute(POST, "/_security/privilege/", POST, "/_xpack/security/privilege/")
-        ));
+        );
     }
 
     @Override

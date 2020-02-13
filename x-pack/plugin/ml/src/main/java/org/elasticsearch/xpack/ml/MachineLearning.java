@@ -1038,11 +1038,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new SystemIndexDescriptor(MlMetaIndex.INDEX_NAME, "Contains scheduling and anomaly tracking metadata"),
             new SystemIndexDescriptor(AnomalyDetectorsIndexFields.STATE_INDEX_PATTERN, "Contains ML model state"),
             new SystemIndexDescriptor(AnomalyDetectorsIndexFields.CONFIG_INDEX, "Contains ML configuration data"),
             new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
-        ));
+        );
     }
 }

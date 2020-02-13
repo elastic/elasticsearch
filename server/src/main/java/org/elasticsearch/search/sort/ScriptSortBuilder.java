@@ -290,7 +290,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     @Override
                     public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
                         throw new IllegalArgumentException("error building sort for [_script]: "
-                                + "script sorting only supported for [numeric] scripts but was [" + type + "]");
+                                + "script sorting only supported on [numeric] scripts but was [" + type + "]");
                     }
                 };
             case NUMBER:

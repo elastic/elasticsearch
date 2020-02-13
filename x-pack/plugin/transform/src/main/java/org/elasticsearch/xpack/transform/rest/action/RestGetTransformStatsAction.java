@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
@@ -25,9 +23,9 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS + "_stats"),
-            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stats")));
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stats"));
     }
 
     @Override

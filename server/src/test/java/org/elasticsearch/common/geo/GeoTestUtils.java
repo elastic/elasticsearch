@@ -100,10 +100,4 @@ public class GeoTestUtils {
         Geometry geometry = new GeometryParser(true, true, true).parse(parser);
         return new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometry);
     }
-
-    public static Polygon polyFrom(Rectangle rectangle) {
-        return new Polygon(new LinearRing(
-            new double[] { rectangle.getMinX(), rectangle.getMaxX(), rectangle.getMaxX(), rectangle.getMinX(), rectangle.getMinX()},
-            new double[] { rectangle.getMinY(), rectangle.getMinY(), rectangle.getMaxY(), rectangle.getMaxY(), rectangle.getMinY()}));
-    }
 }

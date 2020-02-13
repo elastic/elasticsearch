@@ -58,7 +58,6 @@ public class CopyRestTestsTask extends DefaultTask {
     Configuration coreConfig;
     Configuration xpackConfig;
 
-
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
 

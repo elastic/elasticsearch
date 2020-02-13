@@ -61,7 +61,6 @@ public class CopyRestApiTask extends DefaultTask {
     Configuration coreConfig;
     Configuration xpackConfig;
 
-
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
 

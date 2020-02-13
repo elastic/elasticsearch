@@ -35,7 +35,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -51,15 +51,15 @@ import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericTyp
 import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
 
 /**
- * Query sub phase which pulls data from doc values
+ * Fetch sub phase which pulls data from doc values.
  *
  * Specifying {@code "docvalue_fields": ["field1", "field2"]}
  */
-public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
+public final class FetchDocValuesPhase implements FetchSubPhase {
 
     private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
-            LogManager.getLogger(DocValueFieldsFetchSubPhase.class));
+            LogManager.getLogger(FetchDocValuesPhase.class));
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
@@ -67,22 +67,22 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             String name = context.collapse().getFieldName();
-            if (context.docValueFieldsContext() == null) {
-                context.docValueFieldsContext(new DocValueFieldsContext(
+            if (context.docValuesContext() == null) {
+                context.docValuesContext(new FetchDocValuesContext(
                         Collections.singletonList(new FieldAndFormat(name, null))));
-            } else if (context.docValueFieldsContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                context.docValueFieldsContext().fields().add(new FieldAndFormat(name, null));
+            } else if (context.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
+                context.docValuesContext().fields().add(new FieldAndFormat(name, null));
             }
         }
 
-        if (context.docValueFieldsContext() == null) {
+        if (context.docValuesContext() == null) {
             return;
         }
 
         hits = hits.clone(); // don't modify the incoming hits
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
-        if (context.docValueFieldsContext().fields().stream()
+        if (context.docValuesContext().fields().stream()
                 .map(f -> f.format)
                 .filter(USE_DEFAULT_FORMAT::equals)
                 .findAny()
@@ -91,7 +91,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                     "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
         }
 
-        for (FieldAndFormat fieldAndFormat : context.docValueFieldsContext().fields()) {
+        for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
             String field = fieldAndFormat.field;
             MappedFieldType fieldType = context.mapperService().fieldType(field);
             if (fieldType != null) {

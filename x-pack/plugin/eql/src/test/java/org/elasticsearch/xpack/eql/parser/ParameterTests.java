@@ -20,11 +20,11 @@ public class ParameterTests extends ESTestCase {
 
     private final EqlParser parser = new EqlParser();
 
-    public Expression expr(String source) {
+    private Expression expr(String source) {
         return parser.createExpression(source);
     }
 
-    public Expression expr(String source, List<Object> params) {
+    private Expression expr(String source, List<Object> params) {
         return parser.createExpression(source, params);
     }
 
@@ -38,8 +38,8 @@ public class ParameterTests extends ESTestCase {
     }
 
     public void testEscapes() {
-        assertEquals(expr("a == ?", Collections.singletonList("test \\ \n \r \t ' \"")),
-                     expr("a == 'test \\\\ \\n \\r \\t \\' \\\"'"));
+        assertEquals(expr("a == ? and b == ?'test'", Collections.singletonList("test \\ \n \r \t ' \"")),
+                     expr("a == 'test \\\\ \\n \\r \\t \\' \\\"' and b == 'test'"));
     }
 
     public void testInvalidParameters() {

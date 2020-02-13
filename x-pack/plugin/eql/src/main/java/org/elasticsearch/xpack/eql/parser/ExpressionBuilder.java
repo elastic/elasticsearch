@@ -52,7 +52,7 @@ import java.util.Map;
 public class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParserParams params;
-    protected final Map<Token, Object> paramTokens;
+    private final Map<Token, Object> paramTokens;
 
     public ExpressionBuilder(ParserParams params, Map<Token, Object> paramTokens) {
         this.params = params;
@@ -258,9 +258,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         DataType dataType = null;
 
-        try {
-            dataType = DataTypes.fromJava(value);
-        } catch (QlIllegalArgumentException ignored) {};
+        dataType = DataTypes.fromJava(value);
 
         if (dataType == null) {
             throw new ParsingException(source, "Invalid parameter [{}]", value);

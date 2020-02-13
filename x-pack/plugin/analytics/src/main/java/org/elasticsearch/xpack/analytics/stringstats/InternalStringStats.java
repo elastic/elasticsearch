@@ -107,6 +107,10 @@ public class InternalStringStats extends InternalAggregation {
         return count;
     }
 
+    long getTotalLength () {
+        return totalLength;
+    }
+
     public int getMinLength() {
         return minLength;
     }
@@ -151,6 +155,14 @@ public class InternalStringStats extends InternalAggregation {
     /** Calculate base 2 logarithm */
     static double log2(double d) {
         return Math.log(d) / Math.log(2.0);
+    }
+
+    Map<String, Long> getCharOccurrences() {
+        return charOccurrences;
+    }
+
+    boolean getShowDistribution() {
+        return showDistribution;
     }
 
     public String getCountAsString() {
@@ -282,6 +294,7 @@ public class InternalStringStats extends InternalAggregation {
             minLength == other.minLength &&
             maxLength == other.maxLength &&
             totalLength == other.totalLength &&
+            Objects.equals(charOccurrences, other.charOccurrences) &&
             showDistribution == other.showDistribution;
     }
 }

@@ -220,15 +220,10 @@ public class ReadOnlyEngine extends Engine {
         if (translogUuid == null) {
             throw new IllegalStateException("commit doesn't contain translog unique id");
         }
-        final long translogGenOfLastCommit = Long.parseLong(infos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         final TranslogConfig translogConfig = config.getTranslogConfig();
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
-            config.getIndexSettings().getTranslogRetentionSize().getBytes(),
-            config.getIndexSettings().getTranslogRetentionAge().getMillis(),
-            config.getIndexSettings().getTranslogRetentionTotalFiles()
-        );
-        translogDeletionPolicy.setTranslogGenerationOfLastCommit(translogGenOfLastCommit);
-
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
+        final long localCheckpoint = Long.parseLong(infos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy, config.getGlobalCheckpointSupplier(),
                 config.getPrimaryTermSupplier(), seqNo -> {})
         ) {
@@ -381,14 +376,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
-        // we can't do synced flushes this would require an indexWriter which we don't have
-        throw new UnsupportedOperationException("syncedFlush is not supported on a read-only engine");
-    }
-
-    @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return new CommitId(lastCommittedSegmentInfos.getId());
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        // noop
     }
 
     @Override

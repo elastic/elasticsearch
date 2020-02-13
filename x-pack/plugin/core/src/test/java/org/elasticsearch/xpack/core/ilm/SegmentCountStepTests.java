@@ -13,9 +13,6 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -85,9 +82,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
     public void testIsConditionMet() {
         int maxNumSegments = randomIntBetween(3, 10);
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         IndicesSegmentResponse indicesSegmentResponse = Mockito.mock(IndicesSegmentResponse.class);
         IndexSegments indexSegments = Mockito.mock(IndexSegments.class);
         IndexShardSegments indexShardSegments = Mockito.mock(IndexShardSegments.class);
@@ -104,9 +98,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
@@ -143,9 +134,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
     public void testIsConditionIsTrueEvenWhenMoreSegments() {
         int maxNumSegments = randomIntBetween(3, 10);
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         IndicesSegmentResponse indicesSegmentResponse = Mockito.mock(IndicesSegmentResponse.class);
         IndexSegments indexSegments = Mockito.mock(IndexSegments.class);
         IndexShardSegments indexShardSegments = Mockito.mock(IndexShardSegments.class);
@@ -162,9 +150,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
@@ -201,9 +186,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
     public void testFailedToRetrieveSomeSegments() {
         int maxNumSegments = randomIntBetween(3, 10);
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         IndicesSegmentResponse indicesSegmentResponse = Mockito.mock(IndicesSegmentResponse.class);
         IndexSegments indexSegments = Mockito.mock(IndexSegments.class);
         IndexShardSegments indexShardSegments = Mockito.mock(IndexShardSegments.class);
@@ -223,9 +205,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
@@ -262,11 +241,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
     public void testThrowsException() {
         Exception exception = new RuntimeException("error");
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();

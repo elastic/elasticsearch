@@ -21,8 +21,10 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.ScopeTable.Variable;
 import org.objectweb.asm.Opcodes;
 
 public class DeclarationNode extends StatementNode {
@@ -41,41 +43,67 @@ public class DeclarationNode extends StatementNode {
 
     /* ---- end tree structure, begin node data ---- */
 
-    private Variable variable;
+    protected String name;
+    protected Class<?> declarationType;
+    protected boolean requiresDefault;
 
-    public void setVariable(Variable variable) {
-        this.variable = variable;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    public Variable getVariable() {
-        return variable;
+    public String getName() {
+        return name;
+    }
+
+    public void setDeclarationType(Class<?> declarationType) {
+        this.declarationType = declarationType;
+    }
+
+    public Class<?> getDeclarationType() {
+        return declarationType;
+    }
+
+    public String getDeclarationCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(declarationType);
+    }
+
+    public void setRequiresDefault(boolean requiresDefault) {
+        this.requiresDefault = requiresDefault;
+    }
+
+    public boolean requiresDefault() {
+        return requiresDefault;
     }
 
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
 
-        if (expressionNode == null) {
-            Class<?> sort = variable.clazz;
+        Variable variable = scopeTable.defineVariable(declarationType, name);
 
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                sort == short.class || sort == char.class || sort == int.class) {
-                methodWriter.push(0);
-            } else if (sort == long.class) {
-                methodWriter.push(0L);
-            } else if (sort == float.class) {
-                methodWriter.push(0F);
-            } else if (sort == double.class) {
-                methodWriter.push(0D);
-            } else {
-                methodWriter.visitInsn(Opcodes.ACONST_NULL);
+        if (expressionNode == null) {
+            if (requiresDefault) {
+                Class<?> sort = variable.getType();
+
+                if (sort == void.class || sort == boolean.class || sort == byte.class ||
+                        sort == short.class || sort == char.class || sort == int.class) {
+                    methodWriter.push(0);
+                } else if (sort == long.class) {
+                    methodWriter.push(0L);
+                } else if (sort == float.class) {
+                    methodWriter.push(0F);
+                } else if (sort == double.class) {
+                    methodWriter.push(0D);
+                } else {
+                    methodWriter.visitInsn(Opcodes.ACONST_NULL);
+                }
             }
         } else {
-            expressionNode.write(classWriter, methodWriter, globals);
+            expressionNode.write(classWriter, methodWriter, globals, scopeTable);
         }
 
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 }

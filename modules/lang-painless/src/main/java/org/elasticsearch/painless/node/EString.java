@@ -19,13 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a string constant.
@@ -39,12 +39,7 @@ public final class EString extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
         }
@@ -53,7 +48,7 @@ public final class EString extends AExpression {
     }
 
     @Override
-    ExpressionNode write() {
+    ExpressionNode write(ClassNode classNode) {
         throw new IllegalStateException("Illegal tree structure.");
     }
 

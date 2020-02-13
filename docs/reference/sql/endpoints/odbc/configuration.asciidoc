@@ -369,7 +369,7 @@ This value controls which data format to encode the REST content in. Possible
 values are:
 
 * `CBOR`: use the Concise Binary Object Representation format. This is the
-preferred encoding, given it's more compact format.
+preferred encoding, given its more compact format.
 
 * `JSON`: use the JavaScript Object Notation format. This format is more
 verbose, but easier to read, handful in debugging cases.

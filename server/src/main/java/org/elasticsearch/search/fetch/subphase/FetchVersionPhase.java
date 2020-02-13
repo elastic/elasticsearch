@@ -21,8 +21,8 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -31,10 +31,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 
-public final class SeqNoPrimaryTermFetchSubPhase implements FetchSubPhase {
+public final class FetchVersionPhase implements FetchSubPhase {
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        if (context.seqNoAndPrimaryTerm() == false) {
+        if (context.version() == false ||
+            (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false)) {
             return;
         }
 
@@ -42,28 +43,20 @@ public final class SeqNoPrimaryTermFetchSubPhase implements FetchSubPhase {
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
         int lastReaderId = -1;
-        NumericDocValues seqNoField = null;
-        NumericDocValues primaryTermField = null;
+        NumericDocValues versions = null;
         for (SearchHit hit : hits) {
             int readerId = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
             LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerId);
             if (lastReaderId != readerId) {
-                seqNoField = subReaderContext.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-                primaryTermField = subReaderContext.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                versions = subReaderContext.reader().getNumericDocValues(VersionFieldMapper.NAME);
                 lastReaderId = readerId;
             }
             int docId = hit.docId() - subReaderContext.docBase;
-            long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-            // we have to check the primary term field as it is only assigned for non-nested documents
-            if (primaryTermField != null && primaryTermField.advanceExact(docId)) {
-                boolean found = seqNoField.advanceExact(docId);
-                assert found: "found seq no for " + docId + " but not a primary term";
-                seqNo = seqNoField.longValue();
-                primaryTerm = primaryTermField.longValue();
+            long version = Versions.NOT_FOUND;
+            if (versions != null && versions.advanceExact(docId)) {
+                version = versions.longValue();
             }
-            hit.setSeqNo(seqNo);
-            hit.setPrimaryTerm(primaryTerm);
+            hit.version(version < 0 ? -1 : version);
         }
     }
 }

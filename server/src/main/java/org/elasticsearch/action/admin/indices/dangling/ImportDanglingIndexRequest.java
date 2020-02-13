@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Represents a request to import a particular dangling index, specified
@@ -57,7 +58,7 @@ public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingI
 
     @Override
     public String toString() {
-        return String.format("ImportDanglingIndexRequest{indexUUID='%s', acceptDataLoss=%s}", indexUUID, acceptDataLoss);
+        return String.format(Locale.ROOT, "ImportDanglingIndexRequest{indexUUID='%s', acceptDataLoss=%s}", indexUUID, acceptDataLoss);
     }
 
     @Override

@@ -33,11 +33,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public final class InnerHitsFetchSubPhase implements FetchSubPhase {
+public final class InnerHitsPhase implements FetchSubPhase {
 
     private final FetchPhase fetchPhase;
 
-    public InnerHitsFetchSubPhase(FetchPhase fetchPhase) {
+    public InnerHitsPhase(FetchPhase fetchPhase) {
         this.fetchPhase = fetchPhase;
     }
 

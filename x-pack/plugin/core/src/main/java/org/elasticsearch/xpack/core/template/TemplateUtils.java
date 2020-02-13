@@ -59,9 +59,10 @@ public class TemplateUtils {
     public static String loadTemplate(String resource, String version, String versionProperty) {
         try {
             BytesReference source = load(resource);
-            validate(source);
+            final String filteredJson = filter(source, version, versionProperty);
+            validate(new BytesArray(filteredJson));
 
-            return filter(source, version, versionProperty);
+            return filteredJson;
         } catch (Exception e) {
             throw new IllegalArgumentException("Unable to load template [" + resource + "]", e);
         }

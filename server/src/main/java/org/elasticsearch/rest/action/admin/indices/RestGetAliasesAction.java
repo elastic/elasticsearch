@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -47,6 +46,8 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
@@ -55,15 +56,17 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    public RestGetAliasesAction(final RestController controller) {
-        controller.registerHandler(GET, "/_alias", this);
-        controller.registerHandler(GET, "/_aliases", this);
-        controller.registerHandler(GET, "/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/_alias/{name}", this);
-        controller.registerHandler(GET, "/{index}/_alias", this);
-        controller.registerHandler(HEAD, "/{index}/_alias", this);
-        controller.registerHandler(GET, "/{index}/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_alias"),
+            new Route(GET, "/_aliases"),
+            new Route(GET, "/_alias/{name}"),
+            new Route(HEAD, "/_alias/{name}"),
+            new Route(GET, "/{index}/_alias"),
+            new Route(HEAD, "/{index}/_alias"),
+            new Route(GET, "/{index}/_alias/{name}"),
+            new Route(HEAD, "/{index}/_alias/{name}")));
     }
 
     @Override

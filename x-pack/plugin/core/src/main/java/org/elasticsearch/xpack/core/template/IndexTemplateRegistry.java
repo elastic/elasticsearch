@@ -16,6 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -129,16 +131,24 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
     private void addTemplatesIfMissing(ClusterState state) {
         final List<IndexTemplateConfig> indexTemplates = getTemplateConfigs();
-        for (IndexTemplateConfig template : indexTemplates) {
-            final String templateName = template.getTemplateName();
+        for (IndexTemplateConfig newTemplate : indexTemplates) {
+            final String templateName = newTemplate.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                if (!state.metaData().getTemplates().containsKey(templateName)) {
+                IndexTemplateMetaData currentTemplate = state.metaData().getTemplates().get(templateName);
+                if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding index template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
-                    putTemplate(template, creationCheck);
+                    putTemplate(newTemplate, creationCheck);
+                } else if (Objects.isNull(currentTemplate.getVersion()) || newTemplate.getVersion() > currentTemplate.getVersion()) {
+                    // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
+                    // safely assume it's an old version of the template.
+                    logger.info("upgrading index template [{}] for [{}] from version [{}] to version [{}]",
+                        templateName, getOrigin(), currentTemplate.getVersion(), newTemplate.getVersion());
+                    putTemplate(newTemplate, creationCheck);
                 } else {
                     creationCheck.set(false);
-                    logger.trace("not adding index template [{}] for [{}], because it already exists", templateName, getOrigin());
+                    logger.trace("not adding index template [{}] for [{}], because it already exists at version [{}]",
+                        templateName, getOrigin(), currentTemplate.getVersion());
                 }
             } else {
                 logger.trace("skipping the creation of index template [{}] for [{}], because its creation is in progress",

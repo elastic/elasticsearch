@@ -116,7 +116,7 @@ public class FsRepositoryTests extends ESTestCase {
             expectThrows(org.apache.lucene.index.IndexNotFoundException.class, () -> Lucene.readSegmentInfos(directory));
             DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
             ShardRouting routing = ShardRouting.newUnassigned(shardId, true, new RecoverySource.SnapshotRecoverySource("test",
-                    new Snapshot("foo", snapshotId), Version.CURRENT, "myindex"),
+                    new Snapshot("foo", snapshotId), Version.CURRENT, indexId),
                 new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, ""));
             routing = ShardRoutingHelper.initialize(routing, localNode.getId(), 0);
             RecoveryState state = new RecoveryState(routing, localNode, null);

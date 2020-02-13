@@ -225,6 +225,14 @@ public final class SamlUtils {
             .collect(Collectors.joining(","));
     }
 
+    public static Element toDomElement(XMLObject object) {
+        try {
+            return XMLObjectSupport.marshall(object);
+        } catch (MarshallingException e) {
+            throw new ElasticsearchSecurityException("failed to marshall SAML object to DOM element", e);
+        }
+    }
+
 
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")
     public static Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {

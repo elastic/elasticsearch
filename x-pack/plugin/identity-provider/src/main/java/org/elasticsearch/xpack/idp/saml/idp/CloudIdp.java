@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
-import org.elasticsearch.xpack.idp.saml.sp.CloudKibanaServiceProvider;
+import org.elasticsearch.xpack.idp.saml.sp.CloudServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
@@ -142,7 +142,7 @@ public class CloudIdp implements SamlIdentityProvider {
         // TODO Fetch all the registered service providers from the index (?) they are persisted.
         // For now hardcode something to use.
         Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
-        registeredSps.put("kibana_url", new CloudKibanaServiceProvider("kibana_url", "kibana_url/api/security/v1/saml",
+        registeredSps.put("kibana_url", new CloudServiceProvider("kibana_url", "kibana_url/api/security/v1/saml",
             NameID.TRANSIENT, false, false,null));
 
         return registeredSps;

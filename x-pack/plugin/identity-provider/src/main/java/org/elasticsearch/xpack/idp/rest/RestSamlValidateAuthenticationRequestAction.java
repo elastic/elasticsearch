@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -22,6 +21,8 @@ import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestRequest;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestResponse;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -34,15 +35,14 @@ public class RestSamlValidateAuthenticationRequestAction extends BaseRestHandler
         PARSER.declareString(SamlValidateAuthnRequestRequest::setQueryString, new ParseField("authn_request_query"));
     }
 
-    public RestSamlValidateAuthenticationRequestAction(RestController controller) {
-        controller.registerHandler(
-            POST, "/_idp/saml/validate", this
-        );
-    }
-
     @Override
     public String getName() {
         return "idp_validate_authn_request_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.singletonList(new Route(POST, "/_idp/saml/validate"));
     }
 
     @Override

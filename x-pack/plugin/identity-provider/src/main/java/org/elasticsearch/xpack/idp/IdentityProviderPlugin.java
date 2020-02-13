@@ -124,7 +124,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(new RestSamlValidateAuthenticationRequestAction(restController));
+        return Collections.singletonList(new RestSamlValidateAuthenticationRequestAction());
     }
 
     @Override

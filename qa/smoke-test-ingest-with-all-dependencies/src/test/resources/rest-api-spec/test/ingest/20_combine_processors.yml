@@ -1,7 +1,7 @@
 ---
 "Test logging":
   - skip:
-      version: " - 6.6.99"
+      version: " - 6.99.99"
       reason: pre-7.0.0 will send no warnings
       features: "warnings"
 

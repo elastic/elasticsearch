@@ -30,12 +30,10 @@ import java.util.Map;
 //TODO: clean up this doc!
 /**
  * <p>
- * Gradle plugin to help configure {@link CopyRestApiTask}'s that will copy the artifacts needed for the Rest API spec and YAML tests.
+ * Gradle plugin to help configure {@link CopyRestApiTask}'s and {@link CopyRestTestsTask} that copies the artifacts needed for the Rest API
+ * spec and YAML based rest tests.
  * </p>
- * <p>Copies the files needed for the Rest YAML tests to the current projects test resources output directory.
- * This is intended to be be used from {@link CopyRestApiPlugin} since the plugin wires up the needed
- * configurations and custom extensions.
- * </p>
+
  * <p>This task supports copying either the Rest YAML tests (.yml), or the Rest API specification (.json).</p>
  * <br>
  * <strong>Rest API specification:</strong> <br>
@@ -91,7 +89,6 @@ public class CopyRestApiPlugin implements Plugin<Project> {
             .register("copyYamlTestsTask", CopyRestTestsTask.class, task -> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
-                task.copyTo = "rest-api-spec/test";
                 task.coreConfig = project.getConfigurations().create("restTest");
                 if (BuildParams.isInternal()) {
                     Dependency dependency = project.getDependencies()
@@ -115,7 +112,6 @@ public class CopyRestApiPlugin implements Plugin<Project> {
             .register("copyRestApiSpecsTask", CopyRestApiTask.class, task -> {
                 task.includeCore.set(extension.restApi.getIncludeCore());
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
-                task.copyTo = "rest-api-spec/api";
                 task.dependsOn(copyRestYamlTestTask);
                 task.coreConfig = project.getConfigurations().create("restSpec");
                 if (BuildParams.isInternal()) {

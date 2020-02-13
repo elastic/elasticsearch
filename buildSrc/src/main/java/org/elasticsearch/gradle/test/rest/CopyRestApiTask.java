@@ -46,14 +46,21 @@ import java.nio.file.Files;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Copies the files needed for the Rest YAML specs to the current projects test resources output directory.
+ * This is intended to be be used from {@link CopyRestApiPlugin} since the plugin wires up the needed
+ * configurations and custom extensions.
+ * @see CopyRestApiPlugin
+ */
 public class CopyRestApiTask extends DefaultTask {
     private static final Logger logger = Logging.getLogger(CopyRestApiTask.class);
+    private static final String copyTo = "rest-api-spec/api";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
     Configuration coreConfig;
     Configuration xpackConfig;
-    String copyTo;
+
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;

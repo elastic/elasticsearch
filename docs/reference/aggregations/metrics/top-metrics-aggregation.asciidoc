@@ -65,6 +65,9 @@ request. So,
   gets metrics from the documents with `location` *closest* to `35.7796, -78.6382`
 `"sort": "_score"`:: gets metrics from the document with the highest score
 
+NOTE: This aggregation doesn't support any sort of "tie breaking". If two documents have
+the same sort values then this aggregation could return either document's fields.
+
 ==== `metric`
 
 At this point `metric` supports only `{"field": "field_name"}` and all metrics

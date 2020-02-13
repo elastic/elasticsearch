@@ -97,6 +97,16 @@ public final class Intervals {
         }
     }
 
+    public static Interval<?> from(String isoValue, DataType dataType) {
+        if (isYearMonthInterval(dataType)) {
+            return IntervalYearMonth.from(isoValue, dataType);
+        }
+        if (isDayTimeInterval(dataType)) {
+            return IntervalDayTime.from(isoValue, dataType);
+        }
+        return null;
+    }
+
     public static DataType intervalType(Source source, TimeUnit leading, TimeUnit trailing) {
         if (trailing == null) {
             switch (leading) {

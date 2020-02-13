@@ -724,10 +724,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             Object literalValue;
             // The interval types are handled "directly", as they must not be exposed through the SQL types converter, which would then in
             // turn expose the "protocol" interval types (i.e. "interval_year" & co.) to, for instance, SQL scalars (like CAST) a.s.o.
-            if (SqlDataTypes.isYearMonthInterval(dataType)) {
-                literalValue = IntervalYearMonth.from(param.value.toString(), dataType);
-            } else if (SqlDataTypes.isDayTimeInterval(dataType)) {
-                literalValue = IntervalDayTime.from(param.value.toString(), dataType);
+            if (SqlDataTypes.isInterval(dataType)) {
+                literalValue = Intervals.from(param.value.toString(), dataType);
             } else if (canConvert(sourceType, dataType)) {
                 literalValue = converterFor(sourceType, dataType).convert(param.value);
             } else {

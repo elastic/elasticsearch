@@ -39,7 +39,7 @@ import java.util.Map;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FetchSourceSubPhaseTests extends ESTestCase {
+public class FetchSourcePhaseTests extends ESTestCase {
 
     public void testFetchSource() throws IOException {
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
@@ -149,22 +149,22 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
     private FetchSubPhase.HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes,
                                                             SearchHit.NestedIdentity nestedIdentity) {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
-        SearchContext searchContext = new FetchSourceSubPhaseTestSearchContext(fetchSourceContext,
+        SearchContext searchContext = new FetchSourcePhaseTestSearchContext(fetchSourceContext,
                 source == null ? null : BytesReference.bytes(source));
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         final SearchHit searchHit = new SearchHit(1, null, null, nestedIdentity, null);
         hitContext.reset(searchHit, null, 1, null);
-        FetchSourceSubPhase phase = new FetchSourceSubPhase();
+        FetchSourcePhase phase = new FetchSourcePhase();
         phase.hitExecute(searchContext, hitContext);
         return hitContext;
     }
 
-    private static class FetchSourceSubPhaseTestSearchContext extends TestSearchContext {
+    private static class FetchSourcePhaseTestSearchContext extends TestSearchContext {
         final FetchSourceContext context;
         final BytesReference source;
         final IndexShard indexShard;
 
-        FetchSourceSubPhaseTestSearchContext(FetchSourceContext context, BytesReference source) {
+        FetchSourcePhaseTestSearchContext(FetchSourceContext context, BytesReference source) {
             super(null);
             this.context = context;
             this.source = source;

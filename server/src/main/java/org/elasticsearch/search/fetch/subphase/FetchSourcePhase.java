@@ -31,7 +31,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.Map;
 
-public final class FetchSourceSubPhase implements FetchSubPhase {
+public final class FetchSourcePhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {

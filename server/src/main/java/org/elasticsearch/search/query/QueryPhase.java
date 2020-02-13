@@ -52,6 +52,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -301,7 +302,9 @@ public class QueryPhase implements SearchPhase {
             }
 
             ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            assert executor instanceof EWMATrackingEsThreadPoolExecutor : executor.getClass().toString();
+            assert executor instanceof EWMATrackingEsThreadPoolExecutor ||
+                (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */) :
+                "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
             if (executor instanceof EWMATrackingEsThreadPoolExecutor) {
                 EWMATrackingEsThreadPoolExecutor rExecutor = (EWMATrackingEsThreadPoolExecutor) executor;
                 queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());

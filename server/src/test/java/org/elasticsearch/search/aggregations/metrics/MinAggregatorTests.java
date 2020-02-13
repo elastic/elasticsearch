@@ -743,34 +743,36 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 )
             );
         }
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(new MatchAllDocsQuery()),
-                mockAggregator(),
-                mockDateValuesSourceConfig("number", true, randomFrom(DateFieldMapper.Resolution.values()))
-            )
-        );
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(new TermQuery(new Term("foo", "bar"))),
-                null,
-                mockDateValuesSourceConfig("number", true, randomFrom(DateFieldMapper.Resolution.values()))
-            )
-        );
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(null),
-                mockAggregator(),
-                mockDateValuesSourceConfig("number", true, randomFrom(DateFieldMapper.Resolution.values()))
-            )
-        );
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(null),
-                null,
-                mockDateValuesSourceConfig("number", false, randomFrom(DateFieldMapper.Resolution.values()))
-            )
-        );
+        for (DateFieldMapper.Resolution resolution : DateFieldMapper.Resolution.values()) {
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(new MatchAllDocsQuery()),
+                    mockAggregator(),
+                    mockDateValuesSourceConfig("number", true, resolution)
+                )
+            );
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(new TermQuery(new Term("foo", "bar"))),
+                    null,
+                    mockDateValuesSourceConfig("number", true, resolution)
+                )
+            );
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(null),
+                    mockAggregator(),
+                    mockDateValuesSourceConfig("number", true, resolution)
+                )
+            );
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(null),
+                    null,
+                    mockDateValuesSourceConfig("number", false, resolution)
+                )
+            );
+        }
         // Check that we decode a dates "just like" the doc values instance.
         Instant expected = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2020-01-01T00:00:00Z"));
         byte[] scratch = new byte[8];

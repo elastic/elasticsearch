@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.eql.parser;
 
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.BaseErrorListener;
+import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.DiagnosticErrorListener;
 import org.antlr.v4.runtime.Parser;
@@ -14,6 +15,8 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.TokenFactory;
+import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
@@ -24,8 +27,10 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -43,7 +48,7 @@ public class EqlParser {
     public LogicalPlan createStatement(String eql) {
         return createStatement(eql, new ParserParams());
     }
-    
+
     public LogicalPlan createStatement(String eql, ParserParams params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", eql);
@@ -53,6 +58,12 @@ public class EqlParser {
 
     public Expression createExpression(String expression) {
         return createExpression(expression, new ParserParams());
+    }
+
+    public Expression createExpression(String expression, List<Object> paramValues) {
+        ParserParams params = new ParserParams();
+        params.params(paramValues);
+        return createExpression(expression, params);
     }
 
     public Expression createExpression(String expression, ParserParams params) {
@@ -72,7 +83,10 @@ public class EqlParser {
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
 
-            CommonTokenStream tokenStream = new CommonTokenStream(lexer);
+            Map<Token, Object> paramTokens = new HashMap<>();
+            TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params.params());
+
+            CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
             EqlBaseParser parser = new EqlBaseParser(tokenStream);
 
             parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
@@ -101,7 +115,7 @@ public class EqlParser {
                 log.info("Parse tree {} " + tree.toStringTree());
             }
 
-            return visitor.apply(new AstBuilder(params), tree);
+            return visitor.apply(new AstBuilder(params, paramTokens), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("EQL statement is too large, " +
                 "causing stack overflow when generating the parsing tree: [{}]", eql);
@@ -238,4 +252,68 @@ public class EqlParser {
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };
+
+    /**
+     * Finds all parameter tokens (?) and associates them with actual parameter values
+     * <p>
+     * Parameters are positional and we know where parameters occurred in the original stream in order to associate them
+     * with actual values.
+     */
+    private static class ParametrizedTokenSource implements TokenSource {
+
+        private TokenSource delegate;
+        private Map<Token, Object> paramTokens;
+        private int param;
+        private List<Object> params;
+
+        ParametrizedTokenSource(TokenSource delegate, Map<Token, Object> paramTokens, List<Object> params) {
+            this.delegate = delegate;
+            this.paramTokens = paramTokens;
+            this.params = params;
+            param = 0;
+        }
+
+        @Override
+        public Token nextToken() {
+            Token token = delegate.nextToken();
+            if (token.getType() == EqlBaseLexer.PARAM) {
+                if (param >= params.size()) {
+                    throw new ParsingException("Not enough actual parameters {} ", params.size());
+                }
+                paramTokens.put(token, params.get(param));
+                param++;
+            }
+            return token;
+        }
+
+        @Override
+        public int getLine() {
+            return delegate.getLine();
+        }
+
+        @Override
+        public int getCharPositionInLine() {
+            return delegate.getCharPositionInLine();
+        }
+
+        @Override
+        public CharStream getInputStream() {
+            return delegate.getInputStream();
+        }
+
+        @Override
+        public String getSourceName() {
+            return delegate.getSourceName();
+        }
+
+        @Override
+        public void setTokenFactory(TokenFactory<?> factory) {
+            delegate.setTokenFactory(factory);
+        }
+
+        @Override
+        public TokenFactory<?> getTokenFactory() {
+            return delegate.getTokenFactory();
+        }
+    }
 }

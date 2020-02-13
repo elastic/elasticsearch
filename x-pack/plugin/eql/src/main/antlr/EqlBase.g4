@@ -110,6 +110,7 @@ constant
     | number                                                                            #numericLiteral
     | booleanValue                                                                      #booleanLiteral
     | string                                                                            #stringLiteral
+    | PARAM                                                                             #paramLiteral
     ;
 
 comparisonOperator
@@ -158,6 +159,8 @@ TRUE: 'true';
 UNTIL: 'until';
 WHERE: 'where';
 WITH: 'with';
+
+PARAM: '?';
 
 // Operators
 EQ  : '=' | '==';

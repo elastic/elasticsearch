@@ -400,6 +400,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterParamLiteral(EqlBaseParser.ParamLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitParamLiteral(EqlBaseParser.ParamLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterComparisonOperator(EqlBaseParser.ComparisonOperatorContext ctx) { }
   /**
    * {@inheritDoc}

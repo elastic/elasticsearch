@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.eql.parser;
 
+import org.antlr.v4.runtime.Token;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -16,12 +17,12 @@ import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.Map;
+
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private final ParserParams params;
-
-    public LogicalPlanBuilder(ParserParams params) {
-        this.params = params;
+    LogicalPlanBuilder(ParserParams params, Map<Token, Object> paramTokens) {
+        super(params, paramTokens);
     }
 
     @Override

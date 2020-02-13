@@ -219,6 +219,13 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitStringLiteral(EqlBaseParser.StringLiteralContext ctx);
   /**
+   * Visit a parse tree produced by the {@code paramLiteral}
+   * labeled alternative in {@link EqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitParamLiteral(EqlBaseParser.ParamLiteralContext ctx);
+  /**
    * Visit a parse tree produced by {@link EqlBaseParser#comparisonOperator}.
    * @param ctx the parse tree
    * @return the visitor result

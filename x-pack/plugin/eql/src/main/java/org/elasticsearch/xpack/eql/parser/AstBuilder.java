@@ -6,13 +6,16 @@
 
 package org.elasticsearch.xpack.eql.parser;
 
+import org.antlr.v4.runtime.Token;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SingleStatementContext;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
+import java.util.Map;
+
 public class AstBuilder extends LogicalPlanBuilder {
 
-    AstBuilder(ParserParams params) {
-        super(params);
+    AstBuilder(ParserParams params, Map<Token, Object> paramTokens) {
+        super(params, paramTokens);
     }
 
     @Override

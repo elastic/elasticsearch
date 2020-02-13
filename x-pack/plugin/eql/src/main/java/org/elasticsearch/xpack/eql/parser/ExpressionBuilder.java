@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.FunctionExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ParamLiteralContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -44,9 +46,18 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.List;
+import java.util.Map;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
+
+    protected final ParserParams params;
+    protected final Map<Token, Object> paramTokens;
+
+    public ExpressionBuilder(ParserParams params, Map<Token, Object> paramTokens) {
+        this.params = params;
+        this.paramTokens = paramTokens;
+    }
 
     protected Expression expression(ParseTree ctx) {
         return typedParsing(ctx, Expression.class);
@@ -228,6 +239,34 @@ public class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitNullLiteral(EqlBaseParser.NullLiteralContext ctx) {
         Source source = source(ctx);
         return new Literal(source, null, DataTypes.NULL);
+    }
+
+    private Object param(TerminalNode node) {
+        Token token = node.getSymbol();
+
+
+        if (paramTokens.containsKey(token) == false) {
+            throw new ParsingException(source(node), "Unexpected parameter");
+        }
+
+        return paramTokens.get(token);
+    }
+
+    @Override
+    public Literal visitParamLiteral(ParamLiteralContext ctx) {
+        Object value = param(ctx.PARAM());
+        Source source = source(ctx);
+        DataType dataType = null;
+
+        try {
+            dataType = DataTypes.fromJava(value);
+        } catch (QlIllegalArgumentException ignored) {};
+
+        if (dataType == null) {
+            throw new ParsingException(source, "Invalid parameter [{}]", value);
+        }
+        return new Literal(source, value, dataType);
+
     }
 
     @Override

@@ -92,7 +92,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
             SortOrder sortOrder, DocValueFormat format) {
-        throw new IllegalArgumentException("only supported on numeric values");
+        throw new IllegalArgumentException("only supported on numeric fields");
     }
 
     @Override

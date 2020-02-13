@@ -175,7 +175,7 @@
                 metric:
                   field: v
                 sort: s.keyword
-  - match: { error.root_cause.0.reason: "unsupported sort: only supported on numeric values" }
+  - match: { error.root_cause.0.reason: "error building sort for field [s.keyword] of type [keyword] in index [test]: only supported on numeric fields" }
 
 ---
 "sort by score":
@@ -206,6 +206,60 @@
                 sort: _score
   - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
   - match: { aggregations.tm.top.0.sort: [1.450832724571228] }
+
+---
+"sort by numeric script":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": "cow", "v": 3.1415}'
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  _script:
+                    type: number
+                    script:
+                      source: doc['s.keyword'].value.length()
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [3.0] }
+
+---
+"sort by string script fails":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": "cow", "v": 3.1415}'
+
+  - do:
+      catch: bad_request
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  _script:
+                    type: string
+                    script:
+                      source: doc['s'].value
+  - match: { error.root_cause.0.reason: "error building sort for [_script]: script sorting only supported on [numeric] scripts but was [string]" }
 
 ---
 "sort by geo_distance":

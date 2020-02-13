@@ -44,12 +44,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
         if (metricValueSource == null) {
             return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
         }
-        BucketedSort bucketedSort;
-        try {
-            bucketedSort = sortBuilders.get(0).buildBucketedSort(searchContext.getQueryShardContext());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("unsupported sort: " + e.getMessage(), e);
-        }
+        BucketedSort bucketedSort = sortBuilders.get(0).buildBucketedSort(searchContext.getQueryShardContext());
 
         return new TopMetricsAggregator(name, searchContext, parent, pipelineAggregators, metaData, bucketedSort,
                 metricField.getFieldName(), metricValueSource);

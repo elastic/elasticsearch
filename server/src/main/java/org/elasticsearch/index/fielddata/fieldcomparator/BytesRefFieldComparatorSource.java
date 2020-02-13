@@ -141,7 +141,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
-        throw new IllegalArgumentException("only supported on numeric values");
+        throw new IllegalArgumentException("only supported on numeric fields");
     }
 
     /**

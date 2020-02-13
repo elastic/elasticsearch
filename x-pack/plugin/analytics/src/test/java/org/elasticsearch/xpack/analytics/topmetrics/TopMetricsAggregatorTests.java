@@ -255,7 +255,8 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(Arrays.asList(textField("s", "bar"), doubleField("m", 3.0)));
                 },
                 textAndDoubleField()));
-        assertThat(e.getMessage(), equalTo("unsupported sort: only supported on numeric values"));
+        assertThat(e.getMessage(), equalTo(
+                "error building sort for [_script]: script sorting only supported for [numeric] scripts but was [string]"));
     }
 
     private InternalTopMetrics collectFromNewYorkAndLA(TopMetricsAggregationBuilder builder) throws IOException {
@@ -281,7 +282,6 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         assertThat(result.getSortValue(), equalTo(SortValue.from(1.1062351376961706E7)));
         assertThat(result.getMetricValue(), equalTo(2.0d));
     }
-
 
     public void testInsideTerms() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));

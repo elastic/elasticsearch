@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -239,7 +240,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
-        return fieldComparatorSource(context).newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW); 
+        return fieldComparatorSource(context).newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW);
     }
 
     private IndexFieldData.XFieldComparatorSource fieldComparatorSource(QueryShardContext context) throws IOException {
@@ -284,6 +285,12 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     @Override
                     protected void setScorer(Scorable scorer) {
                         leafScript.setScorer(scorer);
+                    }
+
+                    @Override
+                    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
+                        throw new IllegalArgumentException("error building sort for [_script]: "
+                                + "script sorting only supported for [numeric] scripts but was [" + type + "]");
                     }
                 };
             case NUMBER:

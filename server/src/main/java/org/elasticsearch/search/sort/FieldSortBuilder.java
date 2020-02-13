@@ -374,8 +374,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return numericFieldData.newBucketedSort(resolvedType, context.bigArrays(), missing, localSortMode(), nested, order,
                     fieldType.docValueFormat(null, null));
         }
-        return fieldData.newBucketedSort(context.bigArrays(), missing, localSortMode(), nested, order,
-                fieldType.docValueFormat(null, null));
+        try {
+            return fieldData.newBucketedSort(context.bigArrays(), missing, localSortMode(), nested, order,
+                    fieldType.docValueFormat(null, null));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("error building sort for field [" + fieldName + "] of type ["
+                    + fieldType.typeName() + "] in index [" + context.index().getName() + "]: " + e.getMessage(), e);
+        }
     }
 
     private MappedFieldType resolveUnmappedType(QueryShardContext context) {

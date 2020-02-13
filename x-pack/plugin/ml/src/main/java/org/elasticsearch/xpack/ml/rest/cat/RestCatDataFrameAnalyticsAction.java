@@ -61,10 +61,14 @@ public class RestCatDataFrameAnalyticsAction extends AbstractCatAction {
         GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(dataFrameAnalyticsId);
         getStatsRequest.setAllowNoMatch(true);
 
-        return channel -> client.execute(GetDataFrameAnalyticsAction.INSTANCE, getRequest, new RestActionListener<>(channel) {
+        return channel -> client.execute(
+                GetDataFrameAnalyticsAction.INSTANCE, getRequest, new RestActionListener<GetDataFrameAnalyticsAction.Response>(channel) {
             @Override
             public void processResponse(GetDataFrameAnalyticsAction.Response getResponse) {
-                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, new RestResponseListener<>(channel) {
+                client.execute(
+                        GetDataFrameAnalyticsStatsAction.INSTANCE,
+                        getStatsRequest,
+                        new RestResponseListener<GetDataFrameAnalyticsStatsAction.Response>(channel) {
                     @Override
                     public RestResponse buildResponse(GetDataFrameAnalyticsStatsAction.Response getStatsResponse) throws Exception {
                         return RestTable.buildResponse(buildTable(getResponse, getStatsResponse), channel);

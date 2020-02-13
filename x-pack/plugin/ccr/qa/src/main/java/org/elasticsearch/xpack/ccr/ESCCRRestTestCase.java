@@ -217,6 +217,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     protected static void ensureYellow(final String index, final RestClient client) throws IOException {
         ensureHealth(client, index, request -> {
             request.addParameter("wait_for_status", "yellow");
+            request.addParameter("wait_for_active_shards", "1");
             request.addParameter("wait_for_no_relocating_shards", "true");
             // follower index can be yellow even when its primary shards are still initializing as we bootstrap them using snapshot/restore.
             request.addParameter("wait_for_no_initializing_shards", "true");

@@ -108,9 +108,15 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (enabled) {
+            return List.of(
+                new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+                new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+                new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
+                new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
+            );
+        }
         return List.of(
-            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
-            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );

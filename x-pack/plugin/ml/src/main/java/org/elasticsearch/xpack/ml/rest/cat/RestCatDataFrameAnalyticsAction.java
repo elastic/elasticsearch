@@ -59,9 +59,7 @@ public class RestCatDataFrameAnalyticsAction extends AbstractCatAction {
                 GetDataFrameAnalyticsAction.Request.ALLOW_NO_MATCH.getPreferredName(), getRequest.isAllowNoResources()));
 
         GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(dataFrameAnalyticsId);
-        getStatsRequest.setAllowNoMatch(
-            restRequest.paramAsBoolean(
-                GetDataFrameAnalyticsStatsAction.Request.ALLOW_NO_MATCH.getPreferredName(), getStatsRequest.isAllowNoMatch()));
+        getStatsRequest.setAllowNoMatch(true);
 
         return channel -> client.execute(GetDataFrameAnalyticsAction.INSTANCE, getRequest, new RestActionListener<>(channel) {
             @Override

@@ -95,6 +95,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             }
         }
 
+        if (indicesOptions == null) {
+            validationException = addValidationError("indicesOptions is null", validationException);
+        }
+
         if (rule == null || rule.isEmpty()) {
             validationException = addValidationError("rule is null or empty", validationException);
         }
@@ -274,6 +278,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     @Override
     public String[] indices() {
         return indices;
+    }
+
+    public EqlSearchRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
     }
 
     @Override

@@ -348,7 +348,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             updateResolved.set(Boolean.TRUE);
                         }
                     }));
-                    if (updateResolved.get() == true) {
+                    if (updateResolved.get()) {
                         var allFields = plan.inputSet().stream().map(NamedExpression.class::cast)
                             .collect(toList());
                         allFields.addAll(a.aggregates());

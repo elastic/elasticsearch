@@ -66,12 +66,12 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         table.startHeaders();
 
         // Datafeed Info
-        table.addCell("id", TableColumnAttributeBuilder.builder().setDescription("the datafeed_id").build());
-        table.addCell("state", TableColumnAttributeBuilder.builder()
-            .setDescription("the datafeed state")
-            .setAliases("s")
-            .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
-            .build());
+        table.addCell("id", TableColumnAttributeBuilder.builder("the datafeed_id").build());
+        table.addCell("state",
+            TableColumnAttributeBuilder.builder("the datafeed state")
+                .setAliases("s")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build());
         table.addCell("assignment_explanation",
             TableColumnAttributeBuilder.builder("why the datafeed is or is not assigned to a node", false)
                 .setAliases("ae")

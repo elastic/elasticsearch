@@ -22,17 +22,18 @@ package org.elasticsearch.rest.action.admin.cluster.dangling;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestListDanglingIndicesAction extends BaseRestHandler {
-    public RestListDanglingIndicesAction(RestController controller) {
-        controller.registerHandler(GET, "/_dangling", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_dangling"));
     }
 
     @Override

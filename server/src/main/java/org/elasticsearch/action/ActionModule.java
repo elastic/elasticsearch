@@ -701,9 +701,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSimulatePipelineAction());
 
         // Dangling indices API
-        registerHandler.accept(new RestListDanglingIndicesAction(restController));
-        registerHandler.accept(new RestImportDanglingIndexAction(restController));
-        registerHandler.accept(new RestDeleteDanglingIndexAction(restController));
+        registerHandler.accept(new RestListDanglingIndicesAction());
+        registerHandler.accept(new RestImportDanglingIndexAction());
+        registerHandler.accept(new RestDeleteDanglingIndexAction());
 
         // CAT API
         registerHandler.accept(new RestAllocationAction());

@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.rest;
+package org.elasticsearch.http;
 
-import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -57,14 +56,9 @@ import static org.hamcrest.Matchers.not;
  * @see org.elasticsearch.action.admin.indices.dangling
  */
 @ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST, autoManageMasterNodes = false)
-public class DanglingIndicesRestIT extends ESNetty4IntegTestCase {
+public class DanglingIndicesRestIT extends HttpSmokeTestCase {
     private static final String INDEX_NAME = "test-idx-1";
     private static final String OTHER_INDEX_NAME = INDEX_NAME + "-other";
-
-    @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
 
     private Settings buildSettings(int maxTombstones) {
         return Settings.builder()

@@ -54,6 +54,9 @@ import static org.hamcrest.Matchers.instanceOf;
  * are discovered, and how they can be accessed and manipulated through the
  * API.
  *
+ * <p>See also <code>DanglingIndicesRestIT</code> in the <code>qa:smoke-test-http</code>
+ * project.
+ *
  * @see org.elasticsearch.action.admin.indices.dangling
  */
 @ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)

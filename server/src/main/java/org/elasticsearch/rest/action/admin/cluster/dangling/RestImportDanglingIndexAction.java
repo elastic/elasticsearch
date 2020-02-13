@@ -22,17 +22,18 @@ package org.elasticsearch.rest.action.admin.cluster.dangling;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestImportDanglingIndexAction extends BaseRestHandler {
-    public RestImportDanglingIndexAction(RestController controller) {
-        controller.registerHandler(POST, "/_dangling/{index_uuid}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_dangling/{index_uuid}"));
     }
 
     @Override

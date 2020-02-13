@@ -11,24 +11,25 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class SamlValidateAuthnRequestResponse extends ActionResponse {
 
-    private String spEntityId;
-    private boolean forceAuthn;
-    private Map<String, Object> additionalData;
+    private final String spEntityId;
+    private final boolean forceAuthn;
+    private final Map<String, Object> authnState;
 
     public SamlValidateAuthnRequestResponse(StreamInput in) throws IOException {
         super(in);
         this.spEntityId = in.readString();
         this.forceAuthn = in.readBoolean();
-        this.additionalData = in.readMap();
+        this.authnState = in.readMap();
     }
 
-    public SamlValidateAuthnRequestResponse(String spEntityId, boolean forceAuthn, Map<String, Object> additionalData) {
-        this.spEntityId = spEntityId;
+    public SamlValidateAuthnRequestResponse(String spEntityId, boolean forceAuthn, Map<String, Object> authnState) {
+        this.spEntityId = Objects.requireNonNull(spEntityId);
         this.forceAuthn = forceAuthn;
-        this.additionalData = additionalData;
+        this.authnState = Objects.requireNonNull(authnState);
     }
 
     public String getSpEntityId() {
@@ -39,15 +40,15 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
         return forceAuthn;
     }
 
-    public Map<String, Object> getAdditionalData() {
-        return additionalData;
+    public Map<String, Object> getAuthnState() {
+        return authnState;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(spEntityId);
         out.writeBoolean(forceAuthn);
-        out.writeMap(additionalData);
+        out.writeMap(authnState);
 
     }
 
@@ -55,6 +56,6 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
     public String toString() {
         return getClass().getSimpleName() + "{ spEntityId='" + getSpEntityId() + "',\n" +
             " forceAuthn='" + isForceAuthn() + "',\n" +
-            " additionalData='" + getAdditionalData() + "' }";
+            " additionalData='" + getAuthnState() + "' }";
     }
 }

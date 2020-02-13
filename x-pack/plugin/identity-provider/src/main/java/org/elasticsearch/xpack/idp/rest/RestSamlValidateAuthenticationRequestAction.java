@@ -54,9 +54,11 @@ public class RestSamlValidateAuthenticationRequestAction extends BaseRestHandler
                     @Override
                     public RestResponse buildResponse(SamlValidateAuthnRequestResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject();
-                        builder.field("sp_entity_id", response.getSpEntityId());
+                        builder.startObject("service_provider");
+                        builder.field("entity_id", response.getSpEntityId());
+                        builder.endObject();
                         builder.field("force_authn", response.isForceAuthn());
-                        builder.field("additional_data", response.getAdditionalData());
+                        builder.field("authn_state", response.getAuthnState());
                         builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }

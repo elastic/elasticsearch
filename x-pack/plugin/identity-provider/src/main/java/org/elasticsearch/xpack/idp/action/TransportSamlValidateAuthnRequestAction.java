@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.idp.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -23,7 +20,6 @@ public class TransportSamlValidateAuthnRequestAction extends HandledTransportAct
     SamlValidateAuthnRequestResponse> {
 
     private final Environment env;
-    private final Logger logger = LogManager.getLogger(TransportSamlValidateAuthnRequestAction.class);
 
     @Inject
     public TransportSamlValidateAuthnRequestAction(TransportService transportService, ActionFilters actionFilters,
@@ -38,10 +34,7 @@ public class TransportSamlValidateAuthnRequestAction extends HandledTransportAct
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
         final SamlAuthnRequestValidator validator = new SamlAuthnRequestValidator(idp);
         try {
-            final SamlValidateAuthnRequestResponse response = validator.processQueryString(request.getQueryString());
-            logger.trace(new ParameterizedMessage("Validated AuthnResponse from queryString [{}] and extracted [{}]",
-                request.getQueryString(), response));
-            listener.onResponse(response);
+            validator.processQueryString(request.getQueryString(), listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

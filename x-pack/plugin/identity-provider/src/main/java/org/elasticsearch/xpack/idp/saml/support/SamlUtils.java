@@ -164,15 +164,28 @@ public final class SamlUtils {
         }
     }
 
-    public static String text(XMLObject xml, int length) {
-        return text(xml, length, 0);
+    public static boolean elementNameMatches(Element element, String namespace, String localName) {
+        return localName.equals(element.getLocalName()) && namespace.equals(element.getNamespaceURI());
     }
 
-    protected static String text(XMLObject xml, int prefixLength, int suffixLength) {
+    public static String text(Element dom, int length) {
+        return text(dom, length, 0);
+    }
+
+    public static String text(XMLObject xml, int prefixLength, int suffixLength) {
         final Element dom = xml.getDOM();
         if (dom == null) {
             return null;
         }
+        return text(dom, prefixLength, suffixLength);
+    }
+
+    public static String text(XMLObject xml, int length) {
+        return text(xml, length, 0);
+    }
+
+    protected static String text(Element dom, int prefixLength, int suffixLength) {
+
         final String text = dom.getTextContent().trim();
         final int totalLength = prefixLength + suffixLength;
         if (text.length() > totalLength) {

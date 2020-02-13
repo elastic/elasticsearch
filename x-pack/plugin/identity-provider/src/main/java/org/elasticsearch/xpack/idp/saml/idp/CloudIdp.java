@@ -80,8 +80,8 @@ public class CloudIdp implements SamlIdentityProvider {
     }
 
     @Override
-    public Map<String, SamlServiceProvider> getRegisteredServiceProviders() {
-        return registeredServiceProviders;
+    public SamlServiceProvider getRegisteredServiceProvider(String spEntityId) {
+        return registeredServiceProviders.get(spEntityId);
     }
 
     private static String require(Settings settings, Setting<String> setting) {
@@ -143,7 +143,7 @@ public class CloudIdp implements SamlIdentityProvider {
         // For now hardcode something to use.
         Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
         registeredSps.put("kibana_url", new CloudKibanaServiceProvider("kibana_url", "kibana_url/api/security/v1/saml",
-            NameID.TRANSIENT, null));
+            NameID.TRANSIENT, false, false,null));
 
         return registeredSps;
     }

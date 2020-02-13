@@ -31,4 +31,8 @@ public interface SamlServiceProvider {
     @Nullable
     X509Credential getSigningCredential();
 
+    boolean shouldSignAuthnRequests();
+
+    boolean shouldSignLogoutRequests();
+
 }

@@ -20,9 +20,11 @@ public class CloudKibanaServiceProvider implements SamlServiceProvider {
     private final ReadableDuration authnExpiry;
     private final String nameIdPolicyFormat;
     private final X509Credential signingCredential;
+    private final boolean signAuthnRequests;
+    private final boolean signLogoutRequests;
 
     public CloudKibanaServiceProvider(String entityId, String assertionConsumerService, String nameIdPolicyFormat,
-                                      @Nullable X509Credential signingCredential) {
+                                      boolean signAuthnRequests, boolean signLogoutRequests, @Nullable X509Credential signingCredential) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }
@@ -31,6 +33,8 @@ public class CloudKibanaServiceProvider implements SamlServiceProvider {
         this.nameIdPolicyFormat = nameIdPolicyFormat;
         this.authnExpiry = Duration.standardMinutes(5);
         this.signingCredential = signingCredential;
+        this.signLogoutRequests = signLogoutRequests;
+        this.signAuthnRequests = signAuthnRequests;
 
     }
 
@@ -62,5 +66,15 @@ public class CloudKibanaServiceProvider implements SamlServiceProvider {
     @Override
     public X509Credential getSigningCredential() {
         return signingCredential;
+    }
+
+    @Override
+    public boolean shouldSignAuthnRequests() {
+        return signAuthnRequests;
+    }
+
+    @Override
+    public boolean shouldSignLogoutRequests() {
+        return signLogoutRequests;
     }
 }

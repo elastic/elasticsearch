@@ -31,7 +31,7 @@ public class SamlValidateAuthnRequestRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(queryString)) {
-            validationException = addValidationError("Authentication request query string must be provided", null);
+            validationException = addValidationError("Authentication request query string must be provided", validationException);
         }
         return validationException;
     }

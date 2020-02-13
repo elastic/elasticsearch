@@ -67,7 +67,10 @@ public class TransformFeatureSet implements XPackFeatureSet {
         TransformIndexerStats.INDEX_TOTAL.getPreferredName(),
         TransformIndexerStats.SEARCH_TOTAL.getPreferredName(),
         TransformIndexerStats.INDEX_FAILURES.getPreferredName(),
-        TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), };
+        TransformIndexerStats.SEARCH_FAILURES.getPreferredName(),
+        TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),
+        TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(),
+        TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), };
 
     @Inject
     public TransformFeatureSet(Settings settings, ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {

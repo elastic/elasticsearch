@@ -32,7 +32,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -368,7 +367,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         }
 
         assertNotNull("No exception thrown", caughtException);
-        assertThat(caughtException, instanceOf(ResponseHandlerFailureTransportException.class));
         assertThat(caughtException.getMessage(), containsString("accept_data_loss must be set to true"));
     }
 
@@ -558,7 +556,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         }
 
         assertNotNull("No exception thrown", caughtException);
-        assertThat(caughtException, instanceOf(IllegalArgumentException.class));
         assertThat(caughtException.getMessage(), containsString("accept_data_loss must be set to true"));
     }
 

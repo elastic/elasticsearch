@@ -777,15 +777,12 @@ public class RestHighLevelClientTests extends ESTestCase {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
             "create",
-            "delete_dangling_index",
             "get_script_context",
             "get_script_languages",
             "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",
-            "list_dangling_indices",
             "render_search_template",
-            "restore_dangling_index",
             "scripts_painless_execute"
         };
         //These API are not required for high-level client feature completeness
@@ -795,6 +792,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.reroute",
             "cluster.state",
             "cluster.stats",
+            "dangling_indices.delete",
+            "dangling_indices.import",
+            "dangling_indices.list",
             "indices.shard_stores",
             "indices.upgrade",
             "indices.recovery",

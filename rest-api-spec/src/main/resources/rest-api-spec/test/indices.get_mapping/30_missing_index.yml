@@ -16,7 +16,7 @@
 ---
 "Index missing, ignore_unavailable=true":
   - skip:
-      version: " - 6.99.99"
+      version: " - 6.3.99"
       reason: ignore_unavailable was ignored in previous versions
   - do:
       indices.get_mapping:

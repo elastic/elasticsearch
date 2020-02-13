@@ -70,7 +70,7 @@
 ---
 "standard_html_strip":
     - skip:
-        version: " - 6.99.99"
+        version: " - 6.6.99"
         reason:  only starting from version 7.x this throws an error
     - do:
         catch: /\[standard_html_strip\] analyzer is not supported for new indices, use a custom analyzer using \[standard\] tokenizer and \[html_strip\] char_filter, plus \[lowercase\] filter/

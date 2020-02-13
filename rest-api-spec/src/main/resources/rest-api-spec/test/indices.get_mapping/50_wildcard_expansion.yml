@@ -106,7 +106,7 @@ setup:
 ---
 "Get test-* with wildcard_expansion=none allow_no_indices=false":
  - skip:
-    version: " - 6.99.99"
+    version: " - 6.3.99"
     reason: allow_no_indices was ignored in previous versions
  - do:
     catch: missing

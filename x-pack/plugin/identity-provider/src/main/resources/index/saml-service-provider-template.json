@@ -1,0 +1,91 @@
+{
+  "index_patterns": [
+    "saml-service-provider-*"
+  ],
+  "aliases": {
+    "saml-service-provider": {}
+  },
+  "order": 100,
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "auto_expand_replicas": "0-1",
+    "index.priority": 10,
+    "index.refresh_interval": "1s",
+    "index.format": 1
+  },
+  "mappings": {
+    "_doc": {
+      "_meta": {
+        "idp-version": "${idp.template.version}"
+      },
+      "dynamic": "strict",
+      "properties": {
+        "name": {
+          "type": "text"
+        },
+        "entity_id": {
+          "type": "keyword"
+        },
+        "acs": {
+          "type": "keyword"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "created": {
+          "type": "date",
+          "format": "epoch_millis"
+        },
+        "last_modified": {
+          "type": "date",
+          "format": "epoch_millis"
+        },
+        "name_id_format": {
+          "type": "keyword"
+        },
+        "authn_expiry_ms": {
+          "type": "long"
+        },
+        "signing_cert": {
+          "type": "text"
+        },
+        "privileges": {
+          "type": "object",
+          "properties": {
+            "application": {
+              "type": "keyword"
+            },
+            "resource": {
+              "type": "keyword"
+            },
+            "login": {
+              "type": "keyword"
+            },
+            "groups": {
+              "type": "object",
+              "dynamic": false
+            }
+          }
+        },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "principal": {
+              "type": "keyword"
+            },
+            "email": {
+              "type": "keyword"
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "groups": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}

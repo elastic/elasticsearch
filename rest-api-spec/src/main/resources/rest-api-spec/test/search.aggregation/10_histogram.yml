@@ -434,8 +434,8 @@ setup:
 ---
 "date_histogram with pre-epoch daylight savings time transition":
   - skip:
-      version: " - 7.6.99"
-      reason:  bug fixed in 7.7.0. will be backported to 7.6.1
+      version: " - 7.6.1"
+      reason:  bug fixed in 7.6.1.
   # Add date_nanos to the mapping. We couldn't do it during setup because that
   # is run against 6.8 which doesn't have date_nanos
   - do:

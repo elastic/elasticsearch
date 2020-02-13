@@ -177,8 +177,17 @@ public class DanglingIndicesState implements ClusterStateListener {
                                 "index tombstones.  This situation is likely caused by copying over the data directory for an index " +
                                 "that was previously deleted.", indexMetaData.getIndex());
                 } else {
-                    logger.info("[{}] dangling index exists on local file system, but not in cluster metadata" +
-                        (this.isAutoImportDanglingIndicesEnabled ? ", auto import to cluster state" : ""), indexMetaData.getIndex());
+                    if (this.isAutoImportDanglingIndicesEnabled) {
+                        logger.info(
+                            "[{}] dangling index exists on local file system, but not in cluster metadata, auto import to cluster state",
+                            indexMetaData.getIndex()
+                        );
+                    } else {
+                        logger.info(
+                            "[{}] dangling index exists on local file system, but not in cluster metadata",
+                            indexMetaData.getIndex()
+                        );
+                    }
                     newIndices.put(indexMetaData.getIndex(), stripAliases(indexMetaData));
                 }
             }

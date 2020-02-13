@@ -35,8 +35,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -47,9 +45,9 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cluster/allocation/explain"),
-            new Route(POST, "/_cluster/allocation/explain")));
+            new Route(POST, "/_cluster/allocation/explain"));
     }
 
     @Override

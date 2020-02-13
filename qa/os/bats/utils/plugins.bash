@@ -185,5 +185,5 @@ install_meta_plugin() {
 compare_plugins_list() {
     cat $1 | sort > /tmp/plugins
     echo "Checking plugins from $2 (<) against expected plugins (>):"
-    diff -w /elasticsearch/qa/vagrant/build/plugins/expected /tmp/plugins
+    diff -w /elasticsearch/qa/os/build/plugins/expected /tmp/plugins
 }

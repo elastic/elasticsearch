@@ -29,7 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
 
-public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric,
+public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource,
     BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
 
@@ -37,7 +37,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
 
     static {
         PARSER = new ObjectParser<>(BoxplotAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
     }
 
@@ -98,7 +98,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
 
     @Override
     protected BoxplotAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                  ValuesSourceConfig<ValuesSource.Numeric> config,
+                                                  ValuesSourceConfig<ValuesSource> config,
                                                   AggregatorFactory parent,
                                                   AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new BoxplotAggregatorFactory(name, config, compression, queryShardContext, parent, subFactoriesBuilder, metaData);

@@ -87,6 +87,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -98,12 +99,14 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
     public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME, BulkShardResponse::new);
+    private static final long MAX_INTERVAL_BETWEEN_FSYNC = TimeUnit.MILLISECONDS.toNanos(10);
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkActionNew.class);
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final ConcurrentHashMap<ShardId, ShardQueue> shardQueues = new ConcurrentHashMap<>();
+    private volatile AtomicLong nextFsyncNanos = new AtomicLong(System.nanoTime() - 1);
 
     private final AtomicReference<MeanMetric> meanMetric = new AtomicReference<>(new MeanMetric());
     private final Recorder indexRecorder = new Recorder(1, TimeUnit.SECONDS.toMicros(60),  3);
@@ -143,6 +146,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
     private static class ShardQueue {
 
         private static final int MAX_QUEUED = 800;
+        private static final int MAX_BYTES_QUEUED = 1024 * 1024 * 64;
 
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> shardQueue = new ConcurrentLinkedQueue<>();
@@ -179,6 +183,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         private final IndexShard indexShard;
         private final BulkPrimaryExecutionContext context;
         private final ShardOpListener listener;
+        private final long bytesToIndex;
 
         public ShardOp(BulkShardRequest request, IndexShard indexShard,
                        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
@@ -186,6 +191,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
             this.indexShard = indexShard;
             this.context = new BulkPrimaryExecutionContext(request, indexShard);
             this.listener = new ShardOpListener(request, context, listener);
+            this.bytesToIndex = calculateBytes(request);
         }
 
         public Translog.Location locationToSync() {
@@ -194,6 +200,27 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
         public ActionListener<Void> getListener() {
             return listener;
+        }
+
+        public long getBytesToIndex() {
+            return bytesToIndex;
+        }
+
+        private long calculateBytes(BulkShardRequest request) {
+            long totalBytes = 0;
+
+            for (BulkItemRequest item : request.items()) {
+                DocWriteRequest<?> writeRequest = item.request();
+                if (writeRequest.opType() == DocWriteRequest.OpType.INDEX) {
+                    IndexRequest indexRequest = (IndexRequest) writeRequest;
+                    totalBytes += indexRequest.source().length();
+                } else {
+                    // TODO: Determine this value for Updates and Deletes
+                    totalBytes += 0;
+                }
+            }
+
+            return totalBytes;
         }
 
         private static class ShardOpListener implements ActionListener<Void> {
@@ -285,17 +312,15 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
     private void performShardOperations(IndexShard indexShard) {
         ShardId shardId = indexShard.shardId();
         ShardQueue shardQueue = shardQueues.get(shardId);
-        ArrayList<ShardOp> shardOpsToPerform = pollOps(shardQueue);
-        if (shardOpsToPerform.isEmpty()) {
-            return;
-        }
 
-        ArrayList<ShardOp> completedOps = new ArrayList<>(shardOpsToPerform.size());
+        ArrayList<ShardOp> completedOps = new ArrayList<>();
         ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
         ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
-        Translog.Location maxLocation = null;
 
-        for (ShardOp shardOp : shardOpsToPerform) {
+        int i = 0;
+        Translog.Location maxLocation = null;
+        ShardOp shardOp;
+        while (++i <= MAX_PERFORM_OPS && (shardOp = shardQueue.poll()) != null) {
             boolean opCompleted = true;
             try {
                 if (performShardOperation(shardOp)) {
@@ -325,7 +350,15 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         if (completedOps.isEmpty()) {
             return;
         }
+
         indexShard.afterWriteOperation();
+
+        long endNanos = System.nanoTime();
+        long nextFsync = nextFsyncNanos.get();
+        if (endNanos - nextFsync >= 0 && nextFsyncNanos.compareAndSet(nextFsync, endNanos + MAX_INTERVAL_BETWEEN_FSYNC)) {
+
+        }
+
 
         // TODO: Need to improve resiliency around error handling on failed syncs, refreshes, and listener
         //  calls
@@ -393,17 +426,85 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         }
     }
 
-    private ArrayList<ShardOp> pollOps(ShardQueue shardQueue) {
-        ArrayList<ShardOp> shardOpsToPerform = new ArrayList<>(Math.min(MAX_PERFORM_OPS, shardQueue.pendingOps.get()));
-        int i = 0;
-        ShardOp polledOp;
-        while (++i <= MAX_PERFORM_OPS && (polledOp = shardQueue.poll()) != null) {
-            shardOpsToPerform.add(polledOp);
+    private static class SyncState {
+
+        private volatile Translog.Location maxLocation;
+        private final ConcurrentLinkedQueue<ShardOp> completedOps = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedQueue<ShardOp> completedOpsWaitForRefresh = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedQueue<ShardOp> completedOpsForceRefresh = new ConcurrentLinkedQueue<>();
+
+    }
+
+    private void thing(IndexShard indexShard, SyncState syncState) {
+        // TODO: Need to improve resiliency around error handling on failed syncs, refreshes, and listener
+        //  calls
+
+        Translog.Location maxLocation = syncState.maxLocation;
+        ArrayList<ShardOp> completedOps = new ArrayList<>();
+        ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>();
+        ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>();
+
+        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
+            if (maxLocation != null) {
+                try {
+                    long startNanos = System.nanoTime();
+                    indexShard.sync(maxLocation, (ex) -> {
+                        if (ex == null) {
+                            for (ShardOp op : completedOps) {
+                                op.listener.onResponse(null);
+                            }
+                        } else {
+                            for (ShardOp op : completedOps) {
+                                // TODO: Check if this is okay
+                                op.listener.onFailure(ex);
+                            }
+                        }
+                    });
+                } catch (Exception ex) {
+                    for (ShardOp op : completedOps) {
+                        // TODO: Check if this is okay
+                        op.listener.onFailure(ex);
+                    }
+                }
+            } else {
+                for (ShardOp op : completedOps) {
+                    op.listener.onResponse(null);
+                }
+            }
+        } else {
+            for (ShardOp op : completedOps) {
+                op.listener.onResponse(null);
+            }
         }
-        if (shardOpsToPerform.isEmpty() == false) {
-            meanMetric.get().inc(shardOpsToPerform.size());
+
+        AtomicBoolean refreshed = new AtomicBoolean(false);
+        if (completedOpsWaitForRefresh.isEmpty() == false) {
+            if (maxLocation != null) {
+                indexShard.addRefreshListener(maxLocation, forcedRefresh -> {
+                    if (forcedRefresh) {
+                        logger.warn("block until refresh ran out of slots and forced a refresh");
+                    }
+
+                    refreshed.set(forcedRefresh);
+                    for (ShardOp op : completedOpsWaitForRefresh) {
+                        op.listener.setForcedRefresh(forcedRefresh);
+                        op.listener.onResponse(null);
+                    }
+                });
+            } else {
+                for (ShardOp op : completedOpsWaitForRefresh) {
+                    op.listener.onResponse(null);
+                }
+            }
         }
-        return shardOpsToPerform;
+
+        if (refreshed.get() == false && completedOpsForceRefresh.isEmpty() == false) {
+            indexShard.refresh("refresh_flag_index");
+            for (ShardOp op : completedOpsForceRefresh) {
+                op.listener.setForcedRefresh(true);
+                op.listener.onResponse(null);
+            }
+        }
     }
 
     // TODO: Allow rejection after mapping logic

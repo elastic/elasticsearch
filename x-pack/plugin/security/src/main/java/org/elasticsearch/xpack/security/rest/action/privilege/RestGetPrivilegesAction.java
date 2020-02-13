@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,8 +36,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetPrivilegesAction.class));
-
     public RestGetPrivilegesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
@@ -52,13 +48,13 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(GET, "/_security/privilege/", GET, "/_xpack/security/privilege/", deprecationLogger),
+        return List.of(
+            new ReplacedRoute(GET, "/_security/privilege/", GET, "/_xpack/security/privilege/"),
             new ReplacedRoute(GET, "/_security/privilege/{application}",
-                GET, "/_xpack/security/privilege/{application}", deprecationLogger),
+                GET, "/_xpack/security/privilege/{application}"),
             new ReplacedRoute(GET, "/_security/privilege/{application}/{privilege}",
-                GET, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger)
-        ));
+                GET, "/_xpack/security/privilege/{application}/{privilege}")
+        );
     }
 
     @Override

@@ -30,8 +30,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -60,9 +58,9 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
+            return List.of(
                 new Route(POST, "/{index}/_shrink/{target}"),
-                new Route(PUT, "/{index}/_shrink/{target}")));
+                new Route(PUT, "/{index}/_shrink/{target}"));
         }
 
         @Override
@@ -81,9 +79,9 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
+            return List.of(
                 new Route(POST, "/{index}/_split/{target}"),
-                new Route(PUT, "/{index}/_split/{target}")));
+                new Route(PUT, "/{index}/_split/{target}"));
         }
 
         @Override
@@ -102,9 +100,9 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
+            return List.of(
                 new Route(POST, "/{index}/_clone/{target}"),
-                new Route(PUT, "/{index}/_clone/{target}")));
+                new Route(PUT, "/{index}/_clone/{target}"));
         }
 
         @Override

@@ -674,9 +674,13 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testDefaultNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
-        // The 1 is the top_metrics aggregation
-        int expectedInternalAggregations = InternalAggregationTestCase.getDefaultNamedXContents().size() + 1;
+        int expectedInternalAggregations = InternalAggregationTestCase.getDefaultNamedXContents().size();
         int expectedSuggestions = 3;
+
+        // Explicitly check for metrics from the analytics module because they aren't in InternalAggregationTestCase
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("string_stats")));
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("top_metrics")));
+
         assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {

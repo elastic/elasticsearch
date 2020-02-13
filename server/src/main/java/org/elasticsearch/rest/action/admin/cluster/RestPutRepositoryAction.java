@@ -29,8 +29,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.Requests.putRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -42,9 +40,9 @@ public class RestPutRepositoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_snapshot/{repository}"),
-            new Route(PUT, "/_snapshot/{repository}")));
+            new Route(PUT, "/_snapshot/{repository}"));
     }
 
     @Override

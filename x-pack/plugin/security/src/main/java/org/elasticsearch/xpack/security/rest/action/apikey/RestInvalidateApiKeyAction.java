@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
@@ -52,7 +51,7 @@ public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_security/api_key"));
+        return List.of(new Route(DELETE, "/_security/api_key"));
     }
 
     @Override

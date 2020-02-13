@@ -190,7 +190,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
                 converter = ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
             } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
-                converter = (in) -> LongPoint.decodeDimension(in, 0);
+                DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
+                /*
+                 * Makes sure that nanoseconds decode to milliseconds, just
+                 * like they do when you run the agg without the optimization.
+                 */
+                converter = (in) -> dft.resolution().toInstant(LongPoint.decodeDimension(in, 0)).toEpochMilli();
             }
             return converter;
         }

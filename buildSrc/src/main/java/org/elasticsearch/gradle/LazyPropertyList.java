@@ -184,9 +184,7 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
      * @return a flattened collection filtered according to normalization strategy
      */
     public List<? extends T> getFlatNormalizedCollection() {
-        return getNormalizedCollection().stream()
-            .map(PropertyListEntry::getValue)
-            .collect(Collectors.toList());
+        return getNormalizedCollection().stream().map(PropertyListEntry::getValue).collect(Collectors.toList());
     }
 
     private void validate(PropertyListEntry<T> entry) {

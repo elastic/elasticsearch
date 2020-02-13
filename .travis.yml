@@ -1,5 +1,12 @@
 language: java 
 jdk: openjdk13
-
+dist: trusty
 script:
+  # ingest user agent
+  - ./gradlew :modules:ingest-user-agent:test --tests org.elasticsearch.ingest.useragent.UserAgentProcessorTests
+  # ingest geoip 
+  - ./gradlew :modules:ingest-geoip:test --tests org.elasticsearch.ingest.geoip.GeoIpProcessorTests
+  # transport netty4
   - ./gradlew :modules:transport-netty4:test --tests org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
+  # ingest common
+  - ./gradlew :modules:ingest-common:test --tests org.elasticsearch.ingest.common.DateProcessorTests

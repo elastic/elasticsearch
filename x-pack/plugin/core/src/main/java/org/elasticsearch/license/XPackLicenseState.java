@@ -707,6 +707,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if EQL support should be enabled.
+     * <p>
+     *  EQL is available for all license types except {@link OperationMode#MISSING}
+     */
+    public synchronized boolean isEqlAllowed() {
+        return status.active;
+    }
+
+    /**
      * Determine if SQL support should be enabled.
      * <p>
      *  SQL is available for all license types except {@link OperationMode#MISSING}

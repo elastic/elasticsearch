@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -46,6 +45,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -66,17 +67,20 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    public RestMultiSearchAction(Settings settings, RestController controller) {
-        controller.registerHandler(GET, "/_msearch", this);
-        controller.registerHandler(POST, "/_msearch", this);
-        controller.registerHandler(GET, "/{index}/_msearch", this);
-        controller.registerHandler(POST, "/{index}/_msearch", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_msearch", this);
-        controller.registerHandler(POST, "/{index}/{type}/_msearch", this);
-
+    public RestMultiSearchAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_msearch"),
+            new Route(POST, "/_msearch"),
+            new Route(GET, "/{index}/_msearch"),
+            new Route(POST, "/{index}/_msearch"),
+            // Deprecated typed endpoints.
+            new Route(GET, "/{index}/{type}/_msearch"),
+            new Route(POST, "/{index}/{type}/_msearch")));
     }
 
     @Override

@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 
 import com.tdunning.math.stats.Centroid;
+
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -19,7 +19,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
-
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
@@ -222,7 +221,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
 
         PercentilesAggregationBuilder builder =
             AggregationBuilders.percentiles("agg").field("inner.data").method(PercentilesMethod.TDIGEST)
-                .compression(compression).percentiles(10, 25, 500, 75);
+                .compression(compression).percentiles(10, 25, 50, 75);
 
         SearchResponse responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
         SearchResponse responsePreAgg = client().prepareSearch("pre_agg").addAggregation(builder).get();

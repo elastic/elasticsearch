@@ -133,7 +133,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         queryShardContext = new QueryShardContext(0,
             new IndexSettings(IndexMetaData.builder("test").settings(indexSettings).build(), indexSettings),
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> randomNonNegativeLong(), null, null);
+            null, null, () -> randomNonNegativeLong(), null, null, () -> true);
     }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
@@ -517,7 +517,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     private void validateIndexName(MetaDataCreateIndexService metaDataCreateIndexService, String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
             () -> metaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
-                .getDefault(Settings.EMPTY)).build(), false));
+                .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
 
@@ -586,7 +586,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertThat(e, hasToString(containsString(expectedMessage)));
     }
 
-    public void testValidateIndexNameChecksSystemIndexNames() {
+    public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test3", "test"));
@@ -609,25 +609,25 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 false
             );
             // Check deprecations
-            checkerService.validateIndexName(".test2", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".test2", ClusterState.EMPTY_STATE, false);
             assertWarnings("index name [.test2] starts with a dot '.', in the next major version, index " +
                 "names starting with a dot are reserved for hidden indices and system indices");
 
             // Check non-system hidden indices don't trigger a warning
-            checkerService.validateIndexName(".test2", ClusterState.EMPTY_STATE, true);
+            checkerService.validateDotIndex(".test2", ClusterState.EMPTY_STATE, true);
 
             // Check NO deprecation warnings if we give the index name
-            checkerService.validateIndexName(".test", ClusterState.EMPTY_STATE, false);
-            checkerService.validateIndexName(".test3", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".test", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".test3", ClusterState.EMPTY_STATE, false);
 
             // Check that patterns with wildcards work
-            checkerService.validateIndexName(".pattern-test", ClusterState.EMPTY_STATE, false);
-            checkerService.validateIndexName(".pattern-test-with-suffix", ClusterState.EMPTY_STATE, false);
-            checkerService.validateIndexName(".pattern-test-other-suffix", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".pattern-test", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".pattern-test-with-suffix", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".pattern-test-other-suffix", ClusterState.EMPTY_STATE, false);
 
             // Check that an exception is thrown if more than one descriptor matches the index name
             AssertionError exception = expectThrows(AssertionError.class,
-                () -> checkerService.validateIndexName(".pattern-test-overlapping", ClusterState.EMPTY_STATE, false));
+                () -> checkerService.validateDotIndex(".pattern-test-overlapping", ClusterState.EMPTY_STATE, false));
             assertThat(exception.getMessage(),
                 containsString("index name [.pattern-test-overlapping] is claimed as a system index by multiple system index patterns:"));
             assertThat(exception.getMessage(), containsString("pattern: [.pattern-test*], description: [test-1]"));
@@ -641,7 +641,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     public void testIndexNameExclusionsList() {
         // this test case should be removed when DOT_INDICES_EXCLUSIONS is empty
         List<String> excludedNames = Arrays.asList(
-            ".slm-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             ".watch-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             ".ml-anomalies-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             ".ml-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
@@ -667,11 +666,11 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             );
 
             excludedNames.forEach(name -> {
-                checkerService.validateIndexName(name, ClusterState.EMPTY_STATE, false);
+                checkerService.validateDotIndex(name, ClusterState.EMPTY_STATE, false);
             });
 
             excludedNames.forEach(name -> {
-                expectThrows(AssertionError.class, () -> checkerService.validateIndexName(name, ClusterState.EMPTY_STATE, true));
+                expectThrows(AssertionError.class, () -> checkerService.validateDotIndex(name, ClusterState.EMPTY_STATE, true));
             });
         } finally {
             testThreadPool.shutdown();

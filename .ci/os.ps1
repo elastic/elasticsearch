@@ -28,4 +28,4 @@ $ErrorActionPreference="Continue"
 # TODO: remove the task exclusions once dependencies are set correctly and these don't run for Windows or buldiung the deb on windows is fixed
 & .\gradlew.bat -g "C:\Users\$env:username\.gradle" --parallel --scan --console=plain destructiveDistroTest
 
-exit $?
+exit $LastExitCode

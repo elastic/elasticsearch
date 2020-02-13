@@ -28,14 +28,16 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
@@ -44,11 +46,12 @@ public class RestUpdateAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
         "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
 
-    public RestUpdateAction(RestController controller) {
-        controller.registerHandler(POST, "/{index}/_update/{id}", this);
-
-        // Deprecated typed endpoint.
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/{index}/_update/{id}"),
+            // Deprecated typed endpoint.
+            new Route(POST, "/{index}/{type}/{id}/_update")));
     }
 
     @Override

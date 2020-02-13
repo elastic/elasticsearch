@@ -72,7 +72,7 @@ setup:
 "Test cat trained models":
 
   - do:
-      cat.ml.trained_models:
+      cat.ml_trained_models:
         model_id: a-regression-model-0
   - match:
       $body: |
@@ -80,7 +80,7 @@ setup:
         ^ (a\-regression\-model\-0 \s+  \w+      \s+ \d+       \s+ .*?        \s+ \d+               .*?          \n)+  $/
 
   - do:
-      cat.ml.trained_models:
+      cat.ml_trained_models:
         v: true
         model_id: a-regression-model-0
   - match:
@@ -89,7 +89,7 @@ setup:
            (a\-regression\-model\-0  \s+  \w+       \s+ \d+        \s+ .*?         \s+ \d+               \s+ .*?            \n)+        $/
 
   - do:
-      cat.ml.trained_models:
+      cat.ml_trained_models:
         h: id,license,dfid,ip
         v: true
   - match:
@@ -100,7 +100,7 @@ setup:
            (lang_ident_model_1        \s+  \w+     \s+ prepackaged  \s+ \d+  \n)+  $/
 
   - do:
-      cat.ml.trained_models:
+      cat.ml_trained_models:
         model_id: a-regression-model-1
         h: id,license,dfid,ip
         v: true

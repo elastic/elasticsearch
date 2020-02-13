@@ -5,14 +5,11 @@
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -24,13 +21,13 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -40,27 +37,33 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
-    private static final Logger logger = LogManager.getLogger(RestMonitoringBulkAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    private final Map<MonitoredSystem, List<String>> supportedApiVersions;
 
-    public RestMonitoringBulkAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(POST, "/_monitoring/bulk", this,
-            POST, "/_xpack/monitoring/_bulk", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, "/_monitoring/bulk", this,
-            PUT, "/_xpack/monitoring/_bulk", deprecationLogger);
+    private static final List<String> ALL_VERSIONS = asList(
+        MonitoringTemplateUtils.TEMPLATE_VERSION,
+        MonitoringTemplateUtils.OLD_TEMPLATE_VERSION
+    );
 
-        final List<String> allVersions = Arrays.asList(
-                MonitoringTemplateUtils.TEMPLATE_VERSION,
-                MonitoringTemplateUtils.OLD_TEMPLATE_VERSION
-        );
+    private static final Map<MonitoredSystem, List<String>> SUPPORTED_API_VERSIONS =
+        Collections.unmodifiableMap(MapBuilder.<MonitoredSystem, List<String>>newMapBuilder()
+            .put(MonitoredSystem.KIBANA, ALL_VERSIONS)
+            .put(MonitoredSystem.LOGSTASH, ALL_VERSIONS)
+            .put(MonitoredSystem.BEATS, ALL_VERSIONS)
+            .map());
 
-        final Map<MonitoredSystem, List<String>> versionsMap = new HashMap<>();
-        versionsMap.put(MonitoredSystem.KIBANA, allVersions);
-        versionsMap.put(MonitoredSystem.LOGSTASH, allVersions);
-        versionsMap.put(MonitoredSystem.BEATS, allVersions);
-        supportedApiVersions = Collections.unmodifiableMap(versionsMap);
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return unmodifiableList(asList(
+            new ReplacedRoute(
+                POST, "/_monitoring/bulk",
+                POST, "/_xpack/monitoring/_bulk"),
+            new ReplacedRoute(
+                PUT, "/_monitoring/bulk",
+                PUT, "/_xpack/monitoring/_bulk")));
     }
 
     @Override
@@ -136,7 +139,7 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
      * @return true if supported, false otherwise
      */
     private boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
-        final List<String> monitoredSystem = supportedApiVersions.getOrDefault(system, emptyList());
+        final List<String> monitoredSystem = SUPPORTED_API_VERSIONS.getOrDefault(system, emptyList());
         return monitoredSystem.contains(version);
     }
 }

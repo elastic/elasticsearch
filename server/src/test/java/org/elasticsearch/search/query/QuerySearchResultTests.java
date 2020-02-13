@@ -124,10 +124,17 @@ public class QuerySearchResultTests extends ESTestCase {
             QuerySearchResult querySearchResult = new QuerySearchResult(in);
             assertEquals(100, querySearchResult.getRequestId());
             assertTrue(querySearchResult.hasAggs());
-            InternalAggregations aggs = (InternalAggregations)querySearchResult.consumeAggs();
+            InternalAggregations aggs = (InternalAggregations) querySearchResult.consumeAggs();
             assertEquals(1, aggs.asList().size());
             //top-level pipeline aggs are retrieved as part of InternalAggregations although they were serialized separately
             assertEquals(1, aggs.getTopLevelPipelineAggregators().size());
         }
+    }
+
+    public void testNullResponse() throws Exception {
+        QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
+        QuerySearchResult deserialized =
+            copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
+        assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }
 }

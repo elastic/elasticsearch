@@ -38,6 +38,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Files;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCase {
 
     public void testConcurrentlyChangeRepositoryContents() throws Exception {
@@ -88,6 +90,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             getRepositoryData(internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repoName));
         Files.move(repo.resolve("index-" + repositoryData.getGenId()), repo.resolve("index-" + (repositoryData.getGenId() + 1)));
 
+        fullRestart();
+        client = client();
         assertRepositoryBlocked(client, repoName, snapshot);
 
         if (randomBoolean()) {
@@ -112,7 +116,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         client.admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots(repoName)
+        expectThrows(SnapshotMissingException.class, () -> client().admin().cluster().prepareGetSnapshots(repoName)
             .addSnapshots(snapshot).get().getSnapshots(repoName));
     }
 
@@ -284,10 +288,14 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 true))), StandardOpenOption.TRUNCATE_EXISTING);
 
         logger.info("--> verify that repo is assumed in old metadata format");
+        fullRestart();
+        final Repository repositoryAfterRestart =
+            internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
         final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
-            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
+            ActionRunnable.supply(f, () ->
+                snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repositoryAfterRestart), null)))),
             is(true));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
@@ -295,9 +303,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
-            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
+            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName,
+                getRepositoryData(repositoryAfterRestart), null)))),
             is(false));
-        final RepositoryData finalRepositoryData = getRepositoryData(repository);
+        final RepositoryData finalRepositoryData = getRepositoryData(repositoryAfterRestart);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
             assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));
         }
@@ -327,13 +336,15 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
         Files.write(repo.resolve("index-" + repositoryData.getGenId()), randomByteArrayOfLength(randomIntBetween(1, 100)));
+        fullRestart();
 
         logger.info("--> verify loading repository data throws RepositoryException");
-        expectThrows(RepositoryException.class, () -> getRepositoryData(repository));
+        expectThrows(RepositoryException.class, () -> getRepositoryData(
+            internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName)));
 
         logger.info("--> mount repository path in a new repository");
         final String otherRepoName = "other-repo";
-        assertAcked(client.admin().cluster().preparePutRepository(otherRepoName)
+        assertAcked(client().admin().cluster().preparePutRepository(otherRepoName)
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
                 .put("compress", false)));
@@ -355,5 +366,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             () -> client.admin().cluster().prepareCreateSnapshot(repo, existingSnapshot).execute().actionGet());
         assertThat(repositoryException4.getMessage(),
             containsString("Could not read repository data because the contents of the repository do not match its expected state."));
+    }
+
+    private void fullRestart() throws Exception {
+        internalCluster().fullRestart();
+        ensureGreen();
     }
 }

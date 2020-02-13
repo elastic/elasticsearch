@@ -129,6 +129,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -1054,6 +1055,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // and concurrent modifications.
     private final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.UNKNOWN_REPO_GEN);
 
+    // Best effort cache of the latest known repository data
+    private AtomicReference<RepositoryData> latestKnownRepositoryData = new AtomicReference<>(RepositoryData.EMPTY);
+
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
@@ -1087,7 +1091,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 genToLoad = latestKnownRepoGen.get();
             }
             try {
-                listener.onResponse(getRepositoryData(genToLoad));
+                final RepositoryData latestCached = latestKnownRepositoryData.get();
+                final RepositoryData loaded;
+                if (bestEffortConsistency == false && latestCached.getGenId() == genToLoad) {
+                    loaded = latestCached;
+                } else {
+                    loaded = getRepositoryData(genToLoad);
+                    cacheRepositoryData(loaded);
+                }
+                listener.onResponse(loaded);
                 return;
             } catch (RepositoryException e) {
                 // If the generation to load changed concurrently and we didn't just try loading the same generation before we retry
@@ -1110,6 +1122,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 listener.onFailure(new RepositoryException(metadata.name(), "Unexpected exception when loading repository data", e));
                 return;
             }
+        }
+    }
+
+    private void cacheRepositoryData(RepositoryData updated) {
+        if (bestEffortConsistency == false) {
+            latestKnownRepositoryData.updateAndGet(known -> {
+                if (known.getGenId() > updated.getGenId()) {
+                    return known;
+                }
+                return updated;
+            });
         }
     }
 
@@ -1359,6 +1382,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        cacheRepositoryData(filteredRepositoryData.withGenId(newGen));
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(listener, () -> {
                             // Delete all now outdated index files up to 1000 blobs back from the new generation.
                             // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.

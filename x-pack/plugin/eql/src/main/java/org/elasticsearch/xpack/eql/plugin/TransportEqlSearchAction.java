@@ -40,7 +40,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     @Inject
     public TransportEqlSearchAction(Settings settings, ClusterService clusterService, TransportService transportService,
-            ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor) {
+                                    ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -55,7 +55,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     }
 
     public static void operation(PlanExecutor planExecutor, EqlSearchRequest request, String username,
-            String clusterName, ActionListener<EqlSearchResponse> listener) {
+                                 String clusterName, ActionListener<EqlSearchResponse> listener) {
         // TODO: these should be sent by the client
         ZoneId zoneId = DateUtils.of("Z");
         QueryBuilder filter = request.query();
@@ -64,9 +64,9 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         String clientId = null;
 
         ParserParams params = new ParserParams()
-                .fieldEventType(request.eventTypeField())
-                .fieldTimestamp(request.timestampField())
-                .implicitJoinKey(request.implicitJoinKeyField());
+            .fieldEventType(request.eventTypeField())
+            .fieldTimestamp(request.timestampField())
+            .implicitJoinKey(request.implicitJoinKeyField());
 
         Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen, clientId);
         //planExecutor.eql(cfg, request.rule(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));

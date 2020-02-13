@@ -27,7 +27,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-
 /**
  * Response to perform an eql search
  *
@@ -71,6 +70,7 @@ import java.util.Objects;
  *         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(null, null, counts, totals);
  *         EqlSearchResponse response = new EqlSearchResponse(hits, 5, false);
  */
+
 public class EqlSearchResponse extends ActionResponse implements ToXContentObject {
 
     private final Hits hits;
@@ -379,7 +379,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 totalHits = null;
             }
-            events =  in.readBoolean() ? in.readList(SearchHit::new) : null;
+            events = in.readBoolean() ? in.readList(SearchHit::new) : null;
             sequences = in.readBoolean() ? in.readList(Sequence::new) : null;
             counts = in.readBoolean() ? in.readList(Count::new) : null;
         }
@@ -484,19 +484,19 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             return Objects.hash(events, sequences, counts, totalHits);
         }
 
-        public  List<SearchHit> events() {
+        public List<SearchHit> events() {
             return this.events;
         }
 
-        public  List<Sequence> sequences() {
+        public List<Sequence> sequences() {
             return this.sequences;
         }
 
-        public  List<Count> counts() {
+        public List<Count> counts() {
             return this.counts;
         }
 
-        public  TotalHits totalHits() {
+        public TotalHits totalHits() {
             return this.totalHits;
         }
     }

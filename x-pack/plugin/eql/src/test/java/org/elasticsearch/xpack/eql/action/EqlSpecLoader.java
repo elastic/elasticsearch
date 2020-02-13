@@ -42,7 +42,7 @@ public class EqlSpecLoader {
                 s = s.substring(1);
             }
             if (s.endsWith("\"") || s.endsWith("'")) {
-                s = s.substring(0, s.length()-1);
+                s = s.substring(0, s.length() - 1);
             }
             arr[i] = s.trim();
         }
@@ -54,7 +54,7 @@ public class EqlSpecLoader {
         if (idx == -1) {
             throw new IllegalArgumentException("Invalid string value: " + line);
         }
-        return line.substring(idx+1).trim();
+        return line.substring(idx + 1).trim();
     }
 
     private static String[] readArray(String line) throws Exception {
@@ -62,7 +62,7 @@ public class EqlSpecLoader {
         if (!line.startsWith("[") && !line.endsWith("]")) {
             throw new IllegalArgumentException("Invalid array string value: " + line);
         }
-        String arr[] = line.substring(1, line.length()-1).split(",");
+        String arr[] = line.substring(1, line.length() - 1).split(",");
 
         ArrayList<String> res = new ArrayList<>();
         for (String s : arr) {
@@ -107,7 +107,7 @@ public class EqlSpecLoader {
 
         // Trim end delimiter
         if (line.endsWith(delim)) {
-            line = line.substring(0, line.length()-delim.length());
+            line = line.substring(0, line.length() - delim.length());
         }
 
         return line.trim();

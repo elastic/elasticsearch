@@ -67,7 +67,7 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
         for (EqlSpec spec : specs) {
             boolean supported = true;
             // Check if spec is supported, simple iteration, cause the list is short.
-            for (EqlSpec unSpec: unsupportedSpecs) {
+            for (EqlSpec unSpec : unsupportedSpecs) {
                 if (spec.query.equals(unSpec.query)) {
                     supported = false;
                     break;

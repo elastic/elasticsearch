@@ -13,9 +13,9 @@ import java.util.Arrays;
 public class EqlSpec {
     String description;
     String note;
-    String []tags;
+    String[] tags;
     String query;
-    int []expectedEventIds;
+    int[] expectedEventIds;
 
     @Override
     public String toString() {

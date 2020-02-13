@@ -77,14 +77,17 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-            Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+    public Collection<Object> createComponents(Client client, ClusterService clusterService,
+                                               ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
+                                               ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+                                               Environment environment, NodeEnvironment nodeEnvironment,
+                                               NamedWriteableRegistry namedWriteableRegistry) {
 
         return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }
 
-    private Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry) {
+    private Collection<Object> createComponents(Client client, String clusterName,
+                                                NamedWriteableRegistry namedWriteableRegistry) {
         IndexResolver indexResolver = new IndexResolver(client, clusterName, DefaultDataTypeRegistry.INSTANCE);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, namedWriteableRegistry);
         return Arrays.asList(planExecutor);
@@ -138,5 +141,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     }
 
     // overridable by tests
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
 }

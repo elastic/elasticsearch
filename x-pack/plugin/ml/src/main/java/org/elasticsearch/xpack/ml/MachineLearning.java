@@ -250,6 +250,7 @@ import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPostCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarJobAction;
+import org.elasticsearch.xpack.ml.rest.cat.RestCatDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatDatafeedsAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatJobsAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatTrainedModelsAction;
@@ -770,7 +771,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
-            new RestCatDatafeedsAction()
+            new RestCatDatafeedsAction(),
+            new RestCatDataFrameAnalyticsAction()
         );
     }
 

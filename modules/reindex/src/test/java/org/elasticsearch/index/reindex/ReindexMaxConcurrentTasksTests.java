@@ -56,7 +56,7 @@ public class ReindexMaxConcurrentTasksTests extends ReindexTestCase {
             copy.source().setSize(5);
             copy.setRequestsPerSecond(0.000001f);
             StartReindexTaskAction.Request request = new StartReindexTaskAction.Request(copy.request(), false);
-            taskIds.add(client().execute(StartReindexTaskAction.INSTANCE, request).actionGet().getTaskId());
+            taskIds.add(client().execute(StartReindexTaskAction.INSTANCE, request).actionGet().getEphemeralTaskId());
         }
 
         expectThrows(IllegalStateException.class, () -> {

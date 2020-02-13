@@ -72,7 +72,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
                 new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
                 new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
                 new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class),
-                new ActionHandler<>(StartReindexTaskAction.INSTANCE, TransportStartReindexTaskAction.class)
+                new ActionHandler<>(StartReindexTaskAction.INSTANCE, TransportStartReindexTaskAction.class),
+                new ActionHandler<>(RethrottlePersistentReindexAction.INSTANCE, TransportRethrottlePersistentReindexAction.class)
             );
     }
 

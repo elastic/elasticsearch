@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collections;
 import java.util.List;
@@ -45,7 +46,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         createDoc(reindexClient, taskId);
 
         ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 1, ActionListener.wrap(() -> {}), () -> {});
+            taskId, 1, randomTaskId(), ActionListener.wrap(() -> {}), () -> {});
         CountDownLatch successLatch = new CountDownLatch(1);
 
         updater.assign(new ActionListener<>() {
@@ -63,7 +64,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         successLatch.await();
 
         ReindexTaskStateUpdater oldAllocationUpdater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 0, ActionListener.wrap(() -> {}), () -> {});
+            taskId, 0, randomTaskId(), ActionListener.wrap(() -> {}), () -> {});
         CountDownLatch failureLatch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
@@ -90,7 +91,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         createDoc(reindexClient, taskId, false);
 
         ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 0, ActionListener.wrap(() -> {}), () -> {});
+            taskId, 0, randomTaskId(), ActionListener.wrap(() -> {}), () -> {});
         CountDownLatch successLatch = new CountDownLatch(1);
 
         updater.assign(new ActionListener<>() {
@@ -108,7 +109,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         successLatch.await();
 
         ReindexTaskStateUpdater failedOverUpdater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 1, ActionListener.wrap(() -> {}), () -> {});
+            taskId, 1, randomTaskId(), ActionListener.wrap(() -> {}), () -> {});
         CountDownLatch failureLatch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
@@ -141,7 +142,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
         for (Integer i : assignments) {
             ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(), taskId, i,
-                ActionListener.wrap(() -> {}), () -> {});
+                randomTaskId(), ActionListener.wrap(() -> {}), () -> {});
             new Thread(() -> {
                 updater.assign(new ActionListener<>() {
                     @Override
@@ -172,7 +173,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
         AtomicBoolean cancelled = new AtomicBoolean(false);
         ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 0, ActionListener.wrap(() -> {}), () -> cancelled.set(true));
+            taskId, 0, randomTaskId(), ActionListener.wrap(() -> {}), () -> cancelled.set(true));
         CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
 
         updater.assign(new ActionListener<>() {
@@ -195,7 +196,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         assertFalse(cancelled.get());
 
         ReindexTaskStateUpdater newAllocationUpdater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 1, ActionListener.wrap(() -> {}), () -> {});
+            taskId, 1, randomTaskId(), ActionListener.wrap(() -> {}), () -> {});
         CountDownLatch secondAssignmentLatch = new CountDownLatch(1);
 
         newAllocationUpdater.assign(new ActionListener<>() {
@@ -228,7 +229,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
         PlainActionFuture<ReindexTaskStateDoc> finishedFuture = PlainActionFuture.newFuture();
         ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 0, finishedFuture, () -> {});
+            taskId, 0, randomTaskId(), finishedFuture, () -> {});
         CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
 
         updater.assign(new ActionListener<>() {
@@ -269,7 +270,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
         PlainActionFuture<ReindexTaskStateDoc> finishedFuture = PlainActionFuture.newFuture();
         ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
-            taskId, 0, finishedFuture, () -> {});
+            taskId, 0, randomTaskId(), finishedFuture, () -> {});
         CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
 
         updater.assign(new ActionListener<>() {
@@ -335,5 +336,9 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
             assertNotNull(reindexTaskState.getStateDoc().getCheckpoint());
             assertEquals(expected, reindexTaskState.getStateDoc().getCheckpoint().getRestartFromValue());
         });
+    }
+
+    private TaskId randomTaskId() {
+        return new TaskId(randomAlphaOfLength(10), randomLong());
     }
 }

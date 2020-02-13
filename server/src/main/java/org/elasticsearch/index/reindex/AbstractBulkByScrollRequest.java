@@ -142,6 +142,19 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
     }
 
+    protected AbstractBulkByScrollRequest(AbstractBulkByScrollRequest<Self> original) {
+        this.searchRequest = original.searchRequest;
+        this.abortOnVersionConflict = original.abortOnVersionConflict;
+        this.maxDocs = original.maxDocs;
+        this.refresh = original.refresh;
+        this.timeout = original.timeout;
+        this.activeShardCount = original.activeShardCount;
+        this.retryBackoffInitialTime = original.retryBackoffInitialTime;
+        this.maxRetries = original.maxRetries;
+        this.requestsPerSecond = original.requestsPerSecond;
+        this.slices = original.slices;
+    }
+
     /**
      * `this` cast to Self. Used for building fluent methods without cast
      * warnings.

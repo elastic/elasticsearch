@@ -34,9 +34,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 
 

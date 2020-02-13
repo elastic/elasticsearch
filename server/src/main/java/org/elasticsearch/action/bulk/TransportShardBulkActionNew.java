@@ -358,72 +358,6 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         if (endNanos - nextFsync >= 0 && nextFsyncNanos.compareAndSet(nextFsync, endNanos + MAX_INTERVAL_BETWEEN_FSYNC)) {
 
         }
-
-
-        // TODO: Need to improve resiliency around error handling on failed syncs, refreshes, and listener
-        //  calls
-
-        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
-            if (maxLocation != null) {
-                try {
-                    long startNanos = System.nanoTime();
-                    indexShard.sync(maxLocation, (ex) -> {
-                        if (ex == null) {
-                            for (ShardOp op : completedOps) {
-                                op.listener.onResponse(null);
-                            }
-                        } else {
-                            for (ShardOp op : completedOps) {
-                                // TODO: Check if this is okay
-                                op.listener.onFailure(ex);
-                            }
-                        }
-                    });
-                } catch (Exception ex) {
-                    for (ShardOp op : completedOps) {
-                        // TODO: Check if this is okay
-                        op.listener.onFailure(ex);
-                    }
-                }
-            } else {
-                for (ShardOp op : completedOps) {
-                    op.listener.onResponse(null);
-                }
-            }
-        } else {
-            for (ShardOp op : completedOps) {
-                op.listener.onResponse(null);
-            }
-        }
-
-        AtomicBoolean refreshed = new AtomicBoolean(false);
-        if (completedOpsWaitForRefresh.isEmpty() == false) {
-            if (maxLocation != null) {
-                indexShard.addRefreshListener(maxLocation, forcedRefresh -> {
-                    if (forcedRefresh) {
-                        logger.warn("block until refresh ran out of slots and forced a refresh");
-                    }
-
-                    refreshed.set(forcedRefresh);
-                    for (ShardOp op : completedOpsWaitForRefresh) {
-                        op.listener.setForcedRefresh(forcedRefresh);
-                        op.listener.onResponse(null);
-                    }
-                });
-            } else {
-                for (ShardOp op : completedOpsWaitForRefresh) {
-                    op.listener.onResponse(null);
-                }
-            }
-        }
-
-        if (refreshed.get() == false && completedOpsForceRefresh.isEmpty() == false) {
-            indexShard.refresh("refresh_flag_index");
-            for (ShardOp op : completedOpsForceRefresh) {
-                op.listener.setForcedRefresh(true);
-                op.listener.onResponse(null);
-            }
-        }
     }
 
     private static class SyncState {
@@ -435,15 +369,24 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
     }
 
-    private void thing(IndexShard indexShard, SyncState syncState) {
+    private void finishOperations(IndexShard indexShard, SyncState syncState) {
+        // TODO: Assume put in here
+        ArrayList<ShardOp> completedOps = new ArrayList<>();
+        ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
+        ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
+        Translog.Location maxLocation = syncState.maxLocation;
+        for (ShardOp shardOp : completedOps) {
+            if (shardOp.request.getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
+                completedOpsWaitForRefresh.add(shardOp);
+            } else if (shardOp.request.getRefreshPolicy() == WriteRequest.RefreshPolicy.IMMEDIATE) {
+                completedOpsForceRefresh.add(shardOp);
+            }
+        }
+
+
+
         // TODO: Need to improve resiliency around error handling on failed syncs, refreshes, and listener
         //  calls
-
-        Translog.Location maxLocation = syncState.maxLocation;
-        ArrayList<ShardOp> completedOps = new ArrayList<>();
-        ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>();
-        ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>();
-
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
             if (maxLocation != null) {
                 try {

@@ -106,11 +106,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
     private IndexShard indexShard;
 
     @Override
-    public Settings threadPoolSettings() {
-        return Settings.builder().put(super.threadPoolSettings()).put("thread_pool.search.min_queue_size", 10).build();
-    }
-
-    @Override
     public void setUp() throws Exception {
         super.setUp();
         indexShard = newShard(true);

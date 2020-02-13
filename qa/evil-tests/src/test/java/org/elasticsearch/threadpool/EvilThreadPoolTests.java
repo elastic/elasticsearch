@@ -71,7 +71,7 @@ public class EvilThreadPoolTests extends ESTestCase {
 
     public void testExecutionErrorOnFixedESThreadPoolExecutor() throws InterruptedException {
         final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed("test", 1, 1,
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), randomBoolean());
         try {
             checkExecutionError(getExecuteRunner(fixedExecutor));
             checkExecutionError(getSubmitRunner(fixedExecutor));
@@ -169,7 +169,7 @@ public class EvilThreadPoolTests extends ESTestCase {
 
     public void testExecutionExceptionOnFixedESThreadPoolExecutor() throws InterruptedException {
         final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed("test", 1, 1,
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), randomBoolean());
         try {
             checkExecutionException(getExecuteRunner(fixedExecutor), true);
             checkExecutionException(getSubmitRunner(fixedExecutor), false);

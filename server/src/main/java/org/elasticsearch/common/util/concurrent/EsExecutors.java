@@ -82,15 +82,20 @@ public class EsExecutors {
     }
 
     public static EsThreadPoolExecutor newFixed(String name, int size, int queueCapacity,
-                                                ThreadFactory threadFactory, ThreadContext contextHolder) {
+                                                ThreadFactory threadFactory, ThreadContext contextHolder, boolean trackEWMA) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-            queue, threadFactory, new EsAbortPolicy(), contextHolder);
+        if (trackEWMA) {
+            return new EWMATrackingEsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+                queue, TimedRunnable::new, threadFactory, new EsAbortPolicy(), contextHolder);
+        } else {
+            return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+                queue, threadFactory, new EsAbortPolicy(), contextHolder);
+        }
     }
 
     /**

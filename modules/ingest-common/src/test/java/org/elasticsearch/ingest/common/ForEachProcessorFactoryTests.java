@@ -74,7 +74,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         assertThat(forEachProcessor, Matchers.notNullValue());
         assertThat(forEachProcessor.getField(), equalTo("_field"));
         assertThat(forEachProcessor.getInnerProcessor(), Matchers.instanceOf(ConfigurableProcessor.class));
-        assertThat(((ConfigurableProcessor) forEachProcessor.getInnerProcessor()).getMetadata(), equalTo(pipelineMetadata));
+        assertThat(((ConfigurableProcessor) forEachProcessor.getInnerProcessor()).getMetadata(), equalTo(processorMetadata));
         assertFalse(forEachProcessor.isIgnoreMissing());
     }
 

@@ -93,6 +93,6 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.equals("config");
+        return field -> field.equals("config") || field.equals("metadata");
     }
 }

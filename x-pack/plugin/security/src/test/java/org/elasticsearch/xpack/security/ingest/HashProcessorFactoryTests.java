@@ -6,9 +6,14 @@
 package org.elasticsearch.xpack.security.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.test.ESTestCase;
 
@@ -19,6 +24,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class HashProcessorFactoryTests extends ESTestCase {
 
@@ -26,7 +34,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("xpack.security.ingest.hash.processor.key", "my_key");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        HashProcessor.Factory factory = new HashProcessor.Factory(packageSettings(settings));
+        HashProcessor.Factory factory = new HashProcessor.Factory(setupEnvironment(settings));
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList("_field"));
         config.put("target_field", "_target");
@@ -41,11 +49,26 @@ public class HashProcessorFactoryTests extends ESTestCase {
         }
     }
 
+    public void testProcessorIsNotCreatedInMixedCluster() {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("xpack.security.ingest.hash.processor.key", "my_key");
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+        HashProcessor.Factory factory = new HashProcessor.Factory(setupEnvironment(settings, Version.V_7_6_0));
+        Map<String, Object> config = new HashMap<>();
+        config.put("fields", Collections.singletonList("_field"));
+        config.put("target_field", "_target");
+        config.put("salt", "_salt");
+        config.put("key_setting", "xpack.security.ingest.hash.processor.key");
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> factory.create(null, "_tag", config));
+        assertThat(e.getMessage(), startsWith("hash processor requires minimum node version"));
+    }
+
     public void testProcessorNoFields() {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("xpack.security.ingest.hash.processor.key", "my_key");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        HashProcessor.Factory factory = new HashProcessor.Factory(packageSettings(settings));
+        HashProcessor.Factory factory = new HashProcessor.Factory(setupEnvironment(settings));
         Map<String, Object> config = new HashMap<>();
         config.put("target_field", "_target");
         config.put("salt", "_salt");
@@ -60,7 +83,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("xpack.security.ingest.hash.processor.key", "my_key");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        HashProcessor.Factory factory = new HashProcessor.Factory(packageSettings(settings));
+        HashProcessor.Factory factory = new HashProcessor.Factory(setupEnvironment(settings));
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList("_field"));
         config.put("salt", "_salt");
@@ -75,7 +98,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("xpack.security.ingest.hash.processor.key", "my_key");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        HashProcessor.Factory factory = new HashProcessor.Factory(packageSettings(settings));
+        HashProcessor.Factory factory = new HashProcessor.Factory(setupEnvironment(settings));
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList(randomBoolean() ? "" : null));
         config.put("salt", "_salt");
@@ -91,7 +114,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("xpack.security.ingest.hash.processor.key", "my_key");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        HashProcessor.Factory factory = new HashProcessor.Factory(packageSettings(settings));
+        HashProcessor.Factory factory = new HashProcessor.Factory(setupEnvironment(settings));
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList("_field"));
         config.put("target_field", "_target");
@@ -105,7 +128,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("xpack.security.ingest.hash.processor.key", "my_key");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        HashProcessor.Factory factory = new HashProcessor.Factory(packageSettings(settings));
+        HashProcessor.Factory factory = new HashProcessor.Factory(setupEnvironment(settings));
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList("_field"));
         config.put("salt", "_salt");
@@ -120,7 +143,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
 
     public void testProcessorInvalidOrMissingKeySetting() {
         Settings settings = Settings.builder().setSecureSettings(new MockSecureSettings()).build();
-        HashProcessor.Factory factory = new HashProcessor.Factory(packageSettings(settings));
+        HashProcessor.Factory factory = new HashProcessor.Factory(setupEnvironment(settings));
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList("_field"));
         config.put("salt", "_salt");
@@ -137,7 +160,20 @@ public class HashProcessorFactoryTests extends ESTestCase {
         assertThat(ex.getMessage(), equalTo("[key_setting] required property is missing"));
     }
 
-    private static Processor.Parameters packageSettings(Settings settings) {
-        return new Processor.Parameters(new Environment(settings, Path.of("dummy")), null, null, null, null, null, null, null, null);
+    private static Processor.Parameters setupEnvironment(Settings settings) {
+        return setupEnvironment(settings, Version.V_8_0_0);
+    }
+
+    private static Processor.Parameters setupEnvironment(Settings settings, Version minNodeVersion) {
+        Settings s = Settings.builder().put(settings).put("path.home", "dummy").build();
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(minNodeVersion);
+        final IngestService ingestService = mock(IngestService.class);
+        when(ingestService.getClusterService()).thenReturn(clusterService);
+        return new Processor.Parameters(new Environment(s, Path.of("dummy")), null, null, null, null, null, ingestService, null, null);
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -675,6 +676,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
         int expectedInternalAggregations = InternalAggregationTestCase.getDefaultNamedXContents().size();
         int expectedSuggestions = 3;
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("string_stats")));
         assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {

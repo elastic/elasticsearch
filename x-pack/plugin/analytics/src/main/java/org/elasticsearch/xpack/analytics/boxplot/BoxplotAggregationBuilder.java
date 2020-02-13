@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder.COMPRESSION_FIELD;
+import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
 
 public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric,
     BoxplotAggregationBuilder> {

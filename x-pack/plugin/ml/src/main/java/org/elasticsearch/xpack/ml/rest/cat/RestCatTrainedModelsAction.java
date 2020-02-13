@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -43,9 +42,11 @@ import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Requ
 
 public class RestCatTrainedModelsAction extends AbstractCatAction {
 
-    public RestCatTrainedModelsAction(RestController controller) {
-        controller.registerHandler(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", this);
-        controller.registerHandler(GET, "_cat/ml/trained_models", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "_cat/ml/trained_models"),
+            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
     }
 
     @Override

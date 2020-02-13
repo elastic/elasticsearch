@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -71,7 +70,6 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
@@ -350,7 +348,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             updateResolved.set(Boolean.TRUE);
                         }
                     }));
-                    if (updateResolved.get() == true){
+                    if (updateResolved.get() == true) {
                         var allFields = plan.inputSet().stream().map(NamedExpression.class::cast)
                             .collect(toList());
                         allFields.addAll(a.aggregates());

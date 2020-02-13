@@ -587,7 +587,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
                 }
             }
-            // If we're only selecting literals, we have to fix the row count
+            // If we're only selecting literals, we have to still execute the aggregation to create
+            // the correct grouping buckets, in order to return the appropriate number of rows
             if (a.aggregates().stream().allMatch(e -> e.anyMatch(Expression::foldable))) {
                 for (Expression grouping : a.groupings()) {
                     GroupByKey matchingGroup = groupingContext.groupFor(grouping);

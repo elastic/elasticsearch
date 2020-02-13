@@ -166,7 +166,8 @@ public interface GeoGridTiler <G extends MultiGeoValues.GeoValue> {
         /**
          * Sets the values of the long[] underlying {@link CellValues}.
          *
-         * If the shape resides between <code>GeoTileUtils.LATITUDE_MASK</code> and 90 degree latitudes, then
+         * If the shape resides between <code>GeoTileUtils.NORMALIZED_LATITUDE_MASK</code> and 90 or
+         * between <code>GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK</code> and -90 degree latitudes, then
          * the shape is not accounted for since geo-tiles are only defined within those bounds.
          *
          * @param values     the bucket values
@@ -177,31 +178,22 @@ public interface GeoGridTiler <G extends MultiGeoValues.GeoValue> {
          */
         @Override
         public int setValues(CellValues values, G geoValue, int precision) {
+            MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
+            assert bounds.minX() <= bounds.maxX();
+
             if (precision == 0) {
                 values.resizeCell(1);
                 values.add(0, GeoTileUtils.longEncodeTiles(0, 0, 0));
                 return 1;
             }
 
-            // these bounds may cross the dateline, in which case
-            // minX and maxX will span the whole globe.
-            MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
-            if (bounds == null) {
-                return 0;
-            }
-            assert bounds.minX() <= bounds.maxX();
-
-            if (EMPTY_BOUNDS.equals(bounds)) {
-                return 0;
-            }
-
             // geo tiles are not defined at the extreme latitudes due to them
             // tiling the world as a square.
-            if ((bounds.top > GeoTileUtils.LATITUDE_MASK && bounds.bottom > GeoTileUtils.LATITUDE_MASK)
-                    || (bounds.top < -GeoTileUtils.LATITUDE_MASK && bounds.bottom < -GeoTileUtils.LATITUDE_MASK)) {
+            if ((bounds.top > GeoTileUtils.NORMALIZED_LATITUDE_MASK && bounds.bottom > GeoTileUtils.NORMALIZED_LATITUDE_MASK)
+                    || (bounds.top < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK
+                    && bounds.bottom < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK)) {
                 return 0;
             }
-
 
             final double tiles = 1 << precision;
             int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);

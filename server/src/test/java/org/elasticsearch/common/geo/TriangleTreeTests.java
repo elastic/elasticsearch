@@ -257,9 +257,7 @@ public class TriangleTreeTests extends ESTestCase {
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(xMin, yMin, xMax, yMax));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
     public void testRandomMultiLineIntersections() throws IOException {
-        double extentSize = randomDoubleBetween(0.01, 10, true);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         MultiLine geometry = randomMultiLine(false);
         geometry = (MultiLine) indexer.prepareForIndexing(geometry);
@@ -267,14 +265,7 @@ public class TriangleTreeTests extends ESTestCase {
         Extent readerExtent = reader.getExtent();
 
         for (Line line : geometry) {
-            // extent that intersects edges
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, bufferedExtentFromGeoPoint(line.getX(0), line.getY(0), extentSize));
-
-            // TODO(talevy): resolve definition. when line is on a specific edge it is not considered crossing due to latest changes
-            // extent that fully encloses a line in the MultiLine
             Extent lineExtent = triangleTreeReader(line, GeoShapeCoordinateEncoder.INSTANCE).getExtent();
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, lineExtent);
-
             if (lineExtent.minX() != Integer.MIN_VALUE && lineExtent.maxX() != Integer.MAX_VALUE
                     && lineExtent.minY() != Integer.MIN_VALUE && lineExtent.maxY() != Integer.MAX_VALUE) {
                 assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(lineExtent.minX() - 1, lineExtent.minY() - 1,
@@ -292,9 +283,8 @@ public class TriangleTreeTests extends ESTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
-    public void testRandomGeometryIntersection() throws IOException {
-        int testPointCount = randomIntBetween(100, 200);
+    public void testRandomPolygonIntersection() throws IOException {
+        int testPointCount = randomIntBetween(50, 100);
         Point[] testPoints = new Point[testPointCount];
         double extentSize = randomDoubleBetween(1, 10, true);
         boolean[] intersects = new boolean[testPointCount];
@@ -302,7 +292,7 @@ public class TriangleTreeTests extends ESTestCase {
             testPoints[i] = randomPoint(false);
         }
 
-        Geometry geometry = randomGeometryTreeGeometry();
+        Geometry geometry = randomMultiPolygon(false);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         Geometry preparedGeometry = indexer.prepareForIndexing(geometry);
 

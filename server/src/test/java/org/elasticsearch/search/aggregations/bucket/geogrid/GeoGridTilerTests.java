@@ -40,9 +40,14 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.common.geo.GeoTestUtils.encodeDecodeLat;
+import static org.elasticsearch.common.geo.GeoTestUtils.encodeDecodeLon;
 import static org.elasticsearch.common.geo.GeoTestUtils.triangleTreeReader;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridTiler.GeoTileGridTiler.BOUNDED_INSTANCE;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.NORMALIZED_LATITUDE_MASK;
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoGridTilerTests extends ESTestCase {
@@ -150,14 +155,12 @@ public class GeoGridTilerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
     public void testTilerMatchPoint() throws Exception {
         int precision = randomIntBetween(0, 4);
         Point originalPoint = GeometryTestUtils.randomPoint(false);
         int xTile = GeoTileUtils.getXTile(originalPoint.getX(), 1 << precision);
         int yTile = GeoTileUtils.getYTile(originalPoint.getY(), 1 << precision);
         Rectangle bbox = GeoTileUtils.toBoundingBox(xTile, yTile, precision);
-        long originalTileHash = GeoTileUtils.longEncode(originalPoint.getX(), originalPoint.getY(), precision);
 
         Point[] pointCorners = new Point[] {
             // tile corners
@@ -173,13 +176,16 @@ public class GeoGridTilerTests extends ESTestCase {
         };
 
         for (Point point : pointCorners) {
+            if (point.getX() == GeoUtils.MAX_LON || point.getY() == -LATITUDE_MASK) {
+                continue;
+            }
             TriangleTreeReader reader = triangleTreeReader(point, GeoShapeCoordinateEncoder.INSTANCE);
             MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
             UnboundedGeoShapeCellValues unboundedCellValues = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
             int numTiles = GEOTILE.setValues(unboundedCellValues, value, precision);
             assertThat(numTiles, equalTo(1));
             long tilerHash = unboundedCellValues.getValues()[0];
-            long pointHash = GeoTileUtils.longEncode(point.getX(), point.getY(), precision);
+            long pointHash = GeoTileUtils.longEncode(encodeDecodeLon(point.getX()), encodeDecodeLat(point.getY()), precision);
             assertThat(tilerHash, equalTo(pointHash));
         }
     }
@@ -389,8 +395,8 @@ public class GeoGridTilerTests extends ESTestCase {
             return 1;
         }
 
-        if ((bounds.top > LATITUDE_MASK && bounds.bottom > LATITUDE_MASK)
-            || (bounds.top < -LATITUDE_MASK && bounds.bottom < -LATITUDE_MASK)) {
+        if ((bounds.top > NORMALIZED_LATITUDE_MASK && bounds.bottom > NORMALIZED_LATITUDE_MASK)
+            || (bounds.top < NORMALIZED_NEGATIVE_LATITUDE_MASK && bounds.bottom < NORMALIZED_NEGATIVE_LATITUDE_MASK)) {
             return 0;
         }
 

@@ -172,8 +172,8 @@ setup:
 ---
 "Get snapshot info with metadata":
   - skip:
-      version: " - 7.2.99"
-      reason: "7.3.0 changes get snapshots response format"
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       indices.create:

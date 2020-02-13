@@ -38,7 +38,7 @@ fi
 unset KEYSTORE_PASSWORD
 KEYSTORE_PASSWORD=
 if [[ $CHECK_KEYSTORE = true ]] \
-    && "`dirname "$0"`"/elasticsearch-keystore has-passwd --silent
+    && bin/elasticsearch-keystore has-passwd --silent
 then
   if ! read -s -r -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then
     echo "Failed to read keystore password on console" 1>&2
@@ -46,8 +46,7 @@ then
   fi
 fi
 
-ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
-ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
+ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then

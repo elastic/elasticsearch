@@ -1425,7 +1425,7 @@
   - match: { job_id: "persistent-task-allocation-allowed-test" }
 
   - do:
-      catch: /no persistent task assignments are allowed due to cluster settings/
+      catch: /Cannot open jobs because persistent task assignment is disabled by the \[cluster.persistent_tasks.allocation.enable\] setting/
       ml.open_job:
         job_id: persistent-task-allocation-allowed-test
 

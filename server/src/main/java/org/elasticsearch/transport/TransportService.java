@@ -145,7 +145,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders) {
         this(settings, transport, threadPool, transportInterceptor, localNodeFactory, clusterSettings, taskHeaders,
-            new ConnectionManager(settings, transport));
+            new ClusterConnectionManager(settings, transport));
     }
 
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
@@ -732,13 +732,17 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     private boolean shouldTraceAction(String action) {
-        if (tracerLogInclude.length > 0) {
-            if (Regex.simpleMatch(tracerLogInclude, action) == false) {
+        return shouldTraceAction(action, tracerLogInclude, tracerLogExclude);
+    }
+
+    public static boolean shouldTraceAction(String action, String[] include, String[] exclude) {
+        if (include.length > 0) {
+            if (Regex.simpleMatch(include, action) == false) {
                 return false;
             }
         }
-        if (tracerLogExclude.length > 0) {
-            return !Regex.simpleMatch(tracerLogExclude, action);
+        if (exclude.length > 0) {
+            return !Regex.simpleMatch(exclude, action);
         }
         return true;
     }

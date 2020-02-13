@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -30,7 +30,6 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -51,15 +50,6 @@ public final class PCallInvoke extends AExpression {
         this.name = Objects.requireNonNull(name);
         this.nullSafe = nullSafe;
         this.arguments = Objects.requireNonNull(arguments);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
     }
 
     @Override

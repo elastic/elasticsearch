@@ -831,8 +831,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 } else {
                     enqueueClusterAlertResponsesDoesNotExistYet(webServer);
                 }
-            // otherwise we need to delete them from the remote cluster
             } else {
+                // otherwise we need to delete them from the remote cluster
                 enqueueDeleteClusterAlertResponses(webServer);
             }
         } else {
@@ -845,8 +845,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 );
 
                 enqueueResponse(webServer, 200, responseBody);
-            // X-Pack is not installed
             } else {
+                // X-Pack is not installed
                 enqueueResponse(webServer, 404, "{}");
             }
         }

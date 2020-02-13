@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
+import org.elasticsearch.xpack.sql.querydsl.container.GroupingFunctionSort;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.querydsl.container.PivotColumnRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
@@ -74,7 +76,6 @@ import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
-import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -264,7 +265,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
          * Creates the list of GroupBy keys
          */
         static GroupingContext groupBy(List<? extends Expression> groupings) {
-            if (groupings.isEmpty() == true) {
+            if (groupings.isEmpty()) {
                 return null;
             }
 
@@ -682,37 +683,36 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // TODO: might need to validate whether the target field or group actually exist
                     if (group != null && group != Aggs.IMPLICIT_GROUP_KEY) {
-                        // check whether the lookup matches a group
-                        if (group.id().equals(lookup)) {
-                            qContainer = qContainer.updateGroup(group.with(direction));
-                        }
-                        // else it's a leafAgg
-                        else {
-                            qContainer = qContainer.updateGroup(group.with(direction));
-                        }
+                        qContainer = qContainer.updateGroup(group.with(direction));
                     }
+
+                    // field
+                    if (orderExpression instanceof FieldAttribute) {
+                        qContainer = qContainer.addSort(lookup,
+                                new AttributeSort((FieldAttribute) orderExpression, direction, missing));
+                    }
+                    // scalar functions typically require script ordering
+                    else if (orderExpression instanceof ScalarFunction) {
+                        ScalarFunction sf = (ScalarFunction) orderExpression;
+                        // nope, use scripted sorting
+                        qContainer = qContainer.addSort(lookup, new ScriptSort(sf.asScript(), direction, missing));
+                    }
+                    // histogram
+                    else if (orderExpression instanceof Histogram) {
+                        qContainer = qContainer.addSort(lookup, new GroupingFunctionSort(direction, missing));
+                    }
+                    // score
+                    else if (orderExpression instanceof Score) {
+                        qContainer = qContainer.addSort(lookup, new ScoreSort(direction, missing));
+                    }
+                    // agg function
+                    else if (orderExpression instanceof AggregateFunction) {
+                        qContainer = qContainer.addSort(lookup,
+                                new AggregateSort((AggregateFunction) orderExpression, direction, missing));
+                    }
+                    // unknown
                     else {
-                        // scalar functions typically require script ordering
-                        if (orderExpression instanceof ScalarFunction) {
-                            ScalarFunction sf = (ScalarFunction) orderExpression;
-                            // nope, use scripted sorting
-                            qContainer = qContainer.addSort(new ScriptSort(sf.asScript(), direction, missing));
-                        }
-                        // score
-                        else if (orderExpression instanceof Score) {
-                            qContainer = qContainer.addSort(new ScoreSort(direction, missing));
-                        }
-                        // field
-                        else if (orderExpression instanceof FieldAttribute) {
-                            qContainer = qContainer.addSort(new AttributeSort((FieldAttribute) orderExpression, direction, missing));
-                        }
-                        // agg function
-                        else if (orderExpression instanceof AggregateFunction) {
-                            qContainer = qContainer.addSort(new AggregateSort((AggregateFunction) orderExpression, direction, missing));
-                        } else {
-                            // unknown
-                            throw new SqlIllegalArgumentException("unsupported sorting expression {}", orderExpression);
-                        }
+                        throw new SqlIllegalArgumentException("unsupported sorting expression {}", orderExpression);
                     }
                 }
 

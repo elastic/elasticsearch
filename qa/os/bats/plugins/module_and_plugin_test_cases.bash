@@ -240,7 +240,7 @@ fi
 }
 
 @test "[$GROUP] check lang-painless module" {
-    check_secure_module lang-painless antlr4-runtime-*.jar asm-*.jar
+    check_secure_module lang-painless antlr4-runtime-*.jar asm-util-*.jar asm-tree-*.jar asm-commons-*.jar asm-analysis-*.jar
 }
 
 @test "[$GROUP] install murmur3 mapper plugin" {

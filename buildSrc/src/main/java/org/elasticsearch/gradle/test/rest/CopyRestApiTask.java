@@ -46,46 +46,6 @@ import java.nio.file.Files;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * <p>Copies the files needed for the Rest YAML tests to the current projects test resources output directory.
- * This is intended to be be used from {@link CopyRestApiPlugin} since the plugin wires up the needed
- * configurations and custom extensions.
- * </p>
- * <p>This task supports copying either the Rest YAML tests (.yml), or the Rest API specification (.json).</p>
- * <br>
- * <strong>Rest API specification:</strong> <br>
- * When the {@link CopyRestApiPlugin} has been applied this task will automatically copy the Rest API specification
- * if there are any Rest YAML tests present (either in source, or output) or if `includeCore` or `includeXpack` has been explicitly
- * declared through the 'copyRestApiSpecs' extension. <br>
- * This task supports copying only a subset of the Rest API specification through the use of the custom extension.<br>
- *     //TODO: fix the examples here!
- * <i>For example:</i>
- * <pre>
- * copyRestApiSpecs {
- *   includeXpack 'enrich'
- * }
- * </pre>
- * Will copy any of the the x-pack specs that start with enrich*. The core API specs will also be copied iff the project also has
- * Rest YAML tests. To help optimize the build cache, it is recommended to explicitly declare which specs your project depends on.
- * <i>For example:</i>
- * <pre>
- * copyRestApiSpecs {
- *   includeCore 'index', 'cat'
- *   includeXpack 'enrich'
- * }
- *  </pre>
- * <br>
- * <strong>Rest YAML tests :</strong> <br>
- * When the {@link CopyRestApiPlugin} has been applied this task can copy the Rest YAML tests iff explicitly configured with
- * `includeCore` or `includeXpack` through the `copyYamlTests` extension.
- * <i>For example:</i>
- * <pre>
- * copyYamlTests {
- *   includeXpack 'graph'
- * }
- * </pre>
- * Will copy any of the the x-pack tests that start with graph.
- */
 public class CopyRestApiTask extends DefaultTask {
     private static final Logger logger = Logging.getLogger(CopyRestApiTask.class);
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
@@ -99,6 +59,7 @@ public class CopyRestApiTask extends DefaultTask {
     private final PatternFilterable xpackPatternSet;
 
     public CopyRestApiTask() {
+        // TODO: blow up if internal and requested x-pack
         corePatternSet = getPatternSetFactory().create();
         xpackPatternSet = getPatternSetFactory().create();
     }
@@ -129,9 +90,10 @@ public class CopyRestApiTask extends DefaultTask {
         } else {
             fileCollection.plus(coreConfig);
         }
-        return "spec".equals(getTestOrSpec()) && projectHasYamlRestTests()
-            || includeCore.get().isEmpty() == false
-            || includeXpack.get().isEmpty() == false ? fileCollection.getAsFileTree() : null;
+        // if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
+        return projectHasYamlRestTests() || includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false
+            ? fileCollection.getAsFileTree()
+            : null;
     }
 
     @OutputDirectory
@@ -142,8 +104,9 @@ public class CopyRestApiTask extends DefaultTask {
     @TaskAction
     void copy() {
         Project project = getProject();
+        // always copy the core specs if the task executes
         if (BuildParams.isInternal()) {
-            logger.info("Rest {} for project [{}] will be copied to the test resources.", getTestOrSpec(), project.getPath());
+            logger.info("Rest specs for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
                 c.from(coreConfig.getSingleFile());
                 c.into(getOutputDir());
@@ -152,8 +115,7 @@ public class CopyRestApiTask extends DefaultTask {
 
         } else {
             logger.info(
-                "Rest {} for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
-                getTestOrSpec(),
+                "Rest specs for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
                 project.getPath(),
                 VersionProperties.getElasticsearch()
             );
@@ -163,9 +125,9 @@ public class CopyRestApiTask extends DefaultTask {
                 c.include(includeCore.get().stream().map(prefix -> copyTo + "/" + prefix + "*/**").collect(Collectors.toList()));
             });
         }
-        // only include x-pack if explicitly instructed
+        // only copy x-pack specs if explicitly instructed
         if (includeXpack.get().isEmpty() == false) {
-            logger.info("X-pack YAML{} for project [{}] will be copied to the test resources.", getTestOrSpec(), project.getPath());
+            logger.info("X-pack rest specs for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
                 c.from(xpackConfig.getSingleFile());
                 c.into(getOutputDir());
@@ -228,10 +190,5 @@ public class CopyRestApiTask extends DefaultTask {
 
     private SourceSet getTestSourceSet() {
         return Boilerplate.getJavaSourceSets(getProject()).findByName("test");
-    }
-
-    private String getTestOrSpec() {
-        assert copyTo != null;
-        return copyTo.endsWith("test") ? "test" : "spec";
     }
 }

@@ -59,6 +59,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52330")
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
         Map<String, Object> expectedConfigIndexMappings = loadConfigIndexMappings();
         if (isRunningAgainstOldCluster()) {

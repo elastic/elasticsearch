@@ -160,7 +160,8 @@ public interface GeoGridTiler {
         /**
          * Sets the values of the long[] underlying {@link GeoShapeCellValues}.
          *
-         * If the shape resides between <code>GeoTileUtils.LATITUDE_MASK</code> and 90 degree latitudes, then
+         * If the shape resides between <code>GeoTileUtils.NORMALIZED_LATITUDE_MASK</code> and 90 or
+         * between <code>GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK</code> and -90 degree latitudes, then
          * the shape is not accounted for since geo-tiles are only defined within those bounds.
          *
          * @param values     the bucket values
@@ -182,8 +183,9 @@ public interface GeoGridTiler {
 
             // geo tiles are not defined at the extreme latitudes due to them
             // tiling the world as a square.
-            if ((bounds.top > GeoTileUtils.LATITUDE_MASK && bounds.bottom > GeoTileUtils.LATITUDE_MASK)
-                    || (bounds.top < -GeoTileUtils.LATITUDE_MASK && bounds.bottom < -GeoTileUtils.LATITUDE_MASK)) {
+            if ((bounds.top > GeoTileUtils.NORMALIZED_LATITUDE_MASK && bounds.bottom > GeoTileUtils.NORMALIZED_LATITUDE_MASK)
+                    || (bounds.top < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK
+                    && bounds.bottom < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK)) {
                 return 0;
             }
 

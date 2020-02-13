@@ -18,6 +18,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -35,6 +36,9 @@ import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -116,8 +120,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return super.configUsers() +
             "user_with_no_api_key_role:" + usersPasswdHashed + "\n" +
             "user_with_manage_api_key_role:" + usersPasswdHashed + "\n" +
-            "user_with_manage_own_api_key_role:" + usersPasswdHashed + "\n" +
-            "user_with_run_as_role:" + usersPasswdHashed + "\n";
+            "user_with_manage_own_api_key_role:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -125,8 +128,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return super.configUsersRoles() +
             "no_api_key_role:user_with_no_api_key_role\n" +
             "manage_api_key_role:user_with_manage_api_key_role\n" +
-            "manage_own_api_key_role:user_with_manage_own_api_key_role\n" +
-            "run_as_role:user_with_run_as_role\n";
+            "manage_own_api_key_role:user_with_manage_own_api_key_role\n";
     }
 
     private void awaitApiKeysRemoverCompletion() throws Exception {
@@ -544,23 +546,52 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             response, userWithManageApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
     }
 
-    public void testGetApiKeysOwnedByRunAsUser() throws ExecutionException, InterruptedException {
+    public void testGetApiKeysOwnedByRunAsUserWhenOwnerIsTrue() throws ExecutionException, InterruptedException {
+        createUserWithRunAsRole();
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         createApiKeys(noOfSuperuserApiKeys, null);
-        final String userWithManageOwnApiKeyRole = "user_with_manage_own_api_key_role";
-        final String userWithRunAsRole = "user_with_run_as_role";
-        List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys(userWithManageOwnApiKeyRole,
-            userWithRunAsRole, noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
-        final Client client = client().filterWithHeader(Map.of("Authorization", UsernamePasswordToken
-            .basicAuthHeaderValue(userWithRunAsRole, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
-            "es-security-runas-user", userWithManageOwnApiKeyRole));
-
+        List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
+            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forOwnedApiKeys(), listener);
+        getClientForRunAsUser().execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forOwnedApiKeys(), listener);
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(userWithManageOwnApiKeyRole, noOfApiKeysForUserWithManageApiKeyRole, userWithManageOwnApiKeyRoleApiKeys,
+        verifyGetResponse("user_with_manage_own_api_key_role", noOfApiKeysForUserWithManageApiKeyRole, userWithManageOwnApiKeyRoleApiKeys,
             response, userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
+    }
+
+    public void testGetApiKeysOwnedByRunAsUserWhenRunAsUserInfoIsGiven() throws ExecutionException, InterruptedException {
+        createUserWithRunAsRole();
+        int noOfSuperuserApiKeys = randomIntBetween(3, 5);
+        int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
+        createApiKeys(noOfSuperuserApiKeys, null);
+        List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
+            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
+        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        getClientForRunAsUser().execute(GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.usingRealmAndUserName("file", "user_with_manage_own_api_key_role"), listener);
+        GetApiKeyResponse response = listener.get();
+        verifyGetResponse("user_with_manage_own_api_key_role", noOfApiKeysForUserWithManageApiKeyRole, userWithManageOwnApiKeyRoleApiKeys,
+            response, userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
+    }
+
+    public void testGetApiKeysOwnedByRunAsUserWillNotWorkWhenAuthUserInfoIsGiven() throws ExecutionException, InterruptedException {
+        createUserWithRunAsRole();
+        int noOfSuperuserApiKeys = randomIntBetween(3, 5);
+        int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
+        createApiKeys(noOfSuperuserApiKeys, null);
+        final List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
+            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
+        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        final Tuple<String,String> invalidRealmAndUserPair = randomFrom(
+            new Tuple<>("file", "user_with_run_as_role"),
+            new Tuple<>("index", "user_with_manage_own_api_key_role"),
+            new Tuple<>("index", "user_with_run_as_role"));
+        getClientForRunAsUser().execute(GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.usingRealmAndUserName(invalidRealmAndUserPair.v1(), invalidRealmAndUserPair.v2()), listener);
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
+        assertThat(e.getMessage(), containsString(
+            "unauthorized for user [user_with_run_as_role] run as [user_with_manage_own_api_key_role]"));
     }
 
     public void testGetAllApiKeys() throws InterruptedException, ExecutionException {
@@ -623,23 +654,50 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         verifyInvalidateResponse(noOfApiKeysForUserWithManageApiKeyRole, userWithManageApiKeyRoleApiKeys, invalidateResponse);
     }
 
-    public void testInvalidateApiKeysOwnedByRunAsUser() throws InterruptedException, ExecutionException {
+    public void testInvalidateApiKeysOwnedByRunAsUserWhenOwnerIsTrue() throws InterruptedException, ExecutionException {
+        createUserWithRunAsRole();
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         createApiKeys(noOfSuperuserApiKeys, null);
-        final String userWithManageOwnApiKeyRole = "user_with_manage_own_api_key_role";
-        final String userWithRunAsRole = "user_with_run_as_role";
-        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(userWithManageOwnApiKeyRole,
-            userWithRunAsRole, noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
-        final Client client = client().filterWithHeader(Map.of("Authorization", UsernamePasswordToken
-            .basicAuthHeaderValue(userWithRunAsRole, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
-            "es-security-runas-user", userWithManageOwnApiKeyRole));
-
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
+            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.forOwnedApiKeys(), listener);
+        getClientForRunAsUser().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.forOwnedApiKeys(), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
-
         verifyInvalidateResponse(noOfApiKeysForUserWithManageApiKeyRole, userWithManageApiKeyRoleApiKeys, invalidateResponse);
+    }
+
+    public void testInvalidateApiKeysOwnedByRunAsUserWhenRunAsUserInfoIsGiven() throws InterruptedException, ExecutionException {
+        createUserWithRunAsRole();
+        int noOfSuperuserApiKeys = randomIntBetween(3, 5);
+        int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
+        createApiKeys(noOfSuperuserApiKeys, null);
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
+            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
+        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        getClientForRunAsUser().execute(InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingRealmAndUserName("file", "user_with_manage_own_api_key_role"), listener);
+        InvalidateApiKeyResponse invalidateResponse = listener.get();
+        verifyInvalidateResponse(noOfApiKeysForUserWithManageApiKeyRole, userWithManageApiKeyRoleApiKeys, invalidateResponse);
+    }
+
+    public void testInvalidateApiKeysOwnedByRunAsUserWillNotWorkWhenAuthUserInfoIsGiven() throws InterruptedException, ExecutionException {
+        createUserWithRunAsRole();
+        int noOfSuperuserApiKeys = randomIntBetween(3, 5);
+        int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
+        createApiKeys(noOfSuperuserApiKeys, null);
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
+            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
+        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        final Tuple<String,String> invalidRealmAndUserPair = randomFrom(
+            new Tuple<>("file", "user_with_run_as_role"),
+            new Tuple<>("index", "user_with_manage_own_api_key_role"),
+            new Tuple<>("index", "user_with_run_as_role"));
+        getClientForRunAsUser().execute(InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingRealmAndUserName(invalidRealmAndUserPair.v1(), invalidRealmAndUserPair.v2()), listener);
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
+        assertThat(e.getMessage(), containsString(
+            "unauthorized for user [user_with_run_as_role] run as [user_with_manage_own_api_key_role]"));
     }
 
     public void testApiKeyAuthorizationApiKeyMustBeAbleToRetrieveItsOwnInformationButNotAnyOtherKeysCreatedBySameOwner()
@@ -769,6 +827,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
         assertThat(responses.size(), is(noOfApiKeys));
         return responses;
+    }
+
+    private void createUserWithRunAsRole() throws ExecutionException, InterruptedException {
+        final PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username("user_with_run_as_role");
+        putUserRequest.roles("run_as_role");
+        putUserRequest.passwordHash(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
+        PlainActionFuture<PutUserResponse> listener = new PlainActionFuture<>();
+        final Client client = client().filterWithHeader(Map.of("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        client.execute(PutUserAction.INSTANCE, putUserRequest, listener);
+        final PutUserResponse putUserResponse = listener.get();
+        assertTrue(putUserResponse.created());
+    }
+
+    private Client getClientForRunAsUser() {
+        return client().filterWithHeader(Map.of("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue("user_with_run_as_role", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
+            "es-security-runas-user", "user_with_manage_own_api_key_role"));
     }
 
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName, String apiKeyId) {

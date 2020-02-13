@@ -84,9 +84,9 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 } else if (ownedByAuthenticatedUser) {
                     return true;
                 } else if (Strings.hasText(username) && Strings.hasText(realmName)) {
-                    final String authenticatedUserPrincipal = authentication.getUser().authenticatedUser().principal();
-                    final String authenticatedUserRealm = authentication.getSourceRealm().getName();
-                    return username.equals(authenticatedUserPrincipal) && realmName.equals(authenticatedUserRealm);
+                    final String sourceUserPrincipal = authentication.getUser().principal();
+                    final String sourceRealmName = authentication.getSourceRealm().getName();
+                    return username.equals(sourceUserPrincipal) && realmName.equals(sourceRealmName);
                 }
             }
             return false;

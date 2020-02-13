@@ -33,7 +33,7 @@
 ---
 "get cluster stats returns cluster_uuid at the top level":
   - skip:
-      version: " - 6.99.99"
+      version: " - 6.4.99"
       reason:  "cluster stats including cluster_uuid at the top level is new in v6.5.0 and higher"
 
   - do:

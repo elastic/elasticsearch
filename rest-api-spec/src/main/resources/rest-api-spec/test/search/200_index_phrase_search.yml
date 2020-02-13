@@ -1,8 +1,8 @@
 ---
 "search with indexed phrases":
   - skip:
-      version: " - 6.99.99"
-      reason: index_phrase is only available as of 7.0.0
+      version: " - 6.3.99"
+      reason: index_phrase is only available as of 6.4.0
   - do:
       indices.create:
         index:  test

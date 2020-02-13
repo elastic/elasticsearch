@@ -339,7 +339,7 @@ setup:
 ---
 "Indexing and Querying without contexts is deprecated":
   - skip:
-      version: " - 6.9.99"
+      version: " - 6.99.99"
       reason: https://github.com/elastic/elasticsearch/issues/31116
       features: "warnings"
 

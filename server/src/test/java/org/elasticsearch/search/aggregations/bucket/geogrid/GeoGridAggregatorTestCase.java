@@ -30,10 +30,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.geo.CentroidCalculator;
+import org.elasticsearch.common.geo.GeoRelation;
+import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeoTestUtils;
-import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -59,6 +60,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.geo.GeoTestUtils.triangleTreeReader;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
@@ -75,6 +77,16 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
      * Convert geo point into a hash string (bucket string ID)
      */
     protected abstract String hashAsString(double lng, double lat, int precision);
+
+    /**
+     * Return a point within the bounds of the tile grid
+     */
+    protected abstract Point randomPoint();
+
+    /**
+     * Return the bounding tile as a {@link Rectangle} for a given point
+     */
+    protected abstract Rectangle getTile(double lng, double lat, int precision);
 
     /**
      * Create a new named {@link GeoGridAggregationBuilder}-derived builder
@@ -245,11 +257,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             }, new GeoPointFieldMapper.GeoPointFieldType());
     }
 
-    abstract Rectangle expandToGrid(Rectangle rectangle, int precision);
-
     public void testGeoShapeBounds() throws IOException {
         final int precision = randomPrecision();
-        final int numDocs = randomIntBetween(64, 256);
+        final int numDocs = randomIntBetween(100, 200);
         int numDocsWithin = 0;
         final GeoGridAggregationBuilder builder = createBuilder("_name");
 
@@ -257,38 +267,55 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
 
         GeoBoundingBox bbox = GeoBoundingBoxTests.randomBBox();
-        final Rectangle west;
-        final Rectangle east;
+        final double boundsTop = bbox.top();
+        final double boundsBottom = bbox.bottom();
+        final double boundsWestLeft;
+        final double boundsWestRight;
+        final double boundsEastLeft;
+        final double boundsEastRight;
+        final boolean crossesDateline;
         if (bbox.right() < bbox.left()) {
-            west = expandToGrid(new Rectangle(-180.0, bbox.right(), bbox.top(), bbox.bottom()), precision);
-            east = expandToGrid(new Rectangle(bbox.left(), 180.0, bbox.top(), bbox.bottom()), precision);
-        } else {
-            east = expandToGrid(new Rectangle(bbox.left(), bbox.right(), bbox.top(), bbox.bottom()), precision);
-            west = east;
+            boundsWestLeft = -180;
+            boundsWestRight = bbox.right();
+            boundsEastLeft = bbox.left();
+            boundsEastRight = 180;
+            crossesDateline = true;
+        } else { // only set east bounds
+            boundsEastLeft = bbox.left();
+            boundsEastRight = bbox.right();
+            boundsWestLeft = 0;
+            boundsWestRight = 0;
+            crossesDateline = false;
         }
 
         List<BinaryGeoShapeDocValuesField> docs = new ArrayList<>();
         List<Point> points = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            Point p = GeometryTestUtils.randomPoint(false);
-            boolean inEast = p.getX() <= east.getMaxX() && p.getX() > east.getMinX()
-                && p.getY() <= east.getMaxY() && p.getY() >= east.getMinY();
-            boolean inWest = p.getX() <= west.getMaxX() && p.getX() > west.getMinX()
-                && p.getY() <= west.getMaxY() && p.getY() >= west.getMinY();
-            if (inEast || inWest) {
+            Point p;
+            p = randomPoint();
+            double x = GeoTestUtils.encodeDecodeLon(p.getX());
+            double y = GeoTestUtils.encodeDecodeLat(p.getY());
+            Rectangle pointTile = getTile(x, y, precision);
+
+
+            TriangleTreeReader reader = triangleTreeReader(p, GeoShapeCoordinateEncoder.INSTANCE);
+            GeoRelation tileRelation = reader.relateTile(GeoShapeCoordinateEncoder.INSTANCE.encodeX(pointTile.getMinX()),
+                GeoShapeCoordinateEncoder.INSTANCE.encodeY(pointTile.getMinY()),
+                GeoShapeCoordinateEncoder.INSTANCE.encodeX(pointTile.getMaxX()),
+                GeoShapeCoordinateEncoder.INSTANCE.encodeY(pointTile.getMaxY()));
+            boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
+                && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
+                || (crossesDateline && boundsWestLeft <= pointTile.getMaxX() && boundsWestRight >= pointTile.getMinX()));
+            if (tileRelation != GeoRelation.QUERY_DISJOINT && intersectsBounds) {
                 numDocsWithin += 1;
             }
+
+
             points.add(p);
             docs.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
                 GeoTestUtils.toDecodedTriangles(p), new CentroidCalculator(p)));
         }
 
-        GeometryCollection collection = new GeometryCollection<>(List.of(
-            new MultiPoint(points),
-            GeoGridTilerTests.boxToGeo(bbox),
-            GeoTestUtils.polyFrom(west),
-            GeoTestUtils.polyFrom(east)));
-        System.out.println(GeoTestUtils.toGeoJsonString(collection));
         final long numDocsInBucket = numDocsWithin;
 
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, iw -> {

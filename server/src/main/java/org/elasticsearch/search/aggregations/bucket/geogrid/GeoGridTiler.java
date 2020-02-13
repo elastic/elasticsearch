@@ -24,8 +24,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
-import static org.elasticsearch.index.fielddata.MultiGeoValues.BoundingBox.EMPTY_BOUNDS;
-
 /**
  * The tiler to use to convert a geo value into long-encoded bucket keys for aggregating.
  */

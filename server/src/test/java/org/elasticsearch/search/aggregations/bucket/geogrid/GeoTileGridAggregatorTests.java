@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 
 public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<InternalGeoTileGridBucket> {
@@ -34,15 +36,19 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
     }
 
     @Override
-    protected GeoGridAggregationBuilder createBuilder(String name) {
-        return new GeoTileGridAggregationBuilder(name);
+    protected Point randomPoint() {
+        return new Point(randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true),
+            randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, false));
     }
 
     @Override
-    Rectangle expandToGrid(Rectangle rectangle, int precision) {
-        Rectangle topLeft = GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(rectangle.getMinX(), rectangle.getMaxY(), precision));
-        Rectangle bottomRight = GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(rectangle.getMaxX(), rectangle.getMinY(), precision));
-        return new Rectangle(topLeft.getMinX(), bottomRight.getMaxX(), topLeft.getMaxY(), bottomRight.getMinY());
+    protected Rectangle getTile(double lng, double lat, int precision) {
+        return GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lng, lat, precision));
+    }
+
+    @Override
+    protected GeoGridAggregationBuilder createBuilder(String name) {
+        return new GeoTileGridAggregationBuilder(name);
     }
 
     public void testPrecision() {

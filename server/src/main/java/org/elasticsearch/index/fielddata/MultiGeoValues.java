@@ -250,18 +250,7 @@ public abstract class MultiGeoValues <G extends MultiGeoValues.GeoValue> {
         public double posLeft;
         public double posRight;
 
-        public static final BoundingBox EMPTY_BOUNDS = new BoundingBox();
-
         private BoundingBox() {
-        }
-
-        public BoundingBox(double top, double bottom, double negLeft, double negRight, double posLeft, double posRight) {
-            this.top = top;
-            this.bottom = bottom;
-            this.negLeft = negLeft;
-            this.negRight = negRight;
-            this.posLeft = posLeft;
-            this.posRight = posRight;
         }
 
         private void reset(Extent extent, CoordinateEncoder coordinateEncoder) {

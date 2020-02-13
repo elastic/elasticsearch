@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 
@@ -37,14 +39,17 @@ public class GeoHashGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
     }
 
     @Override
-    protected GeoGridAggregationBuilder createBuilder(String name) {
-        return new GeoHashGridAggregationBuilder(name);
+    protected Point randomPoint() {
+        return GeometryTestUtils.randomPoint(false);
     }
 
     @Override
-    Rectangle expandToGrid(Rectangle rectangle, int precision) {
-        Rectangle topLeft = Geohash.toBoundingBox(Geohash.stringEncode(rectangle.getMinX(), rectangle.getMaxY(), precision));
-        Rectangle bottomRight = Geohash.toBoundingBox(Geohash.stringEncode(rectangle.getMaxX(), rectangle.getMinY(), precision));
-        return new Rectangle(topLeft.getMinX(), bottomRight.getMaxX(), topLeft.getMaxY(), bottomRight.getMinY());
+    protected Rectangle getTile(double lng, double lat, int precision) {
+        return Geohash.toBoundingBox(Geohash.stringEncode(lng, lat, precision));
+    }
+
+    @Override
+    protected GeoGridAggregationBuilder createBuilder(String name) {
+        return new GeoHashGridAggregationBuilder(name);
     }
 }

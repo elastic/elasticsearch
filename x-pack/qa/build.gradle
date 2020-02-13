@@ -1,8 +1,6 @@
 // this file must exist so that qa projects are found
 // by the elasticsearch x-plugins include mechanism
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
-
 apply plugin: 'elasticsearch.build'
 test.enabled = false
 

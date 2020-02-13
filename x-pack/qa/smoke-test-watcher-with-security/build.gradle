@@ -13,6 +13,16 @@ task copyWatcherRestTests(type: Copy) {
   include 'rest-api-spec/test/watcher/**'
 }
 
+restResources {
+  restApi {
+    includeXpack 'watcher', 'security', 'xpack'
+  }
+  restTests {
+    includeXpack 'watcher'
+  }
+}
+
+
 integTest.runner.dependsOn copyWatcherRestTests
 testClusters.integTest {
   testDistribution = 'DEFAULT'

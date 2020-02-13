@@ -123,6 +123,12 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         throw new IOException("Mark/reset not supported");
     }
 
+    @Override
+    public void close() throws IOException {
+        super.close();
+        source.close();
+    }
+
     private int decrypt(PrefixInputStream packetInputStream) throws IOException {
         // read only the IV prefix into the packet buffer
         int ivLength = packetInputStream.readNBytes(packetBuffer, 0, GCM_IV_LENGTH_IN_BYTES);

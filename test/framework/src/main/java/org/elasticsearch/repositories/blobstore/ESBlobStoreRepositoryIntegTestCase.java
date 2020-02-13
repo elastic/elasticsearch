@@ -175,7 +175,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 BlobMetaData blobMetaData = blobs.get(generated.getKey());
                 assertThat(generated.getKey(), blobMetaData, CoreMatchers.notNullValue());
                 assertThat(blobMetaData.name(), CoreMatchers.equalTo(generated.getKey()));
-                assertThat(blobMetaData.length(), CoreMatchers.equalTo(generated.getValue()));
+                assertThat(blobLengthFromDiskLength(blobMetaData), CoreMatchers.equalTo(generated.getValue()));
             }
 
             assertThat(container.listBlobsByPrefix("foo-").size(), CoreMatchers.equalTo(numberOfFooBlobs));
@@ -183,6 +183,10 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertThat(container.listBlobsByPrefix("baz-").size(), CoreMatchers.equalTo(0));
             container.delete();
         }
+    }
+
+    protected long blobLengthFromDiskLength(BlobMetaData blobMetaData) {
+        return blobMetaData.length();
     }
 
     public void testDeleteBlobs() throws IOException {

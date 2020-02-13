@@ -171,6 +171,12 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
         }
     }
 
+    @Override
+    public void close() throws IOException {
+        super.close();
+        source.close();
+    }
+
     private static Cipher getPacketEncryptionCipher(SecretKey secretKey, byte[] packetIv) throws IOException {
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, packetIv);
         try {

@@ -18,28 +18,35 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class EncryptedBlobStoreRepositoryIntegTests extends ESBlobStoreRepositoryIntegTestCase {
+public class EncryptedFSBlobStoreRepositoryIntegTests extends ESBlobStoreRepositoryIntegTestCase {
 
     private static List<String> repositoryNames;
 
     @BeforeClass
     private static void preGenerateRepositoryNames() {
-        repositoryNames = Collections.synchronizedList(randomList(100, 100, () -> "passwordPassword"));
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < 32; i++) {
+            names.add("test-repo-" + i);
+        }
+        repositoryNames = Collections.synchronizedList(names);
     }
 
     @Override
@@ -47,7 +54,7 @@ public class EncryptedBlobStoreRepositoryIntegTests extends ESBlobStoreRepositor
         final MockSecureSettings secureSettings = new MockSecureSettings();
         for (String repositoryName : repositoryNames) {
             secureSettings.setString(EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.
-                    getConcreteSettingForNamespace(repositoryName).getKey(), randomAlphaOfLength(10));
+                    getConcreteSettingForNamespace(repositoryName).getKey(), "passwordPassword");
         }
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
@@ -59,6 +66,16 @@ public class EncryptedBlobStoreRepositoryIntegTests extends ESBlobStoreRepositor
     @Override
     protected String randomRepositoryName() {
         return repositoryNames.remove(0);
+    }
+
+    protected long blobLengthFromDiskLength(BlobMetaData blobMetaData) {
+        if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobMetaData.name())) {
+            // index.latest is not encrypted, hence the size on disk is equal to the content
+            return blobMetaData.length();
+        } else {
+            return DecryptionPacketsInputStream.getDecryptionLength(blobMetaData.length() -
+                    EncryptedRepository.METADATA_UID_LENGTH_IN_BYTES, EncryptedRepository.PACKET_LENGTH_IN_BYTES);
+        }
     }
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -83,4 +100,5 @@ public class EncryptedBlobStoreRepositoryIntegTests extends ESBlobStoreRepositor
         }
         return settings.build();
     }
+
 }

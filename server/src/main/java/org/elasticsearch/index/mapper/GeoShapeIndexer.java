@@ -118,7 +118,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
             @Override
             public Geometry visit(LinearRing ring) {
-                throw new UnsupportedOperationException("cannot index linear ring [" + ring + "] directly");
+                throw new UnsupportedOperationException("cannot index linear ring [" + ring.toString() + "] directly");
             }
 
             @Override

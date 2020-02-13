@@ -27,16 +27,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.geometry.Circle;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
-import org.elasticsearch.geometry.GeometryVisitor;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.geometry.MultiPolygon;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.*;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -119,7 +110,8 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
         @Override
         public Query visit(LinearRing ring) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] found and unsupported shape LinearRing");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support  "
+                + ShapeType.LINEARRING + " queries");
         }
 
         @Override

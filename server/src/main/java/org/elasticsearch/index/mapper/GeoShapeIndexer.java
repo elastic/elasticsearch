@@ -24,7 +24,6 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;

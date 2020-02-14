@@ -288,7 +288,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
                 @Override
                 public boolean isForceExecution() {
-                    return false;
+                    return true;
                 }
 
                 @Override

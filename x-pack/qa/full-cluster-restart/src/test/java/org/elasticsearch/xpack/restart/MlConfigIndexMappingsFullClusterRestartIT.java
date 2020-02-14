@@ -80,7 +80,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             // trigger .ml-config index mappings update
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
             // assert that the mappings are updated
-            assertThat(getConfigIndexMappings(), equalTo(loadDataFrameAnalysisMappings()));
+            assertThat(getDataFrameAnalysisMappings(), equalTo(loadDataFrameAnalysisMappings()));
         }
     }
 
@@ -137,7 +137,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, new BytesArray(mapping).streamInput())) {
             Map<String, Object> mappings = parser.map();
-            mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "_doc", "properties", "analysis");
+            mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "_doc", "properties", "analysis", "properties");
             return mappings;
         }
     }

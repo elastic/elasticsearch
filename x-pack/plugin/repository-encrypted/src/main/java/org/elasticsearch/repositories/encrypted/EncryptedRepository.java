@@ -57,7 +57,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -75,8 +74,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
     static final int DATA_KEY_LENGTH_IN_BITS = 256;
     static final long PACKET_START_COUNTER = Long.MIN_VALUE;
     static final int MAX_PACKET_LENGTH_IN_BYTES = 8 << 20; // 8MB
-    static final int METADATA_UID_LENGTH_IN_BYTES = 18; // 16 bits is the UUIDS length; 18 is the next multiple for Base64 encoding
-    static final int METADATA_UID_LENGTH_IN_CHARS = 24; // base64 encoding with no padding
+    static final int METADATA_UID_LENGTH_IN_BYTES = 9; // the length of unique tag appended to the metadata blob name to render it unique
+    static final int METADATA_UID_LENGTH_IN_CHARS = 12; // base64 encoding with no padding
     // this can be changed freely (can be made a repository parameter) without adjusting
     // the {@link #CURRENT_ENCRYPTION_VERSION_NUMBER}, as long as it stays under the value
     // of {@link #MAX_PACKET_LENGTH_IN_BYTES}
@@ -104,20 +103,20 @@ public final class EncryptedRepository extends BlobStoreRepository {
     // this is the repository instance to which all blob reads and writes are forwarded to
     private final BlobStoreRepository delegatedRepository;
     // every data blob is encrypted with its randomly generated AES key (this is the "Data Encryption Key")
-    private final KeyGenerator dataEncryptionKeyGenerator;
+    private final Supplier<SecretKey> dataEncryptionKeySupplier;
     // the {@link PasswordBasedEncryption} is used to encrypt (and decrypt) the data encryption key and the other associated metadata
     // the metadata encryption is based on AES keys which are generated from the repository password
     private final PasswordBasedEncryption metadataEncryption;
     // Data blob encryption requires a "nonce", only if the SAME data encryption key is used for several data blobs.
     // Because data encryption keys are generated randomly (see {@link #dataEncryptionKey}) the nonce in this case can be a constant value.
-    // But it is not a constant for reasons of greater robustness (future code changes might assume that the nonce is really a nonce), and
-    // to allow that the encryption IV (which is part of the ciphertext) be checked for ACCIDENTAL tampering without attempting decryption
-    private final ThreadLocal<Supplier<Integer>> encryptionNonceGenerator;
+    // But it is not a constant for reasons of greater robustness, and to allow that the encryption IV (which is part of the ciphertext)
+    // be inspected for ACCIDENTAL tampering without attempting decryption
+    private final Supplier<Integer> encryptionNonceSupplier;
     // the metadata is stored in a separate blob so that when the metadata is regenerated (for example, rencrypting it after the repository
-    // password is changed) it will not incur updating the encrypted blob, but only recreating a new metadata blob.
-    // However, the encrypted blob is prepended a fixed length identifier which is used to locate the corresponding metadata.
-    // This identifier is fixed, so it will not change when the metadata is recreated.
-    private final ThreadLocal<Supplier<byte[]>> metadataIdentifierGenerator;
+    // password is changed) it does not incur updates to the encrypted blob, but only recreating a new metadata blob.
+    // However, the encrypted blob's contents is prepended a fixed length identifier which is used to locate the corresponding metadata.
+    // This identifier is static for a given encrypted blob, i.e. it will not change when the metadata is recreated.
+    private final Supplier<byte[]> metadataIdentifierSupplier;
     private final Supplier<XPackLicenseState> licenseStateSupplier;
     // the salted hash of this repository's password on the local node. The password is fixed for the lifetime of the repository.
     private final String repositoryPasswordSaltedHash;
@@ -130,30 +129,22 @@ public final class EncryptedRepository extends BlobStoreRepository {
                                   char[] password) throws NoSuchAlgorithmException {
         super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
         this.delegatedRepository = delegatedRepository;
-        this.dataEncryptionKeyGenerator = KeyGenerator.getInstance(EncryptedRepositoryPlugin.CIPHER_ALGO);
-        this.dataEncryptionKeyGenerator.init(DATA_KEY_LENGTH_IN_BITS, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
+        KeyGenerator dataEncryptionKeyGenerator = KeyGenerator.getInstance(EncryptedRepositoryPlugin.CIPHER_ALGO);
+        dataEncryptionKeyGenerator.init(DATA_KEY_LENGTH_IN_BITS, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
+        this.dataEncryptionKeySupplier = () -> dataEncryptionKeyGenerator.generateKey();
         this.metadataEncryption = new PasswordBasedEncryption(password, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
-        // data encryption uses random "nonce"s although currently a constant would be just as secure
-        this.encryptionNonceGenerator = ThreadLocal.withInitial(() -> {
-            final SecureRandom secureRandom;
-            try {
-                secureRandom = SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO);
-            } catch (NoSuchAlgorithmException e) {
-                throw new IllegalStateException("Unexpected exception creating SecureRandom instance for [" +
-                        EncryptedRepositoryPlugin.RAND_ALGO + "]", e);
-            }
-            return (Supplier<Integer>) () -> secureRandom.nextInt();
-        });
-        // the metadata used to decrypt the encrypted blob resides in a different blob, one for every encrypted blob,
-        // which has a sufficiently long random name, enough to make it effectively unique in any given practical blob container
-        this.metadataIdentifierGenerator = ThreadLocal.withInitial(() -> {
-            final Random random = Randomness.get();
-            return (Supplier<byte[]>) () -> {
-                byte[] randomMetadataName = new byte[METADATA_UID_LENGTH_IN_BYTES];
-                random.nextBytes(randomMetadataName);
-                return randomMetadataName;
-            };
-        });
+        // data encryption uses a random "nonce"s, although currently a constant "nonce" would be just as secure (because the data
+        // encryption key is randomly generated, using a {@code SecureRandom}, so there is no risk of reusing the same key with the same IV)
+        // don't use a {@code SecureRandom} though, it would be an unnecessary entropy drain
+        this.encryptionNonceSupplier = () -> Randomness.get().nextInt();
+        // the metadata used to decrypt the encrypted blob resides in a different blob, one for each encrypted data blob
+        // the metadata blob name is formed from the encrypted data blob name by appending a random tag, enough to make it unique
+        // in the unusual case of data blob overwrite (encrypted data overwrite does not imply metadata overwrite)
+        this.metadataIdentifierSupplier = () -> {
+            byte[] randomMetadataNameTag = new byte[METADATA_UID_LENGTH_IN_BYTES];
+            Randomness.get().nextBytes(randomMetadataNameTag);
+            return randomMetadataNameTag;
+        };
         this.licenseStateSupplier = licenseStateSupplier;
         // the salted password hash for this encrypted repository password, on the local node (this is constant)
         this.repositoryPasswordSaltedHash = computeSaltedPBKDF2Hash(SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO),
@@ -237,8 +228,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     protected BlobStore createBlobStore() {
-        return new EncryptedBlobStore(delegatedRepository, dataEncryptionKeyGenerator, metadataEncryption,
-                encryptionNonceGenerator, metadataIdentifierGenerator);
+        return new EncryptedBlobStore(delegatedRepository, dataEncryptionKeySupplier, metadataEncryption,
+                encryptionNonceSupplier, metadataIdentifierSupplier);
     }
 
     @Override
@@ -279,22 +270,22 @@ public final class EncryptedRepository extends BlobStoreRepository {
     }
 
     private static class EncryptedBlobStore implements BlobStore {
+
         private final BlobStore delegatedBlobStore;
         private final BlobPath delegatedBasePath;
-        private final KeyGenerator dataEncryptionKeyGenerator;
+        private final Supplier<SecretKey> dataEncryptionKeySupplier;
         private final PasswordBasedEncryption metadataEncryption;
-        private final ThreadLocal<Supplier<Integer>> encryptionNonceGenerator;
-        private final ThreadLocal<Supplier<byte[]>> metadataIdentifierGenerator;
-
-        EncryptedBlobStore(BlobStoreRepository delegatedBlobStoreRepository, KeyGenerator dataEncryptionKeyGenerator,
-                           PasswordBasedEncryption metadataEncryption, ThreadLocal<Supplier<Integer>> encryptionNonceGenerator,
-                           ThreadLocal<Supplier<byte[]>> metadataIdentifierGenerator) {
+        private final Supplier<Integer> encryptionNonceSupplier;
+        private final Supplier<byte[]> metadataIdentifierSupplier;
+        EncryptedBlobStore(BlobStoreRepository delegatedBlobStoreRepository, Supplier<SecretKey> dataEncryptionKeySupplier,
+                           PasswordBasedEncryption metadataEncryption, Supplier<Integer> encryptionNonceSupplier,
+                           Supplier<byte[]> metadataIdentifierSupplier) {
             this.delegatedBlobStore = delegatedBlobStoreRepository.blobStore();
             this.delegatedBasePath = delegatedBlobStoreRepository.basePath();
-            this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
+            this.dataEncryptionKeySupplier = dataEncryptionKeySupplier;
             this.metadataEncryption = metadataEncryption;
-            this.encryptionNonceGenerator = encryptionNonceGenerator;
-            this.metadataIdentifierGenerator = metadataIdentifierGenerator;
+            this.encryptionNonceSupplier = encryptionNonceSupplier;
+            this.metadataIdentifierSupplier = metadataIdentifierSupplier;
         }
 
         @Override
@@ -304,33 +295,32 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            return new EncryptedBlobContainer(delegatedBlobStore, delegatedBasePath, path, dataEncryptionKeyGenerator, metadataEncryption,
-                    encryptionNonceGenerator, metadataIdentifierGenerator);
+            return new EncryptedBlobContainer(delegatedBlobStore, delegatedBasePath, path, dataEncryptionKeySupplier, metadataEncryption,
+                    encryptionNonceSupplier, metadataIdentifierSupplier);
         }
-    }
 
+    }
     private static class EncryptedBlobContainer implements BlobContainer {
+
         private final BlobStore delegatedBlobStore;
         private final BlobPath delegatedBasePath;
         private final BlobPath path;
-        private final KeyGenerator dataEncryptionKeyGenerator;
+        private final Supplier<SecretKey> dataEncryptionKeySupplier;
         private final PasswordBasedEncryption metadataEncryption;
-        private final ThreadLocal<Supplier<Integer>> encryptionNonceGenerator;
-        private final ThreadLocal<Supplier<byte[]>> metadataIdentifierGenerator;
+        private final Supplier<Integer> encryptionNonceSupplier;
+        private final Supplier<byte[]> metadataIdentifierSupplier;
         private final BlobContainer delegatedBlobContainer;
         private final BlobContainer encryptionMetadataBlobContainer;
-
         EncryptedBlobContainer(BlobStore delegatedBlobStore, BlobPath delegatedBasePath, BlobPath path,
-                               KeyGenerator dataEncryptionKeyGenerator, PasswordBasedEncryption metadataEncryption,
-                               ThreadLocal<Supplier<Integer>> encryptionNonceGenerator,
-                               ThreadLocal<Supplier<byte[]>> metadataIdentifierGenerator) {
+                               Supplier<SecretKey> dataEncryptionKeySupplier, PasswordBasedEncryption metadataEncryption,
+                               Supplier<Integer> encryptionNonceSupplier, Supplier<byte[]> metadataIdentifierSupplier) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.delegatedBasePath = delegatedBasePath;
             this.path = path;
-            this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
+            this.dataEncryptionKeySupplier = dataEncryptionKeySupplier;
             this.metadataEncryption = metadataEncryption;
-            this.encryptionNonceGenerator = encryptionNonceGenerator;
-            this.metadataIdentifierGenerator = metadataIdentifierGenerator;
+            this.encryptionNonceSupplier = encryptionNonceSupplier;
+            this.metadataIdentifierSupplier = metadataIdentifierSupplier;
             this.delegatedBlobContainer = delegatedBlobStore.blobContainer(delegatedBasePath.append(path));
             this.encryptionMetadataBlobContainer =
                     delegatedBlobStore.blobContainer(delegatedBasePath.add(ENCRYPTION_METADATA_ROOT).append(path));
@@ -412,8 +402,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
          */
         @Override
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-            final SecretKey dataEncryptionKey = dataEncryptionKeyGenerator.generateKey();
-            final int nonce = encryptionNonceGenerator.get().get();
+            final SecretKey dataEncryptionKey = dataEncryptionKeySupplier.get();
+            final int nonce = encryptionNonceSupplier.get();
             // this is the metadata required to decrypt back the (soon to be) encrypted blob
             BlobEncryptionMetadata metadata = new BlobEncryptionMetadata(nonce, PACKET_LENGTH_IN_BYTES, dataEncryptionKey);
             // encrypt the metadata
@@ -425,7 +415,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
             }
             // the metadata identifier is a sufficiently long random byte array so as to make it practically unique
             // the goal is to avoid overwriting metadata blobs even if the encrypted data blobs are overwritten
-            final byte[] metadataIdentifier = metadataIdentifierGenerator.get().get();
+            final byte[] metadataIdentifier = metadataIdentifierSupplier.get();
             final String metadataBlobName = blobName + new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier),
                     StandardCharsets.UTF_8);
             // first write the encrypted metadata to a UNIQUE blob name
@@ -523,8 +513,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 // get an encrypted blob container for each child
                 // Note that the encryption metadata blob container might be missing
                 result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainer(delegatedBlobStore, delegatedBasePath,
-                        path.add(encryptedBlobContainer.getKey()), dataEncryptionKeyGenerator, metadataEncryption,
-                        encryptionNonceGenerator, metadataIdentifierGenerator));
+                        path.add(encryptedBlobContainer.getKey()), dataEncryptionKeySupplier, metadataEncryption,
+                        encryptionNonceSupplier, metadataIdentifierSupplier));
             }
             return result;
         }
@@ -588,7 +578,6 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 }
             }
         }
-
     }
 
     private static String computeSaltedPBKDF2Hash(SecureRandom secureRandom, char[] password) {

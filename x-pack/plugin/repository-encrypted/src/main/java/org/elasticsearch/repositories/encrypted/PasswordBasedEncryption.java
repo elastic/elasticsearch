@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * randomly generates a new 12-byte wide IV, and so in order to limit the risk of a collision, the key must be changed
  * after at most {@link #ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY} IVs have been generated and used with that same key. For more
  * details, see Section 8.2 of https://csrc.nist.gov/publications/detail/sp/800-38d/final .
+ * <p>
+ * {@code PasswordBasedEncryption} objects are safe for use by multiple concurrent threads.
  */
 public final class PasswordBasedEncryption {
 
@@ -85,7 +87,7 @@ public final class PasswordBasedEncryption {
     // are generated using a different salt, which is generated randomly)
     private final char[] password;
     // this is used to generate the IVs for each encryption instance as well as the salt for every key generation
-    private final SecureRandom secureRandom;
+    private final SecureRandom secureRandom; // this is thread-safe
     // this is used to store the secret keys given the salt that was used in generating it
     private final Cache<String, Tuple<byte[], SecretKey>> keyBySaltCache;
     // the salt of the secret key which is used for encryption

@@ -32,6 +32,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.testclusters.TestDistribution
 import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.Action
 import org.gradle.api.GradleException
@@ -424,7 +425,7 @@ class BuildPlugin implements Plugin<Project> {
                             dependencyNode.appendNode('groupId', dependency.group)
                             dependencyNode.appendNode('artifactId', dependency.getDependencyProject().convention.getPlugin(BasePluginConvention).archivesBaseName)
                             dependencyNode.appendNode('version', dependency.version)
-                            dependencyNode.appendNode('scope', 'runtime')
+                            dependencyNode.appendNode('scope', 'compile')
                         }
                     }
                 }

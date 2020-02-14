@@ -1265,7 +1265,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * before we restart the cluster. This is important when we move from translog based to retention leases based
      * peer recoveries.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51274")
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
             Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

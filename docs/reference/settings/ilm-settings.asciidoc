@@ -14,7 +14,7 @@ ILM REST API endpoints and functionality. Defaults to `true`.
 (<<time-units, time units>>) How often {ilm} checks for indices that meet policy
 criteria. Defaults to `10m`.
 
-`index.lifecycle.history_index_enabled`::
+`indices.lifecycle.history_index_enabled`::
 Whether ILM's history index is enabled. If enabled, ILM will record the
 history of actions taken as part of ILM policies to the `ilm-history-*`
 indices. Defaults to `true`.

@@ -145,8 +145,8 @@ to request analysis of 100000 lines to achieve some variety.
   value is `true`. Otherwise, the default value is `false`.
 
 `timeout`::
-  (Optional, <<time-units,time units>>) Sets the maximum amount of time that the 
-  structure analysis make take. If the analysis is still running when the 
+  (Optional, <<time-units,time units>>) Sets the maximum amount of time that the
+  structure analysis make take. If the analysis is still running when the
   timeout expires then it will be aborted. The default value is 25 seconds.
 
 `timestamp_field`::
@@ -163,8 +163,8 @@ also specified.
 For structured file formats, if you specify this parameter, the field must exist
 within the file.
 
-If this parameter is not specified, the structure finder makes a decision about 
-which field (if any) is the primary timestamp field. For structured file 
+If this parameter is not specified, the structure finder makes a decision about
+which field (if any) is the primary timestamp field. For structured file
 formats, it is not compulsory to have a timestamp in the file.
 --
 
@@ -213,14 +213,14 @@ format from a built-in set.
 The following table provides the appropriate `timeformat` values for some example timestamps:
 
 |===
-| Timeformat                 | Presentation 
+| Timeformat                 | Presentation
 
 | yyyy-MM-dd HH:mm:ssZ       | 2019-04-20 13:15:22+0000
-| EEE, d MMM yyyy HH:mm:ss Z | Sat, 20 Apr 2019 13:15:22 +0000    
+| EEE, d MMM yyyy HH:mm:ss Z | Sat, 20 Apr 2019 13:15:22 +0000
 | dd.MM.yy HH:mm:ss.SSS      | 20.04.19 13:15:22.285
 |===
 
-See 
+See
 https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[the Java date/time format documentation]
 for more information about date and time format syntax.
 
@@ -676,12 +676,125 @@ If the request does not encounter errors, you receive the following result:
     "description" : "Ingest pipeline created by file structure finder",
     "processors" : [
       {
+        "csv" : {
+          "field" : "message",
+          "target_fields" : [
+            "VendorID",
+            "tpep_pickup_datetime",
+            "tpep_dropoff_datetime",
+            "passenger_count",
+            "trip_distance",
+            "RatecodeID",
+            "store_and_fwd_flag",
+            "PULocationID",
+            "DOLocationID",
+            "payment_type",
+            "fare_amount",
+            "extra",
+            "mta_tax",
+            "tip_amount",
+            "tolls_amount",
+            "improvement_surcharge",
+            "total_amount"
+          ]
+        }
+      },
+      {
         "date" : {
           "field" : "tpep_pickup_datetime",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
             "yyyy-MM-dd HH:mm:ss"
           ]
+        }
+      },
+      {
+        "convert" : {
+          "field" : "DOLocationID",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "PULocationID",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "RatecodeID",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "VendorID",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "extra",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "fare_amount",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "improvement_surcharge",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "mta_tax",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "passenger_count",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "payment_type",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "tip_amount",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "tolls_amount",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "total_amount",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "trip_distance",
+          "type" : "double"
+        }
+      },
+      {
+        "remove" : {
+          "field" : "message"
         }
       }
     ]

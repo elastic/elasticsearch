@@ -482,7 +482,7 @@ public class WellKnownText {
         double lat = nextNumber(stream);
         double radius = nextNumber(stream);
         double alt = Double.NaN;
-        if (isNumberNext(stream) == true) {
+        if (isNumberNext(stream)) {
             alt = nextNumber(stream);
         }
         Circle circle = new Circle(lon, lat, alt, radius);
@@ -560,7 +560,7 @@ public class WellKnownText {
     }
 
     private String nextComma(StreamTokenizer stream) throws IOException, ParseException {
-        if (nextWord(stream).equals(COMMA) == true) {
+        if (nextWord(stream).equals(COMMA)) {
             return COMMA;
         }
         throw new ParseException("expected " + COMMA + " but found: " + tokenString(stream), stream.lineno());

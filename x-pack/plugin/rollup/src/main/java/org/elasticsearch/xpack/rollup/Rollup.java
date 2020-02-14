@@ -158,7 +158,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         }
 
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, Rollup.TASK_THREAD_POOL_NAME,
-                4, 4, "xpack.rollup.task_thread_pool");
+                4, 4, "xpack.rollup.task_thread_pool", false);
 
         return Collections.singletonList(indexing);
     }

@@ -12,7 +12,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -22,6 +27,7 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -75,11 +81,11 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         parser.declareString(AbstractSqlQueryRequest::query, QUERY);
         parser.declareString((request, mode) -> request.mode(Mode.fromString(mode)), MODE);
         parser.declareString((request, clientId) -> request.clientId(clientId), CLIENT_ID);
-        parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), PARAMS);
+        parser.declareField(AbstractSqlQueryRequest::params, AbstractSqlQueryRequest::parseParams, PARAMS, ValueType.VALUE_ARRAY);
         parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE);
         parser.declareInt(AbstractSqlQueryRequest::fetchSize, FETCH_SIZE);
         parser.declareString((request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, Protocol.REQUEST_TIMEOUT,
-            "request_timeout")), REQUEST_TIMEOUT);
+                "request_timeout")), REQUEST_TIMEOUT);
         parser.declareString(
                 (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, Protocol.PAGE_TIMEOUT, "page_timeout")),
                 PAGE_TIMEOUT);
@@ -116,6 +122,87 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         }
         this.params = params;
         return this;
+    }
+    
+    private static List<SqlTypedParamValue> parseParams(XContentParser p) throws IOException {
+        List<SqlTypedParamValue> result = new ArrayList<>();
+        Token token = p.currentToken();
+        
+        if (token == Token.START_ARRAY) {
+            Object value = null;
+            String type = null;
+            SqlTypedParamValue previousParam = null;
+            SqlTypedParamValue currentParam = null;
+            
+            while ((token = p.nextToken()) != Token.END_ARRAY) {
+                XContentLocation loc = p.getTokenLocation();
+                
+                if (token == Token.START_OBJECT) {
+                    // we are at the start of a value/type pair... hopefully
+                    currentParam = SqlTypedParamValue.fromXContent(p);
+                    /*
+                     * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
+                     * that are checked later in validateParams method.
+                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to 
+                     * its type being explicitly set or inferred.
+                     */
+                    if ((previousParam != null && previousParam.hasExplicitType() == false) || result.isEmpty()) {
+                        currentParam.tokenLocation(loc);
+                    }
+                } else {
+                    if (token == Token.VALUE_STRING) {
+                        value = p.text();
+                        type = "keyword";
+                    } else if (token == Token.VALUE_NUMBER) {
+                        XContentParser.NumberType numberType = p.numberType();
+                        if (numberType == XContentParser.NumberType.INT) {
+                            value = p.intValue();
+                            type = "integer";
+                        } else if (numberType == XContentParser.NumberType.LONG) {
+                            value = p.longValue();
+                            type = "long";
+                        } else if (numberType == XContentParser.NumberType.FLOAT) {
+                            value = p.floatValue();
+                            type = "float";
+                        } else if (numberType == XContentParser.NumberType.DOUBLE) {
+                            value = p.doubleValue();
+                            type = "double";
+                        }
+                    } else if (token == Token.VALUE_BOOLEAN) {
+                        value = p.booleanValue();
+                        type = "boolean";
+                    } else if (token == Token.VALUE_NULL) {
+                        value = null;
+                        type = "null";
+                    } else {
+                        throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
+                    }
+                    
+                    currentParam = new SqlTypedParamValue(type, value, false);
+                    if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
+                        currentParam.tokenLocation(loc);
+                    }
+                }
+
+                result.add(currentParam);
+                previousParam = currentParam;
+            }
+        }
+        
+        return result;
+    }
+    
+    protected static void validateParams(List<SqlTypedParamValue> params, Mode mode) {
+        for(SqlTypedParamValue param : params) {            
+            if (Mode.isDriver(mode) && param.hasExplicitType() == false) {
+                throw new XContentParseException(param.tokenLocation(), "[params] must be an array where each entry is an object with a "
+                        + "value/type pair");
+            }
+            if (Mode.isDriver(mode) == false && param.hasExplicitType()) {
+                throw new XContentParseException(param.tokenLocation(), "[params] must be an array where each entry is a single field (no "
+                        + "objects supported)");
+            }
+        }
     }
 
     /**
@@ -204,10 +291,11 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public static void writeSqlTypedParamValue(StreamOutput out, SqlTypedParamValue value) throws IOException {
         out.writeString(value.type);
         out.writeGenericValue(value.value);
+        out.writeBoolean(value.hasExplicitType());
     }
 
     public static SqlTypedParamValue readSqlTypedParamValue(StreamInput in) throws IOException {
-        return new SqlTypedParamValue(in.readString(), in.readGenericValue());
+        return new SqlTypedParamValue(in.readString(), in.readGenericValue(), in.readBoolean());
     }
 
     @Override
@@ -248,6 +336,6 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout, filter);
+        return Objects.hash(super.hashCode(), query, params, zoneId, fetchSize, requestTimeout, pageTimeout, filter);
     }
 }

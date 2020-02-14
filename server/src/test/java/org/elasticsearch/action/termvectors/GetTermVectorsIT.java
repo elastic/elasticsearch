@@ -147,7 +147,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // must be of type string and indexed.
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .addMapping("type1",
+                .setMapping(
                         "field0", "type=integer,", // no tvs
                         "field1", "type=text,index=false", // no tvs
                         "field2", "type=text,index=false,store=true",  // no tvs
@@ -474,9 +474,9 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // setup indices
         String[] indexNames = new String[] {"with_tv", "without_tv"};
         assertAcked(prepareCreate(indexNames[0])
-                .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
+                .setMapping("field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
         assertAcked(prepareCreate(indexNames[1])
-                .addMapping("type1", "field1", "type=text,term_vector=no,analyzer=keyword"));
+                .setMapping("field1", "type=text,term_vector=no,analyzer=keyword"));
         ensureGreen();
 
         // index documents with and without term vectors
@@ -591,7 +591,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets"));
+                .setMapping("field1", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
 
         // index documents existing document
@@ -647,7 +647,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "field1", "type=text"));
+                .setMapping("field1", "type=text"));
         ensureGreen();
 
         // request tvs from artificial document
@@ -884,7 +884,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "keyword");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "tags", "type=text"));
+                .setMapping("tags", "type=text"));
 
         int numTerms = scaledRandomIntBetween(10, 50);
         logger.info("Indexing one document with tags of increasing length ...");
@@ -921,7 +921,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "keyword");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "tags", "type=text"));
+                .setMapping("tags", "type=text"));
 
         logger.info("Indexing one document with tags of increasing frequencies ...");
         int numTerms = scaledRandomIntBetween(10, 50);
@@ -961,7 +961,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.number_of_shards", 1); // no dfs
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "tags", "type=text"));
+                .setMapping("tags", "type=text"));
 
         int numDocs = scaledRandomIntBetween(10, 50); // as many terms as there are docs
         logger.info("Indexing {} documents with tags of increasing dfs ...", numDocs);
@@ -995,7 +995,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets"));
+                .setMapping("field1", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
 
         // index document
@@ -1038,10 +1038,10 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase")
             .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase");
         assertAcked(prepareCreate(indexNames[0]).setSettings(builder.build())
-            .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer",
+            .setMapping("field1", "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer",
                 "field2", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
         assertAcked(prepareCreate(indexNames[1]).setSettings(builder.build())
-            .addMapping("type1", "field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword"));
+            .setMapping("field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword"));
         ensureGreen();
 
         // index documents with and without term vectors

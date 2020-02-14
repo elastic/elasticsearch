@@ -27,6 +27,8 @@ public final class XPackField {
     public static final String UPGRADE = "upgrade";
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     public static final String SETTINGS_NAME = "xpack";
+    /** Name constant for the eql feature. */
+    public static final String EQL = "eql";
     /** Name constant for the sql feature. */
     public static final String SQL = "sql";
     /** Name constant for the rollup feature. */

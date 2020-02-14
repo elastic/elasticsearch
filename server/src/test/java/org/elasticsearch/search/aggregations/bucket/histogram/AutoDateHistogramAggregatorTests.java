@@ -219,6 +219,17 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testUnmappedMissing() throws IOException {
+        testBothCases(DEFAULT_QUERY, DATES_WITH_TIME,
+            aggregation -> aggregation.setNumBuckets(10).field("wrong_field").missing("2017-12-12"),
+            histogram -> {
+                assertEquals(1, histogram.getBuckets().size());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        );
+    }
+
+
     public void testIntervalYear() throws IOException {
 
 

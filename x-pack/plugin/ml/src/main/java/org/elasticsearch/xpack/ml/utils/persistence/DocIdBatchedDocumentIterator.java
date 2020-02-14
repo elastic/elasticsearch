@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 
@@ -18,7 +18,7 @@ public class DocIdBatchedDocumentIterator extends BatchedDocumentsIterator<Strin
 
     private final QueryBuilder query;
 
-    public DocIdBatchedDocumentIterator(Client client, String index, QueryBuilder query) {
+    public DocIdBatchedDocumentIterator(OriginSettingClient client, String index, QueryBuilder query) {
         super(client, index);
         this.query = Objects.requireNonNull(query);
     }

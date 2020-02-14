@@ -70,7 +70,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testSimpleGet() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
+                .setMapping("field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null))));
         ensureGreen();
@@ -219,7 +219,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testSimpleMultiGet() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
-                .addMapping("type1", "field", "type=keyword,store=true")
+                .setMapping("field", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 

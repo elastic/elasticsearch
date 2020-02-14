@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -22,6 +25,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -30,6 +34,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
@@ -382,6 +387,74 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                     throw new AssertionError(re);
                 }
             });
+        }
+    }
+
+    public void testSLMRetentionAfterRestore() throws Exception {
+        final String indexName = "test";
+        final String policyName = "test-policy";
+        int docCount = 20;
+        for (int i = 0; i < docCount; i++) {
+            index(indexName, i + "", Collections.singletonMap("foo", "bar"));
+        }
+
+        // Create a snapshot repo
+        initializeRepo(REPO);
+
+        logger.info("--> creating policy {}", policyName);
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true, false,
+            new SnapshotRetentionConfiguration(TimeValue.ZERO, null, null));
+
+        logger.info("--> executing snapshot lifecycle");
+        final String snapshotName = executePolicy(policyName);
+
+        // Check that the executed snapshot shows up in the SLM output
+        assertBusy(() -> {
+            GetSnapshotLifecycleAction.Response getResp =
+                client().execute(GetSnapshotLifecycleAction.INSTANCE, new GetSnapshotLifecycleAction.Request(policyName)).get();
+            logger.info("--> checking for in progress snapshot...");
+
+            assertThat(getResp.getPolicies().size(), greaterThan(0));
+            SnapshotLifecyclePolicyItem item = getResp.getPolicies().get(0);
+            SnapshotInvocationRecord lastSuccess = item.getLastSuccess();
+            assertNotNull(lastSuccess);
+            assertThat(lastSuccess.getSnapshotName(), equalTo(snapshotName));
+        });
+
+        logger.info("--> restoring index");
+        RestoreSnapshotRequest restoreReq = new RestoreSnapshotRequest(REPO, snapshotName);
+        restoreReq.indices(indexName);
+        restoreReq.renamePattern("(.+)");
+        restoreReq.renameReplacement("restored_$1");
+        restoreReq.waitForCompletion(true);
+        RestoreSnapshotResponse resp = client().execute(RestoreSnapshotAction.INSTANCE, restoreReq).get();
+        assertThat(resp.status(), equalTo(RestStatus.OK));
+
+        logger.info("--> executing SLM retention");
+        assertAcked(client().execute(ExecuteSnapshotRetentionAction.INSTANCE, new ExecuteSnapshotRetentionAction.Request()).get());
+        logger.info("--> waiting for {} snapshot to be deleted", snapshotName);
+        assertBusy(() -> {
+            try {
+                try {
+                    GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                        .prepareGetSnapshots(REPO).setSnapshots(snapshotName).get();
+                    assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+                } catch (SnapshotMissingException e) {
+                    // This is what we want to happen
+                }
+                logger.info("--> snapshot [{}] has been deleted", snapshotName);
+            } catch (RepositoryException re) {
+                // Concurrent status calls and write operations may lead to failures in determining the current repository generation
+                // TODO: Remove this hack once tracking the current repository generation has been made consistent
+                throw new AssertionError(re);
+            }
+        });
+
+        // Cancel/delete the snapshot
+        try {
+            client().admin().cluster().prepareDeleteSnapshot(REPO, snapshotName).get();
+        } catch (SnapshotMissingException e) {
+            // ignore
         }
     }
 

@@ -122,8 +122,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
 
 `analysis_config`.`detectors`.`detector_index`::::
++
+--
 (integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
+If you specify a value for this property, it is ignored.
+--
 
 `analysis_config`.`detectors`.`exclude_frequent`::::
 (string)

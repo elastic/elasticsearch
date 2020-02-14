@@ -19,17 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DoWhileLoopNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a do-while loop.
@@ -49,17 +45,8 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        locals = Locals.newLocalScope(locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        scope = scope.newLocalScope();
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
@@ -67,15 +54,15 @@ public final class SDo extends AStatement {
 
         block.beginLoop = true;
         block.inLoop = true;
-        block.analyze(scriptRoot, locals);
+        block.analyze(scriptRoot, scope);
 
         if (block.loopEscape && !block.anyContinue) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         condition.expected = boolean.class;
-        condition.analyze(scriptRoot, locals);
-        condition = condition.cast(scriptRoot, locals);
+        condition.analyze(scriptRoot, scope);
+        condition = condition.cast(scriptRoot, scope);
 
         if (condition.constant != null) {
             continuous = (boolean)condition.constant;
@@ -91,39 +78,19 @@ public final class SDo extends AStatement {
         }
 
         statementCount = 1;
-
-        if (locals.hasVariable(Locals.LOOP)) {
-            loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
+    DoWhileLoopNode write(ClassNode classNode) {
+        DoWhileLoopNode doWhileLoopNode = new DoWhileLoopNode();
 
-        Label start = new Label();
-        Label begin = new Label();
-        Label end = new Label();
+        doWhileLoopNode.setConditionNode(condition.write(classNode));
+        doWhileLoopNode.setBlockNode(block.write(classNode));
 
-        methodWriter.mark(start);
+        doWhileLoopNode.setLocation(location);
+        doWhileLoopNode.setContinuous(continuous);
 
-        block.continu = begin;
-        block.brake = end;
-        block.write(classWriter, methodWriter, globals);
-
-        methodWriter.mark(begin);
-
-        if (!continuous) {
-            condition.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
-        }
-
-        methodWriter.goTo(start);
-        methodWriter.mark(end);
+        return doWhileLoopNode;
     }
 
     @Override

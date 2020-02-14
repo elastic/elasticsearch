@@ -414,7 +414,7 @@ queries, this can speed up queries significantly.
 [[faster-prefix-queries]]
 === Faster prefix queries with `index_prefixes`
 
-The <<text,`text`>> field has an <<index-phrases,`index_prefixes`>> option that
+The <<text,`text`>> field has an <<index-prefixes,`index_prefixes`>> option that
 indexes prefixes of all terms and is automatically leveraged by query parsers to
 run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.

@@ -176,7 +176,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testIndexOptions() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=text,index_options=docs"));
+                .setMapping("field1", "type=text,index_options=docs"));
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                 client().prepareIndex("test").setId("2").setSource("field1", "quick lazy huge brown fox",
@@ -316,8 +316,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testDateRangeInQueryString() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping(
-                "type", "past", "type=date", "future", "type=date"
+        assertAcked(prepareCreate("test").setMapping(
+            "past", "type=date", "future", "type=date"
         ));
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
@@ -342,7 +342,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testDateRangeInQueryStringWithTimeZone_7880() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date"));
+        assertAcked(prepareCreate("test").setMapping("past", "type=date"));
 
         ZoneId timeZone = randomZone();
         String now = DateFormatter.forPattern("strict_date_optional_time").format(Instant.now().atZone(timeZone));
@@ -359,8 +359,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testDateRangeInQueryStringWithTimeZone_10477() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping(
-                "type", "past", "type=date"
+        assertAcked(prepareCreate("test").setMapping(
+                "past", "type=date"
         ));
 
         client().prepareIndex("test").setId("1").setSource("past", "2015-04-05T23:00:00+0000").get();
@@ -536,7 +536,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testMatchQueryNumeric() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "long", "type=long", "double", "type=double"));
+        assertAcked(prepareCreate("test").setMapping("long", "type=long", "double", "type=double"));
 
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("long", 1L, "double", 1.0d),
                 client().prepareIndex("test").setId("2").setSource("long", 2L, "double", 2.0d),
@@ -553,7 +553,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testMatchQueryFuzzy() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("_doc", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
 
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("text", "Unit"),
                 client().prepareIndex("test").setId("2").setSource("text", "Unity"));
@@ -657,7 +657,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMatchQueryZeroTermsQuery() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
+                .setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
         refresh();
@@ -681,7 +681,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMultiMatchQueryZeroTermsQuery() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
+                .setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value3", "field2", "value4").get();
         refresh();
@@ -863,7 +863,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testEmptytermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("term", "1"),
                 client().prepareIndex("test").setId("2").setSource("term", "2"),
@@ -879,7 +879,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "str", "type=text", "lng", "type=long", "dbl", "type=double"));
+        assertAcked(prepareCreate("test").setMapping("str", "type=text", "lng", "type=long", "dbl", "type=double"));
 
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("str", "1", "lng", 1L, "dbl", 1.0d),
@@ -946,13 +946,13 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTermsLookupFilter() throws Exception {
-        assertAcked(prepareCreate("lookup").addMapping("type", "terms","type=text", "other", "type=text"));
+        assertAcked(prepareCreate("lookup").setMapping("terms","type=text", "other", "type=text"));
         assertAcked(prepareCreate("lookup2").setMapping(
                 jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("arr").startObject("properties").startObject("term").field("type", "text")
                         .endObject().endObject().endObject().endObject().endObject().endObject()));
-        assertAcked(prepareCreate("lookup3").addMapping("type", "_source", "enabled=false", "terms","type=text"));
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
+        assertAcked(prepareCreate("lookup3").setMapping("_source", "enabled=false", "terms","type=text"));
+        assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
         indexRandom(true,
                 client().prepareIndex("lookup").setId("1").setSource("terms", new String[]{"1", "3"}),
@@ -1076,7 +1076,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testNumericTermsAndRanges() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1",
+                .setMapping(
                         "num_byte", "type=byte", "num_short", "type=short",
                         "num_integer", "type=integer", "num_long", "type=long",
                         "num_float", "type=float", "num_double", "type=double"));
@@ -1175,7 +1175,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testNumericRangeFilter_2826() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1",
+                .setMapping(
                         "num_byte", "type=byte", "num_short", "type=short",
                         "num_integer", "type=integer", "num_long", "type=long",
                         "num_float", "type=float", "num_double", "type=double"));
@@ -1496,7 +1496,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testRangeQueryWithTimeZone() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "date", "type=date", "num", "type=integer"));
+                .setMapping("date", "type=date", "num", "type=integer"));
 
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("date", "2014-01-01", "num", 1),
@@ -1662,7 +1662,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testRangeQueryRangeFields_24744() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "int_range", "type=integer_range"));
+        assertAcked(prepareCreate("test").setMapping("int_range", "type=integer_range"));
 
         client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("int_range").field("gte", 10).field("lte", 20).endObject().endObject())

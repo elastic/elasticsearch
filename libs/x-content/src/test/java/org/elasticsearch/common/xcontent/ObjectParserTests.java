@@ -38,9 +38,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ObjectParserTests extends ESTestCase {
 
@@ -206,7 +209,7 @@ public class ObjectParserTests extends ESTestCase {
         {
             XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"not_supported_field\" : \"foo\"}");
             XContentParseException ex = expectThrows(XContentParseException.class, () -> objectParser.parse(parser, s, null));
-            assertEquals(ex.getMessage(), "[1:2] [the_parser] unknown field [not_supported_field], parser not found");
+            assertEquals(ex.getMessage(), "[1:2] [the_parser] unknown field [not_supported_field]");
         }
     }
 
@@ -272,6 +275,24 @@ public class ObjectParserTests extends ESTestCase {
         assertNotNull(s.object);
     }
 
+    public void testObjectOrNullWhenNull() throws IOException {
+        StaticTestStruct nullMarker = new StaticTestStruct();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object\" : null}");
+        ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
+        objectParser.declareObjectOrNull(StaticTestStruct::setObject, objectParser, nullMarker, new ParseField("object"));
+        StaticTestStruct s = objectParser.parse(parser, null);
+        assertThat(s.object, equalTo(nullMarker));
+    }
+
+    public void testObjectOrNullWhenNonNull() throws IOException {
+        StaticTestStruct nullMarker = new StaticTestStruct();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object\" : {}}");
+        ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
+        objectParser.declareObjectOrNull(StaticTestStruct::setObject, objectParser, nullMarker, new ParseField("object"));
+        StaticTestStruct s = objectParser.parse(parser, null);
+        assertThat(s.object, not(nullValue()));
+    }
+
     public void testEmptyObjectInArray() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object_array\" : [{}]}");
         ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
@@ -318,15 +339,32 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testAllVariants() throws IOException {
+        double expectedNullableDouble;
+        int expectedNullableInt;
+
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         builder.field("int_field", randomBoolean() ? "1" : 1);
+        if (randomBoolean()) {
+            builder.nullField("nullable_int_field");
+            expectedNullableInt = -1;
+        } else {
+            expectedNullableInt = randomInt();
+            builder.field("nullable_int_field", expectedNullableInt);
+        }
         if (randomBoolean()) {
             builder.array("int_array_field", randomBoolean() ? "1" : 1);
         } else {
             builder.field("int_array_field", randomBoolean() ? "1" : 1);
         }
         builder.field("double_field", randomBoolean() ? "2.1" : 2.1d);
+        if (randomBoolean()) {
+            builder.nullField("nullable_double_field");
+            expectedNullableDouble = Double.NaN;
+        } else {
+            expectedNullableDouble = randomDouble();
+            builder.field("nullable_double_field", expectedNullableDouble);
+        }
         if (randomBoolean()) {
             builder.array("double_array_field", randomBoolean() ? "2.1" : 2.1d);
         } else {
@@ -361,9 +399,11 @@ public class ObjectParserTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder));
         class TestStruct {
             int int_field;
+            int nullableIntField;
             long long_field;
             float float_field;
             double double_field;
+            double nullableDoubleField;
             String string_field;
             List<Integer> int_array_field;
             List<Long> long_array_field;
@@ -375,6 +415,9 @@ public class ObjectParserTests extends ESTestCase {
             public void setInt_field(int int_field) {
                 this.int_field = int_field;
             }
+            public void setNullableIntField(int nullableIntField) {
+                this.nullableIntField = nullableIntField;
+            }
             public void setLong_field(long long_field) {
                 this.long_field = long_field;
             }
@@ -383,6 +426,9 @@ public class ObjectParserTests extends ESTestCase {
             }
             public void setDouble_field(double double_field) {
                 this.double_field = double_field;
+            }
+            public void setNullableDoubleField(double nullableDoubleField) {
+                this.nullableDoubleField = nullableDoubleField;
             }
             public void setString_field(String string_field) {
                 this.string_field = string_field;
@@ -413,10 +459,12 @@ public class ObjectParserTests extends ESTestCase {
         }
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");
         objectParser.declareInt(TestStruct::setInt_field, new ParseField("int_field"));
+        objectParser.declareIntOrNull(TestStruct::setNullableIntField, -1, new ParseField("nullable_int_field"));
         objectParser.declareIntArray(TestStruct::setInt_array_field, new ParseField("int_array_field"));
         objectParser.declareLong(TestStruct::setLong_field, new ParseField("long_field"));
         objectParser.declareLongArray(TestStruct::setLong_array_field, new ParseField("long_array_field"));
         objectParser.declareDouble(TestStruct::setDouble_field, new ParseField("double_field"));
+        objectParser.declareDoubleOrNull(TestStruct::setNullableDoubleField, Double.NaN, new ParseField("nullable_double_field"));
         objectParser.declareDoubleArray(TestStruct::setDouble_array_field, new ParseField("double_array_field"));
         objectParser.declareFloat(TestStruct::setFloat_field, new ParseField("float_field"));
         objectParser.declareFloatArray(TestStruct::setFloat_array_field, new ParseField("float_array_field"));
@@ -428,6 +476,7 @@ public class ObjectParserTests extends ESTestCase {
         TestStruct parse = objectParser.parse(parser, new TestStruct(), null);
         assertArrayEquals(parse.double_array_field.toArray(), Collections.singletonList(2.1d).toArray());
         assertEquals(parse.double_field, 2.1d, 0.0d);
+        assertThat(parse.nullableDoubleField, equalTo(expectedNullableDouble));
 
         assertArrayEquals(parse.long_array_field.toArray(), Collections.singletonList(4L).toArray());
         assertEquals(parse.long_field, 4L);
@@ -437,6 +486,7 @@ public class ObjectParserTests extends ESTestCase {
 
         assertArrayEquals(parse.int_array_field.toArray(), Collections.singletonList(1).toArray());
         assertEquals(parse.int_field, 1);
+        assertThat(parse.nullableIntField, equalTo(expectedNullableInt));
 
         assertArrayEquals(parse.float_array_field.toArray(), Collections.singletonList(3.1f).toArray());
         assertEquals(parse.float_field, 3.1f, 0.0f);
@@ -755,6 +805,89 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals(Map.of("field", "value", "field2", List.of("list1", "list2")), o.fields.get("test_nested"));
     }
 
+    public void testRequiredFieldSet() throws IOException {
+        class TestStruct {
+            private Long a;
+            private Long b;
+
+            private void setA(long value) {
+                this.a = value;
+            }
+
+            private void setB(long value) {
+                this.b = value;
+            }
+        }
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"a\": \"123\"}");
+        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
+        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
+        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
+        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+
+        TestStruct obj = objectParser.apply(parser, null);
+        assertThat(obj.a, equalTo(123L));
+        assertThat(obj.b, nullValue());
+
+        parser = createParser(JsonXContent.jsonXContent, "{\"b\": \"123\"}");
+        objectParser = new ObjectParser<>("foo", true, TestStruct::new);
+        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
+        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
+        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+
+        obj = objectParser.apply(parser, null);
+        assertThat(obj.a, nullValue());
+        assertThat(obj.b, equalTo(123L));
+
+        parser = createParser(JsonXContent.jsonXContent, "{\"a\": \"123\", \"b\": \"456\"}");
+        objectParser = new ObjectParser<>("foo", true, TestStruct::new);
+        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
+        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
+        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+
+        obj = objectParser.apply(parser, null);
+        assertThat(obj.a, equalTo(123L));
+        assertThat(obj.b, equalTo(456L));
+    }
+
+    public void testMultipleRequiredFieldSet() throws IOException {
+        class TestStruct {
+            private Long a;
+            private Long b;
+            private Long c;
+            private Long d;
+
+            private void setA(long value) {
+                this.a = value;
+            }
+
+            private void setB(long value) {
+                this.b = value;
+            }
+
+            private void setC(long value) {
+                this.c = value;
+            }
+
+            private void setD(long value) {
+                this.d = value;
+            }
+        }
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"unrelated\": \"123\"}");
+        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
+        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
+        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
+        objectParser.declareLong(TestStruct::setC, new ParseField("c"));
+        objectParser.declareLong(TestStruct::setD, new ParseField("d"));
+        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+        objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
+        assertThat(e.getMessage(), equalTo("Required one of fields [a, b], but none were specified. " +
+            "Required one of fields [c, d], but none were specified. "));
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(Arrays.asList(
@@ -803,7 +936,9 @@ public class ObjectParserTests extends ESTestCase {
         {
             XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"not_supported_field\" : \"foo\"}");
             XContentParseException ex = expectThrows(XContentParseException.class, () -> TopLevelNamedXConent.PARSER.parse(parser, null));
-            assertEquals("[1:2] [test] unable to parse Object with name [not_supported_field]: parser not found", ex.getMessage());
+            assertEquals("[1:2] [test] unknown field [not_supported_field]", ex.getMessage());
+            NamedObjectNotFoundException cause = (NamedObjectNotFoundException) ex.getCause();
+            assertThat(cause.getCandidates(), containsInAnyOrder("str", "int", "float", "bool"));
         }
     }
 

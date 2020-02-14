@@ -52,10 +52,11 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.core.IsNot.not;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertThat;
 
 /**
  * Wrappers and convenience methods for common filesystem operations
@@ -82,6 +83,30 @@ public class FileUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void rmWithRetries(Path... paths) {
+        int tries = 10;
+        Exception exception = null;
+        while (tries-- > 0) {
+            try {
+                IOUtils.rm(paths);
+                return;
+            } catch (IOException e) {
+                if (exception == null) {
+                    exception = e;
+                } else {
+                    exception.addSuppressed(e);
+                }
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        throw new RuntimeException(exception);
     }
 
     public static Path mktempDir(Path path) {
@@ -129,7 +154,7 @@ public class FileUtils {
 
     public static String slurp(Path file) {
         try {
-            return String.join("\n", Files.readAllLines(file, StandardCharsets.UTF_8));
+            return String.join(System.lineSeparator(), Files.readAllLines(file, StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -262,7 +287,7 @@ public class FileUtils {
 
     // vagrant creates /tmp for us in windows so we use that to avoid long paths
     public static Path getTempDir() {
-        return Paths.get("/tmp");
+        return Paths.get("/tmp").toAbsolutePath();
     }
 
     public static Path getDefaultArchiveInstallPath() {
@@ -284,8 +309,8 @@ public class FileUtils {
         return distribution.path;
     }
 
-    public static void assertPathsExist(Path... paths) {
-        Arrays.stream(paths).forEach(path -> assertTrue(path + " should exist", Files.exists(path)));
+    public static void assertPathsExist(final Path... paths) {
+        Arrays.stream(paths).forEach(path -> assertThat(path, fileExists()));
     }
 
     public static Matcher<Path> fileWithGlobExist(String glob) throws IOException {
@@ -302,8 +327,8 @@ public class FileUtils {
         };
     }
 
-    public static void assertPathsDontExist(Path... paths) {
-        Arrays.stream(paths).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
+    public static void assertPathsDoNotExist(final Path... paths) {
+        Arrays.stream(paths).forEach(path -> assertThat(path, fileDoesNotExist()));
     }
 
     public static void deleteIfExists(Path path) {
@@ -314,5 +339,16 @@ public class FileUtils {
                 throw new UncheckedIOException(e);
             }
         }
+    }
+
+    /**
+     * Return the given path a string suitable for using on the host system.
+     */
+    public static String escapePath(Path path) {
+        if (Platforms.WINDOWS) {
+            // replace single backslash with forward slash, to avoid unintended escapes in scripts
+            return path.toString().replace('\\', '/');
+        }
+        return path.toString();
     }
 }

@@ -27,8 +27,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -81,18 +84,17 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private interface UnknownFieldParser<Value, Context> {
-
-        void acceptUnknownField(String parserName, String field, XContentLocation location, XContentParser parser,
-                                Value value, Context context) throws IOException;
+        void acceptUnknownField(ObjectParser<Value, Context> objectParser, String field, XContentLocation location, XContentParser parser,
+                Value value, Context context) throws IOException;
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> ignoreUnknown() {
-      return (n, f, l, p, v, c) -> p.skipChildren();
+      return (op, f, l, p, v, c) -> p.skipChildren();
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> errorOnUnknown() {
-        return (n, f, l, p, v, c) -> {
-            throw new XContentParseException(l, "[" + n + "] unknown field [" + f + "], parser not found");
+        return (op, f, l, p, v, c) -> {
+            throw new XContentParseException(l, ErrorOnUnknown.IMPLEMENTATION.errorMessage(op.name, f, op.fieldParserMap.keySet()));
         };
     }
 
@@ -104,7 +106,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> consumeUnknownField(UnknownFieldConsumer<Value> consumer) {
-        return (parserName, field, location, parser, value, context) -> {
+        return (objectParser, field, location, parser, value, context) -> {
             XContentParser.Token t = parser.currentToken();
             switch (t) {
                 case VALUE_STRING:
@@ -127,7 +129,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     break;
                 default:
                     throw new XContentParseException(parser.getTokenLocation(),
-                        "[" + parserName + "] cannot parse field [" + field + "] with value type [" + t + "]");
+                        "[" + objectParser.name + "] cannot parse field [" + field + "] with value type [" + t + "]");
             }
         };
     }
@@ -136,12 +138,15 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         Class<Category> categoryClass,
         BiConsumer<Value, ? super Category> consumer
     ) {
-        return (parserName, field, location, parser, value, context) -> {
+        return (objectParser, field, location, parser, value, context) -> {
             Category o;
             try {
                 o = parser.namedObject(categoryClass, field, context);
             } catch (NamedObjectNotFoundException e) {
-                throw new XContentParseException(location, "[" + parserName  + "] " + e.getBareMessage(), e);
+                Set<String> candidates = new HashSet<>(objectParser.fieldParserMap.keySet());
+                e.getCandidates().forEach(candidates::add);
+                String message = ErrorOnUnknown.IMPLEMENTATION.errorMessage(objectParser.name, field, candidates);
+                throw new XContentParseException(location, message, e);
             }
             consumer.accept(value, o);
         };
@@ -268,6 +273,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         FieldParser fieldParser = null;
         String currentFieldName = null;
         XContentLocation currentPosition = null;
+        List<String[]> requiredFields = new ArrayList<>(this.requiredFieldSets);
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -278,13 +285,34 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] no field found");
                 }
                 if (fieldParser == null) {
-                    unknownFieldParser.acceptUnknownField(name, currentFieldName, currentPosition, parser, value, context);
+                    unknownFieldParser.acceptUnknownField(this, currentFieldName, currentPosition, parser, value, context);
                 } else {
                     fieldParser.assertSupports(name, parser, currentFieldName);
+
+                    // Check to see if this field is a required field, if it is we can
+                    // remove the entry as the requirement is satisfied
+                    Iterator<String[]> iter = requiredFields.iterator();
+                    while (iter.hasNext()) {
+                        String[] requriedFields = iter.next();
+                        for (String field : requriedFields) {
+                            if (field.equals(currentFieldName)) {
+                                iter.remove();
+                                break;
+                            }
+                        }
+                    }
+
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
             }
+        }
+        if (requiredFields.isEmpty() == false) {
+            StringBuilder message = new StringBuilder();
+            for (String[] fields : requiredFields) {
+                message.append("Required one of fields ").append(Arrays.toString(fields)).append(", but none were specified. ");
+            }
+            throw new IllegalArgumentException(message.toString());
         }
         return value;
     }

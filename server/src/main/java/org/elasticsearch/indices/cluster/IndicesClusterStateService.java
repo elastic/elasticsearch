@@ -68,7 +68,6 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -135,7 +134,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final NodeMappingRefreshAction nodeMappingRefreshAction,
             final RepositoriesService repositoriesService,
             final SearchService searchService,
-            final SyncedFlushService syncedFlushService,
             final PeerRecoverySourceService peerRecoverySourceService,
             final SnapshotShardsService snapshotShardsService,
             final PrimaryReplicaSyncer primaryReplicaSyncer,
@@ -151,7 +149,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 nodeMappingRefreshAction,
                 repositoriesService,
                 searchService,
-                syncedFlushService,
                 peerRecoverySourceService,
                 snapshotShardsService,
                 primaryReplicaSyncer,
@@ -170,7 +167,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final NodeMappingRefreshAction nodeMappingRefreshAction,
             final RepositoriesService repositoriesService,
             final SearchService searchService,
-            final SyncedFlushService syncedFlushService,
             final PeerRecoverySourceService peerRecoverySourceService,
             final SnapshotShardsService snapshotShardsService,
             final PrimaryReplicaSyncer primaryReplicaSyncer,
@@ -499,7 +495,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                indexService = indicesService.createIndex(indexMetaData, buildInIndexListener);
+                indexService = indicesService.createIndex(indexMetaData, buildInIndexListener, true);
                 if (indexService.updateMapping(null, indexMetaData) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetaData.getIndex().getName(),
@@ -863,10 +859,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param indexMetaData          the index metadata to create the index for
          * @param builtInIndexListener   a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with
          *                               the per-index listeners
+         * @param writeDanglingIndices   whether dangling indices information should be written
          * @throws ResourceAlreadyExistsException if the index already exists.
          */
         U createIndex(IndexMetaData indexMetaData,
-                      List<IndexEventListener> builtInIndexListener) throws IOException;
+                      List<IndexEventListener> builtInIndexListener,
+                      boolean writeDanglingIndices) throws IOException;
 
         /**
          * Verify that the contents on disk for the given index is deleted; if not, delete the contents.

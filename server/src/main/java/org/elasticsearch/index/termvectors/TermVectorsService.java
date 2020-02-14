@@ -193,7 +193,7 @@ public class TermVectorsService  {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
-            MappedFieldType fieldType = indexShard.mapperService().fullName(field);
+            MappedFieldType fieldType = indexShard.mapperService().fieldType(field);
             if (!isValidField(fieldType)) {
                 continue;
             }
@@ -230,7 +230,7 @@ public class TermVectorsService  {
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
             analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field).toString());
         } else {
-            MappedFieldType fieldType = mapperService.fullName(field);
+            MappedFieldType fieldType = mapperService.fieldType(field);
             analyzer = fieldType.indexAnalyzer();
         }
         if (analyzer == null) {
@@ -300,7 +300,7 @@ public class TermVectorsService  {
         Set<String> seenFields = new HashSet<>();
         Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
-            MappedFieldType fieldType = indexShard.mapperService().fullName(field.name());
+            MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
             if (!isValidField(fieldType)) {
                 continue;
             }

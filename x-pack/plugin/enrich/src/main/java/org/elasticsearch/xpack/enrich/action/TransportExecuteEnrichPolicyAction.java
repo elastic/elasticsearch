@@ -29,8 +29,9 @@ import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 
 import java.io.IOException;
 
-public class TransportExecuteEnrichPolicyAction extends
-    TransportMasterNodeAction<ExecuteEnrichPolicyAction.Request, ExecuteEnrichPolicyAction.Response> {
+public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeAction<
+    ExecuteEnrichPolicyAction.Request,
+    ExecuteEnrichPolicyAction.Response> {
 
     private final EnrichPolicyExecutor executor;
 

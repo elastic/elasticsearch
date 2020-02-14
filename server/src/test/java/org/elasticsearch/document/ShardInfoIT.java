@@ -112,7 +112,7 @@ public class ShardInfoIT extends ESIntegTestCase {
                 Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfPrimaryShards)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numCopies - 1))
-                .addMapping("type", "_routing", "required=" + routingRequired)
+                .setMapping("_routing", "required=" + routingRequired)
                 .get());
         for (int i = 0; i < numberOfPrimaryShards; i++) {
             ensureActiveShardCopies(i, numNodes);

@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -141,6 +142,31 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
     }
 
+    /**
+     * Test scoring the entire set of documents, which uses a slightly different logic when creating scorers.
+     */
+    public void testExhaustiveScoring() throws Exception {
+        assertAcked(prepareCreate("test")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
+                        .startObject("field1").field("analyzer", "whitespace").field("type", "text").endObject()
+                        .startObject("field2").field("analyzer", "whitespace").field("type", "text").endObject()
+                                .endObject().endObject().endObject())
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+
+        client().prepareIndex("test").setId("1").setSource("field1", "foo").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "foo", "field2", "foo").get();
+
+        refresh();
+
+        QueryStringQueryBuilder organicQuery = QueryBuilders.queryStringQuery("foo");
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(organicQuery, "2");
+        SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true)
+                .setSearchType(DFS_QUERY_THEN_FETCH).get();
+
+        long numHits = searchResponse.getHits().getTotalHits().value;
+        assertThat(numHits, equalTo(2L));
+    }    
+    
     public void testExplain() throws Exception {
         assertAcked(prepareCreate("test").setMapping(
                 jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")

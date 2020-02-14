@@ -29,14 +29,13 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetScriptLanguageAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_script_language"));
+        return List.of(new Route(GET, "/_script_language"));
     }
 
     @Override public String getName() {

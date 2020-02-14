@@ -17,14 +17,13 @@ import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction.Request;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestForgetFollowerAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/{index}/_ccr/forget_follower"));
+        return List.of(new Route(POST, "/{index}/_ccr/forget_follower"));
     }
 
     @Override

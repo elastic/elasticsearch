@@ -38,8 +38,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static java.util.Map.entry;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -47,13 +45,13 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_nodes/stats"),
             new Route(GET, "/_nodes/{nodeId}/stats"),
             new Route(GET, "/_nodes/stats/{metric}"),
             new Route(GET, "/_nodes/{nodeId}/stats/{metric}"),
             new Route(GET, "/_nodes/stats/{metric}/{index_metric}"),
-            new Route(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}")));
+            new Route(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}"));
     }
 
     static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(

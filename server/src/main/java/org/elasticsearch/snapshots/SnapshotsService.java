@@ -310,7 +310,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     threadPool.absoluteTimeInMillis(),
                     RepositoryData.UNKNOWN_REPO_GEN,
                     null,
-                    userMeta, false
+                    userMeta, Version.CURRENT
                 );
                 initializingSnapshots.add(newSnapshot.snapshot());
                 snapshots = new SnapshotsInProgress(newSnapshot);
@@ -466,15 +466,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotCreated = true;
 
                     logger.info("snapshot [{}] started", snapshot.snapshot());
-                    final boolean hasOldFormatSnapshots =
-                        hasOldVersionSnapshots(snapshot.snapshot().getRepository(), repositoryData, null);
-                    final boolean writeShardGenerations = hasOldFormatSnapshots == false &&
-                        clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
+                    final Version version = minCompatibleVersion(clusterState, snapshot.repository(), repositoryData, null);
                     if (indices.isEmpty()) {
                         // No indices in this snapshot - we are done
                         userCreateSnapshotListener.onResponse(snapshot.snapshot());
                         endSnapshot(new SnapshotsInProgress.Entry(
-                            snapshot, State.STARTED, Collections.emptyList(), repositoryData.getGenId(), null, writeShardGenerations,
+                            snapshot, State.STARTED, Collections.emptyList(), repositoryData.getGenId(), null, version,
                             null), clusterState.metaData());
                         return;
                     }
@@ -498,7 +495,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     final List<IndexId> indexIds = repositoryData.resolveNewIndices(indices);
                                     // Replace the snapshot that was just initialized
                                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
-                                        shards(currentState, indexIds, writeShardGenerations, repositoryData);
+                                        shards(currentState, indexIds, version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION), repositoryData);
                                     if (!partial) {
                                         Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards,
                                             currentState.metaData());
@@ -518,12 +515,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                 failureMessage.append(closed);
                                             }
                                             entries.add(new SnapshotsInProgress.Entry(entry, State.FAILED, indexIds,
-                                                repositoryData.getGenId(), shards, writeShardGenerations, failureMessage.toString()));
+                                                repositoryData.getGenId(), shards, version, failureMessage.toString()));
                                             continue;
                                         }
                                     }
                                     entries.add(new SnapshotsInProgress.Entry(entry, State.STARTED, indexIds, repositoryData.getGenId(),
-                                        shards, writeShardGenerations, null));
+                                        shards, version, null));
                                 }
                             }
                             return ClusterState.builder(currentState)
@@ -623,7 +620,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             snapshot.includeGlobalState(),
                             metaDataForSnapshot(snapshot, metaData),
                             snapshot.userMetadata(),
-                            snapshot.useShardGenerations() ? Version.CURRENT : Version.V_7_5_0, // TODO: Fix to have real version in CS
+                            snapshot.version(),
                             ActionListener.runAfter(ActionListener.wrap(ignored -> {
                             }, inner -> {
                                 inner.addSuppressed(exception);
@@ -1103,7 +1100,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.includeGlobalState(),
                     metaDataForSnapshot(entry, metaData),
                     entry.userMetadata(),
-                    entry.useShardGenerations() ? Version.CURRENT : Version.V_7_5_0, // TODO: Fix to have real version in CS
+                    entry.version(),
                     ActionListener.wrap(snapshotInfo -> {
                         removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());

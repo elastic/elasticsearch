@@ -283,10 +283,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
                 final IndexId indexId = indicesMap.get(shardId.getIndexName());
                 assert indexId != null;
-                assert entry.useShardGenerations() || snapshotStatus.generation() == null :
+                assert entry.version().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION) || snapshotStatus.generation() == null :
                     "Found non-null shard generation [" + snapshotStatus.generation() + "] for snapshot with old-format compatibility";
-                snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus,
-                    entry.useShardGenerations() ? Version.CURRENT : Version.V_7_5_0, // TODO: pass actual version in CS
+                snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(String newGeneration) {

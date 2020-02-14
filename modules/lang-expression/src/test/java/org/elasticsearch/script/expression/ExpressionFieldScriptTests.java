@@ -49,8 +49,8 @@ public class ExpressionFieldScriptTests extends ESTestCase {
 
         NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName("field")).thenReturn(fieldType);
-        when(mapperService.fullName("alias")).thenReturn(fieldType);
+        when(mapperService.fieldType("field")).thenReturn(fieldType);
+        when(mapperService.fieldType("alias")).thenReturn(fieldType);
 
         SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);

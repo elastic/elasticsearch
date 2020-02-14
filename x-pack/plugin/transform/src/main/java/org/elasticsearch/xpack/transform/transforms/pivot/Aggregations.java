@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -25,6 +26,58 @@ public final class Aggregations {
     // the field mapping should be determined explicitly from the source field mapping if possible.
     private static final String SOURCE = "_source";
 
+    public static final String FLOAT = "float";
+    public static final String SCALED_FLOAT = "scaled_float";
+    public static final String DOUBLE = "double";
+    public static final String LONG = "long";
+    public static final String GEO_SHAPE = "geo_shape";
+    public static final String GEO_POINT = "geo_point";
+
+    /*
+     * List of currently unsupported aggregations (not group_by) in transform.
+     *
+     * The only purpose of this list is to track which aggregations should be added to transform and assert if new
+     * aggregations are added.
+     *
+     * Created a new aggs?
+     *
+     * Please add it to the list (sorted) together with a comment containing a link to the created github issue.
+     */
+    private static final List<String> UNSUPPORTED_AGGS = Arrays.asList(
+        "adjacency_matrix",
+        "auto_date_histogram",
+        "boxplot", // https://github.com/elastic/elasticsearch/issues/52189
+        "composite", // DONT because it makes no sense
+        "date_histogram",
+        "date_range",
+        "diversified_sampler",
+        "extended_stats", // https://github.com/elastic/elasticsearch/issues/51925
+        "filter", // https://github.com/elastic/elasticsearch/issues/52151
+        "filters",
+        "geo_distance",
+        "geohash_grid",
+        "geotile_grid",
+        "global",
+        "histogram",
+        "ip_range",
+        "matrix_stats",
+        "median_absolute_deviation",
+        "missing",
+        "nested",
+        "percentile_ranks",
+        "range",
+        "rare_terms",
+        "reverse_nested",
+        "sampler",
+        "significant_terms", // https://github.com/elastic/elasticsearch/issues/51073
+        "significant_text",
+        "stats", // https://github.com/elastic/elasticsearch/issues/51925
+        "string_stats", // https://github.com/elastic/elasticsearch/issues/51925
+        "terms", // https://github.com/elastic/elasticsearch/issues/51073
+        "top_hits",
+        "top_metrics" // https://github.com/elastic/elasticsearch/issues/52236
+    );
+
     private Aggregations() {}
 
     /**
@@ -37,19 +90,19 @@ public final class Aggregations {
      *
      */
     enum AggregationType {
-        AVG("avg", "double"),
-        CARDINALITY("cardinality", "long"),
-        VALUE_COUNT("value_count", "long"),
+        AVG("avg", DOUBLE),
+        CARDINALITY("cardinality", LONG),
+        VALUE_COUNT("value_count", LONG),
         MAX("max", SOURCE),
         MIN("min", SOURCE),
-        SUM("sum", "double"),
-        GEO_CENTROID("geo_centroid", "geo_point"),
-        GEO_BOUNDS("geo_bounds", "geo_shape"),
+        SUM("sum", DOUBLE),
+        GEO_CENTROID("geo_centroid", GEO_POINT),
+        GEO_BOUNDS("geo_bounds", GEO_SHAPE),
         SCRIPTED_METRIC("scripted_metric", DYNAMIC),
         WEIGHTED_AVG("weighted_avg", DYNAMIC),
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC),
-        PERCENTILES("percentiles", "double");
+        PERCENTILES("percentiles", DOUBLE);
 
         private final String aggregationType;
         private final String targetMapping;
@@ -72,8 +125,17 @@ public final class Aggregations {
         .map(AggregationType::name)
         .collect(Collectors.toSet());
 
+    private static Set<String> aggregationsNotSupported = UNSUPPORTED_AGGS.stream()
+        .map(agg -> agg.toUpperCase(Locale.ROOT))
+        .collect(Collectors.toSet());
+
     public static boolean isSupportedByTransform(String aggregationType) {
         return aggregationSupported.contains(aggregationType.toUpperCase(Locale.ROOT));
+    }
+
+    // only for testing
+    static boolean isUnSupportedByTransform(String aggregationType) {
+        return aggregationsNotSupported.contains(aggregationType.toUpperCase(Locale.ROOT));
     }
 
     public static boolean isDynamicMapping(String targetMapping) {
@@ -82,7 +144,16 @@ public final class Aggregations {
 
     public static String resolveTargetMapping(String aggregationType, String sourceType) {
         AggregationType agg = AggregationType.valueOf(aggregationType.toUpperCase(Locale.ROOT));
-        return agg.getTargetMapping().equals(SOURCE) ? sourceType : agg.getTargetMapping();
+
+        if (agg.getTargetMapping().equals(SOURCE)) {
+            // scaled float requires an additional parameter "scaling_factor", which we do not know, therefore we fallback to float
+            if (sourceType.equals(SCALED_FLOAT)) {
+                return FLOAT;
+            }
+            return sourceType;
+        }
+
+        return agg.getTargetMapping();
     }
 
     public static Map<String, String> getAggregationOutputTypes(AggregationBuilder agg) {

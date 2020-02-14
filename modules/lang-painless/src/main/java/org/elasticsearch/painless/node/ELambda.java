@@ -166,9 +166,7 @@ public final class ELambda extends AExpression implements ILambda {
         block.analyze(scriptRoot, lambdaScope);
         captures = new ArrayList<>(lambdaScope.getCaptures());
 
-        methodEscape = block.methodEscape;
-
-        if (methodEscape == false) {
+        if (block.methodEscape == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
         }
 
@@ -186,7 +184,7 @@ public final class ELambda extends AExpression implements ILambda {
 
         // desugar lambda body into a synthetic method
         name = scriptRoot.getNextSyntheticName("lambda");
-        scriptRoot.getFunctionTable().addFunction(name, returnType, this.typeParameters, true);
+        scriptRoot.getFunctionTable().addFunction(name, returnType, this.typeParameters, true, true);
 
         // setup method reference to synthetic method
         if (expected == null) {
@@ -212,8 +210,8 @@ public final class ELambda extends AExpression implements ILambda {
         functionNode.setReturnType(returnType);
         functionNode.getTypeParameters().addAll(typeParameters);
         functionNode.getParameterNames().addAll(parameterNames);
+        functionNode.setStatic(true);
         functionNode.setSynthetic(true);
-        functionNode.setMethodEscape(methodEscape);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 
         classNode.addFunctionNode(functionNode);

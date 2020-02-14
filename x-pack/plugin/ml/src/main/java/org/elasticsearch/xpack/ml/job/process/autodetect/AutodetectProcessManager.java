@@ -441,7 +441,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
         ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-            ElasticsearchMappings::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+            AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
     }
 
     private boolean createProcessAndSetRunning(ProcessContext processContext,

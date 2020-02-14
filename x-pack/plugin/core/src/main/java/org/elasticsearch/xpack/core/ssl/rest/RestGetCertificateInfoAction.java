@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ssl.rest;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -30,9 +28,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetCertificateInfoAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetCertificateInfoAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -40,7 +35,7 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(GET, "/_ssl/certificates", GET, "/_xpack/ssl/certificates", deprecationLogger));
+        return singletonList(new ReplacedRoute(GET, "/_ssl/certificates", GET, "/_xpack/ssl/certificates"));
     }
 
     @Override

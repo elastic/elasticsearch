@@ -6,8 +6,6 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -23,8 +21,6 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteLicenseAction extends XPackRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestDeleteLicenseAction.class));
-
     RestDeleteLicenseAction() {}
 
     @Override
@@ -34,7 +30,7 @@ public class RestDeleteLicenseAction extends XPackRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(DELETE, "/_license", DELETE, URI_BASE + "/license", deprecationLogger));
+        return singletonList(new ReplacedRoute(DELETE, "/_license", DELETE, URI_BASE + "/license"));
     }
 
     @Override

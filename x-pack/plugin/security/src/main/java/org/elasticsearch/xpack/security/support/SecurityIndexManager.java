@@ -66,7 +66,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
@@ -85,7 +84,7 @@ public class SecurityIndexManager implements ClusterStateListener {
     public static final String SECURITY_MAIN_TEMPLATE_7 = "security-index-template-7";
     public static final String SECURITY_TOKENS_TEMPLATE_7 = "security-tokens-index-template-7";
     public static final String SECURITY_VERSION_STRING = "security-version";
-    public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
+    public static final String TEMPLATE_VERSION_VARIABLE = "security.template.version";
 
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 
@@ -434,7 +433,7 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private static byte[] readTemplateAsBytes(String templateName) {
         return TemplateUtils.loadTemplate("/" + templateName + ".json", Version.CURRENT.toString(),
-                SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
+                SecurityIndexManager.TEMPLATE_VERSION_VARIABLE).getBytes(StandardCharsets.UTF_8);
     }
 
     private static Tuple<String, Settings> parseMappingAndSettingsFromTemplateBytes(byte[] template) throws IOException {

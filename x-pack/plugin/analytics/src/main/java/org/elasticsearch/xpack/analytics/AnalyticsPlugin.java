@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardina
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
+import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
+import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
@@ -40,8 +42,9 @@ import static java.util.Collections.singletonList;
 
 public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugin, MapperPlugin {
 
-    // TODO this should probably become more structured once Analytics plugin has more than just one agg
+    // TODO this should probably become more structured
     public static AtomicLong cumulativeCardUsage = new AtomicLong(0);
+    public static AtomicLong topMetricsUsage = new AtomicLong(0);
     private final boolean transportClientMode;
 
     public AnalyticsPlugin(Settings settings) {
@@ -67,12 +70,17 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
-                StringStatsAggregationBuilder::parse).addResultReader(InternalStringStats::new),
+                StringStatsAggregationBuilder.PARSER).addResultReader(InternalStringStats::new),
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
                 (ContextParser<String, AggregationBuilder>) (p, c) -> BoxplotAggregationBuilder.parse(c, p))
-                .addResultReader(InternalBoxplot::new)
+                .addResultReader(InternalBoxplot::new),
+            new AggregationSpec(
+                TopMetricsAggregationBuilder.NAME,
+                TopMetricsAggregationBuilder::new,
+                track(TopMetricsAggregationBuilder.PARSER, topMetricsUsage))
+                .addResultReader(InternalTopMetrics::new)
         );
     }
 
@@ -97,5 +105,17 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, new HistogramFieldMapper.TypeParser());
+    }
+
+    /**
+     * Track successful parsing.
+     */
+    private static <T> ContextParser<String, T> track(ContextParser<String, T> realParser, AtomicLong usage) {
+        return (parser, name) -> {
+            T value = realParser.parse(parser, name);
+            // Intentionally doesn't count unless the parser returns cleanly.
+            usage.addAndGet(1);
+            return value;
+        };
     }
 }

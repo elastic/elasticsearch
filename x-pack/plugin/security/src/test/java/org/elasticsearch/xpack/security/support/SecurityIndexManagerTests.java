@@ -19,10 +19,10 @@ import java.util.function.Supplier;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
@@ -61,16 +61,16 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_VARIABLE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class SecurityIndexManagerTests extends ESTestCase {
 
@@ -444,7 +444,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private static String loadTemplate(String templateName) {
         final String resource = "/" + templateName + ".json";
-        return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN);
+        return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), TEMPLATE_VERSION_VARIABLE);
     }
 
     public void testMappingVersionMatching() throws IOException {
@@ -535,7 +535,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private static IndexMetaData.Builder createIndexMetadata(String indexName, String templateString) throws IOException {
         String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(),
-            SecurityIndexManager.TEMPLATE_VERSION_PATTERN);
+            SecurityIndexManager.TEMPLATE_VERSION_VARIABLE);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
         IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
@@ -574,7 +574,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private static IndexTemplateMetaData.Builder getIndexTemplateMetaData(String templateName, String templateString) throws IOException {
 
         String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(),
-            SecurityIndexManager.TEMPLATE_VERSION_PATTERN);
+            SecurityIndexManager.TEMPLATE_VERSION_VARIABLE);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(templateName)

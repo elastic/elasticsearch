@@ -37,9 +37,8 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(GET, "/_migration/deprecations", GET, "/_xpack/migration/deprecations", deprecationLogger),
-            new ReplacedRoute(
-                GET, "/{index}/_migration/deprecations", GET, "/{index}/_xpack/migration/deprecations", deprecationLogger)));
+            new ReplacedRoute(GET, "/_migration/deprecations", GET, "/_xpack/migration/deprecations"),
+            new ReplacedRoute(GET, "/{index}/_migration/deprecations", GET, "/{index}/_xpack/migration/deprecations")));
     }
 
     @Override

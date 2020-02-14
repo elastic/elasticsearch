@@ -673,3 +673,9 @@ which you can use to measure the performance impact. It comes with a set of
 default benchmarks that we also
 https://elasticsearch-benchmarks.elastic.co/[run every night]. To get started,
 please see https://esrally.readthedocs.io/en/stable/[Rally's documentation].
+
+== Test doc builds
+
+The Elasticsearch docs are in AsciiDoc format. You can test and build the docs
+locally using the Elasticsearch documentation build process. See
+https://github.com/elastic/docs.

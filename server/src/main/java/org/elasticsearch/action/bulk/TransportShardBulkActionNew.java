@@ -147,7 +147,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
     private static class ShardState {
 
-        private static final int MAX_QUEUED = 800;
+        private static final int MAX_QUEUED = 400;
 
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
@@ -301,7 +301,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                     shardState.writeThreadsSemaphore.release();
 
                     // TODO: Delaying this until now means a refresh could block an finish call for a while
-                    if (shardState.postIndexedQueue.isEmpty() == false || shardState.postIndexedQueue.isEmpty() == false) {
+                    if (shardState.preIndexedQueue.isEmpty() == false || shardState.postIndexedQueue.isEmpty() == false) {
                         maybeSchedule(indexShard, shardState);
                     }
                 }
@@ -335,6 +335,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                         opCompleted = false;
                     }
                 } catch (Exception e) {
+                    // TODO: Op Completed?
                     shardOp.getListener().onFailure(e);
                 } finally {
                     if (opCompleted) {

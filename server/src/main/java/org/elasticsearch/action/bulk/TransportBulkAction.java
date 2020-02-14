@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.HdrHistogram.AtomicHistogram;
 import org.HdrHistogram.Recorder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -110,7 +109,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
 
-    private final AtomicHistogram total = new AtomicHistogram(1, TimeUnit.SECONDS.toMicros(60), 3);
     private final Recorder recorder = new Recorder(1, TimeUnit.SECONDS.toMicros(60),  3);
 
     @Inject
@@ -530,7 +528,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     private void finishHim() {
                         long nanosTook = relativeTime() - startTimeNanos;
                         long microsTook = TimeUnit.NANOSECONDS.toMicros(nanosTook);
-                        total.recordValue(microsTook);
                         recorder.recordValue(microsTook);
                         listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
                             TimeUnit.NANOSECONDS.toMillis(nanosTook)));

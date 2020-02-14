@@ -23,5 +23,5 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(path: ':modules:reindex', configuration: 'runtime')
+  compile project(path: ':modules:reindex', configuration: 'runtime')
 }

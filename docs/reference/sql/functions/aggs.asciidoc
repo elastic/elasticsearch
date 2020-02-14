@@ -25,9 +25,7 @@ AVG(numeric_field) <1>
 
 *Output*: `double` numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Arithmetic_mean[Average] (arithmetic mean) of input values.
+.Description: Returns the https://en.wikipedia.org/wiki/Arithmetic_mean[Average] (arithmetic mean) of input values.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -49,9 +47,7 @@ COUNT(expression) <1>
 
 *Output*: numeric value
 
-.Description:
-
-Returns the total number (count) of input values.
+.Description: Returns the total number (count) of input values.
 
 In case of `COUNT(*)` or `COUNT(<literal>)`, _all_ values are considered (including `null` or missing ones).
 
@@ -79,9 +75,7 @@ COUNT(ALL field_name) <1>
 
 *Output*: numeric value
 
-.Description:
-
-Returns the total number (count) of all _non-null_ input values. `COUNT(<field_name>)` and `COUNT(ALL <field_name>)` are equivalent.
+.Description: Returns the total number (count) of all _non-null_ input values. `COUNT(<field_name>)` and `COUNT(ALL <field_name>)` are equivalent.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -104,9 +98,7 @@ COUNT(DISTINCT field_name) <1>
 
 *Output*: numeric value
 
-.Description:
-
-Returns the total number of _distinct non-null_ values in input values.
+.Description: Returns the total number of _distinct non-null_ values in input values.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -131,9 +123,7 @@ FIRST(
 
 *Output*: same type as the input
 
-.Description:
-
-Returns the first **non-NULL** value (if such exists) of the `field_name` input column sorted by
+.Description: Returns the first **non-NULL** value (if such exists) of the `field_name` input column sorted by
 the `ordering_field_name` column. If `ordering_field_name` is not provided, only the `field_name`
 column is used for the sorting. E.g.:
 
@@ -228,10 +218,8 @@ LAST(
 
 *Output*: same type as the input
 
-.Description:
-
-It's the inverse of <<sql-functions-aggs-first>>. Returns the last **non-NULL** value (if such exists) of the
-`field_name`input column sorted descending by the `ordering_field_name` column. If `ordering_field_name` is not
+.Description: It's the inverse of <<sql-functions-aggs-first>>. Returns the last **non-NULL** value (if such exists) of the
+`field_name` input column sorted descending by the `ordering_field_name` column. If `ordering_field_name` is not
 provided, only the `field_name` column is used for the sorting. E.g.:
 
 [cols="<,<"]
@@ -322,9 +310,7 @@ MAX(field_name) <1>
 
 *Output*: same type as the input
 
-.Description:
-
-Returns the maximum value across input values in the field `field_name`.
+.Description: Returns the maximum value across input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -350,9 +336,7 @@ MIN(field_name) <1>
 
 *Output*: same type as the input
 
-.Description:
-
-Returns the minimum value across input values in the field `field_name`.
+.Description: Returns the minimum value across input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -378,9 +362,7 @@ SUM(field_name) <1>
 
 *Output*: `bigint` for integer input, `double` for floating points
 
-.Description:
-
-Returns the sum of input values in the field `field_name`.
+.Description: Returns the sum of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

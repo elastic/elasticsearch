@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges
 
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -28,20 +29,37 @@ import java.util.stream.Collectors;
  */
 public class UserPrivilegeResolver {
 
-    public class UserPrivileges {
+    public static class UserPrivileges {
         public final String principal;
         public final boolean hasAccess;
         public final Set<String> groups;
 
         public UserPrivileges(String principal, boolean hasAccess, Set<String> groups) {
-            this.principal = principal;
+            this.principal = Objects.requireNonNull(principal, "principal may not be null");
+            if (hasAccess == false && groups.isEmpty() == false) {
+                throw new IllegalArgumentException("a user without access ([" + hasAccess + "]) may not have groups ([" + groups + "])");
+            }
             this.hasAccess = hasAccess;
-            this.groups = groups;
+            this.groups = Set.copyOf(Objects.requireNonNull(groups, "groups may not br null"));
         }
 
         @Override
         public String toString() {
-            return getClass().getSimpleName() + "{" + principal + ", " + hasAccess + ", " + groups + "}";
+            StringBuilder str = new StringBuilder()
+                .append(getClass().getSimpleName())
+                .append("{")
+                .append(principal)
+                .append(", ")
+                .append(hasAccess);
+            if (hasAccess) {
+                str.append(", ").append(groups);
+            }
+            str.append("}");
+            return str.toString();
+        }
+
+        public static UserPrivileges noAccess(String principal) {
+            return new UserPrivileges(principal, false, Set.of());
         }
     }
 
@@ -60,7 +78,7 @@ public class UserPrivilegeResolver {
      */
     public void resolve(ServiceProviderPrivileges service, ActionListener<UserPrivileges> listener) {
         HasPrivilegesRequest request = new HasPrivilegesRequest();
-        final String username = securityContext.getUser().principal();
+        final String username = securityContext.requireUser().principal();
         request.username(username);
         request.applicationPrivileges(buildResourcePrivilege(service));
         client.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(
@@ -78,9 +96,12 @@ public class UserPrivilegeResolver {
     private UserPrivileges buildResult(HasPrivilegesResponse response, ServiceProviderPrivileges service) {
         final Set<ResourcePrivileges> appPrivileges = response.getApplicationPrivileges().get(service.getApplicationName());
         if (appPrivileges == null || appPrivileges.isEmpty()) {
-            return new UserPrivileges(response.getUsername(), false, Set.of());
+            return UserPrivileges.noAccess(response.getUsername());
         }
         final boolean hasAccess = checkAccess(appPrivileges, service.getLoginAction(), service.getResource());
+        if (hasAccess == false) {
+            return UserPrivileges.noAccess(response.getUsername());
+        }
         final Set<String> groups = service.getGroupActions().entrySet().stream()
             .filter(entry -> checkAccess(appPrivileges, entry.getValue(), service.getResource()))
             .map(Map.Entry::getKey)

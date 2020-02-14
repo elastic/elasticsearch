@@ -149,7 +149,7 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         assertThat(privileges.groups, containsInAnyOrder("operator", "monitor"));
     }
 
-    public void testResolveGroupAccessButNoSsoPrivilege() throws Exception {
+    public void testResolveWithNoSsoPrivilegeReturnsEmptyGroupAccess() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final String app = randomAlphaOfLengthBetween(3, 8);
         final String resource = "cluster:" + MessageDigests.toHexString(randomByteArrayOfLength(16));
@@ -166,26 +166,6 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(false));
-        assertThat(privileges.groups, containsInAnyOrder("viewer"));
-    }
-
-    public void testResolveSsoWithNoGroups() throws Exception {
-        final String username = randomAlphaOfLengthBetween(4, 12);
-        final String app = randomAlphaOfLengthBetween(3, 8);
-        final String resource = "cluster:" + MessageDigests.toHexString(randomByteArrayOfLength(16));
-        final String loginAction = "action:idp:sso";
-        final String viewerAction = "role:cluster:view";
-        final String adminAction = "role:cluster:admin";
-
-        setupUser(username);
-        setupHasPrivileges(username, app,
-            access(resource, loginAction, true), access(resource, viewerAction, false), access(resource, adminAction, false));
-
-        final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        resolver.resolve(service(app, resource, loginAction, Map.of("viewer", viewerAction, "admin", adminAction)), future);
-        final UserPrivilegeResolver.UserPrivileges privileges = future.get();
-        assertThat(privileges.principal, equalTo(username));
-        assertThat(privileges.hasAccess, equalTo(true));
         assertThat(privileges.groups, emptyIterable());
     }
 

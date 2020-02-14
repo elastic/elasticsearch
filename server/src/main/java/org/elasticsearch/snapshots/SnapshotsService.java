@@ -1390,26 +1390,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public Version minCompatibleVersion(ClusterState state, String repositoryName, RepositoryData repositoryData,
                                         @Nullable SnapshotId excluded) {
-        final Version minCompatVersion = state.nodes().getMinNodeVersion();
+        Version minCompatVersion = state.nodes().getMinNodeVersion();
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        // We don't have shard generations so we must fall back to loading versions from the SnapshotInfo blobs potentially
         final Repository repository = repositoriesService.repository(repositoryName);
-        return snapshotIds.stream().filter(snapshotId -> snapshotId.equals(excluded) == false).map(
-            snapshotId -> {
-                final Version known = repositoryData.getVersion(snapshotId);
-                if (known == null) {
-                    assert repositoryData.shardGenerations().totalShards() == 0 :
-                        "Saw shard generations [" + repositoryData.shardGenerations() +
-                            "] but did not have versions tracked for snapshot [" + snapshotId + "]";
-                    try {
-                        return repository.getSnapshotInfo(snapshotId).version();
-                    } catch (SnapshotMissingException e) {
-                        logger.warn("Failed to load snapshot metadata", e);
-                        return minCompatVersion;
+        for (SnapshotId snapshotId :
+            snapshotIds.stream().filter(snapshotId -> snapshotId.equals(excluded) == false).collect(Collectors.toList())) {
+            final Version known = repositoryData.getVersion(snapshotId);
+            // If we don't have the version cached in the repository data yet we load it from the snapshot info blobs
+            if (known == null) {
+                assert repositoryData.shardGenerations().totalShards() == 0 :
+                    "Saw shard generations [" + repositoryData.shardGenerations() +
+                        "] but did not have versions tracked for snapshot [" + snapshotId + "]";
+                try {
+                    final Version foundVersion = repository.getSnapshotInfo(snapshotId).version();
+                    if (foundVersion.before(SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                        // We don't really care about the exact version if its before 7.6 as the 7.5 metadata is the oldest we are able
+                        // to write out so we stop iterating here and just use 7.5.0 as a placeholder.
+                        return Version.V_7_5_0;
                     }
+                    minCompatVersion = minCompatVersion.before(foundVersion) ? minCompatVersion : foundVersion;
+                } catch (SnapshotMissingException e) {
+                    logger.warn("Failed to load snapshot metadata, assuming repository is in old format", e);
+                    return Version.V_7_5_0;
                 }
-                return known;
-            }).filter(inRepo -> inRepo.onOrAfter(minCompatVersion) == false).min(Version::compareTo).orElse(minCompatVersion);
+            } else {
+                minCompatVersion = minCompatVersion.before(known) ? minCompatVersion : known;
+            }
+        }
+        return minCompatVersion;
     }
 
     /**

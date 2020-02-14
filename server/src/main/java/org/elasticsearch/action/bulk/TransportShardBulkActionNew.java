@@ -381,6 +381,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                     }
                 }
 
+                meanMetric.get().inc(completedOps.size());
                 shardState.fsyncScheduleSemaphore.release();
 
                 finishOperations(indexShard, maxLocation, completedOps, completedOpsWaitForRefresh, completedOpsForceRefresh);

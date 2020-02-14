@@ -292,6 +292,12 @@ public class Docker {
             return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
         }
 
+        /**
+         * Overrides {@link Shell#run(String)} to attempt to collect Docker container
+         * logs when a command fails to execute successfully.
+         * @param script the command to run
+         * @return the command's output
+         */
         @Override
         public Result run(String script) {
             try {
@@ -299,12 +305,20 @@ public class Docker {
             } catch (ShellException e) {
                 try {
                     final Shell.Result dockerLogs = getContainerLogs();
-                    throw new ShellException(
-                        e.getMessage() + "\n\nContainer stdout: " + dockerLogs.stdout + "\n\nContainer stderr: " + dockerLogs.stderr
+                    logger.error(
+                        "Command [{}] failed.\n\nContainer stdout: [{}]\n\nContainer stderr: [{}]",
+                        script,
+                        dockerLogs.stdout,
+                        dockerLogs.stderr
                     );
-                } catch (ShellException logsException) {
-                    throw new ShellException("Command failed, and couldn't get docker logs", logsException);
+                } catch (ShellException shellException) {
+                    logger.error(
+                        "Command [{}] failed.\n\nTried to dump container logs but that failed too: [{}]",
+                        script,
+                        shellException.getMessage()
+                    );
                 }
+                throw e;
             }
         }
     }

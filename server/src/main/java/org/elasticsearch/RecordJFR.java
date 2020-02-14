@@ -27,12 +27,14 @@ import jdk.jfr.StackTrace;
 import org.HdrHistogram.Histogram;
 import org.HdrHistogram.Recorder;
 import org.HdrHistogram.SynchronizedHistogram;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+@SuppressForbidden(reason = "JFR")
 public class RecordJFR {
 
     public static synchronized void recordHistogram(String name, Histogram histogram, HistogramEvent event) {
@@ -107,44 +109,57 @@ public class RecordJFR {
         }, TimeValue.timeValueSeconds(10), ThreadPool.Names.GENERIC);
     }
 
+    @SuppressForbidden(reason = "JFR")
     @StackTrace(false)
     public static class HistogramEvent extends Event {
 
+        @SuppressForbidden(reason = "JFR")
         @Label("Name")
         public String name;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("10%")
         public long _10;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("50%")
         public long _50;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("90%")
         public long _90;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("99%")
         public long _99;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("99.9%")
         public long _99_9;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("99.99%")
         public long _99_99;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("99.999%")
         public long _99_999;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("Max")
         public long max;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("Mean")
         public double mean;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("Total")
         public long total;
 
     }
 
+    @SuppressForbidden(reason = "JFR")
     @Name(IntervalHistogramEvent.NAME)
     @Label("Interval Histogram")
     @Category("Elasticsearch")
@@ -154,6 +169,7 @@ public class RecordJFR {
 
     }
 
+    @SuppressForbidden(reason = "JFR")
     @Name(TotalHistogramEvent.NAME)
     @Label("Total Histogram")
     @Category("Elasticsearch")
@@ -164,6 +180,7 @@ public class RecordJFR {
 
     }
 
+    @SuppressForbidden(reason = "JFR")
     @Name(MeanMetricEvent.NAME)
     @Label("Mean Metric")
     @Category("Elasticsearch")
@@ -172,15 +189,19 @@ public class RecordJFR {
 
         static final String NAME = "org.elasticsearch.jfr.MeanMetricEvent";
 
+        @SuppressForbidden(reason = "JFR")
         @Label("Name")
         public String name;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("Mean")
         public double mean;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("Counter")
         public long counter;
 
+        @SuppressForbidden(reason = "JFR")
         @Label("Sum")
         public long sum;
 

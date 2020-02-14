@@ -84,10 +84,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -99,14 +99,15 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
     public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME, BulkShardResponse::new);
-    private static final long MAX_INTERVAL_BETWEEN_FSYNC = TimeUnit.MILLISECONDS.toNanos(10);
+    private static final long MAX_INTERVAL_BETWEEN_FINISH = TimeUnit.MILLISECONDS.toNanos(10);
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkActionNew.class);
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
-    private final ConcurrentHashMap<ShardId, ShardQueue> shardQueues = new ConcurrentHashMap<>();
-    private volatile AtomicLong nextFsyncNanos = new AtomicLong(System.nanoTime() - 1);
+    private final ConcurrentHashMap<ShardId, ShardState> shardQueues = new ConcurrentHashMap<>();
+
+    private final int maxWriteThreads;
 
     private final AtomicReference<MeanMetric> meanMetric = new AtomicReference<>(new MeanMetric());
     private final Recorder indexRecorder = new Recorder(1, TimeUnit.SECONDS.toMicros(60),  3);
@@ -117,6 +118,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                                        MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false);
+        this.maxWriteThreads = threadPool.info(ThreadPool.Names.WRITE).getMax();
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
         RecordJFR.scheduleMeanSample("TransportShardBulkActionNew#NumberOfOps", threadPool, meanMetric);
@@ -133,48 +135,58 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         return new BulkShardResponse(in);
     }
 
-    private ShardQueue getOrCreateShardQueue(ShardId shardId) {
-        ShardQueue queue = shardQueues.get(shardId);
+    private ShardState getOrCreateShardQueue(ShardId shardId) {
+        ShardState queue = shardQueues.get(shardId);
         if (queue == null) {
-            ShardQueue createdQueue = new ShardQueue();
-            ShardQueue previous = shardQueues.putIfAbsent(shardId, createdQueue);
+            ShardState createdQueue = new ShardState(maxWriteThreads);
+            ShardState previous = shardQueues.putIfAbsent(shardId, createdQueue);
             queue = Objects.requireNonNullElse(previous, createdQueue);
         }
         return queue;
     }
 
-    private static class ShardQueue {
+    private static class ShardState {
 
         private static final int MAX_QUEUED = 800;
-        private static final int MAX_BYTES_QUEUED = 1024 * 1024 * 64;
 
         private final AtomicInteger pendingOps = new AtomicInteger(0);
-        private final ConcurrentLinkedQueue<ShardOp> shardQueue = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedQueue<ShardOp> postIndexedQueue = new ConcurrentLinkedQueue<>();
+        private final Semaphore writeThreadsSemaphore;
+        private final Semaphore fsyncScheduleSemaphore;
+        private volatile long nextForceFinishNanos = System.nanoTime() - 1;
 
-        private boolean attemptEnqueue(ShardOp shardOp, boolean allowReject) {
+        private ShardState(int maxWriteThreads) {
+            writeThreadsSemaphore = new Semaphore(maxWriteThreads);
+            fsyncScheduleSemaphore = new Semaphore(1);
+        }
+
+        private final AtomicInteger threadsIndexing = new AtomicInteger();
+
+        private boolean attemptPreIndexedEnqueue(ShardOp shardOp, boolean allowReject) {
             if (allowReject && pendingOps.get() >= MAX_QUEUED) {
                 return false;
             } else {
                 pendingOps.incrementAndGet();
-                shardQueue.add(shardOp);
+                preIndexedQueue.add(shardOp);
                 return true;
             }
         }
 
-        private ShardOp poll() {
-            ShardOp operation = shardQueue.poll();
+        private ShardOp pollPreIndexed() {
+            ShardOp operation = preIndexedQueue.poll();
             if (operation != null) {
                 pendingOps.getAndDecrement();
             }
             return operation;
         }
 
-        private boolean remove(ShardOp shardOp) {
-            boolean removed = shardQueue.remove(shardOp);
-            if (removed) {
-                pendingOps.getAndDecrement();
-            }
-            return removed;
+        private void postIndexedEnqueue(ShardOp shardOp) {
+            postIndexedQueue.add(shardOp);
+        }
+
+        private ShardOp pollPostIndexed() {
+            return postIndexedQueue.poll();
         }
     }
 
@@ -183,7 +195,6 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         private final IndexShard indexShard;
         private final BulkPrimaryExecutionContext context;
         private final ShardOpListener listener;
-        private final long bytesToIndex;
 
         public ShardOp(BulkShardRequest request, IndexShard indexShard,
                        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
@@ -191,7 +202,6 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
             this.indexShard = indexShard;
             this.context = new BulkPrimaryExecutionContext(request, indexShard);
             this.listener = new ShardOpListener(request, context, listener);
-            this.bytesToIndex = calculateBytes(request);
         }
 
         public Translog.Location locationToSync() {
@@ -200,27 +210,6 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
         public ActionListener<Void> getListener() {
             return listener;
-        }
-
-        public long getBytesToIndex() {
-            return bytesToIndex;
-        }
-
-        private long calculateBytes(BulkShardRequest request) {
-            long totalBytes = 0;
-
-            for (BulkItemRequest item : request.items()) {
-                DocWriteRequest<?> writeRequest = item.request();
-                if (writeRequest.opType() == DocWriteRequest.OpType.INDEX) {
-                    IndexRequest indexRequest = (IndexRequest) writeRequest;
-                    totalBytes += indexRequest.source().length();
-                } else {
-                    // TODO: Determine this value for Updates and Deletes
-                    totalBytes += 0;
-                }
-            }
-
-            return totalBytes;
         }
 
         private static class ShardOpListener implements ActionListener<Void> {
@@ -274,8 +263,16 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
     private void enqueueAndSchedule(ShardOp shardOp, boolean allowReject) {
         ShardId shardId = shardOp.request.shardId();
-        ShardQueue shardQueue = getOrCreateShardQueue(shardId);
-        if (shardQueue.attemptEnqueue(shardOp, allowReject)) {
+        ShardState shardState = getOrCreateShardQueue(shardId);
+        if (shardState.attemptPreIndexedEnqueue(shardOp, allowReject)) {
+            maybeSchedule(shardOp.indexShard, shardState);
+        } else {
+            throw new EsRejectedExecutionException("rejected execution of shard operation", false);
+        }
+    }
+
+    private void maybeSchedule(IndexShard indexShard, ShardState shardState) {
+        if (shardState.writeThreadsSemaphore.tryAcquire()) {
             threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
                 @Override
@@ -285,112 +282,119 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                 }
 
                 @Override
-                protected void doRun() throws Exception {
-                    performShardOperations(shardOp.indexShard);
+                protected void doRun() {
+                    performShardOperations(indexShard);
                 }
 
                 @Override
                 public boolean isForceExecution() {
-                    return allowReject == false;
+                    return false;
                 }
 
                 @Override
                 public void onRejection(Exception e) {
-                    assert allowReject;
-                    if (shardQueue.remove(shardOp)) {
-                        shardOp.getListener().onFailure(e);
+                    assert false;
+                }
+
+                @Override
+                public void onAfter() {
+                    shardState.writeThreadsSemaphore.release();
+
+                    // TODO: Delaying this until now means a refresh could block an finish call for a while
+                    if (shardState.postIndexedQueue.isEmpty() == false || shardState.postIndexedQueue.isEmpty() == false) {
+                        maybeSchedule(indexShard, shardState);
                     }
                 }
             });
-        } else {
-            throw new EsRejectedExecutionException("rejected execution of shard operation", false);
         }
     }
 
-    private static final int MAX_PERFORM_OPS = 200;
+    // TODO: Consider some type of time slice for indexing
+    private static final int MAX_PERFORM_OPS = 10;
 
     private void performShardOperations(IndexShard indexShard) {
         ShardId shardId = indexShard.shardId();
-        ShardQueue shardQueue = shardQueues.get(shardId);
+        ShardState shardState = shardQueues.get(shardId);
 
-        ArrayList<ShardOp> completedOps = new ArrayList<>();
-        ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
-        ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
+        shardState.threadsIndexing.getAndIncrement();
+        try {
+            int opsIndexed = 0;
+            Translog.Location maxLocation = null;
+            ShardOp shardOp;
+            while (++opsIndexed <= MAX_PERFORM_OPS && (shardOp = shardState.pollPreIndexed()) != null) {
+                boolean opCompleted = true;
+                try {
+                    if (performShardOperation(shardOp)) {
+                        Translog.Location location = shardOp.context.getLocationToSync();
+                        if (maxLocation == null) {
+                            maxLocation = location;
+                        } else if (location != null && location.compareTo(maxLocation) > 0) {
+                            maxLocation = location;
+                        }
+                    } else {
+                        opCompleted = false;
+                    }
+                } catch (Exception e) {
+                    shardOp.getListener().onFailure(e);
+                } finally {
+                    if (opCompleted) {
+                        shardState.postIndexedEnqueue(shardOp);
+                    }
+                }
+            }
 
-        int i = 0;
-        Translog.Location maxLocation = null;
-        ShardOp shardOp;
-        while (++i <= MAX_PERFORM_OPS && (shardOp = shardQueue.poll()) != null) {
-            boolean opCompleted = true;
-            try {
-                if (performShardOperation(shardOp)) {
-                    Translog.Location location = shardOp.context.getLocationToSync();
+            if (opsIndexed > 0) {
+                indexShard.afterWriteOperation();
+            }
+        } finally {
+            shardState.threadsIndexing.decrementAndGet();
+            maybeFinishOperations(indexShard, shardState);
+        }
+    }
+
+    private void maybeFinishOperations(IndexShard indexShard, ShardState shardState) {
+        long currentNanos = System.nanoTime();
+        if (shardState.threadsIndexing.get() == 0 || (currentNanos - shardState.nextForceFinishNanos >= 0)) {
+            if (shardState.fsyncScheduleSemaphore.tryAcquire()) {
+                shardState.nextForceFinishNanos = currentNanos + MAX_INTERVAL_BETWEEN_FINISH;
+
+                ArrayList<ShardOp> completedOps = new ArrayList<>();
+                ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
+                ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
+                Translog.Location maxLocation = null;
+
+                ShardOp indexedOp;
+                while ((indexedOp = shardState.pollPostIndexed()) != null) {
+                    completedOps.add(indexedOp);
+
+                    Translog.Location location = indexedOp.context.getLocationToSync();
                     if (maxLocation == null) {
                         maxLocation = location;
                     } else if (location != null && location.compareTo(maxLocation) > 0) {
                         maxLocation = location;
                     }
-                } else {
-                    opCompleted = false;
-                }
-            } catch (Exception e) {
-                shardOp.getListener().onFailure(e);
-            } finally {
-                if (opCompleted) {
-                    completedOps.add(shardOp);
-                    if (shardOp.request.getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
-                        completedOpsWaitForRefresh.add(shardOp);
-                    } else if (shardOp.request.getRefreshPolicy() == WriteRequest.RefreshPolicy.IMMEDIATE) {
-                        completedOpsForceRefresh.add(shardOp);
+
+                    if (indexedOp.request.getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
+                        completedOpsWaitForRefresh.add(indexedOp);
+                    } else if (indexedOp.request.getRefreshPolicy() == WriteRequest.RefreshPolicy.IMMEDIATE) {
+                        completedOpsForceRefresh.add(indexedOp);
                     }
                 }
+
+                shardState.fsyncScheduleSemaphore.release();
+
+                finishOperations(indexShard, maxLocation, completedOps, completedOpsWaitForRefresh, completedOpsForceRefresh);
             }
-        }
-
-        if (completedOps.isEmpty()) {
-            return;
-        }
-
-        indexShard.afterWriteOperation();
-
-        long endNanos = System.nanoTime();
-        long nextFsync = nextFsyncNanos.get();
-        if (endNanos - nextFsync >= 0 && nextFsyncNanos.compareAndSet(nextFsync, endNanos + MAX_INTERVAL_BETWEEN_FSYNC)) {
-
         }
     }
 
-    private static class SyncState {
-
-        private volatile Translog.Location maxLocation;
-        private final ConcurrentLinkedQueue<ShardOp> completedOps = new ConcurrentLinkedQueue<>();
-        private final ConcurrentLinkedQueue<ShardOp> completedOpsWaitForRefresh = new ConcurrentLinkedQueue<>();
-        private final ConcurrentLinkedQueue<ShardOp> completedOpsForceRefresh = new ConcurrentLinkedQueue<>();
-
-    }
-
-    private void finishOperations(IndexShard indexShard, SyncState syncState) {
-        // TODO: Assume put in here
-        ArrayList<ShardOp> completedOps = new ArrayList<>();
-        ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
-        ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
-        Translog.Location maxLocation = syncState.maxLocation;
-        for (ShardOp shardOp : completedOps) {
-            if (shardOp.request.getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
-                completedOpsWaitForRefresh.add(shardOp);
-            } else if (shardOp.request.getRefreshPolicy() == WriteRequest.RefreshPolicy.IMMEDIATE) {
-                completedOpsForceRefresh.add(shardOp);
-            }
-        }
-
-
-
+    private void finishOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> completedOps,
+                                  ArrayList<ShardOp> completedOpsWaitForRefresh, ArrayList<ShardOp> completedOpsForceRefresh) {
         // TODO: Need to improve resiliency around error handling on failed syncs, refreshes, and listener
         //  calls
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
             if (maxLocation != null) {
                 try {
-                    long startNanos = System.nanoTime();
                     indexShard.sync(maxLocation, (ex) -> {
                         if (ex == null) {
                             for (ShardOp op : completedOps) {

@@ -33,16 +33,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
 
-    private static final ObjectParser<BoxplotAggregationBuilder, Void> PARSER;
-
+    public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, BoxplotAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(BoxplotAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new BoxplotAggregationBuilder(aggregationName), null);
     }
 
     private double compression = 100.0;

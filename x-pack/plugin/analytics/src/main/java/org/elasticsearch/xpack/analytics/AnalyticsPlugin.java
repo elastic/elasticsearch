@@ -68,7 +68,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
-                (ContextParser<String, AggregationBuilder>) (p, c) -> BoxplotAggregationBuilder.parse(c, p))
+                BoxplotAggregationBuilder.PARSER)
                 .addResultReader(InternalBoxplot::new)
         );
     }

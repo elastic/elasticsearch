@@ -40,8 +40,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -53,9 +51,9 @@ public class RestCatRecoveryAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cat/recovery"),
-            new Route(GET, "/_cat/recovery/{index}")));
+            new Route(GET, "/_cat/recovery/{index}"));
     }
 
     @Override

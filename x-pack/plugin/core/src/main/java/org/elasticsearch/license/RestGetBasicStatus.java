@@ -13,7 +13,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetBasicStatus extends BaseRestHandler {
@@ -22,7 +21,7 @@ public class RestGetBasicStatus extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_license/basic_status"));
+        return List.of(new Route(GET, "/_license/basic_status"));
     }
 
     @Override

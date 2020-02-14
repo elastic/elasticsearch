@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -25,9 +23,6 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteForecastAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestDeleteForecastAction.class));
-
     @Override
     public List<Route> routes() {
         return singletonList(
@@ -41,7 +36,7 @@ public class RestDeleteForecastAction extends BaseRestHandler {
             new ReplacedRoute(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
                 "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}",
                 DELETE, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}", deprecationLogger)
+                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}")
         );
     }
 

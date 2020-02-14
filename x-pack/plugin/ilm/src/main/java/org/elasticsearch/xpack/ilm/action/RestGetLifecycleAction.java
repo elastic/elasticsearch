@@ -15,17 +15,15 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_ilm/policy"),
-            new Route(GET, "/_ilm/policy/{name}")));
+            new Route(GET, "/_ilm/policy/{name}"));
     }
 
     @Override

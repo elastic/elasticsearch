@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -45,7 +46,6 @@ import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;

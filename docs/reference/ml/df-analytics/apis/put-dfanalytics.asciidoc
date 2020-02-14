@@ -152,7 +152,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
 {ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values to return. By default, it is zero and no feature importance
+importance] values per document to return. By default, it is zero and no feature importance
 calculation occurs.
 
 `analysis`.`classification`.`training_percent`::::

@@ -238,7 +238,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
 {ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature importance] 
-values to return. By default, it is zero and no feature importance calculation
+values per document to return. By default, it is zero and no feature importance calculation
 occurs.
 
 `analysis`.`regression`.`training_percent`::::

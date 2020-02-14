@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -16,6 +18,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -29,6 +33,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Utils to create an ML index with alias ready for rollover with a 6-digit suffix
  */
 public final class MlIndexAndAlias {
+
+    private static final Logger logger = LogManager.getLogger(AnomalyDetectorsIndex.class);
 
     // Visible for testing
     static final Comparator<String> INDEX_NAME_COMPARATOR = new Comparator<>() {

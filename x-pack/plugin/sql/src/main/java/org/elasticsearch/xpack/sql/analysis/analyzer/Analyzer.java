@@ -342,18 +342,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<Expression> newGroupings = new ArrayList<>();
                     AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
 
-                    final Holder<Boolean> updateResolved = new Holder<Boolean>(Boolean.FALSE);
-                    a.aggregates().forEach(e -> e.forEachUp(f -> {
-                        if (f instanceof Function == false && f.foldable() == false) {
-                            updateResolved.set(Boolean.TRUE);
-                        }
-                    }));
-                    if (updateResolved.get()) {
-                        var allFields = plan.inputSet().stream().map(NamedExpression.class::cast)
-                            .collect(toList());
-                        allFields.addAll(a.aggregates());
-                        resolved = Expressions.asAttributeMap(allFields);
-                    }
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
@@ -632,8 +620,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     maybeResolved.add(or.resolved() ? or : tryResolveExpression(or, child));
                 }
 
-                Stream<Order> referencesStream = maybeResolved.stream()
-                        .filter(Expression::resolved);
+                Stream<Order> referencesStream = maybeResolved.stream().filter(Expression::resolved);
 
                 // if there are any references in the output
                 // try and resolve them to the source in order to compare the source expressions
@@ -706,8 +693,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 Expression maybeResolved = tryResolveExpression(f.condition(), f.child());
 
                 AttributeSet resolvedRefs = new AttributeSet(maybeResolved.references().stream()
-                        .filter(Expression::resolved)
-                        .collect(toList()));
+                    .filter(Expression::resolved).collect(toList()));
 
                 AttributeSet missing = resolvedRefs.subtract(f.child().outputSet());
 
@@ -719,8 +705,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     // resolution failed and the failed expressions might contain resolution information so copy it over
                     if (!failedAttrs.isEmpty()) {
                         // transform the orders with the failed information
-                        Expression transformed = f.condition().transformUp(ua -> resolveMetadataToMessage(ua, failedAttrs, "filter"),
-                                UnresolvedAttribute.class);
+                        Expression
+                            transformed =
+                            f.condition().transformUp(ua -> resolveMetadataToMessage(ua, failedAttrs, "filter"), UnresolvedAttribute.class);
 
                         return f.condition().equals(transformed) ? f : new Filter(f.source(), f.child(), transformed);
                     }
@@ -730,6 +717,19 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
                 if (!maybeResolved.equals(f.condition())) {
                     return new Filter(f.source(), f.child(), maybeResolved);
+                }
+            }
+
+            // Try to resolve aggregates and groupings based on the child plan
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                LogicalPlan child = a.child();
+                List<Expression> newGroupings = new ArrayList<>(a.groupings().size());
+                a.groupings().forEach(e -> newGroupings.add(tryResolveExpression(e, child)));
+                List<NamedExpression> newAggregates = new ArrayList<>(a.aggregates().size());
+                a.aggregates().forEach(e -> newAggregates.add(tryResolveExpression(e, child)));
+                if (newAggregates.equals(a.aggregates()) == false || newGroupings.equals(a.groupings()) == false) {
+                    return new Aggregate(a.source(), child, newGroupings, newAggregates);
                 }
             }
 

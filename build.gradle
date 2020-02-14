@@ -18,6 +18,7 @@
  */
 
 
+import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
@@ -84,7 +85,7 @@ subprojects {
 
             Node developer = node.appendNode('developers').appendNode('developer')
             developer.appendNode('name', 'Elastic')
-            developer.appendNode('url', 'http://www.elastic.co')
+            developer.appendNode('url', 'https://www.elastic.co')
           }
         }
       }
@@ -512,7 +513,9 @@ gradle.projectsEvaluated {
 
 allprojects {
   tasks.register('resolveAllDependencies') {
-    dependsOn tasks.matching { it.name == "pullFixture" }
+    if (project.path.contains("fixture")) {
+      dependsOn tasks.withType(ComposePull)
+    }
     doLast {
       configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
     }

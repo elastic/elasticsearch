@@ -19,18 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ConditionNode;
+import org.elasticsearch.painless.ir.ForEachLoopNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a for-each loop and defers to subnodes depending on type.
@@ -54,21 +53,10 @@ public class SEach extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-
-        expression.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        expression.analyze(scriptRoot, locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        expression.analyze(scriptRoot, scope);
         expression.expected = expression.actual;
-        expression = expression.cast(scriptRoot, locals);
+        expression = expression.cast(scriptRoot, scope);
 
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
@@ -76,8 +64,8 @@ public class SEach extends AStatement {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        locals = Locals.newLocalScope(locals);
-        Variable variable = locals.addVariable(location, clazz, name, true);
+        scope = scope.newLocalScope();
+        Variable variable = scope.defineVariable(location, clazz, name, true);
 
         if (expression.actual.isArray()) {
             sub = new SSubEachArray(location, variable, expression, block);
@@ -88,7 +76,7 @@ public class SEach extends AStatement {
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
         }
 
-        sub.analyze(scriptRoot, locals);
+        sub.analyze(scriptRoot, scope);
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
@@ -96,7 +84,7 @@ public class SEach extends AStatement {
 
         block.beginLoop = true;
         block.inLoop = true;
-        block.analyze(scriptRoot, locals);
+        block.analyze(scriptRoot, scope);
         block.statementCount = Math.max(1, block.statementCount);
 
         if (block.loopEscape && !block.anyContinue) {
@@ -104,15 +92,17 @@ public class SEach extends AStatement {
         }
 
         statementCount = 1;
-
-        if (locals.hasVariable(Locals.LOOP)) {
-            sub.loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.write(classWriter, methodWriter, globals);
+    ForEachLoopNode write(ClassNode classNode) {
+        ForEachLoopNode forEachLoopNode = new ForEachLoopNode();
+
+        forEachLoopNode.setConditionNode((ConditionNode)sub.write(classNode));
+
+        forEachLoopNode.setLocation(location);
+
+        return forEachLoopNode;
     }
 
     @Override

@@ -11,26 +11,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.junit.Before;
 import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<UpdateSettingsStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     public UpdateSettingsStep createRandomInstance() {
@@ -75,16 +64,10 @@ public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<U
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
 
-    public void testPerformAction() throws Exception {
+    public void testPerformAction() {
         IndexMetaData indexMetaData = getIndexMetaData();
 
         UpdateSettingsStep step = createRandomInstance();
-
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Mockito.doAnswer(invocation -> {
             UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
@@ -123,11 +106,6 @@ public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<U
         Exception exception = new RuntimeException();
         UpdateSettingsStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
         Mockito.doAnswer(invocation -> {
             UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")

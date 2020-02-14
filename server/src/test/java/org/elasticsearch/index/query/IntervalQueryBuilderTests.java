@@ -425,7 +425,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         QueryShardContext baseContext = createShardContext();
         QueryShardContext context = new QueryShardContext(baseContext.getShardId(), baseContext.getIndexSettings(),
             BigArrays.NON_RECYCLING_INSTANCE, null, null, baseContext.getMapperService(),
-            null, scriptService, null, null, null, null, null, null, null);
+            null, scriptService, null, null, null, null, null, null, null, () -> true);
 
         String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
             "\"match\" : { " +
@@ -550,7 +550,8 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     private static IntervalsSource buildFuzzySource(String term, String label, int prefixLength, boolean transpositions, int editDistance) {
         FuzzyQuery fq = new FuzzyQuery(new Term("field", term), editDistance, prefixLength, 128, transpositions);
-        return XIntervals.multiterm(new CompiledAutomaton(fq.toAutomaton()), label);
+        CompiledAutomaton[] automata = fq.getAutomata();
+        return XIntervals.multiterm(automata[automata.length - 1], label);
     }
 
     public void testFuzzy() throws IOException {

@@ -10,14 +10,33 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.rest.RestStatus;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Set of static utils to find the cause of a search exception.
  */
 public final class ExceptionRootCauseFinder {
+
+    /**
+     * List of rest statuses that we consider irrecoverable
+     */
+    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = new HashSet<>(
+        Arrays.asList(
+            RestStatus.GONE,
+            RestStatus.NOT_IMPLEMENTED,
+            RestStatus.NOT_FOUND,
+            RestStatus.BAD_REQUEST,
+            RestStatus.UNAUTHORIZED,
+            RestStatus.FORBIDDEN,
+            RestStatus.METHOD_NOT_ALLOWED,
+            RestStatus.NOT_ACCEPTABLE
+        )
+    );
 
     /**
      * Unwrap the exception stack and return the most likely cause.
@@ -60,13 +79,21 @@ public final class ExceptionRootCauseFinder {
     /**
      * Return the first irrecoverableException from a collection of bulk responses if there are any.
      *
-     * @param failures a collection of bulk item responses
+     * @param failures a collection of bulk item responses with failures
      * @return The first exception considered irrecoverable if there are any, null if no irrecoverable exception found
      */
-    public static Exception getFirstIrrecoverableExceptionFromBulkResponses(Collection<BulkItemResponse> failures) {
+    public static Throwable getFirstIrrecoverableExceptionFromBulkResponses(Collection<BulkItemResponse> failures) {
         for (BulkItemResponse failure : failures) {
-            if (failure.getFailure().getCause() instanceof MapperParsingException) {
-                return failure.getFailure().getCause();
+            Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(failure.getFailure().getCause());
+            if (unwrappedThrowable instanceof IllegalArgumentException) {
+                return unwrappedThrowable;
+            }
+
+            if (unwrappedThrowable instanceof ElasticsearchException) {
+                ElasticsearchException elasticsearchException = (ElasticsearchException) unwrappedThrowable;
+                if (IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
+                    return elasticsearchException;
+                }
             }
         }
 

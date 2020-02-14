@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -41,13 +41,12 @@ import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
@@ -55,6 +54,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.With;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -227,7 +227,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
             // compound fields
-            else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
+            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false) {
                 named = u.withUnresolvedMessage(
                         "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] only its subfields");
             }
@@ -812,7 +812,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (p.child() instanceof Filter) {
                     Filter f = (Filter) p.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
                         if (newCondition != condition) {
                             return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
@@ -826,7 +826,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (a.child() instanceof Filter) {
                     Filter f = (Filter) a.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
                         if (newCondition != condition) {
                             return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
@@ -998,7 +998,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (n.foldable() == false && Functions.isAggregate(n) == false
                             // folding might not work (it might wait for the optimizer)
                             // so check whether any column is referenced
-                            && n.anyMatch(e -> e instanceof FieldAttribute) == true) {
+                            && n.anyMatch(e -> e instanceof FieldAttribute)) {
                         return f;
                     }
                 }
@@ -1188,7 +1188,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 DataType l = left.dataType();
                 DataType r = right.dataType();
                 if (l != r) {
-                    DataType common = DataTypeConversion.commonType(l, r);
+                    DataType common = SqlDataTypeConverter.commonType(l, r);
                     if (common == null) {
                         return e;
                     }

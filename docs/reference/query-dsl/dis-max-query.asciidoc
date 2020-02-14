@@ -11,9 +11,6 @@ If a returned document matches multiple query clauses, the `dis_max` query
 assigns the document the highest relevance score from any matching clause, plus
 a tie breaking increment for any additional matching subqueries.
 
-You can use the `dis_max` to search for a term in fields mapped with different
-<<mapping-boost,boost>> factors.
-
 [[query-dsl-dis-max-query-ex-request]]
 ==== Example request
 

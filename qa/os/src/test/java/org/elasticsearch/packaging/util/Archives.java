@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
@@ -48,8 +50,6 @@ import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Installation and verification logic for archive distributions
@@ -244,10 +244,31 @@ public class Archives {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh) {
+    public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
+        return runElasticsearchStartCommand(installation, sh, "");
+    }
+
+    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword) throws Exception {
+        final Path pidFile = installation.home.resolve("elasticsearch.pid");
+        final Installation.Executables bin = installation.executables();
+
+        // requires the "expect" utility to be installed
+        String script = "expect -c \"$(cat<<EXPECT\n" +
+            "spawn -ignore HUP sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile + "\n" +
+            "expect \"Elasticsearch keystore password:\"\n" +
+            "send \"" + keystorePassword + "\\r\"\n" +
+            "expect eof\n" +
+            "EXPECT\n" +
+            ")\"";
+
+        sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
+        return sh.runIgnoreExitCode(script);
+    }
+
+    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh, String keystorePassword) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
-        assertFalse("Pid file doesn't exist when starting Elasticsearch", Files.exists(pidFile));
+        assertThat(pidFile, fileDoesNotExist());
 
         final Installation.Executables bin = installation.executables();
 
@@ -261,7 +282,8 @@ public class Archives {
 
             // We need to give Elasticsearch enough time to print failures to stderr before exiting
             sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
-            return sh.runIgnoreExitCode("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile);
+            return sh.runIgnoreExitCode("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile +
+                " <<<'" + keystorePassword + "'");
         }
         final Path stdout = getPowershellOutputPath(installation);
         final Path stderr = getPowershellErrorPath(installation);
@@ -306,6 +328,7 @@ public class Archives {
                 "$process.Start() | Out-Null; " +
                 "$process.BeginOutputReadLine(); " +
                 "$process.BeginErrorReadLine(); " +
+                "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
                 "Wait-Process -Timeout " + ES_STARTUP_SLEEP_TIME_SECONDS + " -Id $process.Id; " +
                 "$process.Id;"
             );
@@ -315,14 +338,14 @@ public class Archives {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         ServerUtils.waitForElasticsearch(installation);
 
-        assertTrue("Starting Elasticsearch produced a pid file at " + pidFile, Files.exists(pidFile));
+        assertThat("Starting Elasticsearch produced a pid file at " + pidFile, pidFile, fileExists());
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
     }
 
     public static void stopElasticsearch(Installation installation) throws Exception {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
-        assertTrue("pid file should exist", Files.exists(pidFile));
+        assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
 

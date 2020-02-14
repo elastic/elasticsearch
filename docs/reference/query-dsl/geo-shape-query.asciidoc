@@ -161,7 +161,7 @@ is not mapped.
 ==== Supported Shape Types for `geo_shape` query against `geo_point`
 
 Currently, when searching against the `geo_point` field mapping, the `geo_shape`
-query supports is limited to the following shape types:
+query support is limited to the following shape types:
 
 * `Circle`
 * `Polygon`
@@ -204,3 +204,6 @@ GET /points/_search
     }
 }
 --------------------------------------------------
+==== Notes
+Geo-shape queries on geo-shapes implemented with <<prefix-trees, `PrefixTrees`>> will not be executed if
+<<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set to false.

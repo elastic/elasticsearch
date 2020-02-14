@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -26,9 +24,6 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
 
     private static final boolean DELETE_INTERVENING_DEFAULT = false;
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestRevertModelSnapshotAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -42,8 +37,7 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
                 POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/{" +
                 RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName() + "}/_revert",
                 POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/{" +
-                RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName() + "}/_revert",
-                deprecationLogger)
+                RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName() + "}/_revert")
         );
     }
 

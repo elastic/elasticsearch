@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
@@ -749,7 +749,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         // There should be a notification saying that there was a problem extracting data
         client().performRequest(new Request("POST", "/_refresh"));
         Response notificationsResponse = client().performRequest(
-                new Request("GET", AuditorField.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
+                new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
                 "action [indices:data/read/search] is unauthorized for user [ml_admin_plus_data]\""));
@@ -956,7 +956,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         // There should be a notification saying that there was a problem extracting data
         client().performRequest(new Request("POST", "/_refresh"));
         Response notificationsResponse = client().performRequest(
-            new Request("GET", AuditorField.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
+            new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
             "action [indices:admin/xpack/rollup/search] is unauthorized for user [ml_admin_plus_data]\""));

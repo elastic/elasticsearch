@@ -22,8 +22,9 @@ Discovery and cluster formation are affected by the following settings:
     Specifies whether {es} should form a multiple-node cluster. By default, {es}
     discovers other nodes when forming a cluster and allows other nodes to join
     the cluster later. If `discovery.type` is set to `single-node`, {es} forms a
-    single-node cluster. For more information about when you might use this
-    setting, see <<single-node-discovery>>.
+    single-node cluster and suppresses the timeouts set by
+    `cluster.publish.timeout` and `cluster.join.timeout`. For more information
+    about when you might use this setting, see <<single-node-discovery>>.
     
 `cluster.initial_master_nodes`::
 
@@ -167,8 +168,8 @@ or may become unstable or intolerant of certain failures.
 `cluster.join.timeout`::
 
     Sets how long a node will wait after sending a request to join a cluster
-    before it considers the request to have failed and retries. Defaults to
-    `60s`.
+    before it considers the request to have failed and retries, unless
+    `discovery.type` is set to `single-node`. Defaults to `60s`.
 
 `cluster.max_voting_config_exclusions`::
 
@@ -185,8 +186,8 @@ or may become unstable or intolerant of certain failures.
 `cluster.publish.timeout`::
 
     Sets how long the master node waits for each cluster state update to be
-    completely published to all nodes. The default value is `30s`. See
-    <<cluster-state-publishing>>.
+    completely published to all nodes, unless `discovery.type` is set to
+    `single-node`. The default value is `30s`. See <<cluster-state-publishing>>.
 
 [[no-master-block]]`cluster.no_master_block`::
 Specifies which operations are rejected when there is no active master in a

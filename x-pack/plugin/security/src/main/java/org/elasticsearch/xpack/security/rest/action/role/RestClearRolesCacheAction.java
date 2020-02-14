@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -23,8 +21,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestClearRolesCacheAction.class));
-
     public RestClearRolesCacheAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
@@ -38,7 +34,7 @@ public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(new ReplacedRoute(POST, "/_security/role/{name}/_clear_cache", POST,
-            "/_xpack/security/role/{name}/_clear_cache", deprecationLogger));
+            "/_xpack/security/role/{name}/_clear_cache"));
     }
 
     @Override

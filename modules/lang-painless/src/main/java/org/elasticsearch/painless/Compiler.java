@@ -211,6 +211,7 @@ final class Compiler {
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
         ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
         ClassNode classNode = root.writeClass();
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
         Map<String, Object> statics = classNode.write();
 
         try {
@@ -240,8 +241,9 @@ final class Compiler {
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, debugStream);
-        root.analyze(painlessLookup, settings);
+        ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
         ClassNode classNode = root.writeClass();
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
         classNode.write();
 
         return classNode.getBytes();

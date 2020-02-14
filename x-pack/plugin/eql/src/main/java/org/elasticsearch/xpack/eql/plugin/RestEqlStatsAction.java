@@ -11,7 +11,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -24,7 +23,7 @@ public class RestEqlStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(GET, "/_eql/stats"));
+        return List.of(new Route(GET, "/_eql/stats"));
     }
 
     @Override

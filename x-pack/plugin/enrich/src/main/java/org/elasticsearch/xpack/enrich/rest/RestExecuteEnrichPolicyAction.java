@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -23,9 +21,7 @@ public class RestExecuteEnrichPolicyAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(
-            asList(new Route(POST, "/_enrich/policy/{name}/_execute"), new Route(PUT, "/_enrich/policy/{name}/_execute"))
-        );
+        return List.of(new Route(POST, "/_enrich/policy/{name}/_execute"), new Route(PUT, "/_enrich/policy/{name}/_execute"));
     }
 
     @Override

@@ -256,7 +256,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 textAndDoubleField()));
         assertThat(e.getMessage(), equalTo(
-                "error building sort for [_script]: script sorting only supported for [numeric] scripts but was [string]"));
+                "error building sort for [_script]: script sorting only supported on [numeric] scripts but was [string]"));
     }
 
     private InternalTopMetrics collectFromNewYorkAndLA(TopMetricsAggregationBuilder builder) throws IOException {

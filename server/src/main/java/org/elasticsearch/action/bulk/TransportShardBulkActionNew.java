@@ -335,7 +335,8 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                         opCompleted = false;
                     }
                 } catch (Exception e) {
-                    // TODO: Op Completed?
+                    // TODO: Do we want to attempt to complete as many ops as possible so far?
+                    opCompleted = false;
                     shardOp.getListener().onFailure(e);
                 } finally {
                     if (opCompleted) {

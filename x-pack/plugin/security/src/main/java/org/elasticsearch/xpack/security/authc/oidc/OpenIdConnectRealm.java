@@ -375,8 +375,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             final LogoutRequest logoutRequest = new LogoutRequest(opConfiguration.getEndsessionEndpoint(), idTokenHint,
                 rpConfiguration.getPostLogoutRedirectUri(), state);
 
-            //#48409: this checks for existence of two `?` in the URL coming from LogoutRequest and changes the second
-            //to an `&`
+            //#48409: this checks for existence of two `?` in the URL coming from LogoutRequest and changes the second to an `&`
             String logoutRequestURI = logoutRequest.toURI().toString();
             if (logoutRequestURI.indexOf("?") != logoutRequestURI.lastIndexOf("?")) {
                 StringBuilder fixedLogoutRequestURI = new StringBuilder(logoutRequestURI);

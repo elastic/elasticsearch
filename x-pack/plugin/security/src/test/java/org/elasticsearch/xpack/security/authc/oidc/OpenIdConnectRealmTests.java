@@ -261,7 +261,8 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
     public void testBuildLogoutResponseFromEndsessionEndpointWithExistingParameters() throws Exception {
         final Settings.Builder realmSettingsWithFunkyEndpoint = getBasicRealmSettings();
-        realmSettingsWithFunkyEndpoint.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ENDSESSION_ENDPOINT), "https://op.example.org/logout?parameter=123");
+        realmSettingsWithFunkyEndpoint.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ENDSESSION_ENDPOINT),
+            "https://op.example.org/logout?parameter=123");
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(realmSettingsWithFunkyEndpoint.build(), threadContext), null,
             null);
 

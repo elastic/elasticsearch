@@ -23,8 +23,6 @@ import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
-
 /**
  * A {@link ClusterStateListener} that completes any {@link ShardFollowTask} which concerns a deleted index.
  */

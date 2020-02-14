@@ -65,7 +65,6 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
 
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
         assumeTrue("This test only makes sense in version 6.6.0 and above", getOldClusterVersion().onOrAfter(Version.V_6_6_0));
-        Map<String, Object> expectedConfigIndexMappings = loadConfigIndexMappings();
         if (isRunningAgainstOldCluster()) {
             assertThatMlConfigIndexDoesNotExist();
             // trigger .ml-config index creation
@@ -81,7 +80,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             // trigger .ml-config index mappings update
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
             // assert that the mappings are updated
-            assertThat(getConfigIndexMappings(), equalTo(expectedConfigIndexMappings));
+            assertThat(getConfigIndexMappings(), equalTo(loadDataFrameAnalysisMappings()));
         }
     }
 
@@ -133,12 +132,12 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> loadConfigIndexMappings() throws IOException {
+    private Map<String, Object> loadDataFrameAnalysisMappings() throws IOException {
         String mapping = MlConfigIndex.mapping();
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, new BytesArray(mapping).streamInput())) {
             Map<String, Object> mappings = parser.map();
-            mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "_doc", "properties");
+            mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "_doc", "properties", "analysis");
             return mappings;
         }
     }

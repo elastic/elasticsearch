@@ -47,6 +47,8 @@ then
 fi
 
 ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
+echo $ES_JAVA_OPTS
+exit 0
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then

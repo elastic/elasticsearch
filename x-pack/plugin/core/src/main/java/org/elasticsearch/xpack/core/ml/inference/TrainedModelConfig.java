@@ -242,8 +242,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return true;
         }
 
-        // The model license does not matter, this is the highest licensed level
-        if (licenseState.isAllowedByLicense(License.OperationMode.PLATINUM, true, true)) {
+        // The model license does not matter, Platinum license gets the same functions as the highest license
+        if (licenseState.isAllowedByLicense(License.OperationMode.PLATINUM)) {
             return true;
         }
 

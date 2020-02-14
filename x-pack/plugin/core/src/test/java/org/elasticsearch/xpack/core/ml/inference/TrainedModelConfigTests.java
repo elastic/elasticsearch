@@ -330,7 +330,9 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        // Active Platinum license is considered as highest and should always work
+        when(licenseState.isAllowedByLicense(License.OperationMode.PLATINUM)).thenReturn(true);
+
+        // Active Platinum license functions the same as Enterprise license (highest) and should always work
         when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
             invocationOnMock -> {
                 final Object[] arguments = invocationOnMock.getArguments();

@@ -53,7 +53,7 @@ public class EsExecutorsTests extends ESTestCase {
 
     public void testFixedForcedExecution() throws Exception {
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
+                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext, randomBoolean());
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -116,7 +116,7 @@ public class EsExecutorsTests extends ESTestCase {
 
     public void testFixedRejected() throws Exception {
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
+                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext, randomBoolean());
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -249,7 +249,7 @@ public class EsExecutorsTests extends ESTestCase {
         int actions = queue + pool;
         final CountDownLatch latch = new CountDownLatch(1);
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext, randomBoolean());
         try {
             for (int i = 0; i < actions; i++) {
                 executor.execute(new Runnable() {
@@ -339,7 +339,7 @@ public class EsExecutorsTests extends ESTestCase {
         final Integer one = Integer.valueOf(1);
         threadContext.putTransient("foo", one);
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext, randomBoolean());
         try {
             executor.execute(() -> {
                 try {
@@ -370,7 +370,7 @@ public class EsExecutorsTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch executed = new CountDownLatch(1);
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext, randomBoolean());
         try {
             Runnable r = () -> {
                 latch.countDown();

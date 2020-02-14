@@ -593,6 +593,8 @@ aliasedLiteralsWithGroupBy
 SELECT 1 AS s, 2 FROM test_emp GROUP BY gender;
 literalsWithMultipleGroupBy
 SELECT 1, 2 FROM test_emp GROUP BY gender, salary;
+divisionLiteralsAdditionWithMultipleGroupBy
+SELECT 144 / 12 AS division, 1, 2 AS x, 1 + 2 AS addition FROM test_emp GROUP BY gender, salary;
 aliasedLiteralsWithMultipleGroupBy
 SELECT 1 as s, 2 FROM test_emp GROUP BY gender, salary;
 aliasedLiteralsWithMultipleGroupByWithFunction

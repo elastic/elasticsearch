@@ -454,6 +454,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByAggregate() {
         assertEquals("1:36: Cannot use an aggregate [AVG] for grouping",
                 error("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
+        assertEquals("1:65: Cannot use an aggregate [AVG] for grouping",
+                error("SELECT ROUND(AVG(int),2), AVG(int), COUNT(*) FROM test GROUP BY AVG(int) ORDER BY AVG(int)"));
     }
 
     public void testStarOnNested() {

@@ -236,13 +236,13 @@ class S3Repository extends BlobStoreRepository {
     @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                 MetaData clusterMetaData, Map<String, Object> userMetadata, boolean writeShardGens,
+                                 MetaData clusterMetaData, Map<String, Object> userMetadata, Version version,
                                  ActionListener<SnapshotInfo> listener) {
-        if (writeShardGens == false) {
+        if (version.before(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
             listener = delayedListener(listener);
         }
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, clusterMetaData, userMetadata, writeShardGens, listener);
+            includeGlobalState, clusterMetaData, userMetadata, version, listener);
     }
 
     @Override

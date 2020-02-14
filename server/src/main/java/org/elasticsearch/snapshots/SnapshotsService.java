@@ -623,7 +623,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             snapshot.includeGlobalState(),
                             metaDataForSnapshot(snapshot, metaData),
                             snapshot.userMetadata(),
-                            snapshot.useShardGenerations(),
+                            snapshot.useShardGenerations() ? Version.CURRENT : Version.V_7_5_0, // TODO: Fix to have real version in CS
                             ActionListener.runAfter(ActionListener.wrap(ignored -> {
                             }, inner -> {
                                 inner.addSuppressed(exception);
@@ -1103,7 +1103,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.includeGlobalState(),
                     metaDataForSnapshot(entry, metaData),
                     entry.userMetadata(),
-                    entry.useShardGenerations(),
+                    entry.useShardGenerations() ? Version.CURRENT : Version.V_7_5_0, // TODO: Fix to have real version in CS
                     ActionListener.wrap(snapshotInfo -> {
                         removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());

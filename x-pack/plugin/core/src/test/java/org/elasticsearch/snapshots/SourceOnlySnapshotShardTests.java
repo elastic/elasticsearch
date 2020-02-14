@@ -216,7 +216,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
                     ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(), true,
                     MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(),
-                    true,
+                    Version.CURRENT,
                     finFuture);
                 finFuture.actionGet();
             });

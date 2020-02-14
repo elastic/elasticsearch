@@ -3,7 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.LogManager;
@@ -253,7 +252,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
     @Override
     protected long readSnapshotIndexLatestBlob() throws IOException {
         EncryptedBlobContainer encryptedBlobContainer = (EncryptedBlobContainer) blobContainer();
-        return Numbers.bytesToLong(Streams.readFully(encryptedBlobContainer.delegatedBlobContainer.readBlob(INDEX_LATEST_BLOB)).toBytesRef());
+        return Numbers.bytesToLong(Streams.readFully(encryptedBlobContainer.delegatedBlobContainer.readBlob(INDEX_LATEST_BLOB))
+                .toBytesRef());
     }
 
     @Override

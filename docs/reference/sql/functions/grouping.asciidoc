@@ -30,7 +30,7 @@ HISTOGRAM(
 
 *Output*: non-empty buckets or groups of the given expression divided according to the given interval
 
-.Description: The histogram function takes all matching values and divides them into buckets with fixed size matching the given interval, using (roughly) the following formula:
+*Description*: The histogram function takes all matching values and divides them into buckets with fixed size matching the given interval, using (roughly) the following formula:
 
 [source, sql]
 ----

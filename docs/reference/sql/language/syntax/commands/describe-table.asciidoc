@@ -26,7 +26,7 @@ DESC
 <1> single table identifier or double quoted es multi index
 <2> SQL LIKE pattern
 
-.Description: `DESC` and `DESCRIBE` are aliases to <<sql-syntax-show-columns>>.
+*Description*: `DESC` and `DESCRIBE` are aliases to <<sql-syntax-show-columns>>.
 
 [source, sql]
 ----

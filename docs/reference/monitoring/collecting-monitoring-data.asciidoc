@@ -142,7 +142,7 @@ xpack.monitoring.exporters:
   id1:
     type: http
     host: ["http://es-mon-1:9200", "http://es-mon2:9200"] 
-    auth.username: remote_monitoring_user 
+    auth.username: remote_monitoring_agent 
     auth.password: YOUR_PASSWORD
 --------------------------------------------------
 --

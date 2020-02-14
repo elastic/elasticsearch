@@ -263,6 +263,7 @@ import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -334,6 +335,7 @@ public class SearchModule {
         registerSearchExts(plugins);
         registerShapes();
         registerIntervalsSourceProviders();
+        namedWriteables.addAll(SortValue.namedWriteables());
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

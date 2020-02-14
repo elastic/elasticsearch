@@ -171,10 +171,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return aggregator;
     }
 
+    /**
+     * Create a {@linkplain SearchContext} for testing an {@link Aggregator}.
+     */
     protected SearchContext createSearchContext(IndexSearcher indexSearcher,
                                                 IndexSettings indexSettings,
                                                 Query query,
                                                 MultiBucketConsumer bucketConsumer,
+                                                MappedFieldType... fieldTypes) {
+        return createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
+    }
+
+    protected SearchContext createSearchContext(IndexSearcher indexSearcher,
+                                                IndexSettings indexSettings,
+                                                Query query,
+                                                MultiBucketConsumer bucketConsumer,
+                                                CircuitBreakerService circuitBreakerService,
                                                 MappedFieldType... fieldTypes) {
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
@@ -197,14 +209,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.fetchPhase())
                 .thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
         when(searchContext.bitsetFilterCache()).thenReturn(new BitsetFilterCache(indexSettings, mock(Listener.class)));
-        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(searchContext.indexShard()).thenReturn(indexShard);
         when(searchContext.aggregations())
             .thenReturn(new SearchContextAggregations(AggregatorFactories.EMPTY, bucketConsumer));
         when(searchContext.query()).thenReturn(query);
-        when(searchContext.bigArrays()).thenReturn(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService));
+        /*
+         * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
+         * we're passed gets a chance to break.
+         */
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking();
+        when(searchContext.bigArrays()).thenReturn(bigArrays);
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
         MapperService mapperService = mapperServiceMock();

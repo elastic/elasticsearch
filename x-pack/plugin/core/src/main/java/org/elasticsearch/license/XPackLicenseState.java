@@ -806,15 +806,6 @@ public class XPackLicenseState {
         return new XPackLicenseState(this);
     }
 
-    /**
-     * Determine if support for constant-keyword fields should be enabled.
-     * <p>
-     * Constant-keyword fields are available for all license types except {@link OperationMode#MISSING}.
-     */
-    public synchronized boolean isConstantKeywordAllowed() {
-        return status.active;
-    }
-
     private synchronized boolean isAllowedBySecurity() {
         return isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
     }

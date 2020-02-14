@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.constantkeyword.ConstantKeywordFeatureSetUsage;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
@@ -567,9 +566,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // Spatial
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new),
                 // data science
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.CONSTANT_KEYWORD,
-                        ConstantKeywordFeatureSetUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new)
             ).stream(),
             MlEvaluationNamedXContentProvider.getNamedWriteables().stream()
         ).collect(toList());

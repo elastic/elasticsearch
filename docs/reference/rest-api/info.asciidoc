@@ -71,10 +71,6 @@ Example response:
           "available" : true,
           "enabled" : true
       },
-      "constant_keyword" : {
-         "available" : true,
-         "enabled" : true
-      },
       "enrich" : {
           "available" : true,
           "enabled" : true

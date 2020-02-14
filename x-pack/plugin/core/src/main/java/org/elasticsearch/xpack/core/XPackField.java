@@ -55,8 +55,6 @@ public final class XPackField {
     public static final String ANALYTICS = "analytics";
     /** Name constant for the enrich plugin. */
     public static final String ENRICH = "enrich";
-    /** Name constant for the constant-keyword plugin. */
-    public static final String CONSTANT_KEYWORD = "constant_keyword";
 
     private XPackField() {}
 

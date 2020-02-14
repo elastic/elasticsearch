@@ -885,10 +885,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
-        return templates -> {
-
-            return templates;
-        };
+        return UnaryOperator.identity();
     }
 
     public static boolean allTemplatesInstalled(ClusterState clusterState) {

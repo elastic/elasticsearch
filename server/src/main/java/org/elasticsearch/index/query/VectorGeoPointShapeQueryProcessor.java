@@ -109,6 +109,7 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
         }
 
         @Override
+        // don't think this is called directly
         public Query visit(LinearRing ring) {
             throw new QueryShardException(context, "Field [" + fieldName + "] does not support  "
                 + ShapeType.LINEARRING + " queries");

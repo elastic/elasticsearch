@@ -91,7 +91,6 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
         }
     }
 
-    /*
     public void testQueryLinearRing() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
@@ -100,16 +99,18 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
         LinearRing linearRing = new LinearRing(new double[]{-25,-35,-25}, new double[]{-25,-35,-25});
 
         try {
+            // LinearRing extends Line implements Geometry: expose the build process
             GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder(defaultGeoFieldName, linearRing);
             SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client(), SearchAction.INSTANCE);
             searchRequestBuilder.setQuery(queryBuilder);
             searchRequestBuilder.setIndices("test");
             searchRequestBuilder.get();
-        } catch (Exception e) {
+        } catch (
+            SearchPhaseExecutionException e) {
             assertThat(e.getCause().getMessage(),
-                containsString("does not support " + ShapeType.LINEARRING + " queries"));
+                containsString("failed to create query"));
         }
-    }*/
+    }
 
     public void testQueryMultiLine() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());

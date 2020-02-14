@@ -19,25 +19,26 @@
 
 package org.elasticsearch.search.geo;
 
-import org.apache.lucene.spatial3d.geom.GeoShape;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.*;
+import org.elasticsearch.common.geo.builders.CircleBuilder;
+import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
+import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.locationtech.jts.geom.Coordinate;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;

@@ -537,6 +537,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (in.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 version = Version.readVersion(in);
             } else {
+                // If an older master informs us that shard generations are supported we use the minimum shard generation compatible
+                // version. If shard generations are not supported yet we use 7.5 as a placeholder for a version that does not use shard
+                // generations.
                 version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : Version.V_7_5_0;
             }
             entries[i] = new Entry(snapshot,

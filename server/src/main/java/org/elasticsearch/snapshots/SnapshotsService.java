@@ -1376,6 +1376,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         });
     }
 
+    /**
+     * Determines the minimum {@link Version} that the snapshot repository must be compatible with from the current nodes in the cluster
+     * and the contents of the repository. The minimum version is determined as the lowest version found across all snapshots in the
+     * repository and all nodes in the cluster.
+     *
+     * @param state          current cluster state
+     * @param repositoryName name of the repository to modify
+     * @param repositoryData current {@link RepositoryData} of that repository
+     * @param excluded       snapshot id to ignore when computing the minimum version
+     *                       (used to use newer metadata version after a snapshot delete)
+     * @return minimum node version that must still be able to read the repository metadata
+     */
     public Version minCompatibleVersion(ClusterState state, String repositoryName, RepositoryData repositoryData,
                                         @Nullable SnapshotId excluded) {
         final Version minCompatVersion = state.nodes().getMinNodeVersion();
@@ -1397,7 +1409,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
                 return known;
-            }).min(Version::compareTo).filter(inRepo -> inRepo.onOrAfter(minCompatVersion) == false).orElse(minCompatVersion);
+            }).filter(inRepo -> inRepo.onOrAfter(minCompatVersion) == false).min(Version::compareTo).orElse(minCompatVersion);
     }
 
     /**

@@ -34,8 +34,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -50,9 +48,9 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/{index}/_doc/{id}"),
-            new Route(HEAD, "/{index}/_doc/{id}")));
+            new Route(HEAD, "/{index}/_doc/{id}"));
     }
 
     @Override

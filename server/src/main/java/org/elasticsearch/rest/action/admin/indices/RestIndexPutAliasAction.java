@@ -31,8 +31,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -40,7 +38,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/{index}/_alias/{name}"),
             new Route(PUT, "/{index}/_alias/{name}"),
             new Route(POST, "/_alias/{name}"),
@@ -51,7 +49,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
             new Route(PUT, "/_aliases/{name}"),
             new Route(PUT, "/{index}/_alias"),
             new Route(PUT, "/{index}/_aliases"),
-            new Route(PUT, "/_alias")));
+            new Route(PUT, "/_alias"));
     }
 
     @Override

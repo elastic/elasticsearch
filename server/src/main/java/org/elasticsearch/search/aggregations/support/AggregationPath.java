@@ -20,17 +20,15 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.HasAggregations;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -190,61 +188,16 @@ public class AggregationPath {
     }
 
     /**
-     * Resolves the value pointed by this path given an aggregations root
-     *
-     * @param root  The root that serves as a point of reference for this path
-     * @return      The resolved value
+     * Looks up the value of this path against a set of aggregation results.
      */
-    public double resolveValue(HasAggregations root) {
-        HasAggregations parent = root;
-        double value = Double.NaN;
-        for (int i = 0; i < pathElements.size(); i++) {
-            AggregationPath.PathElement token = pathElements.get(i);
-            Aggregation agg = parent.getAggregations().get(token.name);
-
-            if (agg == null) {
-                throw new IllegalArgumentException("Invalid order path [" + this +
-                        "]. Cannot find aggregation named [" + token.name + "]");
-            }
-
-            if (agg instanceof SingleBucketAggregation) {
-                if (token.key != null && !token.key.equals("doc_count")) {
-                    throw new IllegalArgumentException("Invalid order path [" + this +
-                            "]. Unknown value key [" + token.key + "] for single-bucket aggregation [" + token.name +
-                            "]. Either use [doc_count] as key or drop the key all together");
-                }
-                parent = (SingleBucketAggregation) agg;
-                value = ((SingleBucketAggregation) agg).getDocCount();
-                continue;
-            }
-
-            // the agg can only be a metrics agg, and a metrics agg must be at the end of the path
-            if (i != pathElements.size() - 1) {
-                throw new IllegalArgumentException("Invalid order path [" + this +
- "]. Metrics aggregations cannot have sub-aggregations (at [" + token + ">" + pathElements.get(i + 1) + "]");
-            }
-
-            if (agg instanceof InternalNumericMetricsAggregation.SingleValue) {
-                if (token.key != null && !token.key.equals("value")) {
-                    throw new IllegalArgumentException("Invalid order path [" + this +
-                            "]. Unknown value key [" + token.key + "] for single-value metric aggregation [" + token.name +
-                            "]. Either use [value] as key or drop the key all together");
-                }
-                parent = null;
-                value = ((InternalNumericMetricsAggregation.SingleValue) agg).value();
-                continue;
-            }
-
-            // we're left with a multi-value metric agg
-            if (token.key == null) {
-                throw new IllegalArgumentException("Invalid order path [" + this +
-                        "]. Missing value key in [" + token + "] which refers to a multi-value metric aggregation");
-            }
-            parent = null;
-            value = ((InternalNumericMetricsAggregation.MultiValue) agg).value(token.key);
+    public double resolveValue(InternalAggregations aggregations) {
+        try {
+            Iterator<PathElement> path = pathElements.iterator();
+            assert path.hasNext();
+            return aggregations.sortValue(path.next(), path);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid order path [" + this + "]. " + e.getMessage(), e);
         }
-
-        return value;
     }
 
     /**

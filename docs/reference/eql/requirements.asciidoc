@@ -6,6 +6,8 @@
 <titleabbrev>Requirements</titleabbrev>
 ++++
 
+experimental::[]
+
 EQL is schemaless and works out-of-the-box with most common log formats. If you
 use a standard log format and already know what fields in your index contain
 event type and timestamp information, you can skip this page.

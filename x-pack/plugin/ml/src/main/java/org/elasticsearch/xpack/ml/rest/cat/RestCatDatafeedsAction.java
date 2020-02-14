@@ -21,17 +21,15 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCatDatafeedsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
-            new Route(GET, "_cat/ml/datafeeds")));
+            new Route(GET, "_cat/ml/datafeeds"));
     }
 
     @Override
@@ -68,12 +66,12 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         table.startHeaders();
 
         // Datafeed Info
-        table.addCell("id", TableColumnAttributeBuilder.builder().setDescription("the datafeed_id").build());
-        table.addCell("state", TableColumnAttributeBuilder.builder()
-            .setDescription("the datafeed state")
-            .setAliases("s")
-            .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
-            .build());
+        table.addCell("id", TableColumnAttributeBuilder.builder("the datafeed_id").build());
+        table.addCell("state",
+            TableColumnAttributeBuilder.builder("the datafeed state")
+                .setAliases("s")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build());
         table.addCell("assignment_explanation",
             TableColumnAttributeBuilder.builder("why the datafeed is or is not assigned to a node", false)
                 .setAliases("ae")

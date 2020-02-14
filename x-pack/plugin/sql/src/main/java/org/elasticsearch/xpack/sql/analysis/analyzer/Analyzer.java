@@ -620,7 +620,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     maybeResolved.add(or.resolved() ? or : tryResolveExpression(or, child));
                 }
 
-                Stream<Order> referencesStream = maybeResolved.stream().filter(Expression::resolved);
+                Stream<Order> referencesStream = maybeResolved.stream()
+                    .filter(Expression::resolved);
 
                 // if there are any references in the output
                 // try and resolve them to the source in order to compare the source expressions
@@ -705,9 +706,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     // resolution failed and the failed expressions might contain resolution information so copy it over
                     if (!failedAttrs.isEmpty()) {
                         // transform the orders with the failed information
-                        Expression
-                            transformed =
-                            f.condition().transformUp(ua -> resolveMetadataToMessage(ua, failedAttrs, "filter"), UnresolvedAttribute.class);
+                        Expression transformed = f.condition().transformUp(ua -> resolveMetadataToMessage(ua, failedAttrs, "filter"),
+                            UnresolvedAttribute.class);
 
                         return f.condition().equals(transformed) ? f : new Filter(f.source(), f.child(), transformed);
                     }

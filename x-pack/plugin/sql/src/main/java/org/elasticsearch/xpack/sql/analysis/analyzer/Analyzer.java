@@ -621,7 +621,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
 
                 Stream<Order> referencesStream = maybeResolved.stream()
-                    .filter(Expression::resolved);
+                        .filter(Expression::resolved);
 
                 // if there are any references in the output
                 // try and resolve them to the source in order to compare the source expressions
@@ -694,7 +694,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 Expression maybeResolved = tryResolveExpression(f.condition(), f.child());
 
                 AttributeSet resolvedRefs = new AttributeSet(maybeResolved.references().stream()
-                    .filter(Expression::resolved).collect(toList()));
+                        .filter(Expression::resolved)
+                        .collect(toList()));
 
                 AttributeSet missing = resolvedRefs.subtract(f.child().outputSet());
 
@@ -707,7 +708,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (!failedAttrs.isEmpty()) {
                         // transform the orders with the failed information
                         Expression transformed = f.condition().transformUp(ua -> resolveMetadataToMessage(ua, failedAttrs, "filter"),
-                            UnresolvedAttribute.class);
+                                UnresolvedAttribute.class);
 
                         return f.condition().equals(transformed) ? f : new Filter(f.source(), f.child(), transformed);
                     }
@@ -732,7 +733,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     return new Aggregate(a.source(), child, newGroupings, newAggregates);
                 }
             }
-
             return plan;
         }
 

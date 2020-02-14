@@ -123,7 +123,7 @@ public interface ServerTransportFilter {
                     if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
                         SystemUser.is(authentication.getUser()) == false) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
-                            final Authentication replaced = Authentication.getAuthentication(threadContext);
+                            final Authentication replaced = securityContext.getAuthentication();
                             authzService.authorize(replaced, securityAction, request, listener);
                         }, version);
                     } else {

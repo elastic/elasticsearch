@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -40,7 +39,10 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -54,11 +56,13 @@ public class RestGetSourceAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source"
             + "requests is deprecated.";
 
-    public RestGetSourceAction(final RestController controller) {
-        controller.registerHandler(GET, "/{index}/_source/{id}", this);
-        controller.registerHandler(HEAD, "/{index}/_source/{id}", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_source", this);
-        controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/{index}/_source/{id}"),
+            new Route(HEAD, "/{index}/_source/{id}"),
+            new Route(GET, "/{index}/{type}/{id}/_source"),
+            new Route(HEAD, "/{index}/{type}/{id}/_source")));
     }
 
     @Override

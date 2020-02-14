@@ -30,8 +30,8 @@ ${source_elasticsearch}
 RUN tar zxf /opt/${elasticsearch} --strip-components=1
 RUN grep ES_DISTRIBUTION_TYPE=tar /usr/share/elasticsearch/bin/elasticsearch-env \
     && sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
-RUN mkdir -p config data logs
-RUN chmod 0775 config data logs
+RUN mkdir -p config config/jvm.options.d data logs
+RUN chmod 0775 config config/jvm.options.d data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
@@ -66,6 +66,9 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY --chown=1000:0 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+# Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+RUN find / -xdev -perm -4000 -exec chmod ug-s {} +
 
 # Openshift overrides USER and uses ones with randomly uid>1024 and gid=0
 # Allow ENTRYPOINT (and ES) to run even with a different user

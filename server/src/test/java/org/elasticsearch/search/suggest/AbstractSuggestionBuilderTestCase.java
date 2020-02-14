@@ -181,7 +181,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
             QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
                 null, mapperService, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
-                    System::currentTimeMillis, null, null);
+                    System::currentTimeMillis, null, null, () -> true);
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
             assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());

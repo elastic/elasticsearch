@@ -60,6 +60,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -111,9 +112,21 @@ public class KeyStoreWrapperTests extends ESTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.save(env.configFile(), new char[0]);
         final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
-        final SecurityException exception = expectThrows(SecurityException.class,
-            () -> loadedkeystore.decrypt(new char[]{'i', 'n', 'v', 'a', 'l', 'i', 'd'}));
-        assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
+        final SecurityException exception = expectThrows(
+            SecurityException.class,
+            () -> loadedkeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
+        );
+        if (inFipsJvm()) {
+            assertThat(
+                exception.getMessage(),
+                anyOf(
+                    containsString("Provided keystore password was incorrect"),
+                    containsString("Keystore has been corrupted or tampered with")
+                )
+            );
+        } else {
+            assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
+        }
     }
 
     public void testCannotReadStringFromClosedKeystore() throws Exception {

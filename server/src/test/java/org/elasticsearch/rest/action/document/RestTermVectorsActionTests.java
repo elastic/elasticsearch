@@ -35,7 +35,7 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestTermVectorsAction(controller());
+        controller().registerHandler(new RestTermVectorsAction());
     }
 
     public void testTypeInPath() {

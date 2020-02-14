@@ -23,6 +23,17 @@ import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.RegexQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
@@ -42,17 +53,6 @@ import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingCon
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
-import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.RegexQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -995,6 +995,21 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
                     + "\"fixed_interval\":\"62208000000ms\",\"time_zone\":\"Z\"}}}]}"));
+    }
+
+    public void testGroupByHistogramWithScalarsQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int), HISTOGRAM(date, INTERVAL 5 YEARS - INTERVAL 6 MONTHS) AS h " +
+                                         "FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(2, eqe.output().size());
+        assertEquals("MAX(int)", eqe.output().get(0).qualifiedName());
+        assertEquals(INTEGER, eqe.output().get(0).dataType());
+        assertEquals("h", eqe.output().get(1).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(1).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\"," +
+                        "\"order\":\"asc\",\"fixed_interval\":\"139968000000ms\",\"time_zone\":\"Z\"}}}]}"));
     }
 
     public void testGroupByYearQueryTranslator() {

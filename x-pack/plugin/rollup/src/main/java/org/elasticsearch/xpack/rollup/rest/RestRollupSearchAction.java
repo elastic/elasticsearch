@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.rollup.rest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -18,7 +17,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRollupSearchAction extends BaseRestHandler {
 
@@ -26,11 +31,13 @@ public class RestRollupSearchAction extends BaseRestHandler {
             RestSearchAction.TYPED_KEYS_PARAM,
             RestSearchAction.TOTAL_HITS_AS_INT_PARAM)));
 
-    public RestRollupSearchAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "_rollup_search", this);
-        controller.registerHandler(RestRequest.Method.POST, "_rollup_search", this);
-        controller.registerHandler(RestRequest.Method.GET, "{index}/_rollup_search", this);
-        controller.registerHandler(RestRequest.Method.POST,  "{index}/_rollup_search", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "_rollup_search"),
+            new Route(POST, "_rollup_search"),
+            new Route(GET, "{index}/_rollup_search"),
+            new Route(POST, "{index}/_rollup_search")));
     }
 
     @Override

@@ -21,13 +21,9 @@ package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
-import java.io.IOException;
-
-public final class GetSourceRequest implements Validatable, ToXContentObject {
+public final class GetSourceRequest implements Validatable {
     private String routing;
     private String preference;
 
@@ -36,9 +32,9 @@ public final class GetSourceRequest implements Validatable, ToXContentObject {
 
     private FetchSourceContext fetchSourceContext;
 
-    private String index;
+    private final String index;
     private String type;
-    private String id;
+    private final String id;
 
     public GetSourceRequest(String index, String id) {
         this.index = index;
@@ -100,11 +96,6 @@ public final class GetSourceRequest implements Validatable, ToXContentObject {
     public GetSourceRequest fetchSourceContext(FetchSourceContext context) {
         this.fetchSourceContext = context;
         return this;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
     }
 
     public String index() {

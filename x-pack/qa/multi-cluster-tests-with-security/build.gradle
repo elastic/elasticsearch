@@ -10,7 +10,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'security'
+    includeXpack 'security', 'transform'
   }
 }
 

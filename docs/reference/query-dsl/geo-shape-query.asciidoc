@@ -6,7 +6,7 @@
 
 Filter documents indexed using the `geo_shape` type.
 
-Requires either the <<geo_shape,`geo_shape`>> or  <<geo_point,`geo_shape`>> <<Mapping>>.
+Requires either the <<geo-shape,`geo_shape`>> or  <<geo-point,`geo_shape`>> <<Mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
 `geo_shape` mapping to find documents that have a shape that intersects

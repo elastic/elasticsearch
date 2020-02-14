@@ -14,6 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -118,7 +119,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version version,
                               Map<String, Object> userMetadata, ActionListener<String> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
@@ -158,7 +159,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
-            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, writeShardGens,
+            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, version,
                 userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {

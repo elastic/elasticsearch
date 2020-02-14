@@ -200,11 +200,12 @@ public interface Repository extends LifecycleComponent {
      * @param indexId             id for the index being snapshotted
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
+     * @param version           version of the updated repository metadata to write
      * @param userMetadata        user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
      * @param listener            listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens, Map<String, Object> userMetadata,
+                       IndexShardSnapshotStatus snapshotStatus, Version version, Map<String, Object> userMetadata,
                        ActionListener<String> listener);
 
     /**

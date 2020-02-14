@@ -1407,8 +1407,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         });
     }
 
-    private Version minCompatibleVersion(ClusterState state, String repositoryName, RepositoryData repositoryData,
-                                         @Nullable SnapshotId excluded) {
+    public Version minCompatibleVersion(ClusterState state, String repositoryName, RepositoryData repositoryData,
+                                        @Nullable SnapshotId excluded) {
         final Version minCompatVersion = state.nodes().getMinNodeVersion();
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         // We don't have shard generations so we must fall back to loading versions from the SnapshotInfo blobs potentially

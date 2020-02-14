@@ -283,20 +283,22 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             BytesReference.toBytes(BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(),
                 true))), StandardOpenOption.TRUNCATE_EXISTING);
 
-        logger.info("--> verify that repo is assumed in old metadata format");
+        logger.info("--> verify that repo is assumed in current version");
         final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
-            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
-            is(true));
+            ActionRunnable.supply(f, () ->
+                snapshotsService.minCompatibleVersion(clusterService().state(), repoName, getRepositoryData(repository), null)))),
+            is(Version.CURRENT));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
 
-        logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
+        logger.info("--> verify that repository is still assumed in current version");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
-            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
-            is(false));
+            ActionRunnable.supply(f, () ->
+                snapshotsService.minCompatibleVersion(clusterService().state(), repoName, getRepositoryData(repository), null)))),
+            is(Version.CURRENT));
         final RepositoryData finalRepositoryData = getRepositoryData(repository);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
             assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));

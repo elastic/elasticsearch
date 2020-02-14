@@ -752,10 +752,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     <li>Deleting unreferenced root level blobs {@link #cleanupStaleRootFiles}</li>
      * </ul>
      * @param repositoryStateId Current repository state id
-     * @param writeShardGens    If shard generations should be written to the repository
+     * @param version           version of the updated repository metadata to write
      * @param listener          Listener to complete when done
      */
-    public void cleanup(long repositoryStateId, boolean writeShardGens, ActionListener<RepositoryCleanupResult> listener) {
+    public void cleanup(long repositoryStateId, Version version, ActionListener<RepositoryCleanupResult> listener) {
         try {
             if (isReadOnly()) {
                 throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
@@ -771,7 +771,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
             } else {
                 // write new index-N blob to ensure concurrent operations will fail
-                writeIndexGen(repositoryData, repositoryStateId, writeShardGens,
+                writeIndexGen(repositoryData, repositoryStateId, version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION),
                     ActionListener.wrap(v -> cleanupStaleBlobs(foundIndices, rootBlobs, repositoryData,
                         ActionListener.map(listener, RepositoryCleanupResult::new)), listener::onFailure));
             }
@@ -1455,7 +1455,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version version,
                               Map<String, Object> userMetadata, ActionListener<String> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
@@ -1582,6 +1582,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 final List<String> blobsToDelete;
                 final String indexGeneration;
+                final boolean writeShardGens = version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
                 if (writeShardGens) {
                     indexGeneration = UUIDs.randomBase64UUID();
                     blobsToDelete = Collections.emptyList();

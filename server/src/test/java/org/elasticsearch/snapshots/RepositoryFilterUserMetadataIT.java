@@ -19,6 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -95,10 +96,10 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     @Override
                     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus,
-                                              boolean writeShardGens, Map<String, Object> userMetadata, ActionListener<String> listener) {
+                                              Version version, Map<String, Object> userMetadata, ActionListener<String> listener) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
-                        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus,
-                            writeShardGens, userMetadata, listener);
+                        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, version,
+                            userMetadata, listener);
                     }
 
                     @Override

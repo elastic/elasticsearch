@@ -72,8 +72,9 @@ if not defined ES_TMPDIR (
   for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a
 )
 
-rem the JVM options parser produces the final JVM options to start Elasticsearch
-rem it does this by incorporating JVM options in the following way:
+rem The JVM options parser produces the final JVM options to start
+rem Elasticsearch. It does this by incorporating JVM options in the following
+rem way:
 rem   - first, system JVM options are applied (these are hardcoded options in
 rem     the parser)
 rem   - second, JVM options are read from jvm.options and

@@ -16,31 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
- * Standard test case for testing the wire serialization of subclasses of {@linkplain Writeable}.
- * See {@link AbstractNamedWriteableTestCase} for subclasses of {@link NamedWriteable}.
+ * Standard test case for testing the wire serialization of subclasses of {@linkplain NamedWriteable}.
+ * See {@link AbstractWireSerializingTestCase} for subclasses of {@link Writeable}. While you *can*
+ * use {@linkplain AbstractWireSerializingTestCase} to test susbclasses of {@linkplain NamedWriteable}
+ * this superclass will also test reading and writing the name.
  */
-public abstract class AbstractWireSerializingTestCase<T extends Writeable> extends AbstractWireTestCase<T> {
-    /**
-     * Returns a {@link Writeable.Reader} that can be used to de-serialize the instance
-     */
-    protected abstract Writeable.Reader<T> instanceReader();
+public abstract class AbstractNamedWriteableTestCase<T extends NamedWriteable> extends AbstractWireTestCase<T> {
+    // Force subclasses to override to customize the registry for their NamedWriteable
+    @Override
+    protected abstract NamedWriteableRegistry getNamedWriteableRegistry();
 
     /**
-     * Copy the {@link Writeable} by round tripping it through {@linkplain StreamInput} and {@linkplain StreamOutput}.
+     * The type of {@link NamedWriteable} to read.
      */
+    protected abstract Class<T> categoryClass();
+
     @Override
-    protected final T copyInstance(T instance, Version version) throws IOException {
-        return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version);
+    protected T copyInstance(T instance, Version version) throws IOException {
+        return copyNamedWriteable(instance, getNamedWriteableRegistry(), categoryClass(), version);
     }
+
 }

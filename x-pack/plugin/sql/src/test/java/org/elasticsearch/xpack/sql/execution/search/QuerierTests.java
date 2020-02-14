@@ -87,7 +87,7 @@ public class QuerierTests extends ESTestCase {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void testAggSorting_FourFields() {
-        List<Comparator> comparators = Arrays.asList(
+        List<Comparator> comparators = Arrays.<Comparator> asList(
                 Comparator.naturalOrder(),
                 Comparator.naturalOrder(),
                 Comparator.reverseOrder(),

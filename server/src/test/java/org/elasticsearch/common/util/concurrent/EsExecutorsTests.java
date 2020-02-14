@@ -244,6 +244,7 @@ public class EsExecutorsTests extends ESTestCase {
         terminate(pool);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52378")
     public void testRejectionMessageAndShuttingDownFlag() throws InterruptedException {
         int pool = between(1, 10);
         int queue = between(0, 100);

@@ -4,7 +4,6 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.test.fixtures'
 
 final Project fixture = project(':test:fixtures:s3-fixture')
 final Project repositoryPlugin = project(':plugins:repository-s3')
@@ -33,27 +32,15 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
 }
 
 if (useFixture) {
-  preProcessFixture {
-    dependsOn fixture.jar
-    doLast {
-      file("${testFixturesDir}/shared").mkdirs()
-      project.copy {
-        from fixture.jar
-        from fixture.configurations.runtimeClasspath
-        from fixture.projectDir.toPath().resolve("Dockerfile")
-        into "${testFixturesDir}/shared"
-      }
-    }
-  }
-
-  testFixtures.useFixture()
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(fixture.path, 's3-fixture-other')
 }
 
 integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.s3.bucket', s3Bucket
-    systemProperty 'test.s3.base_path', s3BasePath + "_searchable_snapshots_tests"
+    systemProperty 'test.s3.base_path', s3BasePath + "/searchable_snapshots_tests"
   }
 }
 
@@ -67,13 +54,13 @@ testClusters.integTest {
   if (useFixture) {
     def fixtureAddress = { fixtureName ->
       assert useFixture: 'closure should not be used without a fixture'
-      int ephemeralPort =  postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.80"
+      int ephemeralPort =  fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.80"
       assert ephemeralPort > 0
       '127.0.0.1:' + ephemeralPort
     }
 
     setting 's3.client.searchable_snapshots.protocol', 'http'
-    setting 's3.client.searchable_snapshots.endpoint', { "${-> fixtureAddress('s3-fixture-for-searchable-snapshots')}" }, IGNORE_VALUE
+    setting 's3.client.searchable_snapshots.endpoint', { "${-> fixtureAddress('s3-fixture-other')}" }, IGNORE_VALUE
 
   } else {
     println "Using an external service to test " + project.name

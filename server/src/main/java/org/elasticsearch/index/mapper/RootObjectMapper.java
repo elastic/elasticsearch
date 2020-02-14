@@ -138,7 +138,7 @@ public class RootObjectMapper extends ObjectMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                        || processField(builder, fieldName, fieldNode, parserContext.indexVersionCreated())) {
+                        || processField(builder, fieldName, fieldNode, parserContext)) {
                     iterator.remove();
                 }
             }
@@ -147,7 +147,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         @SuppressWarnings("unchecked")
         protected boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode,
-                                       Version indexVersionCreated) {
+                                       ParserContext parserContext) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
@@ -191,6 +191,7 @@ public class RootObjectMapper extends ObjectMapper {
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                     DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
                     if (template != null) {
+                        validateDynamicTemplate(parserContext, template);
                         templates.add(template);
                     }
                 }
@@ -342,12 +343,6 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
-    public void validateDynamicTemplates(Mapper.TypeParser.ParserContext parserContext) {
-        for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
-            validateDynamicTemplate(parserContext, dynamicTemplate);
-        }
-    }
-
     private static void validateDynamicTemplate(Mapper.TypeParser.ParserContext parserContext,
                                                 DynamicTemplate dynamicTemplate) {
 
@@ -370,18 +365,23 @@ public class RootObjectMapper extends ObjectMapper {
             String defaultDynamicType = contentFieldType.defaultMappingType();
             String mappingType = dynamicTemplate.mappingType(defaultDynamicType);
             Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
-            if (typeParser != null) {
-                Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
-                fieldTypeConfig.remove("type");
-                try {
-                    Mapper.Builder<?, ?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
-                    if (fieldTypeConfig.isEmpty()) {
-                        dynamicTemplateInvalid = false;
-                        break;
-                    }
-                } catch (Exception e) {
-                    lastError = e;
+            if (typeParser == null) {
+                lastError = new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
+                continue;
+            }
+
+            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
+            fieldTypeConfig.remove("type");
+            try {
+                Mapper.Builder<?, ?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                if (fieldTypeConfig.isEmpty()) {
+                    dynamicTemplateInvalid = false;
+                    break;
+                } else {
+                    lastError = new IllegalArgumentException("Unused mapping attributes [" + fieldTypeConfig + "]");
                 }
+            } catch (Exception e) {
+                lastError = e;
             }
         }
 
@@ -392,7 +392,13 @@ public class RootObjectMapper extends ObjectMapper {
             if (failInvalidDynamicTemplates) {
                 throw new IllegalArgumentException(message, lastError);
             } else {
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("invalid_dynamic_template", message);
+                final String deprecationMessage;
+                if (lastError != null) {
+                     deprecationMessage = String.format(Locale.ROOT, "%s, caused by [%s]", message, lastError.getMessage());
+                } else {
+                    deprecationMessage = message;
+                }
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("invalid_dynamic_template", deprecationMessage);
             }
         }
     }

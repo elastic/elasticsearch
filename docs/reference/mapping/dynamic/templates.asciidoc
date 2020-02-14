@@ -37,6 +37,10 @@ Dynamic templates are specified as an array of named objects:
 <2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `path_match`, `path_unmatch`.
 <3> The mapping that the matched field should use.
 
+If an provided mapping contains an invalid mapping snippet then that results in
+a validation error when updating a mapping. This is to ensure that if an unmapped
+field is mapped via dynamic templates then this will result in a valid mapping update
+and not fail the index or update request with a document that contains an invalid field.
 
 Templates are processed in order -- the first matching template wins. When
 putting new dynamic templates through the <<indices-put-mapping, put mapping>> API,

@@ -512,10 +512,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private RepositoryData safeRepositoryData(long repositoryStateId, Map<String, BlobMetaData> rootBlobs) {
         final long generation = latestGeneration(rootBlobs.keySet());
         final long genToLoad;
+        final RepositoryData cached;
         if (bestEffortConsistency) {
             genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, repositoryStateId));
+            cached = null;
         } else {
             genToLoad = latestKnownRepoGen.get();
+            cached = latestKnownRepositoryData.get();
         }
         if (genToLoad > generation) {
             // It's always a possibility to not see the latest index-N in the listing here on an eventually consistent blob store, just
@@ -527,6 +530,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (genToLoad != repositoryStateId) {
             throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
                 repositoryStateId + "], actual current generation [" + genToLoad + "]");
+        }
+        if (cached != null && cached.getGenId() == genToLoad) {
+            return cached;
         }
         return getRepositoryData(genToLoad);
     }
@@ -1093,6 +1099,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 final RepositoryData latestCached = latestKnownRepositoryData.get();
                 final RepositoryData loaded;
+                // Caching is not used with #bestEffortConsistency see docs on #cacheRepositoryData for details
                 if (bestEffortConsistency == false && latestCached.getGenId() == genToLoad) {
                     loaded = latestCached;
                 } else {
@@ -1125,6 +1132,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * Puts the given {@link RepositoryData} into the cache if it is of a newer generation and only if the repository is not using
+     * {@link #bestEffortConsistency}. When using {@link #bestEffortConsistency} the repository is using listing to find the latest
+     * {@code index-N} blob and there are no hard guarantees that a given repository generation won't be reused since an external
+     * modification can lead to moving from a higher {@code N} to a lower {@code N} value which mean we can't safely assume that a given
+     * generation will always contain the same {@link RepositoryData}.
+     *
+     * @param updated RepositoryData to cache if newer than the cache contents
+     */
     private void cacheRepositoryData(RepositoryData updated) {
         if (bestEffortConsistency == false) {
             latestKnownRepositoryData.updateAndGet(known -> {

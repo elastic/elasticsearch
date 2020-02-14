@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * Explains the scoring calculations for the top hits.
  */
-public final class ExplainFetchSubPhase implements FetchSubPhase {
+public final class ExplainPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {

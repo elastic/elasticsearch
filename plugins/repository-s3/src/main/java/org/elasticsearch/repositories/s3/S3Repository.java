@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -245,11 +246,11 @@ class S3Repository extends BlobStoreRepository {
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
-        if (writeShardGens == false) {
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener) {
+        if (version.before(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
             listener = delayedListener(listener);
         }
-        super.deleteSnapshot(snapshotId, repositoryStateId, writeShardGens, listener);
+        super.deleteSnapshot(snapshotId, repositoryStateId, version, listener);
     }
 
     /**

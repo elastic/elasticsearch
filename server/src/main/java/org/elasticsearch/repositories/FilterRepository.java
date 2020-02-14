@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -83,8 +84,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
-        in.deleteSnapshot(snapshotId, repositoryStateId, writeShardGens, listener);
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener) {
+        in.deleteSnapshot(snapshotId, repositoryStateId, version, listener);
     }
 
     @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -163,7 +164,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
+        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 

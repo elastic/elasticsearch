@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -137,10 +138,10 @@ public interface Repository extends LifecycleComponent {
      *
      * @param snapshotId        snapshot id
      * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
-     * @param writeShardGens    if shard generations should be written to the repository
+     * @param version           version of the updated repository metadata to write
      * @param listener          completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener);
+    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener);
 
     /**
      * Returns snapshot throttle time in nanoseconds

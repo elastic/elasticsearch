@@ -839,8 +839,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
             assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
             SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
-            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.repositoryStateId(),
-                state.nodes().getMinNodeVersion());
+            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.repositoryStateId(), state);
         }
     }
 
@@ -1402,10 +1401,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     ));
                 } else {
                     logger.debug("deleted snapshot is not running - deleting files");
-                    deleteSnapshotFromRepository(snapshot, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
+                    deleteSnapshotFromRepository(snapshot, listener, repositoryStateId, newState);
                 }
             }
         });
+    }
+
+    private Version minCompatibleVersion(ClusterState state, String repositoryName, RepositoryData repositoryData,
+                                         @Nullable SnapshotId excluded) {
+        final Version minCompatVersion = state.nodes().getMinNodeVersion();
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        // We don't have shard generations so we must fall back to loading versions from the SnapshotInfo blobs potentially
+        final Repository repository = repositoriesService.repository(repositoryName);
+        return snapshotIds.stream().filter(snapshotId -> snapshotId.equals(excluded) == false).map(
+            snapshotId -> {
+                final Version known = repositoryData.getVersion(snapshotId);
+                if (known == null) {
+                    assert repositoryData.shardGenerations().totalShards() == 0 :
+                        "Saw shard generations [" + repositoryData.shardGenerations() +
+                            "] but did not have versions tracked for snapshot [" + snapshotId + "]";
+                    try {
+                        return repository.getSnapshotInfo(snapshotId).version();
+                    } catch (SnapshotMissingException e) {
+                        logger.warn("Failed to load snapshot metadata", e);
+                        return minCompatVersion;
+                    }
+                }
+                return known;
+            }).min(Version::compareTo).filter(inRepo -> inRepo.onOrAfter(minCompatVersion) == false).orElse(minCompatVersion);
     }
 
     /**
@@ -1449,16 +1472,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshot   snapshot
      * @param listener   listener
      * @param repositoryStateId the unique id representing the state of the repository at the time the deletion began
-     * @param version minimum ES version the repository should be readable by
+     * @param state      cluster state
      */
     private void deleteSnapshotFromRepository(Snapshot snapshot, @Nullable ActionListener<Void> listener, long repositoryStateId,
-                                              Version version) {
+                                              ClusterState state) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(snapshot.getRepository());
             repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshot(snapshot.getSnapshotId(),
                 repositoryStateId,
-                version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION) &&
-                    hasOldVersionSnapshots(snapshot.getRepository(), repositoryData, snapshot.getSnapshotId()) == false,
+                minCompatibleVersion(state, snapshot.getRepository(), repositoryData, snapshot.getSnapshotId()),
                 ActionListener.wrap(v -> {
                         logger.info("snapshot [{}] deleted", snapshot);
                         removeSnapshotDeletionFromClusterState(snapshot, null, l);

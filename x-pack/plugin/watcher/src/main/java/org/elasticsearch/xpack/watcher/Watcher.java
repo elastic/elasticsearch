@@ -492,7 +492,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                             InternalWatchExecutor.THREAD_POOL_NAME,
                             getWatcherThreadPoolSize(settings),
                             1000,
-                            "xpack.watcher.thread_pool");
+                            "xpack.watcher.thread_pool",
+                            false);
             return Collections.singletonList(builder);
         }
         return Collections.emptyList();

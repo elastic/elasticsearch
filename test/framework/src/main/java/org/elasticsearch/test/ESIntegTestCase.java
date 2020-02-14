@@ -1615,12 +1615,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
-        if (rarely()) {
-            // Sometimes adjust the minimum search thread pool size, causing
-            // QueueResizingEsThreadPoolExecutor to be used instead of a regular
-            // fixed thread pool
-            builder.put("thread_pool.search.min_queue_size", 100);
-        }
         return builder.build();
     }
 

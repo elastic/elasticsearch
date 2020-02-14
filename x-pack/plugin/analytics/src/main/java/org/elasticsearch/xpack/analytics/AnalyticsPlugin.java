@@ -14,7 +14,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
@@ -71,7 +70,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
-                (ContextParser<String, AggregationBuilder>) (p, c) -> BoxplotAggregationBuilder.parse(c, p))
+                BoxplotAggregationBuilder.PARSER)
                 .addResultReader(InternalBoxplot::new),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,

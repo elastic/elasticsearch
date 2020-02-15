@@ -593,11 +593,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void asyncCleanupUnlinkedRootAndIndicesBlobs(Map<String, BlobContainer> foundIndices, Map<String, BlobMetaData> rootBlobs,
+    private void asyncCleanupUnlinkedRootAndIndicesBlobs(Map<String, BlobContainer> foundIndices, Map<String, BlobMetaData> foundRootBlobs,
                                                          RepositoryData updatedRepoData, ActionListener<Void> listener) {
+        final Set<String> survivingIndexIds = getSurvivingIndexIds(updatedRepoData, foundIndices.keySet());
+        final Set<String> survivingRootBlobNames = getSurvivingRootBlobNames(updatedRepoData, foundRootBlobs.keySet());
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(
             listener,
-            l -> cleanupStaleBlobs(foundIndices, rootBlobs, updatedRepoData, ActionListener.map(l, ignored -> null))));
+            l -> cleanupStaleBlobs(foundIndices, survivingIndexIds, foundRootBlobs, survivingRootBlobNames,
+                    ActionListener.map(l, ignored -> null))));
     }
 
     private void asyncCleanupUnlinkedShardLevelBlobs(SnapshotId snapshotId, Collection<ShardSnapshotMetaDeleteResult> deleteResults,
@@ -714,16 +717,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * Cleans up stale blobs directly under the repository root as well as all indices paths that aren't referenced by any existing
-     * snapshots. This method is only to be called directly after a new {@link RepositoryData} was written to the repository and with
-     * parameters {@code foundIndices}, {@code rootBlobs}
-     *
-     * @param foundIndices all indices blob containers found in the repository before {@code newRepoData} was written
-     * @param rootBlobs    all blobs found directly under the repository root
-     * @param newRepoData  new repository data that was just written
-     * @param listener     listener to invoke with the combined {@link DeleteResult} of all blobs removed in this operation
+     * snapshots. This method is only to be called directly after a new {@link RepositoryData} was written to the repository.
      */
-    private void cleanupStaleBlobs(Map<String, BlobContainer> foundIndices, Map<String, BlobMetaData> rootBlobs,
-                                   RepositoryData newRepoData, ActionListener<DeleteResult> listener) {
+    void cleanupStaleBlobs(Map<String, BlobContainer> foundIndices,
+                                   Set<String> survivingIndexIds, Map<String, BlobMetaData> foundRootBlobs,
+                                   Set<String> survivingRootBlobNames, ActionListener<DeleteResult> listener) {
         final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
             for (DeleteResult result : deleteResults) {
@@ -734,11 +732,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         executor.execute(ActionRunnable.supply(groupedListener, () -> {
-            List<String> deletedBlobs = cleanupStaleRootFiles(staleRootBlobs(newRepoData, rootBlobs.keySet()));
-            return new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum());
+            List<String> deletedBlobs = cleanupStaleRootFiles(foundRootBlobs, survivingRootBlobNames);
+            return new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> foundRootBlobs.get(name).length()).sum());
         }));
 
-        final Set<String> survivingIndexIds = newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
         executor.execute(ActionRunnable.supply(groupedListener, () -> cleanupStaleIndices(foundIndices, survivingIndexIds)));
     }
 
@@ -759,57 +756,62 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (isReadOnly()) {
                 throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
             }
-            Map<String, BlobMetaData> rootBlobs = blobContainer().listBlobs();
-            final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
+            Map<String, BlobMetaData> foundRootBlobs = blobContainer().listBlobs();
+            final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, foundRootBlobs);
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
-            final Set<String> survivingIndexIds =
-                repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
-            final List<String> staleRootBlobs = staleRootBlobs(repositoryData, rootBlobs.keySet());
-            if (survivingIndexIds.equals(foundIndices.keySet()) && staleRootBlobs.isEmpty()) {
+            final Set<String> survivingIndexIds = getSurvivingIndexIds(repositoryData, foundIndices.keySet());
+            final Set<String> survivingRootBlobNames = getSurvivingRootBlobNames(repositoryData, foundRootBlobs.keySet());
+            if (survivingIndexIds.containsAll(foundIndices.keySet()) && survivingRootBlobNames.containsAll(foundRootBlobs.keySet())) {
                 // Nothing to clean up we return
                 listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
             } else {
                 // write new index-N blob to ensure concurrent operations will fail
                 writeIndexGen(repositoryData, repositoryStateId, writeShardGens,
-                    ActionListener.wrap(v -> cleanupStaleBlobs(foundIndices, rootBlobs, repositoryData,
-                        ActionListener.map(listener, RepositoryCleanupResult::new)), listener::onFailure));
+                        ActionListener.wrap(v -> cleanupStaleBlobs(foundIndices, survivingIndexIds, foundRootBlobs, survivingRootBlobNames,
+                                ActionListener.map(listener, RepositoryCleanupResult::new)), listener::onFailure));
+
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    // Finds all blobs directly under the repository root path that are not referenced by the current RepositoryData
-    private List<String> staleRootBlobs(RepositoryData repositoryData, Set<String> rootBlobNames) {
-        final Set<String> allSnapshotIds =
-            repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
-        return rootBlobNames.stream().filter(
-            blob -> {
-                if (FsBlobContainer.isTempBlobName(blob)) {
-                    return true;
-                }
-                if (blob.endsWith(".dat")) {
-                    final String foundUUID;
-                    if (blob.startsWith(SNAPSHOT_PREFIX)) {
-                        foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
-                        assert snapshotFormat.blobName(foundUUID).equals(blob);
-                    } else if (blob.startsWith(METADATA_PREFIX)) {
-                        foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
-                        assert globalMetaDataFormat.blobName(foundUUID).equals(blob);
-                    } else {
-                        return false;
-                    }
-                    return allSnapshotIds.contains(foundUUID) == false;
-                } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
-                    // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
-                    return repositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
-                }
-                return false;
-            }
-        ).collect(Collectors.toList());
+    Set<String> getSurvivingIndexIds(RepositoryData repositoryData, Set<String> foundIndexIds) {
+        Set<String> survivingIndexIds = repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
+        return foundIndexIds.stream().filter(survivingIndexIds::contains).collect(Collectors.toSet());
     }
 
-    private List<String> cleanupStaleRootFiles(List<String> blobsToDelete) {
+    Set<String> getSurvivingRootBlobNames(RepositoryData repositoryData, Set<String> foundRootBlobNames) {
+        Set<String> survivingSnapshotIds = repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
+        return foundRootBlobNames.stream().filter(
+                blob -> {
+                    if (FsBlobContainer.isTempBlobName(blob)) {
+                        return false;
+                    } else if (blob.endsWith(".dat")) {
+                        final String foundUUID;
+                        if (blob.startsWith(SNAPSHOT_PREFIX)) {
+                            foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
+                            assert snapshotFormat.blobName(foundUUID).equals(blob);
+                        } else if (blob.startsWith(METADATA_PREFIX)) {
+                            foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
+                            assert globalMetaDataFormat.blobName(foundUUID).equals(blob);
+                        } else {
+                            return true;
+                        }
+                        return survivingSnapshotIds.contains(foundUUID);
+                    } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
+                        // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
+                        return repositoryData.getGenId() <= Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
+                    } else {
+                        return true;
+                    }
+                }
+        ).collect(Collectors.toSet());
+    }
+
+    private List<String> cleanupStaleRootFiles(Map<String, BlobMetaData> foundRootBlobs, Set<String> survivingRootBlobNames) {
+        List<String> blobsToDelete = new ArrayList<>(foundRootBlobs.keySet());
+        blobsToDelete.removeAll(survivingRootBlobNames);
         if (blobsToDelete.isEmpty()) {
             return blobsToDelete;
         }

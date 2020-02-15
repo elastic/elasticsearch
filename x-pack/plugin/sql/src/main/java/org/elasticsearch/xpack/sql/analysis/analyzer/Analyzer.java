@@ -341,6 +341,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
                     AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
+
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
@@ -618,7 +619,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 for (Order or : o.order()) {
                     maybeResolved.add(or.resolved() ? or : tryResolveExpression(or, child));
                 }
-                
+
                 Stream<Order> referencesStream = maybeResolved.stream()
                         .filter(Expression::resolved);
 
@@ -629,7 +630,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // a + 1 in SELECT is actually Alias("a + 1", a + 1) and translates to ReferenceAttribute
                 // in the output. However it won't match the unnamed a + 1 despite being the same expression
                 // so explicitly compare the source
-                
+
                 // if there's a match, remove the item from the reference stream
                 if (Expressions.hasReferenceAttribute(child.outputSet())) {
                     final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
@@ -720,6 +721,18 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
+            // Try to resolve aggregates and groupings based on the child plan
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                LogicalPlan child = a.child();
+                List<Expression> newGroupings = new ArrayList<>(a.groupings().size());
+                a.groupings().forEach(e -> newGroupings.add(tryResolveExpression(e, child)));
+                List<NamedExpression> newAggregates = new ArrayList<>(a.aggregates().size());
+                a.aggregates().forEach(e -> newAggregates.add(tryResolveExpression(e, child)));
+                if (newAggregates.equals(a.aggregates()) == false || newGroupings.equals(a.groupings()) == false) {
+                    return new Aggregate(a.source(), child, newGroupings, newAggregates);
+                }
+            }
             return plan;
         }
 

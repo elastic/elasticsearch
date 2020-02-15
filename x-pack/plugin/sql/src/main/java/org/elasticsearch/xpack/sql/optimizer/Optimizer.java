@@ -1801,7 +1801,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             plan.forEachDown(a -> {
                 List<Object> values = extractConstants(a.aggregates());
-                if (values.size() == a.aggregates().size() && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
+                if (values.size() == a.aggregates().size() && a.groupings().isEmpty()
+                    && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
                     optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }
             }, Aggregate.class);

@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
@@ -121,6 +123,34 @@ public class QueryTranslatorTests extends ESTestCase {
         TermQuery tq = (TermQuery) query;
         assertEquals("some.string.typical", tq.term());
         assertEquals("value", tq.value());
+    }
+
+    public void testAliasAndGroupByResolution(){
+        LogicalPlan p = plan("SELECT COUNT(*) AS c FROM test WHERE ABS(int) > 0 GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        Aggregate a = (Aggregate) p;
+        LogicalPlan pc = ((Aggregate) p).child();
+        assertTrue(pc instanceof Filter);
+        Expression condition = ((Filter) pc).condition();
+        assertEquals("GREATERTHAN", ((GreaterThan) condition).functionName());
+        List<Expression> groupings = a.groupings();
+        assertTrue(groupings.get(0).resolved());
+        assertEquals("c", a.aggregates().get(0).name());
+        assertEquals("COUNT", ((Count) ((Alias) a.aggregates().get(0)).child()).functionName());
+    }
+    public void testLiteralWithGroupBy(){
+        LogicalPlan p = plan("SELECT 1 as t, 2 FROM test GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        Aggregate a = (Aggregate) p;
+        List<Expression> groupings = a.groupings();
+        assertEquals(1, groupings.size());
+        assertTrue(groupings.get(0).resolved());
+        assertTrue(groupings.get(0) instanceof FieldAttribute);
+        assertEquals(2, a.aggregates().size());
+        assertEquals("t", a.aggregates().get(0).name());
+        assertTrue(((Alias) a.aggregates().get(0)).child() instanceof Literal);
+        assertEquals("1", ((Alias) a.aggregates().get(0)).child().toString());
+        assertEquals("2", ((Alias) a.aggregates().get(1)).child().toString());
     }
 
     public void testTermEqualityNotAnalyzed() {

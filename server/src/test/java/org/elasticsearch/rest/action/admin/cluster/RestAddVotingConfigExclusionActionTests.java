@@ -34,7 +34,8 @@ public class RestAddVotingConfigExclusionActionTests extends RestActionTestCase 
 
     @Before
     public void setupAction() {
-        action = new RestAddVotingConfigExclusionAction(controller());
+        action = new RestAddVotingConfigExclusionAction();
+        controller().registerHandler(action);
     }
 
     public void testResolveVotingConfigExclusionsRequest() {

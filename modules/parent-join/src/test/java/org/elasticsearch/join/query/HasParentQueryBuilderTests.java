@@ -22,6 +22,7 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
@@ -57,6 +58,8 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     private static final String TYPE = "_doc";
@@ -261,5 +264,18 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         queryBuilder.innerHit(new InnerHitBuilder("some_name"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> InnerHitContextBuilder.extractInnerHits(queryBuilder, Collections.singletonMap("some_name", null)));
+        assertEquals("[inner_hits] already contains an entry for key [some_name]", e.getMessage());
+    }
+
+    public void testDisallowExpensiveQueries() {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+
+        HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder(
+                CHILD_DOC, new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), false);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> queryBuilder.toQuery(queryShardContext));
+        assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                e.getMessage());
     }
 }

@@ -106,6 +106,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.TryContext;
 import org.elasticsearch.painless.antlr.PainlessParser.VariableContext;
 import org.elasticsearch.painless.antlr.PainlessParser.WhileContext;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
@@ -245,13 +246,40 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             functions.add((SFunction)visit(function));
         }
 
+        // handle the code to generate the execute method here
+        // because the statements come loose from the grammar as
+        // part of the overall class
         List<AStatement> statements = new ArrayList<>();
+
+        // add gets methods as declarations available for the user as variables
+        for (int index = 0; index < scriptClassInfo.getGetMethods().size(); ++index) {
+            org.objectweb.asm.commons.Method method = scriptClassInfo.getGetMethods().get(index);
+            String name = method.getName().substring(3);
+            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+
+            statements.add(new SDeclaration(location(ctx),
+                    new DResolvedType(location(ctx), scriptClassInfo.getGetReturns().get(index), false), name, false, null));
+        }
 
         for (StatementContext statement : ctx.statement()) {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions, statements);
+        String returnCanonicalTypeName = PainlessLookupUtility.typeToCanonicalTypeName(scriptClassInfo.getExecuteMethodReturnType());
+        List<String> paramTypes = new ArrayList<>();
+        List<String> paramNames = new ArrayList<>();
+
+        for (ScriptClassInfo.MethodArgument argument : scriptClassInfo.getExecuteArguments()) {
+            paramTypes.add(PainlessLookupUtility.typeToCanonicalTypeName(argument.getClazz()));
+            paramNames.add(argument.getName());
+        }
+
+        // generate the execute method from the collected statements and parameters
+        SFunction execute = new SFunction(location(ctx), returnCanonicalTypeName, "execute", paramTypes, paramNames, new SBlock(
+                location(ctx), statements), true, false, false, true);
+        functions.add(execute);
+
+        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions);
     }
 
     @Override
@@ -278,7 +306,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(ctx.block().dstatement()));
         }
 
-        return new SFunction(location(ctx), rtnType, name, paramTypes, paramNames, new SBlock(location(ctx), statements), false);
+        return new SFunction(
+                location(ctx), rtnType, name, paramTypes, paramNames, new SBlock(location(ctx), statements), false, true, false, false);
     }
 
     @Override
@@ -486,7 +515,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             AExpression expression = declvar.expression() == null ? null : (AExpression)visit(declvar.expression());
             DUnresolvedType unresolvedType = new DUnresolvedType(location(declvar), type);
 
-            declarations.add(new SDeclaration(location(declvar), unresolvedType, name, expression));
+            declarations.add(new SDeclaration(location(declvar), unresolvedType, name, true, expression));
         }
 
         return new SDeclBlock(location(ctx), declarations);
@@ -509,7 +538,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         SBlock block = (SBlock)visit(ctx.block());
 
         return new SCatch(location(ctx), new DResolvedType(location(ctx), Exception.class),
-                new SDeclaration(location(ctx.TYPE()), new DUnresolvedType(location(ctx.TYPE()), type), name, null), block);
+                new SDeclaration(location(ctx.TYPE()), new DUnresolvedType(location(ctx.TYPE()), type), name, false, null), block);
     }
 
     @Override
@@ -519,8 +548,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitBinary(BinaryContext ctx) {
-        AExpression left = (AExpression)visit(ctx.expression(0));
-        AExpression right = (AExpression)visit(ctx.expression(1));
+        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
+        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
         final Operation operation;
 
         if (ctx.MUL() != null) {
@@ -558,8 +587,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitComp(CompContext ctx) {
-        AExpression left = (AExpression)visit(ctx.expression(0));
-        AExpression right = (AExpression)visit(ctx.expression(1));
+        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
+        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
         final Operation operation;
 
         if (ctx.LT() != null) {
@@ -587,7 +616,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitInstanceof(InstanceofContext ctx) {
-        AExpression expr = (AExpression)visit(ctx.expression());
+        AExpression expr = (AExpression)visit(ctx.noncondexpression());
         String type = ctx.decltype().getText();
 
         return new EInstanceof(location(ctx), expr, type);
@@ -595,8 +624,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitBool(BoolContext ctx) {
-        AExpression left = (AExpression)visit(ctx.expression(0));
-        AExpression right = (AExpression)visit(ctx.expression(1));
+        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
+        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
         final Operation operation;
 
         if (ctx.BOOLAND() != null) {
@@ -612,25 +641,25 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitConditional(ConditionalContext ctx) {
-        AExpression condition = (AExpression)visit(ctx.expression(0));
-        AExpression left = (AExpression)visit(ctx.expression(1));
-        AExpression right = (AExpression)visit(ctx.expression(2));
+        AExpression condition = (AExpression)visit(ctx.noncondexpression());
+        AExpression left = (AExpression)visit(ctx.expression(0));
+        AExpression right = (AExpression)visit(ctx.expression(1));
 
         return new EConditional(location(ctx), condition, left, right);
     }
 
     @Override
     public ANode visitElvis(ElvisContext ctx) {
-        AExpression left = (AExpression)visit(ctx.expression(0));
-        AExpression right = (AExpression)visit(ctx.expression(1));
+        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
+        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
 
         return new EElvis(location(ctx), left, right);
     }
 
     @Override
     public ANode visitAssignment(AssignmentContext ctx) {
-        AExpression lhs = (AExpression)visit(ctx.expression(0));
-        AExpression rhs = (AExpression)visit(ctx.expression(1));
+        AExpression lhs = (AExpression)visit(ctx.noncondexpression());
+        AExpression rhs = (AExpression)visit(ctx.expression());
 
         final Operation operation;
 

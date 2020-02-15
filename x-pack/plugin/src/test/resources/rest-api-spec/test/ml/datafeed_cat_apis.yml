@@ -1,0 +1,109 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: job-stats-test
+        body:  >
+          {
+            "job_id":"job-stats-test",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_datafeed:
+        datafeed_id: datafeed-job-stats-test
+        body:  >
+          {
+            "job_id":"job-stats-test",
+            "indexes":["airline-data"]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: jobs-get-stats-datafeed-job
+        body:  >
+          {
+            "job_id":"jobs-get-stats-datafeed-job",
+            "description":"A job with a datafeed",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd'T'HH:mm:ssX"
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_datafeed:
+        datafeed_id: datafeed-jobs-get-stats-datafeed-job
+        body:  >
+          {
+            "job_id":"jobs-get-stats-datafeed-job",
+            "indexes":["airline-data"]
+          }
+
+---
+"Test cat datafeeds":
+
+  - do:
+      cat.ml_datafeeds:
+        datafeed_id: datafeed-job-stats-test
+  - match:
+      $body: |
+        / #id                             state    bucket.count     search.count
+        ^ (datafeed\-job\-stats\-test \s+ \w+ \s+  \d+         \s+  \d+         \n)+  $/
+
+  - do:
+      cat.ml_datafeeds:
+        v: true
+        datafeed_id: datafeed-job-stats-test
+  - match:
+      $body: |
+        /^  id                          \s+  state \s+ bucket\.count \s+ search\.count \n
+           (datafeed\-job\-stats\-test  \s+  \w+   \s+ \d+           \s+ \d+           \n)+  $/
+
+  - do:
+      cat.ml_datafeeds:
+        h: id,search.count,search.time,search.bucket_avg
+        v: true
+  - match:
+      $body: |
+        /^  id                                         \s+  search\.count \s+ search\.time \s+ search\.bucket_avg \n
+           (datafeed\-job\-stats\-test                 \s+  \d+           \s+ \w+          \s+ .*?                \n)+
+           (datafeed\-jobs\-get\-stats\-datafeed\-job  \s+  \d+           \s+ \w+          \s+ .*?                \n)+  $/

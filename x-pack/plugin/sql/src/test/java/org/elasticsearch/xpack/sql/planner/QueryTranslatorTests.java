@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -128,6 +130,34 @@ public class QueryTranslatorTests extends ESTestCase {
         TermQuery tq = (TermQuery) query;
         assertEquals("some.string.typical", tq.term());
         assertEquals("value", tq.value());
+    }
+
+    public void testAliasAndGroupByResolution(){
+        LogicalPlan p = plan("SELECT COUNT(*) AS c FROM test WHERE ABS(int) > 0 GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        var pc = ((Aggregate) p).child();
+        assertTrue(pc instanceof Filter);
+        Expression condition = ((Filter) pc).condition();
+        assertEquals(((GreaterThan) condition).functionName(), "GREATERTHAN");
+        List<Expression> groupings = ((Aggregate) p).groupings();
+        assertTrue(groupings.get(0).resolved());
+        var agg = ((Aggregate) p).aggregates();
+        assertEquals((agg.get(0)).name(), "c");
+        assertEquals(((Count) ((Alias) agg.get(0)).child()).functionName(), "COUNT");
+    }
+    public void testLiteralWithGroupBy(){
+        LogicalPlan p = plan("SELECT 1 as t, 2 FROM test GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        List<Expression> groupings = ((Aggregate) p).groupings();
+        assertTrue(groupings.size() == 1);
+        assertTrue(groupings.get(0).resolved());
+        assertTrue(groupings.get(0) instanceof FieldAttribute);
+        var aggs = ((Aggregate) p).aggregates();
+        assertTrue(aggs.size() == 2);
+        assertEquals((aggs.get(0)).name(), "t");
+        assertTrue(((Alias) aggs.get(0)).child() instanceof Literal);
+        assertEquals(((Alias) aggs.get(0)).child().toString(), "1");
+        assertEquals(((Alias) aggs.get(1)).child().toString(), "2");
     }
 
     public void testTermEqualityNotAnalyzed() {

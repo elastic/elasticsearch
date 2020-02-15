@@ -491,10 +491,12 @@ public class RestIndicesAction extends AbstractCatAction {
             "sibling:pri;alias:bto,bulkTotalOperation;default:false;text-align:right;desc:number of bulk shard ops");
         table.addCell("pri.bulk.total_operations", "default:false;text-align:right;desc:number of bulk shard ops");
 
-        table.addCell("bulk.total_time", "sibling:pri;alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
+        table.addCell("bulk.total_time",
+            "sibling:pri;alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
         table.addCell("pri.bulk.shard_bulk_time", "default:false;text-align:right;desc:time spend in shard bulk");
 
-        table.addCell("bulk.total_size_in_bytes", "sibling:pri;alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
+        table.addCell("bulk.total_size_in_bytes",
+            "sibling:pri;alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
         table.addCell("pri.bulk.total_size_in_bytes", "default:false;text-align:right;desc:total size in bytes of shard bulk");
 
         table.endHeaders();

@@ -10,3 +10,9 @@ script:
   - ./gradlew :modules:transport-netty4:test --tests org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
   # ingest common
   - ./gradlew :modules:ingest-common:test --tests org.elasticsearch.ingest.common.DateProcessorTests
+  # percolator 1
+  - ./gradlew :modules:percolator:test --tests org.elasticsearch.percolator.PercolateQueryTests
+  # percolator 2
+  - ./gradlew :modules:percolator:test --tests org.elasticsearch.percolator.QueryAnalyzerTests
+  # percolator 3
+  - ./gradlew :modules:percolator:test --tests org.elasticsearch.percolator.PercolatorQuerySearchIT

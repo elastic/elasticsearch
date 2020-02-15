@@ -21,9 +21,14 @@ package org.elasticsearch.index.bulk.stats;
 
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.index.shard.IndexShard;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Internal class that maintains relevant shard bulk statistics / metrics.
+ * @see IndexShard
+ */
 public class ShardBulkStats implements BulkOperationListener {
 
     private final StatsHolder totalStats = new StatsHolder();
@@ -32,7 +37,8 @@ public class ShardBulkStats implements BulkOperationListener {
         return totalStats.stats();
     }
 
-    @Override public void afterBulk(long shardBulkSizeInBytes, long tookInNanos) {
+    @Override
+    public void afterBulk(long shardBulkSizeInBytes, long tookInNanos) {
         totalStats.totalSizeInBytes.inc(shardBulkSizeInBytes);
         totalStats.shardBulkMetric.inc(tookInNanos);
     }

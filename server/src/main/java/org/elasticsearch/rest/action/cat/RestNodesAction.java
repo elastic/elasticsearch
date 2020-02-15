@@ -243,7 +243,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
         table.addCell("suggest.total", "alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
 
-        table.addCell("bulk.total", "alias:bto,bulkTotal;default:false;text-align:right;desc:number of bulk shard ops");
+        table.addCell("bulk.total_operations", "alias:bto,bulkTotalOperations;default:false;text-align:right;desc:number of bulk shard ops");
         table.addCell("bulk.total_time", "alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
         table.addCell("bulk.total_size_in_bytes", "alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
 
@@ -422,7 +422,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCount());
 
             BulkStats bulkStats = indicesStats == null ? null : indicesStats.getBulk();
-            table.addCell(bulkStats == null ? null : bulkStats.getTotal());
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalOperations());
             table.addCell(bulkStats == null ? null : bulkStats.getTotalTime());
             table.addCell(bulkStats == null ? null : bulkStats.getTotalSizeInBytes());
 

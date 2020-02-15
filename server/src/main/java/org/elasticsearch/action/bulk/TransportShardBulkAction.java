@@ -168,6 +168,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
                 finishRequest();
+                primary.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
             }
 
             @Override
@@ -189,7 +190,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     () -> new WritePrimaryResult<>(
                         context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(), null,
                         context.getPrimary(), logger));
-                primary.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
             }
         }.run();
     }

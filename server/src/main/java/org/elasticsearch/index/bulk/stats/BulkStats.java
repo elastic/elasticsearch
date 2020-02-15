@@ -28,10 +28,15 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
+/**
+ * Bulk related statistics, including the time and size of shard bulk requests,
+ * starting at the shard level and allowing aggregation to indices and node level
+ */
 public class BulkStats implements Writeable, ToXContentFragment {
 
-    private long total = 0;
+    private long totalOperations = 0;
     private long totalTimeInMillis = 0;
     private long totalSizeInBytes = 0;
 
@@ -40,13 +45,13 @@ public class BulkStats implements Writeable, ToXContentFragment {
     }
 
     public BulkStats(StreamInput in) throws IOException {
-        total = in.readVLong();
+        totalOperations = in.readVLong();
         totalTimeInMillis = in.readVLong();
         totalSizeInBytes = in.readVLong();
     }
 
-    public BulkStats(long total, long totalTimeInMillis, long totalSizeInBytes) {
-        this.total = total;
+    public BulkStats(long totalOperations, long totalTimeInMillis, long totalSizeInBytes) {
+        this.totalOperations = totalOperations;
         this.totalTimeInMillis = totalTimeInMillis;
         this.totalSizeInBytes = totalSizeInBytes;
     }
@@ -59,7 +64,7 @@ public class BulkStats implements Writeable, ToXContentFragment {
         if (bulkStats == null) {
             return;
         }
-        this.total += bulkStats.total;
+        this.totalOperations += bulkStats.totalOperations;
         this.totalTimeInMillis += bulkStats.totalTimeInMillis;
         this.totalSizeInBytes += bulkStats.totalSizeInBytes;
     }
@@ -68,8 +73,8 @@ public class BulkStats implements Writeable, ToXContentFragment {
         return totalSizeInBytes;
     }
 
-    public long getTotal() {
-        return total;
+    public long getTotalOperations() {
+        return totalOperations;
     }
 
     public TimeValue getTotalTime() {
@@ -80,24 +85,46 @@ public class BulkStats implements Writeable, ToXContentFragment {
         return totalTimeInMillis;
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(total);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(totalOperations);
         out.writeVLong(totalTimeInMillis);
         out.writeVLong(totalSizeInBytes);
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.BULK);
-        builder.field(Fields.TOTAL, total);
+        builder.field(Fields.TOTAL_OPERATIONS, totalOperations);
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, getTotalTime());
         builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
         builder.endObject();
         return builder;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        final BulkStats that = (BulkStats) o;
+        return Objects.equals(this.totalOperations, that.totalOperations)
+            && Objects.equals(this.totalTimeInMillis, that.totalTimeInMillis)
+            && Objects.equals(this.totalSizeInBytes, that.totalSizeInBytes);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(totalOperations, totalTimeInMillis, totalSizeInBytes);
+    }
+
     static final class Fields {
         static final String BULK = "bulk";
-        static final String TOTAL = "total";
+        static final String TOTAL_OPERATIONS = "total_operations";
         static final String TOTAL_TIME = "total_time";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";

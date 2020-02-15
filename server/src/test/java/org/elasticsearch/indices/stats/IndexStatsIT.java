@@ -1095,11 +1095,11 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
         IndicesStatsResponse stats = client().admin().indices().prepareStats(index).setBulk(true).get();
 
-        assertThat(stats.getTotal().bulk.getTotal(), equalTo(4L));
+        assertThat(stats.getTotal().bulk.getTotalOperations(), equalTo(4L));
         assertThat(stats.getTotal().bulk.getTotalTimeInMillis(), greaterThan(0L));
         assertThat(stats.getTotal().bulk.getTotalSizeInBytes(), greaterThan(0L));
 
-        assertThat(stats.getPrimaries().bulk.getTotal(), equalTo(2L));
+        assertThat(stats.getPrimaries().bulk.getTotalOperations(), equalTo(2L));
         assertThat(stats.getPrimaries().bulk.getTotalTimeInMillis(), greaterThan(0L));
         assertThat(stats.getPrimaries().bulk.getTotalSizeInBytes(), greaterThan(0L));
     }

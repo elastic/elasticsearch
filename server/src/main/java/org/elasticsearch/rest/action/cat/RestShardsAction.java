@@ -200,7 +200,7 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("warmer.total", "alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops");
         table.addCell("warmer.total_time", "alias:wtt,warmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
 
-        table.addCell("bulk.total", "alias:bto,bulkTotal;default:false;text-align:right;desc:number of bulk shard ops");
+        table.addCell("bulk.total_operations", "alias:bto,bulkTotalOperations;default:false;text-align:right;desc:number of bulk shard ops");
         table.addCell("bulk.total_time", "alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
         table.addCell("bulk.total_size_in_bytes", "alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
 
@@ -355,7 +355,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::total));
             table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::totalTime));
 
-            table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotal));
+            table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalOperations));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalTime));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalSizeInBytes));
 

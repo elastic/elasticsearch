@@ -487,9 +487,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
 
-        table.addCell("bulk.total",
-            "sibling:pri;alias:bto,bulkTotal;default:false;text-align:right;desc:number of bulk shard ops");
-        table.addCell("pri.bulk.shard_bulk_time", "default:false;text-align:right;desc:number of bulk shard ops");
+        table.addCell("bulk.total_operations",
+            "sibling:pri;alias:bto,bulkTotalOperation;default:false;text-align:right;desc:number of bulk shard ops");
+        table.addCell("pri.bulk.total_operations", "default:false;text-align:right;desc:number of bulk shard ops");
 
         table.addCell("bulk.total_time", "sibling:pri;alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
         table.addCell("pri.bulk.shard_bulk_time", "default:false;text-align:right;desc:time spend in shard bulk");
@@ -756,8 +756,8 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(searchThrottled);
 
-            table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getTotal());
-            table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getTotal());
+            table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getTotalOperations());
+            table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getTotalOperations());
 
             table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getTotalTime());
             table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getTotalTime());

@@ -181,6 +181,12 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
         }
         double[] sortedPercents = Arrays.copyOf(percents, percents.length);
         Arrays.sort(sortedPercents);
+        for (double percent : sortedPercents) {
+            if (percent < 0.0 || percent > 100.0) {
+                throw new IllegalArgumentException("percent must be in [0,100], got [" + percent + "]: [" + name + "]");
+            }
+        }
+
         this.percents = sortedPercents;
         return this;
     }

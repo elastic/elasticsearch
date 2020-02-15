@@ -6,8 +6,6 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
@@ -22,8 +20,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLicenseAction extends XPackRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutLicenseAction.class));
-
     RestPutLicenseAction() {}
 
     @Override
@@ -35,8 +31,8 @@ public class RestPutLicenseAction extends XPackRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
             // TODO: remove POST endpoint?
-            new ReplacedRoute(POST, "/_license", POST, URI_BASE + "/license", deprecationLogger),
-            new ReplacedRoute(PUT, "/_license", PUT, URI_BASE + "/license", deprecationLogger)));
+            new ReplacedRoute(POST, "/_license", POST, URI_BASE + "/license"),
+            new ReplacedRoute(PUT, "/_license", PUT, URI_BASE + "/license")));
     }
 
     @Override

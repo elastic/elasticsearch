@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -128,6 +130,34 @@ public class QueryTranslatorTests extends ESTestCase {
         TermQuery tq = (TermQuery) query;
         assertEquals("some.string.typical", tq.term());
         assertEquals("value", tq.value());
+    }
+
+    public void testAliasAndGroupByResolution(){
+        LogicalPlan p = plan("SELECT COUNT(*) AS c FROM test WHERE ABS(int) > 0 GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        Aggregate a = (Aggregate) p;
+        LogicalPlan pc = ((Aggregate) p).child();
+        assertTrue(pc instanceof Filter);
+        Expression condition = ((Filter) pc).condition();
+        assertEquals("GREATERTHAN", ((GreaterThan) condition).functionName());
+        List<Expression> groupings = a.groupings();
+        assertTrue(groupings.get(0).resolved());
+        assertEquals("c", a.aggregates().get(0).name());
+        assertEquals("COUNT", ((Count) ((Alias) a.aggregates().get(0)).child()).functionName());
+    }
+    public void testLiteralWithGroupBy(){
+        LogicalPlan p = plan("SELECT 1 as t, 2 FROM test GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        Aggregate a = (Aggregate) p;
+        List<Expression> groupings = a.groupings();
+        assertEquals(1, groupings.size());
+        assertTrue(groupings.get(0).resolved());
+        assertTrue(groupings.get(0) instanceof FieldAttribute);
+        assertEquals(2, a.aggregates().size());
+        assertEquals("t", a.aggregates().get(0).name());
+        assertTrue(((Alias) a.aggregates().get(0)).child() instanceof Literal);
+        assertEquals("1", ((Alias) a.aggregates().get(0)).child().toString());
+        assertEquals("2", ((Alias) a.aggregates().get(1)).child().toString());
     }
 
     public void testTermEqualityNotAnalyzed() {
@@ -995,6 +1025,21 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
                     + "\"fixed_interval\":\"62208000000ms\",\"time_zone\":\"Z\"}}}]}"));
+    }
+
+    public void testGroupByHistogramWithScalarsQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int), HISTOGRAM(date, INTERVAL 5 YEARS - INTERVAL 6 MONTHS) AS h " +
+                                         "FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(2, eqe.output().size());
+        assertEquals("MAX(int)", eqe.output().get(0).qualifiedName());
+        assertEquals(INTEGER, eqe.output().get(0).dataType());
+        assertEquals("h", eqe.output().get(1).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(1).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\"," +
+                        "\"order\":\"asc\",\"fixed_interval\":\"139968000000ms\",\"time_zone\":\"Z\"}}}]}"));
     }
 
     public void testGroupByYearQueryTranslator() {

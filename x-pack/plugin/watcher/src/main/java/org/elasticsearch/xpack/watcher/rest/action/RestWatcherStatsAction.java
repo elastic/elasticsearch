@@ -37,8 +37,8 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(GET, "/_watcher/stats", GET, URI_BASE + "/watcher/stats", deprecationLogger),
-            new ReplacedRoute(GET, "/_watcher/stats/{metric}", GET, URI_BASE + "/watcher/stats/{metric}", deprecationLogger)));
+            new ReplacedRoute(GET, "/_watcher/stats", GET, URI_BASE + "/watcher/stats"),
+            new ReplacedRoute(GET, "/_watcher/stats/{metric}", GET, URI_BASE + "/watcher/stats/{metric}")));
     }
 
     @Override

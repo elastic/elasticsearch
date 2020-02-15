@@ -157,8 +157,8 @@ setup:
 ---
 "Get snapshot info with metadata":
   - skip:
-      version: " - 7.9.99"
-      reason: "https://github.com/elastic/elasticsearch/pull/41281 not yet backported to 7.x"
+      version: " - 7.2.99"
+      reason: "Introduced with 7.3"
 
   - do:
       indices.create:

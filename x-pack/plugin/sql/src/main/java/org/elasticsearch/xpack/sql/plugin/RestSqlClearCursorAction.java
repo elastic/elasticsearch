@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -26,8 +24,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlClearCursorAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlClearCursorAction.class));
-
     @Override
     public List<Route> routes() {
         return emptyList();
@@ -37,7 +33,7 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         return singletonList(new ReplacedRoute(
             POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT,
-            POST, Protocol.CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT, deprecationLogger));
+            POST, Protocol.CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT));
     }
 
     @Override

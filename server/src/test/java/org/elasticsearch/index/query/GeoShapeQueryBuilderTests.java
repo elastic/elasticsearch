@@ -278,7 +278,8 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape) :
             new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape.buildGeometry());
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("Field [mapped_string] is not of type [geo_shape] but of type [text]"));
+        assertThat(e.getMessage(), containsString("Field [mapped_string] is of unsupported type [text]." +
+            " [geo_shape] query supports the following types [geo_shape, geo_point]"));
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {

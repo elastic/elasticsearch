@@ -104,7 +104,7 @@ public class NodeStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "node_stats.indices.segments.index_writer_memory_in_bytes",
                         "node_stats.indices.segments.version_map_memory_in_bytes",
                         "node_stats.indices.segments.fixed_bit_set_memory_in_bytes",
-                        "node_stats.indices.bulk.total",
+                        "node_stats.indices.bulk.total_operations",
                         "node_stats.indices.bulk.total_time_in_millis",
                         "node_stats.indices.bulk.total_size_in_bytes",
                         "node_stats.fs.io_stats.total.operations",

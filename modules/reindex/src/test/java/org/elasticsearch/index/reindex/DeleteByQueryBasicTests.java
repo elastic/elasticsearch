@@ -32,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -251,10 +252,10 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                 InternalTestCluster internalTestCluster = internalCluster();
                 InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster
                     .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
-                // Refresh the cluster info manually to check the disk threshold and release the block on the index,
-                // ensure the test runs faster
-                infoService.refresh();
-                // The delete by query request will be executed successfully because the block has been released
+                ThreadPool threadPool = internalTestCluster.getInstance(ThreadPool.class, internalTestCluster.getMasterName());
+                // Refresh the cluster info after a random delay to check the disk threshold and release the block on the index
+                threadPool.schedule(infoService::refresh, TimeValue.timeValueMillis(randomIntBetween(1, 100)), ThreadPool.Names.MANAGEMENT);
+                // The delete by query request will be executed successfully because the block will be released
                 assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
                     matcher().deleted(docs));
             } else {

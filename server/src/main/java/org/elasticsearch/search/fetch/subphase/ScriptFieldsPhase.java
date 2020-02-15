@@ -37,7 +37,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
-public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
+public final class ScriptFieldsPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
@@ -65,7 +65,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 final Object value;
                 try {
                     value = leafScripts[i].execute();
-                    CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsFetchSubPhase leaf script " + i);
+                    CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsPhase leaf script " + i);
                 } catch (RuntimeException e) {
                     if (scriptFields.get(i).ignoreException()) {
                         continue;

@@ -70,6 +70,7 @@ public abstract class ESXPackSmokeClientTestCase extends LuceneTestCase {
                 .put("client.transport.ignore_cluster_name", true)
                 .put("xpack.security.enabled", false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
+        // Do not replace this with `inFipsSunJsseJvm(), see https://github.com/elastic/elasticsearch/issues/52391
         if (Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP)) && JavaVersion.current().getVersion().get(0) == 8) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }

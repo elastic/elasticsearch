@@ -483,12 +483,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     private Environment getUpdatedEnvironment(Environment existingEnvironment){
-        Settings.Builder additionalSettingsBuilder = Settings.builder();
-        additionalSettingsBuilder.put(existingEnvironment.settings());
         if (inFipsSunJsseJvm()) {
-            additionalSettingsBuilder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+            Settings additionalSettings = Settings.builder()
+                .put(existingEnvironment.settings())
+                .put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false)
+                .build();
+            return new Environment(additionalSettings, existingEnvironment.configFile());
         }
-        return new Environment(additionalSettingsBuilder.build(), existingEnvironment.configFile());
+        return existingEnvironment;
     }
 
 }

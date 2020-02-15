@@ -15,4 +15,4 @@ script:
   # percolator 2
   - ./gradlew :modules:percolator:test --tests org.elasticsearch.percolator.QueryAnalyzerTests
   # percolator 3
-  - ./gradlew :modules:percolator:test --tests org.elasticsearch.percolator.PercolatorQuerySearchIT
+  - ./gradlew :modules:percolator:test --tests org.elasticsearch.percolator.PercolatorFieldMapperTests

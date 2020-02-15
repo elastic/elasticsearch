@@ -24,6 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
+import org.elasticsearch.xpack.core.ilm.InitializePolicyException;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -132,8 +133,16 @@ public final class IndexLifecycleTransition {
         ElasticsearchException.generateThrowableXContent(causeXContentBuilder, STACKTRACE_PARAMS, cause);
         causeXContentBuilder.endObject();
         LifecycleExecutionState currentState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-        Step.StepKey currentStep = Objects.requireNonNull(LifecycleExecutionState.getCurrentStepKey(currentState),
-            "unable to move to an error step where there is no current step, state: " + currentState);
+        Step.StepKey currentStep;
+        // if an error is encountered while initialising the policy the lifecycle execution state will not yet contain any step information
+        // as we haven't yet initialised the policy, so we'll manually set the current step to be the "initialize policy" step so we can
+        // record the error (and later retry the init policy step)
+        if (cause instanceof InitializePolicyException) {
+            currentStep = InitializePolicyContextStep.KEY;
+        } else {
+            currentStep = Objects.requireNonNull(LifecycleExecutionState.getCurrentStepKey(currentState),
+                "unable to move to an error step where there is no current step, state: " + currentState);
+        }
         LifecycleExecutionState nextStepState = updateExecutionStateToStep(policyMetadata, currentState,
             new Step.StepKey(currentStep.getPhase(), currentStep.getAction(), ErrorStep.NAME), nowSupplier, false);
 

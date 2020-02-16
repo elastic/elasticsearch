@@ -29,11 +29,9 @@ import static org.hamcrest.Matchers.oneOf;
 public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "transform_user";
-    private static final String BASIC_AUTH_VALUE_TRANSFORM_USER =
-        basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+    private static final String BASIC_AUTH_VALUE_TRANSFORM_USER = basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
     private static final String TEST_ADMIN_USER_NAME = "transform_admin";
-    private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN =
-        basicAuthHeaderValue(TEST_ADMIN_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+    private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN = basicAuthHeaderValue(TEST_ADMIN_USER_NAME, TEST_PASSWORD_SECURE_STRING);
 
     private static boolean indicesCreated = false;
 
@@ -101,13 +99,13 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
 
-        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
         // Verify that both transforms have valid stats
         for (Map<String, Object> transformStats : transformsStats) {
-            Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
-            assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
-            assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
-            assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
+            Map<String, Object> stat = (Map<String, Object>) transformStats.get("stats");
+            assertThat("documents_processed is not > 0.", ((Integer) stat.get("documents_processed")), greaterThan(0));
+            assertThat("search_total is not > 0.", ((Integer) stat.get("search_total")), greaterThan(0));
+            assertThat("pages_processed is not > 0.", ((Integer) stat.get("pages_processed")), greaterThan(0));
             /* TODO progress is now checkpoint progress and it may be that no checkpoint is in progress here
             Map<String, Object> progress =
                 (Map<String, Object>)XContentMapValues.extractValue("checkpointing.next.checkpoint_progress", transformStats);
@@ -122,7 +120,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
 
-        transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
         assertEquals("stopped", XContentMapValues.extractValue("state", transformsStats.get(0)));
         assertNull(XContentMapValues.extractValue("checkpointing.next.position", transformsStats.get(0)));
@@ -133,11 +131,10 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
 
-        transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
         assertThat(XContentMapValues.extractValue("state", transformsStats.get(0)), oneOf("started", "indexing"));
         assertEquals(1, XContentMapValues.extractValue("checkpointing.last.checkpoint", transformsStats.get(0)));
-
 
         // check all the different ways to retrieve all transforms
         getRequest = createRequestWithAuth("GET", getTransformEndpoint(), authHeader);
@@ -165,12 +162,13 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stopTransform("pivot_stats_1", false);
 
         // Get rid of the first transform task, but keep the configuration
-        client().performRequest(new Request("POST", "_tasks/_cancel?actions="+TransformField.TASK_NAME+"*"));
+        client().performRequest(new Request("POST", "_tasks/_cancel?actions=" + TransformField.TASK_NAME + "*"));
 
         // Verify that the task is gone
-        Map<String, Object> tasks =
-            entityAsMap(client().performRequest(new Request("GET", "_tasks?actions="+TransformField.TASK_NAME+"*")));
-        assertTrue(((Map<?, ?>)XContentMapValues.extractValue("nodes", tasks)).isEmpty());
+        Map<String, Object> tasks = entityAsMap(
+            client().performRequest(new Request("GET", "_tasks?actions=" + TransformField.TASK_NAME + "*"))
+        );
+        assertTrue(((Map<?, ?>) XContentMapValues.extractValue("nodes", tasks)).isEmpty());
 
         createPivotReviewsTransform("pivot_stats_2", "pivot_reviews_stats_2", null);
         startAndWaitForTransform("pivot_stats_2", "pivot_reviews_stats_2");
@@ -178,13 +176,13 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_stats", BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
-        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
         // Verify that both transforms, the one with the task and the one without have statistics
         for (Map<String, Object> transformStats : transformsStats) {
-            Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
-            assertThat(((Integer)stat.get("documents_processed")), greaterThan(0));
-            assertThat(((Integer)stat.get("search_total")), greaterThan(0));
-            assertThat(((Integer)stat.get("pages_processed")), greaterThan(0));
+            Map<String, Object> stat = (Map<String, Object>) transformStats.get("stats");
+            assertThat(((Integer) stat.get("documents_processed")), greaterThan(0));
+            assertThat(((Integer) stat.get("search_total")), greaterThan(0));
+            assertThat(((Integer) stat.get("pages_processed")), greaterThan(0));
         }
     }
 
@@ -202,13 +200,13 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId + "/_stats", authHeader);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
-        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
         // Verify that the transform has stats and the total docs process matches the expected
         for (Map<String, Object> transformStats : transformsStats) {
-            Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
-            assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
-            assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
-            assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
+            Map<String, Object> stat = (Map<String, Object>) transformStats.get("stats");
+            assertThat("documents_processed is not > 0.", ((Integer) stat.get("documents_processed")), greaterThan(0));
+            assertThat("search_total is not > 0.", ((Integer) stat.get("search_total")), greaterThan(0));
+            assertThat("pages_processed is not > 0.", ((Integer) stat.get("pages_processed")), greaterThan(0));
             /* TODO progress is now checkpoint progress and it may be that no checkpoint is in progress here
             Map<String, Object> progress =
                 (Map<String, Object>)XContentMapValues.extractValue("checkpointing.next.checkpoint_progress", transformStats);
@@ -226,8 +224,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         String transformSrc = "reviews_cont_pivot_test";
         createReviewsIndex(transformSrc);
         final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
-        String config = "{ \"dest\": {\"index\":\"" + transformDest + "\"},"
-            + " \"source\": {\"index\":\"" + transformSrc + "\"},"
+        String config = "{ \"dest\": {\"index\":\""
+            + transformDest
+            + "\"},"
+            + " \"source\": {\"index\":\""
+            + transformSrc
+            + "\"},"
             + " \"frequency\": \"1s\","
             + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"1s\"}},"
             + " \"pivot\": {"
@@ -251,20 +253,28 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
         Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId + "/_stats", null);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
-        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
-        // No continuous checkpoints have been seen and thus all exponential averages should be 0.0
+        // No continuous checkpoints have been seen and thus all exponential averages should be equal to the batch stats
         for (Map<String, Object> transformStats : transformsStats) {
-            transformStats = (Map<String, Object>)transformStats.get("stats");
-            assertThat("exponential_avg_checkpoint_duration_ms is not 0.0",
-                transformStats.get("exponential_avg_checkpoint_duration_ms"),
-                equalTo(0.0));
-            assertThat("exponential_avg_documents_indexed is not 0.0",
-                transformStats.get("exponential_avg_documents_indexed"),
-                equalTo(0.0));
-            assertThat("exponential_avg_documents_processed is not 0.0",
+            transformStats = (Map<String, Object>) transformStats.get("stats");
+            assertThat(transformStats.get("documents_processed"), equalTo(1000));
+            assertThat(transformStats.get("documents_indexed"), equalTo(27));
+            assertThat(
+                "exponential_avg_checkpoint_duration_ms is not 0.0",
+                (Double) transformStats.get("exponential_avg_checkpoint_duration_ms"),
+                greaterThan(0.0)
+            );
+            assertThat(
+                "exponential_avg_documents_indexed does not match documents_indexed",
+                (Double) transformStats.get("exponential_avg_documents_indexed"),
+                equalTo(((Integer) transformStats.get("documents_indexed")).doubleValue())
+            );
+            assertThat(
+                "exponential_avg_documents_processed does not match documents_processed",
                 transformStats.get("exponential_avg_documents_processed"),
-                equalTo(0.0));
+                equalTo(((Integer) transformStats.get("documents_processed")).doubleValue())
+            );
         }
 
         int numDocs = 10;
@@ -296,23 +306,27 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // We should now have exp avgs since we have processed a continuous checkpoint
         assertBusy(() -> {
             Map<String, Object> statsResponse = entityAsMap(client().performRequest(getRequest));
-            List<Map<String, Object>> contStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", statsResponse);
+            List<Map<String, Object>> contStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", statsResponse);
             assertEquals(1, contStats.size());
             for (Map<String, Object> transformStats : contStats) {
-                Map<String, Object> statsObj = (Map<String, Object>)transformStats.get("stats");
-                assertThat("exponential_avg_checkpoint_duration_ms is 0",
-                    (Double)statsObj.get("exponential_avg_checkpoint_duration_ms"),
-                    greaterThan(0.0));
-                assertThat("exponential_avg_documents_indexed is 0",
-                    (Double)statsObj.get("exponential_avg_documents_indexed"),
-                    greaterThan(0.0));
-                assertThat("exponential_avg_documents_processed is 0",
-                    (Double)statsObj.get("exponential_avg_documents_processed"),
-                    greaterThan(0.0));
-                Map<String, Object> checkpointing = (Map<String, Object>)transformStats.get("checkpointing");
-                assertThat("changes_last_detected_at is null",
-                    checkpointing.get("changes_last_detected_at"),
-                    is(notNullValue()));
+                Map<String, Object> statsObj = (Map<String, Object>) transformStats.get("stats");
+                assertThat(
+                    "exponential_avg_checkpoint_duration_ms is 0",
+                    (Double) statsObj.get("exponential_avg_checkpoint_duration_ms"),
+                    greaterThan(0.0)
+                );
+                assertThat(
+                    "exponential_avg_documents_indexed is 0",
+                    (Double) statsObj.get("exponential_avg_documents_indexed"),
+                    greaterThan(0.0)
+                );
+                assertThat(
+                    "exponential_avg_documents_processed is 0",
+                    (Double) statsObj.get("exponential_avg_documents_processed"),
+                    greaterThan(0.0)
+                );
+                Map<String, Object> checkpointing = (Map<String, Object>) transformStats.get("checkpointing");
+                assertThat("changes_last_detected_at is null", checkpointing.get("changes_last_detected_at"), is(notNullValue()));
             }
         }, 120, TimeUnit.SECONDS);
     }

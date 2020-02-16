@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -14,6 +15,9 @@ task restTest(type: RestIntegTestTask) {
 
 testClusters.restTest {
   testDistribution = 'DEFAULT'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.autoscaling_feature_flag_registered', 'true'
+  }
   setting 'xpack.autoscaling.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
   extraConfigFile 'roles.yml', file('autoscaling-roles.yml')

@@ -1,0 +1,15 @@
+{
+  "order" : 0,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-config"
+  ],
+  "settings" : {
+    "index" : {
+      "max_result_window" : "${xpack.ml.config.max_result_window}",
+      "number_of_shards" : "1",
+      "auto_expand_replicas" : "0-1"
+    }
+  },
+  "mappings": ${xpack.ml.config.mappings}
+}

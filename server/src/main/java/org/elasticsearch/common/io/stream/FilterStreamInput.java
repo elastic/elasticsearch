@@ -47,7 +47,7 @@ public abstract class FilterStreamInput extends StreamInput {
 
     @Override
     public short readShort() throws IOException {
-        return  delegate.readShort();
+        return delegate.readShort();
     }
 
     @Override

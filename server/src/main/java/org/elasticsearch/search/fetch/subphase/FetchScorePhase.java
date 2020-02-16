@@ -34,7 +34,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
-public class ScoreFetchSubPhase implements FetchSubPhase {
+public class FetchScorePhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {

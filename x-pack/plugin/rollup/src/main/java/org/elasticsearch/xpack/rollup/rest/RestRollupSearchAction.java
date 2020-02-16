@@ -17,8 +17,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -28,11 +26,11 @@ public class RestRollupSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "_rollup_search"),
             new Route(POST, "_rollup_search"),
             new Route(GET, "{index}/_rollup_search"),
-            new Route(POST, "{index}/_rollup_search")));
+            new Route(POST, "{index}/_rollup_search"));
     }
 
     @Override

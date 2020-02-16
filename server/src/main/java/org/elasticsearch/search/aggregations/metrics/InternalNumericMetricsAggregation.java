@@ -22,8 +22,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,6 +64,15 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
             }
         }
 
+        @Override
+        public final double sortValue(String key) {
+            if (key != null && false == key.equals("value")) {
+                throw new IllegalArgumentException(
+                        "Unknown value key [" + key + "] for single-value metric aggregation [" + getName() +
+                        "]. Either use [value] as key or drop the key all together");
+            }
+            return value();
+        }
     }
 
     public abstract static class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
@@ -92,6 +103,14 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
                 throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
             }
         }
+
+        @Override
+        public final double sortValue(String key) {
+            if (key == null) {
+                throw new IllegalArgumentException("Missing value key in [" + key+ "] which refers to a multi-value metric aggregation");
+            }
+            return value(key);
+        }
     }
 
     private InternalNumericMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
@@ -103,6 +122,11 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
      */
     protected InternalNumericMetricsAggregation(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        throw new IllegalArgumentException("Metrics aggregations cannot have sub-aggregations (at [>" + head + "]");
     }
 
     @Override

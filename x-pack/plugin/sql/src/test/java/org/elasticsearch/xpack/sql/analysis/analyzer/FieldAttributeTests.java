@@ -144,17 +144,17 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testDottedFieldPath() {
-        assertThat(error("some"), is("Found 1 problem(s)\nline 1:8: Cannot use field [some] type [object] only its subfields"));
+        assertThat(error("some"), is("Found 1 problem\nline 1:8: Cannot use field [some] type [object] only its subfields"));
     }
 
     public void testDottedFieldPathDeeper() {
         assertThat(error("some.dotted"),
-                is("Found 1 problem(s)\nline 1:8: Cannot use field [some.dotted] type [object] only its subfields"));
+                is("Found 1 problem\nline 1:8: Cannot use field [some.dotted] type [object] only its subfields"));
     }
 
     public void testDottedFieldPathTypo() {
         assertThat(error("some.dotted.fild"),
-                is("Found 1 problem(s)\nline 1:8: Unknown column [some.dotted.fild], did you mean [some.dotted.field]?"));
+                is("Found 1 problem\nline 1:8: Unknown column [some.dotted.fild], did you mean [some.dotted.field]?"));
     }
 
     public void testStarExpansionExcludesObjectAndUnsupportedTypes() {
@@ -177,13 +177,13 @@ public class FieldAttributeTests extends ESTestCase {
 
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(
-                "Found 1 problem(s)\nline 1:8: Reference [test.bar] is ambiguous (to disambiguate use quotes or qualifiers); "
+                "Found 1 problem\nline 1:8: Reference [test.bar] is ambiguous (to disambiguate use quotes or qualifiers); "
                         + "matches any of [\"test\".\"bar\", \"test\".\"test.bar\"]",
                 ex.getMessage());
 
         ex = expectThrows(VerificationException.class, () -> plan("SELECT test.test FROM test"));
         assertEquals(
-                "Found 1 problem(s)\nline 1:8: Reference [test.test] is ambiguous (to disambiguate use quotes or qualifiers); "
+                "Found 1 problem\nline 1:8: Reference [test.test] is ambiguous (to disambiguate use quotes or qualifiers); "
                         + "matches any of [\"test\".\"test\", \"test\".\"test.test\"]",
                 ex.getMessage());
 

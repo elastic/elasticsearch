@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,6 +92,8 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
             }
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
+        } finally {
+            context.clearReleasables(Lifetime.COLLECTION);
         }
     }
 }

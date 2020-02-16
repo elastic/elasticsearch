@@ -27,7 +27,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -40,11 +40,11 @@ public class MockSearchService extends SearchService {
      */
     public static class TestPlugin extends Plugin {}
 
-    private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
+    private static final Map<SearchContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
-        final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
+        final Map<SearchContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {
             throw new AssertionError(
                     "There are still [" + copy.size()
@@ -56,14 +56,14 @@ public class MockSearchService extends SearchService {
     /**
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
-    static void addActiveContext(ReaderContext context) {
+    static void addActiveContext(SearchContext context) {
         ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(context.toString()));
     }
 
     /**
      * Clear an active search context from the list of tracked contexts. Package private for testing.
      */
-    static void removeActiveContext(ReaderContext context) {
+    static void removeActiveContext(SearchContext context) {
         ACTIVE_SEARCH_CONTEXTS.remove(context);
     }
 
@@ -74,14 +74,14 @@ public class MockSearchService extends SearchService {
     }
 
     @Override
-    protected void putReaderContext(ReaderContext context) {
+    protected void putContext(SearchContext context) {
         addActiveContext(context);
-        super.putReaderContext(context);
+        super.putContext(context);
     }
 
     @Override
-    protected ReaderContext removeReaderContext(long id) {
-        final ReaderContext removed = super.removeReaderContext(id);
+    protected SearchContext removeContext(long id) {
+        final SearchContext removed = super.removeContext(id);
         if (removed != null) {
             removeActiveContext(removed);
         }

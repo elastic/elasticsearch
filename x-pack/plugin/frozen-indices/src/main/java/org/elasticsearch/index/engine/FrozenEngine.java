@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -286,34 +285,27 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
+                // also register a release resource in this case if we have multiple roundtrips like in DFS
+                registerRelease(context, lazyDirectoryReader);
             }
         }
 
-        @Override
-        public void onFreeSearchContext(SearchContext context) {
-            DirectoryReader dirReader = context.searcher().getDirectoryReader();
-            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(dirReader);
-            if (lazyDirectoryReader != null) {
+        private void registerRelease(SearchContext context, LazyDirectoryReader lazyDirectoryReader) {
+            context.addReleasable(() -> {
                 try {
                     lazyDirectoryReader.release();
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            }
+            }, SearchContext.Lifetime.PHASE);
         }
 
         @Override
-        public void onNewReaderContext(ReaderContext readerContext) {
-            DirectoryReader dirReader = readerContext.engineSearcher().getDirectoryReader();
+        public void onNewContext(SearchContext context) {
+            DirectoryReader dirReader = context.searcher().getDirectoryReader();
             LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(dirReader);
             if (lazyDirectoryReader != null) {
-                readerContext.addOnClose(() -> {
-                    try {
-                        lazyDirectoryReader.release();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
+                registerRelease(context, lazyDirectoryReader);
             }
         }
     }

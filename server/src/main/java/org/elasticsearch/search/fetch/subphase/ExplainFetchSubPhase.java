@@ -48,6 +48,8 @@ public final class ExplainFetchSubPhase implements FetchSubPhase {
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(context.shardTarget(),
                 "Failed to explain doc [" + hitContext.hit().getId() + "]", e);
+        } finally {
+            context.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
     }
 }

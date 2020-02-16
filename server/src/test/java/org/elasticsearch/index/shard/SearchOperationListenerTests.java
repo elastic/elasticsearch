@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.search.internal.ReaderContext;
-import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -35,7 +33,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
 
 public class SearchOperationListenerTests extends ESTestCase {
 
@@ -93,26 +90,26 @@ public class SearchOperationListenerTests extends ESTestCase {
             }
 
             @Override
-            public void onNewReaderContext(ReaderContext readerContext) {
-                assertNotNull(readerContext);
+            public void onNewContext(SearchContext context) {
+                assertNotNull(context);
                 newContext.incrementAndGet();
             }
 
             @Override
-            public void onFreeReaderContext(ReaderContext readerContext) {
-                assertNotNull(readerContext);
+            public void onFreeContext(SearchContext context) {
+                assertNotNull(context);
                 freeContext.incrementAndGet();
             }
 
             @Override
-            public void onNewScrollContext(ScrollContext scrollContext) {
-                assertNotNull(scrollContext);
+            public void onNewScrollContext(SearchContext context) {
+                assertNotNull(context);
                 newScrollContext.incrementAndGet();
             }
 
             @Override
-            public void onFreeScrollContext(ScrollContext scrollContext) {
-                assertNotNull(scrollContext);
+            public void onFreeScrollContext(SearchContext context) {
+                assertNotNull(context);
                 freeScrollContext.incrementAndGet();
             }
 
@@ -219,7 +216,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, freeScrollContext.get());
         assertEquals(0, validateSearchContext.get());
 
-        compositeListener.onNewReaderContext(mock(ReaderContext.class));
+        compositeListener.onNewContext(ctx);
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
         assertEquals(2, failedFetch.get());
@@ -232,7 +229,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, freeScrollContext.get());
         assertEquals(0, validateSearchContext.get());
 
-        compositeListener.onNewScrollContext(new ScrollContext());
+        compositeListener.onNewScrollContext(ctx);
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
         assertEquals(2, failedFetch.get());
@@ -245,7 +242,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, freeScrollContext.get());
         assertEquals(0, validateSearchContext.get());
 
-        compositeListener.onFreeReaderContext(mock(ReaderContext.class));
+        compositeListener.onFreeContext(ctx);
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
         assertEquals(2, failedFetch.get());
@@ -258,7 +255,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, freeScrollContext.get());
         assertEquals(0, validateSearchContext.get());
 
-        compositeListener.onFreeScrollContext(new ScrollContext());
+        compositeListener.onFreeScrollContext(ctx);
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
         assertEquals(2, failedFetch.get());

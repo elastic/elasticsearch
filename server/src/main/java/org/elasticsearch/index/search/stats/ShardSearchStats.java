@@ -24,8 +24,6 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.search.internal.ReaderContext;
-import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
@@ -148,25 +146,25 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     @Override
-    public void onNewReaderContext(ReaderContext readerContext) {
+    public void onNewContext(SearchContext context) {
         openContexts.inc();
     }
 
     @Override
-    public void onFreeReaderContext(ReaderContext readerContext) {
+    public void onFreeContext(SearchContext context) {
         openContexts.dec();
     }
 
     @Override
-    public void onNewScrollContext(ScrollContext scrollContext) {
+    public void onNewScrollContext(SearchContext context) {
         totalStats.scrollCurrent.inc();
     }
 
     @Override
-    public void onFreeScrollContext(ScrollContext scrollContext) {
+    public void onFreeScrollContext(SearchContext context) {
         totalStats.scrollCurrent.dec();
         assert totalStats.scrollCurrent.count() >= 0;
-        totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - scrollContext.getStartTimeInNano()));
+        totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - context.getOriginNanoTime()));
     }
 
     static final class StatsHolder {

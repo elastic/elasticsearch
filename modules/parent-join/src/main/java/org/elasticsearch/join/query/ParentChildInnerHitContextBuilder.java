@@ -158,8 +158,12 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
                         maxScoreCollector = new MaxScoreCollector();
                     }
-                    for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
-                        intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
+                    try {
+                        for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
+                            intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
+                        }
+                    } finally {
+                        clearReleasables(Lifetime.COLLECTION);
                     }
                     TopDocs topDocs = topDocsCollector.topDocs(from(), size());
                     float maxScore = Float.NaN;

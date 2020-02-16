@@ -29,6 +29,9 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -58,29 +61,36 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
  * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
  * state from one query / fetch phase to another.
+ *
+ * This class also implements {@link RefCounted} since in some situations like in {@link org.elasticsearch.search.SearchService}
+ * a SearchContext can be closed concurrently due to independent events ie. when an index gets removed. To prevent accessing closed
+ * IndexReader / IndexSearcher instances the SearchContext can be guarded by a reference count and fail if it's been closed by
+ * an external event.
  */
-public abstract class SearchContext implements Releasable {
+// For reference why we use RefCounted here see #20095
+public abstract class SearchContext extends AbstractRefCounted implements Releasable {
 
     public static final int DEFAULT_TERMINATE_AFTER = 0;
     public static final int TRACK_TOTAL_HITS_ACCURATE = Integer.MAX_VALUE;
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
-    private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
+    private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
     protected SearchContext() {
-
+        super("search_context");
     }
 
     public abstract void setTask(SearchShardTask task);
@@ -91,13 +101,23 @@ public abstract class SearchContext implements Releasable {
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) {
-            try {
-                Releasables.close(releasables);
-            } finally {
-                doClose();
-            }
+        if (closed.compareAndSet(false, true)) { // prevent double closing
+            decRef();
         }
+    }
+
+    @Override
+    protected final void closeInternal() {
+        try {
+            clearReleasables(Lifetime.CONTEXT);
+        } finally {
+            doClose();
+        }
+    }
+
+    @Override
+    protected void alreadyClosed() {
+        throw new IllegalStateException("search context is already closed can't increment refCount current count [" + refCount() + "]");
     }
 
     protected abstract void doClose();
@@ -126,7 +146,11 @@ public abstract class SearchContext implements Releasable {
 
     public abstract float queryBoost();
 
+    public abstract long getOriginNanoTime();
+
     public abstract ScrollContext scrollContext();
+
+    public abstract SearchContext scrollContext(ScrollContext scroll);
 
     public abstract SearchContextAggregations aggregations();
 
@@ -155,6 +179,8 @@ public abstract class SearchContext implements Releasable {
      * @return list of all rescore contexts.  empty if there aren't any.
      */
     public abstract List<RescoreContext> rescore();
+
+    public abstract void addRescore(RescoreContext rescore);
 
     public abstract boolean hasScriptFields();
 
@@ -296,6 +322,14 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize);
 
+    public abstract void accessed(long accessTime);
+
+    public abstract long lastAccessTime();
+
+    public abstract long keepAlive();
+
+    public abstract void keepAlive(long keepAlive);
+
     public SearchLookup lookup() {
         return getQueryShardContext().lookup();
     }
@@ -313,12 +347,36 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract Profilers getProfilers();
 
-
     /**
-     * Adds a releasable that will be freed when this context is closed.
+     * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object
+     * is function of the provided {@link Lifetime}.
      */
-    public void addReleasable(Releasable releasable) {
+    public void addReleasable(Releasable releasable, Lifetime lifetime) {
+        if (clearables == null) {
+            clearables = new EnumMap<>(Lifetime.class);
+        }
+        List<Releasable> releasables = clearables.get(lifetime);
+        if (releasables == null) {
+            releasables = new ArrayList<>();
+            clearables.put(lifetime, releasables);
+        }
         releasables.add(releasable);
+    }
+
+    public void clearReleasables(Lifetime lifetime) {
+        if (clearables != null) {
+            List<List<Releasable>>releasables = new ArrayList<>();
+            for (Lifetime lc : Lifetime.values()) {
+                if (lc.compareTo(lifetime) > 0) {
+                    break;
+                }
+                List<Releasable> remove = clearables.remove(lc);
+                if (remove != null) {
+                    releasables.add(remove);
+                }
+            }
+            Releasables.close(Iterables.flatten(releasables));
+        }
     }
 
     /**
@@ -344,6 +402,24 @@ public abstract class SearchContext implements Releasable {
 
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();
+
+    /**
+     * The life time of an object that is used during search execution.
+     */
+    public enum Lifetime {
+        /**
+         * This life time is for objects that only live during collection time.
+         */
+        COLLECTION,
+        /**
+         * This life time is for objects that need to live until the end of the current search phase.
+         */
+        PHASE,
+        /**
+         * This life time is for objects that need to live until the search context they are attached to is destroyed.
+         */
+        CONTEXT
+    }
 
     public abstract QueryShardContext getQueryShardContext();
 

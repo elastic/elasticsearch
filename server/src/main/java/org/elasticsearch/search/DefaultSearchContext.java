@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
@@ -60,7 +61,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -75,6 +75,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,11 +83,12 @@ import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
 
-    private final ReaderContext readerContext;
+    private final long id;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
     private SearchType searchType;
+    private final Engine.Searcher engineSearcher;
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
     private final ClusterService clusterService;
@@ -100,6 +102,7 @@ final class DefaultSearchContext extends SearchContext {
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private List<String> groupStats;
+    private ScrollContext scrollContext;
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
     private boolean seqAndPrimaryTerm = false;
@@ -139,6 +142,10 @@ final class DefaultSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private SearchContextHighlight highlight;
     private SuggestionSearchContext suggest;
+    private List<RescoreContext> rescore;
+    private volatile long keepAlive;
+    private final long originNanoTime = System.nanoTime();
+    private volatile long lastAccessTime = -1;
     private Profilers profilers;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
@@ -146,36 +153,36 @@ final class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
 
-    DefaultSearchContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget shardTarget,
-                         ClusterService clusterService, IndexService indexService, IndexShard indexShard, BigArrays bigArrays,
-                         LongSupplier relativeTimeSupplier, TimeValue timeout, FetchPhase fetchPhase) {
-        this.readerContext = readerContext;
+    DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
+                         Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
+                         IndexShard indexShard, BigArrays bigArrays, LongSupplier relativeTimeSupplier, TimeValue timeout,
+                         FetchPhase fetchPhase) {
+        this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
+        this.engineSearcher = engineSearcher;
         // SearchContexts use a BigArrays that can circuit break
         this.bigArrays = bigArrays.withCircuitBreaking();
-        this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget);
-        this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget);
-        this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
+        this.dfsResult = new DfsSearchResult(id, shardTarget);
+        this.queryResult = new QuerySearchResult(id, shardTarget);
+        this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.clusterService = clusterService;
-        final Engine.Searcher engineSearcher = readerContext.engineSearcher();
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy());
-        searcher.setAggregatedDfs(readerContext.aggregatedDfs());
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
-        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), this.searcher,
+        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher,
             request::nowInMillis, shardTarget.getClusterAlias());
         queryBoost = request.indexBoost();
     }
 
     @Override
     public void doClose() {
-        readerContext.decRef();
+        Releasables.close(engineSearcher);
     }
 
     /**
@@ -192,7 +199,7 @@ final class DefaultSearchContext extends SearchContext {
         int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
 
         if (resultWindow > maxResultWindow) {
-            if (scrollContext() == null) {
+            if (scrollContext == null) {
                 throw new IllegalArgumentException(
                         "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
                                 + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
@@ -204,12 +211,12 @@ final class DefaultSearchContext extends SearchContext {
                             + "]. Scroll batch sizes cost as much memory as result windows so they are controlled by the ["
                             + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() + "] index level setting.");
         }
-        if (rescore().isEmpty() == false) {
+        if (rescore != null) {
             if (sort != null) {
                 throw new IllegalArgumentException("Cannot use [sort] option in conjunction with [rescore].");
             }
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
-            for (RescoreContext rescoreContext: rescore()) {
+            for (RescoreContext rescoreContext: rescore) {
                 if (rescoreContext.getWindowSize() > maxWindow) {
                     throw new IllegalArgumentException("Rescore window [" + rescoreContext.getWindowSize() + "] is too large. "
                             + "It must be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results "
@@ -290,12 +297,12 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public long id() {
-        return readerContext.id();
+        return this.id;
     }
 
     @Override
     public String source() {
-        return readerContext.source();
+        return engineSearcher.source();
     }
 
     @Override
@@ -324,10 +331,20 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public ScrollContext scrollContext() {
-        return readerContext.scrollContext();
+    public long getOriginNanoTime() {
+        return originNanoTime;
     }
 
+    @Override
+    public ScrollContext scrollContext() {
+        return this.scrollContext;
+    }
+
+    @Override
+    public SearchContext scrollContext(ScrollContext scrollContext) {
+        this.scrollContext = scrollContext;
+        return this;
+    }
 
     @Override
     public SearchContextAggregations aggregations() {
@@ -374,7 +391,18 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public List<RescoreContext> rescore() {
-        return readerContext.rescore();
+        if (rescore == null) {
+            return Collections.emptyList();
+        }
+        return rescore;
+    }
+
+    @Override
+    public void addRescore(RescoreContext rescore) {
+        if (this.rescore == null) {
+            this.rescore = new ArrayList<>();
+        }
+        this.rescore.add(rescore);
     }
 
     @Override
@@ -706,6 +734,26 @@ final class DefaultSearchContext extends SearchContext {
         this.docsIdsToLoadFrom = docsIdsToLoadFrom;
         this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
+    }
+
+    @Override
+    public void accessed(long accessTime) {
+        this.lastAccessTime = accessTime;
+    }
+
+    @Override
+    public long lastAccessTime() {
+        return this.lastAccessTime;
+    }
+
+    @Override
+    public long keepAlive() {
+        return this.keepAlive;
+    }
+
+    @Override
+    public void keepAlive(long keepAlive) {
+        this.keepAlive = keepAlive;
     }
 
     @Override

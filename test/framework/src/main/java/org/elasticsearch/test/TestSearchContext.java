@@ -110,18 +110,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard, ContextIndexSearcher searcher) {
-        this(queryShardContext, indexShard, searcher, null);
-    }
-
-    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard,
-                             ContextIndexSearcher searcher, ScrollContext scrollContext) {
         this.bigArrays = null;
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
         this.searcher = searcher;
-        this.scrollContext = scrollContext;
     }
 
     public void setSearcher(ContextIndexSearcher searcher) {
@@ -173,8 +167,19 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public long getOriginNanoTime() {
+        return originNanoTime;
+    }
+
+    @Override
     public ScrollContext scrollContext() {
         return scrollContext;
+    }
+
+    @Override
+    public SearchContext scrollContext(ScrollContext scrollContext) {
+        this.scrollContext = scrollContext;
+        return this;
     }
 
     @Override
@@ -219,6 +224,10 @@ public class TestSearchContext extends SearchContext {
     @Override
     public List<RescoreContext> rescore() {
         return Collections.emptyList();
+    }
+
+    @Override
+    public void addRescore(RescoreContext rescore) {
     }
 
     @Override
@@ -525,6 +534,24 @@ public class TestSearchContext extends SearchContext {
     @Override
     public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
         return null;
+    }
+
+    @Override
+    public void accessed(long accessTime) {
+    }
+
+    @Override
+    public long lastAccessTime() {
+        return 0;
+    }
+
+    @Override
+    public long keepAlive() {
+        return 0;
+    }
+
+    @Override
+    public void keepAlive(long keepAlive) {
     }
 
     @Override

@@ -46,9 +46,10 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      * Adds the {@link Authentication} to the {@link ScrollContext}
      */
     @Override
-    public void onNewScrollContext(ScrollContext scrollContext) {
+    public void onNewScrollContext(SearchContext searchContext) {
         if (licenseState.isAuthAllowed()) {
-            scrollContext.putInContext(AuthenticationField.AUTHENTICATION_KEY, Authentication.getAuthentication(threadContext));
+            searchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY,
+                    Authentication.getAuthentication(threadContext));
         }
     }
 

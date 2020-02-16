@@ -78,10 +78,11 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -102,7 +103,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class IndexModuleTests extends ESTestCase {
     private Index index;
@@ -272,8 +272,9 @@ public class IndexModuleTests extends ESTestCase {
         IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
         AtomicBoolean executed = new AtomicBoolean(false);
         SearchOperationListener listener = new SearchOperationListener() {
+
             @Override
-            public void onNewReaderContext(ReaderContext readerContext) {
+            public void onNewContext(SearchContext context) {
                 executed.set(true);
             }
         };
@@ -286,8 +287,9 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(2, indexService.getSearchOperationListener().size());
         assertEquals(SearchSlowLog.class, indexService.getSearchOperationListener().get(0).getClass());
         assertSame(listener, indexService.getSearchOperationListener().get(1));
+
         for (SearchOperationListener l : indexService.getSearchOperationListener()) {
-            l.onNewReaderContext(mock(ReaderContext.class));
+            l.onNewContext(new TestSearchContext(null));
         }
         assertTrue(executed.get());
         indexService.close("simon says", false);

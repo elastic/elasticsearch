@@ -249,7 +249,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
              * close their sub-aggregations. This is fairly similar to what the production code does. */
             releasables.add((Releasable) invocation.getArguments()[0]);
             return null;
-        }).when(searchContext).addReleasable(anyObject());
+        }).when(searchContext).addReleasable(anyObject(), anyObject());
         return searchContext;
     }
 

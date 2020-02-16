@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,7 +50,7 @@ public abstract class AggregatorFactory {
             this.parent = parent;
             this.factory = factory;
             this.first = first;
-            context.addReleasable(this);
+            context.addReleasable(this, Lifetime.PHASE);
             aggregators = bigArrays.newObjectArray(1);
             aggregators.set(0, first);
             collectors = bigArrays.newObjectArray(1);

@@ -36,8 +36,6 @@ public final class ScrollContext {
     public ScoreDoc lastEmittedDoc;
     public Scroll scroll;
 
-    private final long startTimeInNano = System.nanoTime();
-
     /**
      * Returns the object or <code>null</code> if the given key does not have a
      * value in the context
@@ -55,10 +53,5 @@ public final class ScrollContext {
             context = new HashMap<>();
         }
         context.put(key, value);
-    }
-
-
-    public long getStartTimeInNano() {
-        return startTimeInNano;
     }
 }

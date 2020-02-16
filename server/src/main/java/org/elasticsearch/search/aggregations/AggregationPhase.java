@@ -117,6 +117,8 @@ public class AggregationPhase implements SearchPhase {
                 context.searcher().search(query, collector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
+            } finally {
+                context.clearReleasables(SearchContext.Lifetime.COLLECTION);
             }
         }
 

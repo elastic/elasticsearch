@@ -49,19 +49,18 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
         SearchContext searchContext = mock(SearchContext.class);
-        ScrollContext scrollContext = new ScrollContext();
-        when(searchContext.scrollContext()).thenReturn(scrollContext);
+        when(searchContext.scrollContext()).thenReturn(new ScrollContext());
 
         SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
-        listener.onNewScrollContext(scrollContext);
+        listener.onNewScrollContext(searchContext);
         listener.validateSearchContext(searchContext, Empty.INSTANCE);
         verify(licenseState, times(2)).isAuthAllowed();
         verifyZeroInteractions(auditTrailService, searchContext);
     }
 
     public void testOnNewContextSetsAuthentication() throws Exception {
-        ScrollContext scrollContext = new ScrollContext();
-        TestSearchContext testSearchContext = new TestSearchContext(null, null, null, scrollContext);
+        TestScrollSearchContext testSearchContext = new TestScrollSearchContext();
+        testSearchContext.scrollContext(new ScrollContext());
         final Scroll scroll = new Scroll(TimeValue.timeValueSeconds(2L));
         testSearchContext.scrollContext().scroll = scroll;
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -72,7 +71,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         authentication.writeToContext(threadContext);
 
         SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
-        listener.onNewScrollContext(scrollContext);
+        listener.onNewScrollContext(testSearchContext);
 
         Authentication contextAuth = testSearchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
         assertEquals(authentication, contextAuth);
@@ -83,8 +82,8 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
     }
 
     public void testValidateSearchContext() throws Exception {
-        ScrollContext scrollContext = new ScrollContext();
-        TestSearchContext testSearchContext = new TestSearchContext(null, null, null, scrollContext);
+        TestScrollSearchContext testSearchContext = new TestScrollSearchContext();
+        testSearchContext.scrollContext(new ScrollContext());
         testSearchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY,
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
         testSearchContext.scrollContext().scroll = new Scroll(TimeValue.timeValueSeconds(2L));
@@ -235,5 +234,25 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         assertEquals(id, e.id());
         verify(auditTrail).accessDenied(eq(auditId), eq(runAsDiffType), eq(action), eq(request),
             authzInfoRoles(original.getUser().roles()));
+    }
+
+    static class TestScrollSearchContext extends TestSearchContext {
+
+        private ScrollContext scrollContext;
+
+        TestScrollSearchContext() {
+            super(null);
+        }
+
+        @Override
+        public ScrollContext scrollContext() {
+            return scrollContext;
+        }
+
+        @Override
+        public SearchContext scrollContext(ScrollContext scrollContext) {
+            this.scrollContext = scrollContext;
+            return this;
+        }
     }
 }

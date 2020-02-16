@@ -215,7 +215,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final CounterMetric restoreRateLimitingTimeInNanos = new CounterMetric();
 
-    private final ChecksumBlobStoreFormat<MetaData> globalMetaDataFormat;
+    protected final ChecksumBlobStoreFormat<MetaData> globalMetaDataFormat;
 
     private final ChecksumBlobStoreFormat<IndexMetaData> indexMetaDataFormat;
 
@@ -508,7 +508,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param rootBlobs         Blobs at the repository root
      * @return RepositoryData
      */
-    private RepositoryData safeRepositoryData(long repositoryStateId, Map<String, BlobMetaData> rootBlobs) {
+    protected RepositoryData safeRepositoryData(long repositoryStateId, Map<String, BlobMetaData> rootBlobs) {
         final long generation = latestGeneration(rootBlobs.keySet());
         final long genToLoad;
         if (bestEffortConsistency) {
@@ -756,7 +756,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (isReadOnly()) {
                 throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
             }
-            Map<String, BlobMetaData> foundRootBlobs = blobContainer().listBlobs();
+            final Map<String, BlobMetaData> foundRootBlobs = blobContainer().listBlobs();
             final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, foundRootBlobs);
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
             final Set<String> survivingIndexIds = getSurvivingIndexIds(repositoryData, foundIndices.keySet());
@@ -969,7 +969,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private BlobPath indicesPath() {
+    protected BlobPath indicesPath() {
         return basePath().add("indices");
     }
 

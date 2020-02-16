@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -30,6 +32,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -53,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,6 +64,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public final class EncryptedRepository extends BlobStoreRepository {
     static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
@@ -207,11 +212,98 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     public void cleanup(long repositoryStateId, boolean writeShardGens, ActionListener<RepositoryCleanupResult> listener) {
-        super.cleanup(repositoryStateId, writeShardGens, ActionListener.wrap(repositoryCleanupResult -> {
-            EncryptedBlobContainer encryptedBlobContainer = (EncryptedBlobContainer) blobContainer();
-            cleanUpOrphanedMetadataRecursively(encryptedBlobContainer);
-            listener.onResponse(repositoryCleanupResult);
-        }, listener::onFailure));
+        if (isReadOnly()) {
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository"));
+            return;
+        }
+        StepListener<RepositoryCleanupResult> cleanupDelegatedRepositoryStep = new StepListener<>();
+        super.cleanup(repositoryStateId, writeShardGens, cleanupDelegatedRepositoryStep);
+        cleanupDelegatedRepositoryStep.whenComplete(delegatedRepositoryCleanupResult -> {
+            RepositoryData repositoryData = safeRepositoryData(repositoryStateId, blobContainer().listBlobs());
+            // list all encryption metadata indices blob container
+            Map<String, BlobContainer> staleMetadataIndices =
+                    ((EncryptedBlobContainer) blobStore().blobContainer(indicesPath())).encryptionMetadataBlobContainer.children();
+            repositoryData.getIndices().values().stream().map(IndexId::getId).forEach(survivingIndexId -> {
+                // stale blob containers are those which are not surviving
+                staleMetadataIndices.remove(survivingIndexId);
+            });
+            // list all encryption metadata root blobs
+            Map<String, BlobMetaData> staleRootMetadataBlobs =
+                    ((EncryptedBlobContainer) blobContainer()).encryptionMetadataBlobContainer.listBlobs();
+            Iterator<Map.Entry<String, BlobMetaData>> it = staleRootMetadataBlobs.entrySet().iterator();
+//            staleRootMetadataBlobs.entrySet().removeIf(rootMetadata -> {
+//                String metadataBlobName = rootMetadata.getKey();
+//                // unrecognized metadata blob, do NOT remove
+//                if (metadataBlobName.length() <= METADATA_UID_LENGTH_IN_CHARS) {
+//                    return false;
+//                }
+//                String blobName = metadataBlobName.substring(0, metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS);
+//            });
+//            while (it.hasNext()) {
+//                String metadataBlobName = it.next().getKey();
+//                // unrecognized metadata blob, do NOT remove
+//                if (metadataBlobName.length() < METADATA_UID_LENGTH_IN_CHARS) {
+//                    it.remove();
+//                } else {
+//                    String blobName = metadataBlobName.substring(0, metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS);
+//                    if (FsBlobContainer.isTempBlobName(blobName)) {
+//                        // this must be removed
+//                    } else if (blobName.endsWith(".dat")) {
+//                        final String foundUUID;
+//                        if (blobName.startsWith(SNAPSHOT_PREFIX)) {
+//                            foundUUID = blobName.substring(SNAPSHOT_PREFIX.length(), blobName.length() - ".dat".length());
+//                            assert snapshotFormat.blobName(foundUUID).equals(blobName);
+//                        } else if (blobName.startsWith(METADATA_PREFIX)) {
+//                            foundUUID = blobName.substring(METADATA_PREFIX.length(), blobName.length() - ".dat".length());
+//                            assert globalMetaDataFormat.blobName(foundUUID).equals(blobName);
+//                        } else {
+//
+//                            return true;
+//                        }
+//                        return survivingSnapshotIds.contains(foundUUID);
+//
+//                    }
+//                }
+//            }
+//            Set<String> repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
+//            return foundRootBlobNames.stream().filter(
+//                    blob -> {
+//                        if (FsBlobContainer.isTempBlobName(blob)) {
+//                            return false;
+//                        } else if (blob.endsWith(".dat")) {
+//                            final String foundUUID;
+//                            if (blob.startsWith(SNAPSHOT_PREFIX)) {
+//                                foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
+//                                assert snapshotFormat.blobName(foundUUID).equals(blob);
+//                            } else if (blob.startsWith(METADATA_PREFIX)) {
+//                                foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
+//                                assert globalMetaDataFormat.blobName(foundUUID).equals(blob);
+//                            } else {
+//                                return true;
+//                            }
+//                            return survivingSnapshotIds.contains(foundUUID);
+//                        } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
+//                            // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
+//                            return repositoryData.getGenId() <= Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
+//                        } else {
+//                            return true;
+//                        }
+//                    }
+//            ).collect(Collectors.toSet());
+//            final Set<String> survivingRootBlobNames = getSurvivingRootBlobNames(repositoryData, foundRootBlobs.keySet());
+//            if (survivingIndexIds.containsAll(foundIndices.keySet()) && survivingRootBlobNames.containsAll(foundRootBlobs.keySet())) {
+//                // Nothing to clean up we return
+//                listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
+//            } else {
+//                // write new index-N blob to ensure concurrent operations will fail
+//                writeIndexGen(repositoryData, repositoryStateId, writeShardGens,
+//                        ActionListener.wrap(v -> cleanupStaleBlobs(foundIndices, survivingIndexIds, foundRootBlobs, survivingRootBlobNames,
+//                                ActionListener.map(listener, RepositoryCleanupResult::new)), listener::onFailure));
+//
+//            }
+
+        }, listener::onFailure);
+
     }
 
     private void cleanUpOrphanedMetadataRecursively(EncryptedBlobContainer encryptedBlobContainer) throws IOException{
@@ -298,8 +390,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
             return new EncryptedBlobContainer(delegatedBlobStore, delegatedBasePath, path, dataEncryptionKeySupplier, metadataEncryption,
                     encryptionNonceSupplier, metadataIdentifierSupplier);
         }
-
     }
+
     private static class EncryptedBlobContainer implements BlobContainer {
 
         private final BlobStore delegatedBlobStore;

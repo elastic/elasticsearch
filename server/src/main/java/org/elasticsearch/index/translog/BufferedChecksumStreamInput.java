@@ -91,7 +91,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         final byte[] buf = buffer.get();
         readBytes(buf, 0, 8);
         return (((long) (((buf[0] & 0xFF) << 24) | ((buf[1] & 0xFF) << 16) | ((buf[2] & 0xFF) << 8) | (buf[3] & 0xFF))) << 32)
-            | (((buf[4] & 0xFF) << 24) | ((buf[5] & 0xFF) << 16) | ((buf[6] & 0xFF) << 8) | (buf[7] & 0xFF) & 0xFFFFFFFFL);
+            | ((((buf[4] & 0xFF) << 24) | ((buf[5] & 0xFF) << 16) | ((buf[6] & 0xFF) << 8) | (buf[7] & 0xFF)) & 0xFFFFFFFFL);
     }
 
     @Override

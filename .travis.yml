@@ -1,0 +1,22 @@
+language: java
+install: true
+
+
+dist: trusty
+jdk:
+  - openjdk13
+  - openjdk-ea
+
+
+matrix:
+  allow_failures:
+    - jdk: openjdk-ea
+
+branches:
+  only:
+  - master
+  - v7.6.0
+
+
+script:
+  - ./gradlew --continue clean build --scan -s -p modules/

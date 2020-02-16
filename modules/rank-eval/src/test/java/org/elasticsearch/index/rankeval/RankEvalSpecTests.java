@@ -72,9 +72,9 @@ public class RankEvalSpecTests extends ESTestCase {
 
     static RankEvalSpec createTestItem() {
         Supplier<EvaluationMetric> metric = randomFrom(Arrays.asList(
-                () -> PrecisionAtKTests.createTestItem(),
-                () -> MeanReciprocalRankTests.createTestItem(),
-                () -> DiscountedCumulativeGainTests.createTestItem()));
+            PrecisionAtKTests::createTestItem,
+            MeanReciprocalRankTests::createTestItem,
+            DiscountedCumulativeGainTests::createTestItem));
 
         List<RatedRequest> ratedRequests = null;
         Collection<ScriptWithId> templates = null;

@@ -119,7 +119,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     public void testReindexSendsHeaders() throws Exception {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source").destination("dest")
                 .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, request::get);
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertThat(e.getMessage(), containsString("Hurray! Sent the header!"));
     }
@@ -127,7 +127,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     public void testReindexWithoutAuthenticationWhenRequired() throws Exception {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source").destination("dest")
                 .setRemoteInfo(newRemoteInfo(null, null, emptyMap()));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, request::get);
         assertEquals(RestStatus.UNAUTHORIZED, e.status());
         assertThat(e.getMessage(), containsString("\"reason\":\"Authentication required\""));
         assertThat(e.getMessage(), containsString("\"WWW-Authenticate\":\"Basic realm=auth-realm\""));
@@ -136,7 +136,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     public void testReindexWithBadAuthentication() throws Exception {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source").destination("dest")
                 .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, request::get);
         assertThat(e.getMessage(), containsString("\"reason\":\"Bad Authorization\""));
     }
 

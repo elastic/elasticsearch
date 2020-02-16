@@ -615,7 +615,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testCancelBeforeInitialSearch() throws Exception {
-        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.start());
+        cancelTaskCase(AbstractAsyncBulkByScrollAction::start);
     }
 
     public void testCancelBeforeScrollResponse() throws Exception {

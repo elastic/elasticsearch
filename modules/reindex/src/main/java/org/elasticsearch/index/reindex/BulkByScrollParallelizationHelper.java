@@ -160,7 +160,7 @@ class BulkByScrollParallelizationHelper {
         Map<Index, Integer> countsByIndex = Arrays.stream(response.getGroups()).collect(Collectors.toMap(
             group -> group.getShardId().getIndex(),
             group -> 1,
-            (sum, term) -> sum + term
+            Integer::sum
         ));
         Set<Integer> counts = new HashSet<>(countsByIndex.values());
         int leastShards = counts.isEmpty() ? 1 : Collections.min(counts);

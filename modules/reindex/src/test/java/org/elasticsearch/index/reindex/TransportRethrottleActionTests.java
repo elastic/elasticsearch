@@ -68,7 +68,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
             Consumer<ActionListener<TaskInfo>> verifier) {
         Client client = mock(Client.class);
         String localNodeId = randomAlphaOfLength(5);
-        float newRequestsPerSecond = randomValueOtherThanMany(f -> f <= 0, () -> randomFloat());
+        float newRequestsPerSecond = randomValueOtherThanMany(f -> f <= 0, ESTestCase::randomFloat);
         @SuppressWarnings("unchecked")
         ActionListener<TaskInfo> listener = mock(ActionListener.class);
 

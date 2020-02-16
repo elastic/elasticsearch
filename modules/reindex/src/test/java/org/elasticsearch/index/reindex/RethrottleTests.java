@@ -227,7 +227,7 @@ public class RethrottleTests extends ReindexTestCase {
                  * count them too.
                  */
                 long finishedChildStatuses = status.getSliceStatuses().stream()
-                    .filter(n -> n != null)
+                    .filter(Objects::nonNull)
                     .count();
                 logger.info("Expected [{}] total children, [{}] are running and [{}] are finished\n{}",
                     sliceCount, taskGroup.getChildTasks().size(), finishedChildStatuses, status.getSliceStatuses());

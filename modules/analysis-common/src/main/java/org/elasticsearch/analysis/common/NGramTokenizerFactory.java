@@ -29,6 +29,7 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -83,7 +84,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
             if (matcher == null) {
                 if (characterClass.equals("custom") == false) {
                     throw new IllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + Stream
-                            .of(MATCHERS.keySet(), Collections.singleton("custom")).flatMap(x -> x.stream()).collect(Collectors.toSet()));
+                            .of(MATCHERS.keySet(), Collections.singleton("custom")).flatMap(Collection::stream).collect(Collectors.toSet()));
                 }
                 String customCharacters = settings.get("custom_token_chars");
                 if (customCharacters == null) {

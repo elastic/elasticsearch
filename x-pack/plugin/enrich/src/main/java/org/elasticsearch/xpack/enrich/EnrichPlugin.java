@@ -176,11 +176,11 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         }
 
         return List.of(
-            new RestGetEnrichPolicyAction(restController),
-            new RestDeleteEnrichPolicyAction(restController),
-            new RestPutEnrichPolicyAction(restController),
-            new RestExecuteEnrichPolicyAction(restController),
-            new RestEnrichStatsAction(restController)
+            new RestGetEnrichPolicyAction(),
+            new RestDeleteEnrichPolicyAction(),
+            new RestPutEnrichPolicyAction(),
+            new RestExecuteEnrichPolicyAction(),
+            new RestEnrichStatsAction()
         );
     }
 

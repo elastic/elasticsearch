@@ -147,10 +147,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 snapshotRef.getIndexCommit(), indexShardSnapshotStatus, true, Collections.emptyMap(), future));
             shardGeneration = future.actionGet();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
-            // we processed the segments_N file plus _1.si, _1.fdx, _1.fnm, _1.fdt
-            assertEquals(5, copy.getIncrementalFileCount());
-            // in total we have 4 more files than the previous snap since we don't count the segments_N twice
-            assertEquals(totalFileCount+4, copy.getTotalFileCount());
+            // we processed the segments_N file plus _1.si, _1.fnm, _1.fdx, _1.fdt, _1.fdm
+            assertEquals(6, copy.getIncrementalFileCount());
+            // in total we have 5 more files than the previous snap since we don't count the segments_N twice
+            assertEquals(totalFileCount+5, copy.getTotalFileCount());
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         deleteDoc(shard, Integer.toString(10));
@@ -165,8 +165,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1_1.liv
             assertEquals(2, copy.getIncrementalFileCount());
-            // in total we have 5 more files than the previous snap since we don't count the segments_N twice
-            assertEquals(totalFileCount+5, copy.getTotalFileCount());
+            // in total we have 6 more files than the previous snap since we don't count the segments_N twice
+            assertEquals(totalFileCount+6, copy.getTotalFileCount());
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         closeShards(shard);
@@ -228,7 +228,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), randomAlphaOfLength(10), true,
             ShardRoutingState.INITIALIZING,
             new RecoverySource.SnapshotRecoverySource(
-                UUIDs.randomBase64UUID(), new Snapshot("src_only", snapshotId), Version.CURRENT, indexId.getName()));
+                UUIDs.randomBase64UUID(), new Snapshot("src_only", snapshotId), Version.CURRENT, indexId));
         IndexMetaData metaData = runAsSnapshot(threadPool, () -> repository.getSnapshotIndexMetaData(snapshotId, indexId));
         IndexShard restoredShard = newShard(
             shardRouting, metaData, null, SourceOnlySnapshotRepository.getEngineFactory(), () -> {}, RetentionLeaseSyncer.EMPTY);

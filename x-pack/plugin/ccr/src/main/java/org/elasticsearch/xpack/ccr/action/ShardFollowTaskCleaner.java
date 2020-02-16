@@ -68,8 +68,12 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
             CompletionPersistentTaskAction.Request request =
                 new CompletionPersistentTaskAction.Request(persistentTask.getId(), persistentTask.getAllocationId(), infe);
             threadPool.generic().submit(() -> {
+                /*
+                 * We are executing under the system context, on behalf of the user to clean up the shard follow task after the follower
+                 * index was deleted. This is why the system role includes the privilege for persistent task completion.
+                 */
+                assert threadPool.getThreadContext().isSystemContext();
                 client.execute(CompletionPersistentTaskAction.INSTANCE, request, new ActionListener<PersistentTaskResponse>() {
-
                     @Override
                     public void onResponse(PersistentTaskResponse persistentTaskResponse) {
                         logger.debug("task [{}] cleaned up", persistentTask.getId());

@@ -198,7 +198,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
         final PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, true, true, future1);
+        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, future1);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
@@ -222,7 +222,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, generation, true, true, future);
+        repository.writeIndexGen(repositoryData, generation, Version.CURRENT, future);
         future.actionGet();
     }
 

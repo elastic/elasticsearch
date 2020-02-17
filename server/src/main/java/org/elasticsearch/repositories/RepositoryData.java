@@ -420,11 +420,12 @@ public final class RepositoryData {
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final boolean shouldWriteShardGens,
-                                               final boolean shouldWriteIndexGens) throws IOException {
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion) throws IOException {
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
+        final boolean shouldWriteIndexGens = SnapshotsService.useIndexGenerations(repoMetaVersion);
+        final boolean shouldWriteShardGens = SnapshotsService.useShardGenerations(repoMetaVersion);
         for (final SnapshotId snapshot : getSnapshotIds()) {
             builder.startObject();
             builder.field(NAME, snapshot.getName());

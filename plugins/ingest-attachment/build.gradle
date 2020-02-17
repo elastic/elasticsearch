@@ -25,9 +25,9 @@ esplugin {
 }
 
 versions << [
-  'tika'  : '1.22',
-  'pdfbox': '2.0.16',
-  'poi'   : '4.0.1',
+  'tika'  : '1.23',
+  'pdfbox': '2.0.17',
+  'poi'   : '4.1.1',
   'mime4j': '0.8.3'
 ]
 
@@ -64,7 +64,7 @@ dependencies {
   // MS Office
   compile "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  compile 'org.apache.commons:commons-compress:1.18'
+  compile 'org.apache.commons:commons-compress:1.19'
   // Outlook documents
   compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"

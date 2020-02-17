@@ -38,7 +38,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
@@ -59,7 +60,6 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52330")
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
         Map<String, Object> expectedConfigIndexMappings = loadConfigIndexMappings();
         if (isRunningAgainstOldCluster()) {
@@ -71,7 +71,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
                 assertThat(getDataFrameAnalysisMappings().keySet(), hasItem("outlier_detection"));
             } else {
                 // .ml-config does not yet have correct mappings, it will need an update after cluster is upgraded
-                assertThat(getDataFrameAnalysisMappings().keySet(), not(hasItem("outlier_detection")));
+                assertThat(getDataFrameAnalysisMappings(), is(nullValue()));
             }
         } else {
             // trigger .ml-config index mappings update

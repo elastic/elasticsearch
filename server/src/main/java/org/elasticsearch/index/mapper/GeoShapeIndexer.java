@@ -107,9 +107,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             @Override
             public Geometry visit(MultiLine multiLine) {
                 List<Line> lines = new ArrayList<>();
-                for (Line line : multiLine) {
-                    GeoLineProcessor.decomposeLine(line, lines);
-                }
+                GeoLineProcessor.decomposeMultiLine(multiLine, lines);
                 if (lines.isEmpty()) {
                     return GeometryCollection.EMPTY;
                 } else if (lines.size() == 1) {
@@ -137,10 +135,10 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             @Override
             public Geometry visit(MultiPolygon multiPolygon) {
                 List<Polygon> polygons = new ArrayList<>();
-                for (Polygon polygon : multiPolygon) {
-                    GeoPolygonProcessor.decomposePolygon(polygon, orientation, polygons);
-                }
-                if (polygons.size() == 1) {
+                GeoPolygonProcessor.decomposeMultiPolygon(multiPolygon, orientation, polygons);
+                if (polygons.isEmpty()) {
+                    return GeometryCollection.EMPTY;
+                } else if (polygons.size() == 1) {
                     return polygons.get(0);
                 } else {
                     return new MultiPolygon(polygons);

@@ -20,15 +20,29 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.MultiLine;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 
+/**
+ * Splits lines by datelines.
+ */
 public class GeoLineProcessor {
 
     private static final double DATELINE = 180;
+
+    private GeoLineProcessor() {
+        // no instances
+    }
+
+    public static void decomposeMultiLine(MultiLine multiLine, List<Line> collector) {
+        for (Line line : multiLine) {
+            decomposeLine(line, collector);
+        }
+    }
 
     /**
      * Splits the specified line by datelines and adds them to the supplied lines array

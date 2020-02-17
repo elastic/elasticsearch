@@ -21,6 +21,7 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
@@ -46,6 +47,16 @@ public class GeoPolygonProcessor {
 
     private static final double DATELINE = 180;
     private static final Comparator<Edge> INTERSECTION_ORDER = Comparator.comparingDouble(o -> o.intersect.getY());
+
+    private GeoPolygonProcessor() {
+        // no instances
+    }
+
+    public static void decomposeMultiPolygon(MultiPolygon multiPolygon, boolean orientation, List<Polygon> collector) {
+        for (Polygon polygon : multiPolygon) {
+            decomposePolygon(polygon, orientation, collector);
+        }
+    }
 
     /**
      * Splits the specified polygon by datelines and adds them to the supplied polygon array

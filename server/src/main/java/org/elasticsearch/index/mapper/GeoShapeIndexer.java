@@ -22,8 +22,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.geo.GeoLineProcessor;
-import org.elasticsearch.common.geo.GeoPolygonProcessor;
+import org.elasticsearch.common.geo.GeoLineDecomposer;
+import org.elasticsearch.common.geo.GeoPolygonDecomposer;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -90,7 +90,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             public Geometry visit(Line line) {
                 // decompose linestrings crossing dateline into array of Lines
                 List<Line> lines = new ArrayList<>();
-                GeoLineProcessor.decomposeLine(line, lines);
+                GeoLineDecomposer.decomposeLine(line, lines);
                 if (lines.isEmpty()) {
                     return GeometryCollection.EMPTY;
                 } else if (lines.size() == 1) {
@@ -108,7 +108,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             @Override
             public Geometry visit(MultiLine multiLine) {
                 List<Line> lines = new ArrayList<>();
-                GeoLineProcessor.decomposeMultiLine(multiLine, lines);
+                GeoLineDecomposer.decomposeMultiLine(multiLine, lines);
                 if (lines.isEmpty()) {
                     return GeometryCollection.EMPTY;
                 } else if (lines.size() == 1) {
@@ -136,7 +136,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             @Override
             public Geometry visit(MultiPolygon multiPolygon) {
                 List<Polygon> polygons = new ArrayList<>();
-                GeoPolygonProcessor.decomposeMultiPolygon(multiPolygon, orientation, polygons);
+                GeoPolygonDecomposer.decomposeMultiPolygon(multiPolygon, orientation, polygons);
                 if (polygons.isEmpty()) {
                     return GeometryCollection.EMPTY;
                 } else if (polygons.size() == 1) {
@@ -156,7 +156,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             @Override
             public Geometry visit(Polygon polygon) {
                 List<Polygon> polygons = new ArrayList<>();
-                GeoPolygonProcessor.decomposePolygon(polygon, orientation, polygons);
+                GeoPolygonDecomposer.decomposePolygon(polygon, orientation, polygons);
                 if (polygons.isEmpty()) {
                     return GeometryCollection.EMPTY;
                 } else if (polygons.size() == 1) {

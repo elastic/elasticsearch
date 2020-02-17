@@ -43,12 +43,12 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 /**
  * Splits polygons by datelines.
  */
-public class GeoPolygonProcessor {
+public class GeoPolygonDecomposer {
 
     private static final double DATELINE = 180;
     private static final Comparator<Edge> INTERSECTION_ORDER = Comparator.comparingDouble(o -> o.intersect.getY());
 
-    private GeoPolygonProcessor() {
+    private GeoPolygonDecomposer() {
         // no instances
     }
 

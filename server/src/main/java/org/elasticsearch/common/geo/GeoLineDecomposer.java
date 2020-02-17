@@ -30,11 +30,11 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 /**
  * Splits lines by datelines.
  */
-public class GeoLineProcessor {
+public class GeoLineDecomposer {
 
     private static final double DATELINE = 180;
 
-    private GeoLineProcessor() {
+    private GeoLineDecomposer() {
         // no instances
     }
 

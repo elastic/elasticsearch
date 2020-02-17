@@ -42,14 +42,14 @@ public class TransportGetReindexTaskAction extends HandledTransportAction<GetRei
 
     @Override
     protected void doExecute(Task task, GetReindexTaskAction.Request request, ActionListener<GetReindexTaskAction.Response> listener) {
-        String taskId = request.getTaskId();
-        reindexIndexClient.getReindexTaskDoc(taskId, ActionListener.map(listener,
-            (state) -> TransportGetReindexTaskAction.toResponse(taskId, state)));
+        String id = request.getId();
+        reindexIndexClient.getReindexTaskDoc(id, ActionListener.map(listener,
+            (state) -> TransportGetReindexTaskAction.toResponse(id, state)));
     }
 
-    private static GetReindexTaskAction.Response toResponse(String taskId, ReindexTaskState taskState) {
+    private static GetReindexTaskAction.Response toResponse(String id, ReindexTaskState taskState) {
         ReindexTaskStateDoc stateDoc = taskState.getStateDoc();
-        return new GetReindexTaskAction.Response(taskId, stateDoc.getStartTimeMillis(), stateDoc.getEndTimeMillis(),
+        return new GetReindexTaskAction.Response(id, stateDoc.getStartTimeMillis(), stateDoc.getEndTimeMillis(),
             stateDoc.getReindexResponse(), stateDoc.getException());
     }
 }

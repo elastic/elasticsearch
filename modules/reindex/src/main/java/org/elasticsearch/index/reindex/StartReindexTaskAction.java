@@ -100,16 +100,16 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
 
     public static class Response extends ActionResponse {
 
-        static final ParseField EPHEMERAL_TASK_ID = new ParseField("ephemeral_task_id");
         static final ParseField ID = new ParseField("id");
+        static final ParseField EPHEMERAL_TASK_ID = new ParseField("ephemeral_task_id");
         static final ParseField REINDEX_RESPONSE = new ParseField("reindex_response");
 
         private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
-            "start_reindex_response", true, args -> new Response((String) args[1], (String) args[0], (BulkByScrollResponse) args[2]));
+            "start_reindex_response", true, args -> new Response((String) args[0], (String) args[1], (BulkByScrollResponse) args[2]));
 
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), EPHEMERAL_TASK_ID);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), EPHEMERAL_TASK_ID);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
                 (parser, context) -> BulkByScrollResponse.fromXContent(parser), REINDEX_RESPONSE);
         }

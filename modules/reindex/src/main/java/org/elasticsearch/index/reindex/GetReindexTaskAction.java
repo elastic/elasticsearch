@@ -49,15 +49,15 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
 
     public static class Request extends ActionRequest {
 
-        private final String taskId;
+        private final String id;
 
-        public Request(String taskId) {
-            this.taskId = taskId;
+        public Request(String id) {
+            this.id = id;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.taskId = in.readString();
+            this.id = in.readString();
         }
 
         @Override
@@ -68,11 +68,11 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(taskId);
+            out.writeString(id);
         }
 
-        public String getTaskId() {
-            return taskId;
+        public String getId() {
+            return id;
         }
     }
 
@@ -87,31 +87,31 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
                 (BulkByScrollResponse) a[4],
                 (ElasticsearchException) a[5]));
 
-        private static final String PERSISTENT_TASK_ID = "persistent_task_id";
+        private static final String ID = "id";
         private static final String STATE = "state";
         private static final String START_TIME = "start_time";
         private static final String END_TIME = "end_time";
         private static final String DURATION = "duration";
         private static final String DURATION_IN_MILLIS = "duration_in_millis";
         private static final String REINDEX_RESULT = "result";
-        private static final String REINDEX_EXCEPTION = "failure";
+        private static final String REINDEX_FAILURE = "failure";
 
         private static final String RUNNING_STATE = "running";
         private static final String DONE_STATE = "done";
         private static final String FAILED_STATE = "failed";
 
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(PERSISTENT_TASK_ID));
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(ID));
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(STATE));
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(START_TIME)); // Fix millis
             PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(END_TIME)); // Fix millis
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
                 new ParseField(REINDEX_RESULT));
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
-                new ParseField(REINDEX_EXCEPTION));
+                new ParseField(REINDEX_FAILURE));
         }
 
-        private final String persistentTaskId;
+        private final String id;
         private final String state;
         private final long startMillis;
         private final Long endMillis;
@@ -120,7 +120,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.persistentTaskId = in.readString();
+            this.id = in.readString();
             this.state = in.readString();
             this.startMillis = in.readLong();
             this.endMillis = in.readOptionalLong();
@@ -128,14 +128,14 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             this.exception = in.readOptionalWriteable(ElasticsearchException::new);
         }
 
-        public Response(String persistentTaskId, long startMillis, @Nullable Long endMillis,
-                        @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
-            this(persistentTaskId, getState(reindexResponse, exception), startMillis, endMillis, reindexResponse, exception);
+        public Response(String id, long startMillis, @Nullable Long endMillis, @Nullable BulkByScrollResponse reindexResponse,
+                        @Nullable ElasticsearchException exception) {
+            this(id, getState(reindexResponse, exception), startMillis, endMillis, reindexResponse, exception);
         }
 
-        public Response(String persistentTaskId, String state, long startMillis, @Nullable Long endMillis,
-                        @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
-            this.persistentTaskId = persistentTaskId;
+        public Response(String id, String state, long startMillis, @Nullable Long endMillis, @Nullable BulkByScrollResponse reindexResponse,
+                        @Nullable ElasticsearchException exception) {
+            this.id = id;
             this.state = state;
             this.startMillis = startMillis;
             this.endMillis = endMillis;
@@ -156,7 +156,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(persistentTaskId);
+            out.writeString(id);
             out.writeString(state);
             out.writeLong(startMillis);
             out.writeOptionalLong(endMillis);
@@ -181,7 +181,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
                 builder.endObject();
             } else if (exception != null) {
                 builder.field(STATE, FAILED_STATE);
-                builder.field(REINDEX_EXCEPTION);
+                builder.field(REINDEX_FAILURE);
                 builder.startObject();
                 ElasticsearchException.generateThrowableXContent(builder, params, exception);
                 builder.endObject();

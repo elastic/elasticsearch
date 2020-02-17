@@ -72,6 +72,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -702,7 +703,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     @Override
-    protected void doClose() {
+    protected void doClose() throws IOException {
         final CoordinationState coordinationState = this.coordinationState.get();
         if (coordinationState != null) {
             // This looks like a race that might leak an unclosed CoordinationState if it's created while execution is here, but this method

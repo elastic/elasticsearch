@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -96,6 +97,18 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 modelId = in.readString();
                 ingestStats = new IngestStats(in);
                 pipelineCount = in.readVInt();
+            }
+
+            public String getModelId() {
+                return modelId;
+            }
+
+            public IngestStats getIngestStats() {
+                return ingestStats;
+            }
+
+            public int getPipelineCount() {
+                return pipelineCount;
             }
 
             @Override
@@ -186,6 +199,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                         0 :
                         ingestStats.getPipelineStats().size()));
                 });
+                trainedModelStats.sort(Comparator.comparing(TrainedModelStats::getModelId));
                 return new Response(new QueryPage<>(trainedModelStats, totalModelCount, RESULTS_FIELD));
             }
         }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -308,6 +309,15 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public static String documentId(String id) {
         return TYPE + "-" + id;
+    }
+
+    /**
+     * Returns the job id from the doc id. Returns {@code null} if the doc id is invalid.
+     */
+    @Nullable
+    public static String extractJobIdFromDocId(String docId) {
+        String jobId = docId.replaceAll("^" + TYPE +"-", "");
+        return jobId.equals(docId) ? null : jobId;
     }
 
     public static class Builder {

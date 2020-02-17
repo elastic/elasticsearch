@@ -99,6 +99,17 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
     }
 
+    /**
+     * Create new reindex request as (shallow) copy of original.
+     * @param original the original to copy.
+     */
+    public ReindexRequest(ReindexRequest original) {
+        super(original);
+        this.destination = original.destination;
+        this.remoteInfo = original.remoteInfo;
+        this.checkpointInterval = original.checkpointInterval;
+    }
+
     @Override
     protected ReindexRequest self() {
         return this;

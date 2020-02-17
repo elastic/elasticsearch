@@ -46,24 +46,24 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
      */
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .field("orientation", "left")
-            .endObject().endObject()
+            .endObject()
             .endObject().endObject());
 
         // create index
-        assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName).setMapping(mapping));
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .field("orientation", "right")
-            .endObject().endObject()
+            .endObject()
             .endObject().endObject());
 
-        assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName+"2").setMapping(mapping));
         ensureGreen(idxName, idxName+"2");
 
         internalCluster().fullRestart();
@@ -100,7 +100,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,ignore_malformed=true").get());
+            .setMapping("shape", "type=geo_shape,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -127,7 +127,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testMappingUpdate() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape").get());
+            .setMapping("shape", "type=geo_shape").get());
         ensureGreen();
 
         String update ="{\n" +
@@ -149,7 +149,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
      * Test that the indexed shape routing can be provided if it is required
      */
     public void testIndexShapeRouting() throws Exception {
-        String mapping = "{\n" +
+        String mapping = "{\"_doc\":{\n" +
             "    \"_routing\": {\n" +
             "      \"required\": true\n" +
             "    },\n" +
@@ -158,11 +158,11 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
             "        \"type\": \"geo_shape\"\n" +
             "      }\n" +
             "    }\n" +
-            "  }";
+            "  }}";
 
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n" +
@@ -201,10 +201,10 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("vector").addMapping("doc", mappingVector, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("vector").setMapping(mappingVector).get());
         ensureGreen();
 
-        assertAcked(client().admin().indices().prepareCreate("quad").addMapping("doc", mappingQuad, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("quad").setMapping(mappingQuad).get());
         ensureGreen();
 
         String source = "{\n" +

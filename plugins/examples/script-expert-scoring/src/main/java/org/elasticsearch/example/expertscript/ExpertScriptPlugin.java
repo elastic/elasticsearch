@@ -62,7 +62,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         }
 
         @Override
-        public <T extends ScriptFactory> T compile(
+        public <T> T compile(
             String scriptName,
             String scriptSource,
             ScriptContext<T> context,
@@ -92,7 +92,8 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             return Set.of(ScoreScript.CONTEXT);
         }
 
-        private static class PureDfFactory implements ScoreScript.Factory {
+        private static class PureDfFactory implements ScoreScript.Factory,
+                                                      ScriptFactory {
             @Override
             public boolean isResultDeterministic() {
                 // PureDfLeafFactory only uses deterministic APIs, this

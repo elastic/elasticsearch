@@ -20,12 +20,14 @@
 package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -45,6 +47,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -77,9 +81,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -88,6 +95,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -103,6 +112,7 @@ public class RelocationIT extends ESIntegTestCase {
     @Override
     protected void beforeIndexDeletion() throws Exception {
         super.beforeIndexDeletion();
+        assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
         internalCluster().assertSeqNos();
         internalCluster().assertSameDocIdsOnShards();
     }
@@ -601,6 +611,49 @@ public class RelocationIT extends ESIntegTestCase {
         }, 1, TimeUnit.MINUTES);
 
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(120L));
+    }
+
+    public void testRelocationEstablishedPeerRecoveryRetentionLeases() throws Exception {
+        int halfNodes = randomIntBetween(1, 3);
+        String indexName = "test";
+        Settings[] nodeSettings = Stream.concat(
+            Stream.generate(() -> Settings.builder().put("node.attr.color", "blue").build()).limit(halfNodes),
+            Stream.generate(() -> Settings.builder().put("node.attr.color", "red").build()).limit(halfNodes)).toArray(Settings[]::new);
+        List<String> nodes = internalCluster().startNodes(nodeSettings);
+        String[] blueNodes = nodes.subList(0, halfNodes).toArray(String[]::new);
+        String[] redNodes = nodes.subList(halfNodes, nodes.size()).toArray(String[]::new);
+        logger.debug("--> blue nodes: [{}], red nodes: [{}]", blueNodes, redNodes);
+        ensureStableCluster(halfNodes * 2);
+        assertAcked(
+            client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, halfNodes - 1))
+                .put("index.routing.allocation.include.color", "blue")));
+        ensureGreen("test");
+        assertBusy(() -> assertAllShardsOnNodes(indexName, blueNodes));
+        assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
+        client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.routing.allocation.include.color", "red")).get();
+        assertBusy(() -> assertAllShardsOnNodes(indexName, redNodes));
+        ensureGreen("test");
+        assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
+    }
+
+    private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
+        assertBusy(() -> {
+            for (ObjectCursor<String> it : client().admin().cluster().prepareState().get().getState().metaData().indices().keys()) {
+                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(it.value).get().getShards())
+                    .collect(Collectors.groupingBy(l -> l.getShardRouting().shardId()));
+                for (List<ShardStats> shardStats : byShardId.values()) {
+                    Set<String> expectedLeaseIds = shardStats.stream()
+                        .map(s -> ReplicationTracker.getPeerRecoveryRetentionLeaseId(s.getShardRouting())).collect(Collectors.toSet());
+                    for (ShardStats shardStat : shardStats) {
+                        Set<String> actualLeaseIds = shardStat.getRetentionLeaseStats().retentionLeases().leases().stream()
+                            .map(RetentionLease::id).collect(Collectors.toSet());
+                        assertThat(expectedLeaseIds, everyItem(in(actualLeaseIds)));
+                    }
+                }
+            }
+        });
     }
 
     class RecoveryCorruption implements StubbableTransport.SendRequestBehavior {

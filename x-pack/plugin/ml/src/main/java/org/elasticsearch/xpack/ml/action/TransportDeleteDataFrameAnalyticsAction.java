@@ -38,12 +38,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -100,6 +101,32 @@ public class TransportDeleteDataFrameAnalyticsAction
     protected void masterOperation(Task task, DeleteDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         String id = request.getId();
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, taskId);
+
+        if (request.isForce()) {
+            forceDelete(parentTaskClient, id, listener);
+        } else {
+            normalDelete(parentTaskClient, state, id, listener);
+        }
+    }
+
+    private void forceDelete(ParentTaskAssigningClient parentTaskClient, String id,
+                             ActionListener<AcknowledgedResponse> listener) {
+        logger.debug("[{}] Force deleting data frame analytics job", id);
+
+        ActionListener<StopDataFrameAnalyticsAction.Response> stopListener = ActionListener.wrap(
+            stopResponse -> normalDelete(parentTaskClient, clusterService.state(), id, listener),
+            listener::onFailure
+        );
+
+        StopDataFrameAnalyticsAction.Request request = new StopDataFrameAnalyticsAction.Request(id);
+        request.setForce(true);
+        executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, StopDataFrameAnalyticsAction.INSTANCE, request, stopListener);
+    }
+
+    private void normalDelete(ParentTaskAssigningClient parentTaskClient, ClusterState state, String id,
+                              ActionListener<AcknowledgedResponse> listener) {
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(id, tasks);
         if (taskState != DataFrameAnalyticsState.STOPPED) {
@@ -107,9 +134,6 @@ public class TransportDeleteDataFrameAnalyticsAction
                 id, taskState));
             return;
         }
-
-        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, taskId);
 
         // We clean up the memory tracker on delete because there is no stop; the task stops by itself
         memoryTracker.removeDataFrameAnalyticsJob(id);
@@ -165,7 +189,7 @@ public class TransportDeleteDataFrameAnalyticsAction
                              DataFrameAnalyticsConfig config,
                              ActionListener<BulkByScrollResponse> listener) {
         List<String> ids = new ArrayList<>();
-        ids.add(DataFrameAnalyticsTask.progressDocId(config.getId()));
+        ids.add(StoredProgress.documentId(config.getId()));
         if (config.getAnalysis().persistsState()) {
             ids.add(config.getAnalysis().getStateDocId(config.getId()));
         }

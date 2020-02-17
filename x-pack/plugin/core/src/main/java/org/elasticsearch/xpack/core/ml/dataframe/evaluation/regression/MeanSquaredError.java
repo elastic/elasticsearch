@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -15,7 +16,9 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
 import java.io.IOException;
@@ -25,12 +28,14 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
+
 /**
  * Calculates the mean squared error between two known numerical fields.
  *
  * equation: mse = 1/n * Σ(y - y´)^2
  */
-public class MeanSquaredError implements RegressionMetric {
+public class MeanSquaredError implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("mean_squared_error");
 
@@ -60,11 +65,13 @@ public class MeanSquaredError implements RegressionMetric {
     }
 
     @Override
-    public List<AggregationBuilder> aggs(String actualField, String predictedField) {
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
         if (result != null) {
-            return List.of();
+            return Tuple.tuple(List.of(), List.of());
         }
-        return List.of(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField))));
+        return Tuple.tuple(
+            List.of(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField)))),
+            List.of());
     }
 
     @Override
@@ -80,7 +87,7 @@ public class MeanSquaredError implements RegressionMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(Regression.NAME, NAME);
     }
 
     @Override
@@ -123,7 +130,7 @@ public class MeanSquaredError implements RegressionMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(Regression.NAME, NAME);
         }
 
         @Override

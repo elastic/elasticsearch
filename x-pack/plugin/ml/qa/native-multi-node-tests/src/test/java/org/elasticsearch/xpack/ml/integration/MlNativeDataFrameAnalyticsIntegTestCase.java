@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -40,7 +42,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -53,6 +55,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -205,7 +208,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected SearchResponse searchStoredProgress(String jobId) {
-        String docId = DataFrameAnalyticsTask.progressDocId(jobId);
+        String docId = StoredProgress.documentId(jobId);
         return client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setQuery(QueryBuilders.idsQuery().addIds(docId))
             .get();
@@ -280,5 +283,36 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
             .get();
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+    }
+
+    protected static void assertMlResultsFieldMappings(String index, String predictedClassField, String expectedType) {
+        Map<String, Object> mappings =
+            client()
+                .execute(GetIndexAction.INSTANCE, new GetIndexRequest().indices(index))
+                .actionGet()
+                .mappings()
+                .get(index)
+                .sourceAsMap();
+        assertThat(
+            mappings.toString(),
+            getFieldValue(
+                mappings,
+                "properties", "ml", "properties", String.join(".properties.", predictedClassField.split("\\.")), "type"),
+            equalTo(expectedType));
+        if (getFieldValue(mappings, "properties", "ml", "properties", "top_classes") != null) {
+            assertThat(
+                mappings.toString(),
+                getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_name", "type"),
+                equalTo(expectedType));
+        }
+    }
+
+    /**
+     * Wrapper around extractValue that:
+     * - allows dots (".") in the path elements provided as arguments
+     * - supports implicit casting to the appropriate type
+     */
+    protected static <T> T getFieldValue(Map<String, Object> doc, String... path) {
+        return (T)extractValue(String.join(".", path), doc);
     }
 }

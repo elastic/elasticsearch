@@ -74,7 +74,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
     // 3) min score applied
     public void testScriptScore() {
         assertAcked(
-            prepareCreate("test-index").addMapping("_doc", "field1", "type=text", "field2", "type=double")
+            prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double")
         );
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
@@ -108,7 +108,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
 
     public void testScriptScoreBoolQuery() {
         assertAcked(
-            prepareCreate("test-index").addMapping("_doc", "field1", "type=text", "field2", "type=double")
+            prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double")
         );
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
@@ -138,7 +138,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("test-index2")
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .addMapping("_doc", "field1", "type=date", "field2", "type=double")
+            .setMapping("field1", "type=date", "field2", "type=double")
         );
         client().prepareIndex("test-index2").setId("1").setSource("field1", "2019-09-01", "field2", 1).get();
         client().prepareIndex("test-index2").setId("2").setSource("field1", "2019-10-01", "field2", 2).get();

@@ -56,6 +56,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
@@ -841,9 +843,13 @@ public class RestHighLevelClient implements Closeable {
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
+     * @deprecated use {@link #existsSource(GetSourceRequest, RequestOptions)} instead
      */
+    @Deprecated
     public boolean existsSource(GetRequest getRequest, RequestOptions options) throws IOException {
-        return performRequest(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, emptySet());
+        GetSourceRequest getSourceRequest = GetSourceRequest.from(getRequest);
+        return performRequest(getSourceRequest, RequestConverters::sourceExists, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
     }
 
     /**
@@ -854,10 +860,69 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
+     * @deprecated use {@link #existsSourceAsync(GetSourceRequest, RequestOptions, ActionListener)} instead
      */
+    @Deprecated
     public final Cancellable existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        return performRequestAsync(getRequest, RequestConverters::sourceExists, options,
+        GetSourceRequest getSourceRequest = GetSourceRequest.from(getRequest);
+        return performRequestAsync(getSourceRequest, RequestConverters::sourceExists, options,
             RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
+     * on elastic.co</a>
+     * @param getSourceRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
+     */
+    public boolean existsSource(GetSourceRequest getSourceRequest, RequestOptions options) throws IOException {
+        return performRequest(getSourceRequest, RequestConverters::sourceExists, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
+    }
+
+    /**
+     * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
+     * on elastic.co</a>
+     * @param getSourceRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public final Cancellable existsSourceAsync(GetSourceRequest getSourceRequest, RequestOptions options,
+                                               ActionListener<Boolean> listener) {
+        return performRequestAsync(getSourceRequest, RequestConverters::sourceExists, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Retrieves the source field only of a document using GetSource API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
+     * on elastic.co</a>
+     * @param getSourceRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public GetSourceResponse getSource(GetSourceRequest getSourceRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(getSourceRequest, RequestConverters::getSource, options,
+            GetSourceResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieves the source field only of a document using GetSource API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
+     * on elastic.co</a>
+     * @param getSourceRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public final Cancellable getSourceAsync(GetSourceRequest getSourceRequest, RequestOptions options,
+                                            ActionListener<GetSourceResponse> listener) {
+        return performRequestAsyncAndParseEntity(getSourceRequest, RequestConverters::getSource, options,
+            GetSourceResponse::fromXContent, listener, emptySet());
     }
 
     /**

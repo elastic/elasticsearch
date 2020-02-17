@@ -12,54 +12,58 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Alias;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction.ResolutionType;
+import org.elasticsearch.xpack.ql.expression.predicate.Range;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.Exists;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.literal.Interval;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.expression.literal.Intervals;
-import org.elasticsearch.xpack.sql.expression.literal.Intervals.TimeUnit;
-import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals.TimeUnit;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
@@ -110,10 +114,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -128,7 +129,7 @@ import java.util.StringJoiner;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.ofEscapedLiteral;
@@ -407,7 +408,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private static DataType dataType(Source ctx, String string) {
         String type = string.toUpperCase(Locale.ROOT);
-        DataType dataType = type.startsWith("SQL_") ? DataType.fromOdbcType(type) : DataType.fromSqlOrEsType(type);
+        DataType dataType = type.startsWith("SQL_") ? SqlDataTypes.fromOdbcType(type) : SqlDataTypes.fromSqlOrEsType(type);
         if (dataType == null) {
             throw new ParsingException(ctx, "Does not recognize type [{}]", string);
         }
@@ -519,7 +520,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitNullLiteral(NullLiteralContext ctx) {
-        return new Literal(source(ctx), null, DataType.NULL);
+        return new Literal(source(ctx), null, DataTypes.NULL);
     }
 
     @Override
@@ -650,7 +651,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch(IllegalArgumentException iae) {
             throw new ParsingException(source(ctx), iae.getMessage());
     }
-        return new Literal(source(ctx), Boolean.valueOf(value), DataType.BOOLEAN);
+        return new Literal(source(ctx), Boolean.valueOf(value), DataTypes.BOOLEAN);
     }
 
     @Override
@@ -659,7 +660,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         for (TerminalNode node : ctx.STRING()) {
             sb.append(unquoteString(text(node)));
         }
-        return new Literal(source(ctx), sb.toString(), DataType.KEYWORD);
+        return new Literal(source(ctx), sb.toString(), DataTypes.KEYWORD);
     }
 
     @Override
@@ -667,8 +668,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Tuple<Source, String> tuple = withMinus(ctx);
 
         try {
-            return new Literal(tuple.v1(), Double.valueOf(StringUtils.parseDouble(tuple.v2())), DataType.DOUBLE);
-        } catch (SqlIllegalArgumentException siae) {
+            return new Literal(tuple.v1(), Double.valueOf(StringUtils.parseDouble(tuple.v2())), DataTypes.DOUBLE);
+        } catch (QlIllegalArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }
     }
@@ -680,15 +681,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         long value;
         try {
             value = Long.valueOf(StringUtils.parseLong(tuple.v2()));
-        } catch (SqlIllegalArgumentException siae) {
+        } catch (QlIllegalArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }
 
         Object val = Long.valueOf(value);
-        DataType type = DataType.LONG;
+        DataType type = DataTypes.LONG;
         // try to downsize to int if possible (since that's the most common type)
         if ((int) value == value) {
-            type = DataType.INTEGER;
+            type = DataTypes.INTEGER;
             val = Integer.valueOf((int) value);
         }
         return new Literal(tuple.v1(), val, type);
@@ -697,7 +698,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitParamLiteral(ParamLiteralContext ctx) {
         SqlTypedParamValue param = param(ctx.PARAM());
-        DataType dataType = DataType.fromTypeName(param.type);
+        DataType dataType = SqlDataTypes.fromTypeName(param.type);
         Source source = source(ctx);
         if (param.value == null) {
             // no conversion is required for null values
@@ -706,7 +707,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         final DataType sourceType;
         try {
             sourceType = DataTypes.fromJava(param.value);
-        } catch (SqlIllegalArgumentException ex) {
+        } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", param.value.getClass().getName(),
                     param.type);
         }
@@ -716,8 +717,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
-            return new Literal(source, conversionFor(sourceType, dataType).convert(param.value), dataType);
-        } catch (SqlIllegalArgumentException ex) {
+            return new Literal(source, converterFor(sourceType, dataType).convert(param.value), dataType);
+        } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
         }
     }
@@ -762,7 +763,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         // parse yyyy-MM-dd
         try {
-            return new Literal(source, asDateOnly(string), DataType.DATE);
+            return new Literal(source, asDateOnly(string), SqlDataTypes.DATE);
         } catch(DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
@@ -775,7 +776,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         // parse HH:mm:ss
         try {
-            return new Literal(source, asTimeOnly(string), DataType.TIME);
+            return new Literal(source, asTimeOnly(string), SqlDataTypes.TIME);
         } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid time received; {}", ex.getMessage());
         }
@@ -788,7 +789,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         // parse yyyy-mm-dd hh:mm:ss(.f...)
         try {
-            return new Literal(source, ofEscapedLiteral(string), DataType.DATETIME);
+            return new Literal(source, ofEscapedLiteral(string), DataTypes.DATETIME);
         } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid timestamp received; {}", ex.getMessage());
         }
@@ -837,7 +838,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
 
-        return new Literal(source(ctx), string, DataType.KEYWORD);
+        return new Literal(source(ctx), string, DataTypes.KEYWORD);
     }
 
     /**

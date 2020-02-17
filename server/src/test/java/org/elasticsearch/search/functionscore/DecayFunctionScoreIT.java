@@ -79,9 +79,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     private final QueryBuilder baseQuery = constantScoreQuery(termQuery("test", "value"));
 
     public void testDistanceScoreGeoLinGaussExp() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
@@ -173,9 +172,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testDistanceScoreGeoLinGaussExpWithOffset() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
 
         // add tw docs within offset
@@ -248,11 +246,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testBoostModeSettingWorks() throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).build();
         assertAcked(prepareCreate("test").setSettings(settings)
-            .addMapping(
-                "type1",
+            .setMapping(
                 jsonBuilder()
                     .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                             .startObject("properties")
                                 .startObject("test").field("type", "text").endObject()
                                 .startObject("loc").field("type", "geo_point").endObject()
@@ -315,9 +312,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testParseGeoPoint() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
 
         client().prepareIndex()
@@ -359,9 +355,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testCombineModes() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
 
         client().prepareIndex().setId("1").setIndex("test").setRefreshPolicy(IMMEDIATE)
@@ -439,9 +434,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testExceptionThrownIfScaleLE0() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
         client().index(
                 indexRequest("test").id("1")
@@ -464,10 +458,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testParseDateMath() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
+        assertAcked(prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
+                    .startObject("_doc")
                         .startObject("properties")
                             .startObject("test")
                                 .field("type", "text")
@@ -505,9 +498,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testValueMissingLin() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().startObject("num2").field("type", "double")
                         .endObject().endObject().endObject().endObject())
         );
@@ -555,9 +547,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testDateWithoutOrigin() throws Exception {
         ZonedDateTime dt = ZonedDateTime.now(ZoneOffset.UTC);
 
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
 
         ZonedDateTime docDate = dt.minusDays(1);
@@ -606,13 +597,13 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     public void testManyDocsLin() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("type").startObject("properties")
+        XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("test").field("type", "text").endObject().startObject("date").field("type", "date")
                 .field("doc_values", true).endObject().startObject("num").field("type", "double")
                 .field("doc_values", true).endObject().startObject("geo").field("type", "geo_point")
                 .field("ignore_malformed", true);
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", xContentBuilder));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         int numDocs = 200;
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
@@ -657,9 +648,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testParsingExceptionIfFieldDoesNotExist() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         int numDocs = 2;
         client().index(
@@ -685,9 +675,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testParsingExceptionIfFieldTypeDoesNotMatch() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "text").endObject().endObject().endObject().endObject()));
         client().index(
                 indexRequest("test").source(
@@ -706,9 +695,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testNoQueryGiven() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         client().index(
                 indexRequest("test").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
@@ -724,10 +712,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testMultiFieldOptions() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
+        assertAcked(prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
+                    .startObject("_doc")
                         .startObject("properties")
                             .startObject("test").field("type", "text").endObject()
                             .startObject("loc").field("type", "geo_point").endObject()

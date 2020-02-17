@@ -65,7 +65,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             knownNodes.add(discoverableTransport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.sniff.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
             try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
                 service.start();
                 service.acceptIncomingRequests();
@@ -96,7 +96,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             knownNodes.add(discoverableTransport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.sniff.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
             try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
                 service.start();
                 service.acceptIncomingRequests();

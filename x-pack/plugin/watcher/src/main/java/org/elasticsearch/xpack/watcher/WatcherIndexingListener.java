@@ -135,8 +135,19 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     }
 
     /**
-     *
-     * In case of an error, we have to ensure that the triggerservice does not leave anything behind
+     * In case of a document related failure (for example version conflict), then clean up resources for a watch
+     * in the trigger service.
+     */
+    @Override
+    public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+        if (result.getResultType() == Engine.Result.Type.FAILURE) {
+            assert result.getFailure() != null;
+            postIndex(shardId, index, result.getFailure());
+        }
+    }
+
+    /**
+     * In case of an engine related error, we have to ensure that the triggerservice does not leave anything behind
      *
      * TODO: If the configuration changes between preindex and postindex methods and we add a
      *       watch, that could not be indexed
@@ -167,9 +178,9 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (isWatchDocument(shardId.getIndexName())) {
+            logger.debug("removing watch [{}] to trigger service via delete", delete.id());
             triggerService.remove(delete.id());
         }
-
         return delete;
     }
 
@@ -360,7 +371,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
          * @return false if watcher is not active or the passed index is not the watcher index
          */
         public boolean isIndexAndActive(String index) {
-            return active == true && index.equals(this.index);
+            return active && index.equals(this.index);
         }
     }
 

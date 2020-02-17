@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -115,8 +114,6 @@ public class LongGCDisruptionTests extends ESTestCase {
      * but does keep retrying until all threads can be safely paused
      */
     public void testNotBlockingUnsafeStackTraces() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/50047",
-            JavaVersion.current().equals(JavaVersion.parse("11")) || JavaVersion.current().equals(JavaVersion.parse("12")));
         final String nodeName = "test_node";
         LongGCDisruption disruption = new LongGCDisruption(random(), nodeName) {
             @Override
@@ -149,7 +146,14 @@ public class LongGCDisruptionTests extends ESTestCase {
                 threads[i].start();
             }
             // make sure some threads are under lock
-            disruption.startDisrupting();
+            try {
+                disruption.startDisrupting();
+            } catch (RuntimeException e) {
+                if (e.getMessage().contains("suspending node threads took too long") && disruption.sawSlowSuspendBug()) {
+                    return;
+                }
+                throw new AssertionError(e);
+            }
             long first = ops.get();
             assertThat(lockedExecutor.lock.isLocked(), equalTo(false)); // no threads should own the lock
             Thread.sleep(100);
@@ -157,6 +161,7 @@ public class LongGCDisruptionTests extends ESTestCase {
             disruption.stopDisrupting();
             assertBusy(() -> assertThat(ops.get(), greaterThan(first)));
         } finally {
+            disruption.stopDisrupting();
             stop.set(true);
             for (final Thread thread : threads) {
                 thread.join();

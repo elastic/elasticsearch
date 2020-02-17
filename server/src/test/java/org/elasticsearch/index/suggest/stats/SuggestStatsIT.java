@@ -66,11 +66,11 @@ public class SuggestStatsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test1").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, shardsIdx1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("type", "f", "type=text"));
+                .setMapping("f", "type=text"));
         assertAcked(prepareCreate("test2").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, shardsIdx2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("type", "f", "type=text"));
+                .setMapping("f", "type=text"));
         assertThat(shardsIdx1 + shardsIdx2, equalTo(numAssignedShards("test1", "test2")));
         assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
         ensureGreen();

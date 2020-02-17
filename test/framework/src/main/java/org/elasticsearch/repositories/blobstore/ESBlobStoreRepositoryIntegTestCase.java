@@ -34,6 +34,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -131,7 +132,11 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
                     int offset = scaledRandomIntBetween(0, buffer.length - 1);
                     int read = stream.read(buffer, offset, buffer.length - offset);
-                    target.append(new BytesRef(buffer, offset, read));
+                    if (read >= 0) {
+                        target.append(new BytesRef(buffer, offset, read));
+                    } else {
+                        fail("Expected [" + (data.length - target.length()) + "] more bytes to be readable but reached EOF");
+                    }
                 }
                 assertEquals(data.length, target.length());
                 assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
@@ -236,7 +241,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     public static byte[] readBlobFully(BlobContainer container, String name, int length) throws IOException {
         byte[] data = new byte[length];
         try (InputStream inputStream = container.readBlob(name)) {
-            assertThat(inputStream.read(data), CoreMatchers.equalTo(length));
+            assertThat(Streams.readFully(inputStream, data), CoreMatchers.equalTo(length));
             assertThat(inputStream.read(), CoreMatchers.equalTo(-1));
         }
         return data;

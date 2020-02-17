@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -113,13 +115,14 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
 
-        resultsPersisterService = new ResultsPersisterService(client(), clusterService, settings);
+        OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
+        resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
         resultProcessor = new AutodetectResultProcessor(
                 client(),
                 auditor,
                 JOB_ID,
                 renormalizer,
-                new JobResultsPersister(client(), resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node")),
+                new JobResultsPersister(originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node")),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),
                 new TimingStats(JOB_ID)) {

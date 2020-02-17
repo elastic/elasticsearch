@@ -125,7 +125,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
             // Delegates stop datafeed to elected master node, so it becomes the coordinating node.
             // See comment in TransportStartDatafeedAction for more information.
             if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+                listener.onFailure(new MasterNotDiscoveredException());
             } else {
                 transportService.sendRequest(nodes.getMasterNode(), actionName, request,
                         new ActionListenerResponseHandler<>(listener, StopDatafeedAction.Response::new));

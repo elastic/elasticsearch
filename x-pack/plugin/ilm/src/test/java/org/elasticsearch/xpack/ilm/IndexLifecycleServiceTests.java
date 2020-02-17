@@ -108,7 +108,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         threadPool = new TestThreadPool("test");
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, threadPool,
-            clock, () -> now, null);
+            clock, () -> now, null, null);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }

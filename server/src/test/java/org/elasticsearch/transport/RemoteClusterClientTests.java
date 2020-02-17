@@ -52,7 +52,7 @@ public class RemoteClusterClientTests extends ESTestCase {
 
             Settings localSettings = Settings.builder()
                 .put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), true)
-                .put("cluster.remote.test.sniff.seeds",
+                .put("cluster.remote.test.seeds",
                     remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 service.start();
@@ -81,7 +81,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             Settings localSettings = Settings.builder()
                 .put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), true)
-                .put("cluster.remote.test.sniff.seeds",
+                .put("cluster.remote.test.seeds",
                     remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 Semaphore semaphore = new Semaphore(1);

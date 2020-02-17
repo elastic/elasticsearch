@@ -43,7 +43,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     final String clusterAlias;
     final boolean skipUnavailable;
 
-    RemoteConnectionInfo(String clusterAlias, ModeInfo modeInfo, TimeValue initialConnectionTimeout, boolean skipUnavailable) {
+    public RemoteConnectionInfo(String clusterAlias, ModeInfo modeInfo, TimeValue initialConnectionTimeout, boolean skipUnavailable) {
         this.clusterAlias = clusterAlias;
         this.modeInfo = modeInfo;
         this.initialConnectionTimeout = initialConnectionTimeout;
@@ -75,6 +75,18 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
 
     public String getClusterAlias() {
         return clusterAlias;
+    }
+
+    public ModeInfo getModeInfo() {
+        return modeInfo;
+    }
+
+    public TimeValue getInitialConnectionTimeout() {
+        return initialConnectionTimeout;
+    }
+
+    public boolean isSkipUnavailable() {
+        return skipUnavailable;
     }
 
     @Override

@@ -87,8 +87,8 @@ public final class QueryParserHelper {
             boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
             boolean multiField = Regex.isSimpleMatchPattern(fieldEntry.getKey());
             float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
-            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight,
-                !multiField, !allField, fieldSuffix);
+            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight, !multiField, !allField, fieldSuffix);
+
             for (Map.Entry<String, Float> field : fieldMap.entrySet()) {
                 float boost = field.getValue();
                 if (resolvedFields.containsKey(field.getKey())) {
@@ -97,6 +97,7 @@ public final class QueryParserHelper {
                 resolvedFields.put(field.getKey(), boost);
             }
         }
+
         checkForTooManyFields(resolvedFields, context);
         return resolvedFields;
     }
@@ -141,8 +142,6 @@ public final class QueryParserHelper {
 
             MappedFieldType fieldType = context.getMapperService().fullName(fieldName);
             if (fieldType == null) {
-                // Note that we don't ignore unmapped fields.
-                fields.put(fieldName, weight);
                 continue;
             }
 

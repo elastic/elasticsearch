@@ -41,7 +41,7 @@ public class LocalModelTests extends ESTestCase {
 
     public void testClassificationInfer() throws Exception {
         String modelId = "classification_model";
-        List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
+        List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(false))
@@ -49,14 +49,14 @@ public class LocalModelTests extends ESTestCase {
 
         Model model = new LocalModel(modelId, definition, new TrainedModelInput(inputFields));
         Map<String, Object> fields = new HashMap<>() {{
-            put("foo", 1.0);
-            put("bar", 0.5);
+            put("field.foo", 1.0);
+            put("field.bar", 0.5);
             put("categorical", "dog");
         }};
 
         SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfig(0));
         assertThat(result.value(), equalTo(0.0));
-        assertThat(result.valueAsString(), is("0.0"));
+        assertThat(result.valueAsString(), is("0"));
 
         ClassificationInferenceResults classificationResult =
             (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(1));
@@ -93,8 +93,8 @@ public class LocalModelTests extends ESTestCase {
         Model model = new LocalModel("regression_model", trainedModelDefinition, new TrainedModelInput(inputFields));
 
         Map<String, Object> fields = new HashMap<>() {{
-            put("foo", 1.0);
-            put("bar", 0.5);
+            put("field.foo", 1.0);
+            put("field.bar", 0.5);
             put("categorical", "dog");
         }};
 
@@ -147,7 +147,7 @@ public class LocalModelTests extends ESTestCase {
     }
 
     public static TrainedModel buildClassification(boolean includeLabels) {
-        List<String> featureNames = Arrays.asList("foo", "bar", "animal_cat", "animal_dog");
+        List<String> featureNames = Arrays.asList("field.foo", "field.bar", "animal_cat", "animal_dog");
         Tree tree1 = Tree.builder()
             .setFeatureNames(featureNames)
             .setRoot(TreeNode.builder(0)
@@ -188,12 +188,12 @@ public class LocalModelTests extends ESTestCase {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 2))
             .build();
     }
 
     public static TrainedModel buildRegression() {
-        List<String> featureNames = Arrays.asList("foo", "bar", "animal_cat", "animal_dog");
+        List<String> featureNames = Arrays.asList("field.foo", "field.bar", "animal_cat", "animal_dog");
         Tree tree1 = Tree.builder()
             .setFeatureNames(featureNames)
             .setRoot(TreeNode.builder(0)

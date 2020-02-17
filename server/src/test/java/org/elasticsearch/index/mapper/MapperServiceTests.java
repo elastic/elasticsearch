@@ -27,7 +27,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -148,7 +147,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         // partitioned index must have routing
          IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")
-                    .addMapping("type", "{\"type\":{}}", XContentType.JSON)
+                    .setMapping("{\"_doc\":{}}")
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", 4)
                         .put("index.routing_partition_size", 2))
@@ -158,7 +157,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         // valid partitioned index
         assertTrue(client().admin().indices().prepareCreate("test-index")
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+            .setMapping("{\"_doc\":{\"_routing\":{\"required\":true}}}")
             .setSettings(Settings.builder()
                 .put("index.number_of_shards", 4)
                 .put("index.routing_partition_size", 2))

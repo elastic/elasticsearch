@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.Executors;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -80,7 +81,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
 
@@ -202,7 +203,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);

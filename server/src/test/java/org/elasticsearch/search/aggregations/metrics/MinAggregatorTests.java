@@ -127,6 +127,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
     private static final String INVERT_SCRIPT = "invert";
 
+    private static final String RANDOM_SCRIPT = "random";
+
     @Override
     protected ScriptService getMockScriptService() {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
@@ -161,8 +163,12 @@ public class MinAggregatorTests extends AggregatorTestCase {
         });
         scripts.put(INVERT_SCRIPT, vars -> -((Number) vars.get("_value")).doubleValue());
 
+        Map<String, Function<Map<String, Object>, Object>> nonDeterministicScripts = new HashMap<>();
+        nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> AggregatorTestCase.randomDouble());
+
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
             scripts,
+            nonDeterministicScripts,
             Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
@@ -649,13 +655,17 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testNoCachingWithScript() throws IOException {
+    public void testScriptCaching() throws IOException {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("number");
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min")
             .field("number")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));;
+
+        MinAggregationBuilder nonDeterministicAggregationBuilder = new MinAggregationBuilder("min")
+            .field("number")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));;
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -668,11 +678,19 @@ public class MinAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                assertEquals(-7.0, min.getValue(), 0);
+                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), nonDeterministicAggregationBuilder, fieldType);
+                assertTrue(min.getValue() >= 0.0 && min.getValue() <= 1.0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
 
                 assertFalse(queryShardContext.isCacheable());
+
+                indexSearcher = newSearcher(indexReader, true, true);
+
+                min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                assertEquals(-7.0, min.getValue(), 0);
+                assertTrue(AggregationInspectionHelper.hasValue(min));
+
+                assertTrue(queryShardContext.isCacheable());
             }
         }
     }

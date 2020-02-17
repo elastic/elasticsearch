@@ -181,7 +181,7 @@ public class InferenceProcessorTests extends ESTestCase {
         String modelId = "model";
         Integer topNClasses = randomBoolean() ? null : randomIntBetween(1, 10);
 
-        Map<String, String> fieldMapping = new HashMap<>(3) {{
+        Map<String, String> fieldMapping = new HashMap<>(5) {{
             put("value1", "new_value1");
             put("value2", "new_value2");
             put("categorical", "new_categorical");
@@ -195,7 +195,7 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(topNClasses, null, null),
             fieldMapping);
 
-        Map<String, Object> source = new HashMap<>(3){{
+        Map<String, Object> source = new HashMap<>(5){{
             put("value1", 1);
             put("categorical", "foo");
             put("un_touched", "bar");
@@ -203,8 +203,46 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        Map<String, Object> expectedMap = new HashMap<>(2) {{
+        Map<String, Object> expectedMap = new HashMap<>(7) {{
             put("new_value1", 1);
+            put("value1", 1);
+            put("categorical", "foo");
+            put("new_categorical", "foo");
+            put("un_touched", "bar");
+        }};
+        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
+    }
+
+    public void testGenerateWithMappingNestedFields() {
+        String modelId = "model";
+        Integer topNClasses = randomBoolean() ? null : randomIntBetween(1, 10);
+
+        Map<String, String> fieldMapping = new HashMap<>(5) {{
+            put("value1.foo", "new_value1");
+            put("value2", "new_value2");
+            put("categorical.bar", "new_categorical");
+        }};
+
+        InferenceProcessor processor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "my_field",
+            modelId,
+            new ClassificationConfig(topNClasses, null, null),
+            fieldMapping);
+
+        Map<String, Object> source = new HashMap<>(5){{
+            put("value1", Collections.singletonMap("foo", 1));
+            put("categorical.bar", "foo");
+            put("un_touched", "bar");
+        }};
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        Map<String, Object> expectedMap = new HashMap<>(7) {{
+            put("new_value1", 1);
+            put("value1", Collections.singletonMap("foo", 1));
+            put("categorical.bar", "foo");
             put("new_categorical", "foo");
             put("un_touched", "bar");
         }};

@@ -84,7 +84,7 @@ subprojects {
 
             Node developer = node.appendNode('developers').appendNode('developer')
             developer.appendNode('name', 'Elastic')
-            developer.appendNode('url', 'http://www.elastic.co')
+            developer.appendNode('url', 'https://www.elastic.co')
           }
         }
       }
@@ -106,6 +106,12 @@ subprojects {
     // is greater than the number of unformatted projects, this can be
     // switched to an exclude list, and eventualy removed completely.
     def projectPathsToFormat = [
+      ':build-tools',
+      ':distribution:tools:java-version-checker',
+      ':distribution:tools:keystore-cli',
+      ':distribution:tools:launchers',
+      ':distribution:tools:plugin-cli',
+      ':x-pack:plugin:autoscaling',
       ':x-pack:plugin:enrich'
     ]
 
@@ -114,6 +120,10 @@ subprojects {
 
       spotless {
         java {
+          // Normally this isn't necessary, but we have Java sources in
+          // non-standard places
+          target '**/*.java'
+
           removeUnusedImports()
           eclipse().configFile rootProject.file('.eclipseformat.xml')
           trimTrailingWhitespace()
@@ -205,8 +215,8 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+boolean bwc_tests_enabled = false
+final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/51875" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -433,6 +443,14 @@ class Run extends DefaultTask {
   )
   public void setDebug(boolean enabled) {
     project.project(':distribution').run.debug = enabled
+  }
+
+  @Option(
+    option = "data-dir",
+    description = "Override the base data directory used by the testcluster"
+  )
+  public void setDataDir(String dataDirStr) {
+    project.project(':distribution').run.dataDir = dataDirStr
   }
 }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
@@ -229,7 +230,7 @@ public final class RemoteClusterLicenseChecker {
      * @param indices the collection of index names
      * @return true if the collection of index names contains a name that represents a remote index, otherwise false
      */
-    public static boolean containsRemoteIndex(final List<String> indices) {
+    public static boolean containsRemoteIndex(final Collection<String> indices) {
         return indices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
     }
 
@@ -240,7 +241,7 @@ public final class RemoteClusterLicenseChecker {
      * @param indices the collection of index names
      * @return list of index names that represent remote index names
      */
-    public static List<String> remoteIndices(final List<String> indices) {
+    public static List<String> remoteIndices(final Collection<String> indices) {
         return indices.stream().filter(RemoteClusterLicenseChecker::isRemoteIndex).collect(Collectors.toList());
     }
 

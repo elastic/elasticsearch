@@ -89,7 +89,7 @@ public class SecurityTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
+        public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
             return Collections.singletonMap(realmType, config -> null);
         }
     }
@@ -104,7 +104,7 @@ public class SecurityTests extends ESTestCase {
             .put("path.home", createTempDir()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
-        SSLService sslService = new SSLService(settings, env);
+        SSLService sslService = new SSLService(env);
         security = new Security(settings, null, Arrays.asList(extensions)) {
             @Override
             protected XPackLicenseState getLicenseState() {

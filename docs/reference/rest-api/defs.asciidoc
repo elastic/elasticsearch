@@ -2,17 +2,10 @@
 [[api-definitions]]
 == Definitions
 
-These resource definitions are used in APIs related to {ml-features} and
-{security-features} and in {kib} advanced {ml} job configuration options.
+The role mappings resource definition you can find below is used in APIs related 
+to {security-features}.
+
+  * <<role-mapping-resources,Role mappings>>
 
 
-* <<ml-dfa-analysis-objects>>
-* <<ml-results-resource,{anomaly-detect-cap} results>>
-* <<role-mapping-resources,Role mappings>>
-* <<transform-resource,{transforms-cap}>>
-
-
-include::{es-repo-dir}/ml/df-analytics/apis/analysisobjects.asciidoc[]
 include::{xes-repo-dir}/rest-api/security/role-mapping-resources.asciidoc[]
-include::{es-repo-dir}/ml/anomaly-detection/apis/resultsresource.asciidoc[]
-include::{es-repo-dir}/transform/apis/transformresource.asciidoc[]

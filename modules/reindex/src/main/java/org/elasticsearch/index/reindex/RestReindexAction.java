@@ -63,15 +63,16 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         // todo: remove system property escape hatch in 8.0
         // todo: fix version constant on backport to 7.x
         if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_0_0)
-                || System.getProperty("es.reindex.resilience", "true").equals("false")) {
+                || System.getProperty("es.reindex.persistent", "true").equals("false")) {
             return doPrepareRequest(request, client, true, true);
         }
 
+        boolean resilient = System.getProperty("es.reindex.persistent.resilient", "true").equals("false") == false;
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
 
         // Build the internal request
         StartReindexTaskAction.Request internal = new StartReindexTaskAction.Request(setCommonOptions(request, buildRequest(request)),
-            waitForCompletion);
+            waitForCompletion, resilient);
         /*
          * Let's try and validate before forking so the user gets some error. The
          * task can't totally validate until it starts but this is better than
@@ -108,9 +109,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 public RestResponse buildResponse(StartReindexTaskAction.Response response, XContentBuilder builder) throws Exception {
                     builder.startObject();
                     // This is the ephemeral task-id from the first node that is assigned the task (for BWC).
-                    builder.field("task", response.getTaskId());
-                    builder.field("persistent_task_id", response.getPersistentTaskId());
-
+                    builder.field("task", response.getEphemeralTaskId());
+                    // this is the new persistent task id
+                    builder.field("id", response.getId());
                     // TODO: Are there error conditions for the non-wait case?
                     return new BytesRestResponse(RestStatus.OK, builder.endObject());
                 }

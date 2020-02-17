@@ -144,7 +144,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         try (MockTransportService remoteTransport = startTransport("node0", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool)) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
-            updateRemoteClusterSettings(Collections.singletonMap("sniff.seeds", remoteNode.getAddress().toString()));
+            updateRemoteClusterSettings(Collections.singletonMap("seeds", remoteNode.getAddress().toString()));
 
             for (int i = 0; i < 10; i++) {
                 restHighLevelClient.index(
@@ -229,7 +229,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             assertSearchConnectFailure();
 
             Map<String, Object> map = new HashMap<>();
-            map.put("sniff.seeds", null);
+            map.put("seeds", null);
             map.put("skip_unavailable", null);
             updateRemoteClusterSettings(map);
         }
@@ -248,32 +248,32 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
                 assertThat(responseException.getMessage(),
-                        containsString("missing required setting [cluster.remote.remote1.sniff.seeds] " +
+                        containsString("missing required setting [cluster.remote.remote1.seeds] " +
                                 "for setting [cluster.remote.remote1.skip_unavailable]"));
             }
 
             Map<String, Object> settingsMap = new HashMap<>();
-            settingsMap.put("sniff.seeds", remoteNode.getAddress().toString());
+            settingsMap.put("seeds", remoteNode.getAddress().toString());
             settingsMap.put("skip_unavailable", randomBoolean());
             updateRemoteClusterSettings(settingsMap);
 
             {
                 //check that seeds cannot be reset alone if skip_unavailable is set
                 Request request = new Request("PUT", "/_cluster/settings");
-                request.setEntity(buildUpdateSettingsRequestBody(Collections.singletonMap("sniff.seeds", null)));
+                request.setEntity(buildUpdateSettingsRequestBody(Collections.singletonMap("seeds", null)));
                 ResponseException responseException = expectThrows(ResponseException.class,
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-                assertThat(responseException.getMessage(), containsString("missing required setting [cluster.remote.remote1.sniff.seeds] " +
+                assertThat(responseException.getMessage(), containsString("missing required setting [cluster.remote.remote1.seeds] " +
                         "for setting [cluster.remote.remote1.skip_unavailable]"));
             }
 
             if (randomBoolean()) {
                 updateRemoteClusterSettings(Collections.singletonMap("skip_unavailable", null));
-                updateRemoteClusterSettings(Collections.singletonMap("sniff.seeds", null));
+                updateRemoteClusterSettings(Collections.singletonMap("seeds", null));
             } else {
                 Map<String, Object> nullMap = new HashMap<>();
-                nullMap.put("sniff.seeds", null);
+                nullMap.put("seeds", null);
                 nullMap.put("skip_unavailable", null);
                 updateRemoteClusterSettings(nullMap);
             }

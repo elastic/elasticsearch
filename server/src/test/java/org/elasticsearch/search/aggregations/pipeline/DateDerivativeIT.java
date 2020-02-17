@@ -83,7 +83,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         createIndex("idx");
         createIndex("idx_unmapped");
         // TODO: would be nice to have more random data here
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(

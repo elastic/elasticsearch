@@ -117,7 +117,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.shard.IndexShardTests.getEngineFromShard;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -554,9 +553,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.admin().indices()
             .preparePutTemplate("test-template")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("test-mapping", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                     .startObject()
-                        .startObject("test-mapping")
+                        .startObject("_doc")
                             .startObject("properties")
                                 .startObject("field1")
                                     .field("type", "text")
@@ -612,7 +611,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertThat(client.admin().indices()
                 .preparePutTemplate("test-template")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("_doc", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                     .startObject()
                         .startObject("_doc")
                             .startObject("properties")
@@ -2325,12 +2324,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
                 // we flush before the snapshot such that we have to process the segments_N files plus the .del file
-                if (INDEX_SOFT_DELETES_SETTING.get(settings)) {
-                    // soft-delete generates DV files.
-                    assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
-                } else {
-                    assertThat(status.getStats().getProcessedFileCount(), equalTo(2));
-                }
+                // soft-delete generates DV files.
+                assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
             }
         }
     }
@@ -2716,13 +2711,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
             assertEquals(repoName, e.getRepositoryName());
             assertEquals(snapshotName, e.getSnapshotName());
-            assertThat(e.getMessage(), containsString("cannot delete snapshot during a restore"));
-
-            logger.info("-- try deleting another snapshot while the restore is in progress (should throw an error)");
-            e = expectThrows(ConcurrentSnapshotExecutionException.class, () ->
-                client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName2).get());
-            assertEquals(repoName, e.getRepositoryName());
-            assertEquals(snapshotName2, e.getSnapshotName());
             assertThat(e.getMessage(), containsString("cannot delete snapshot during a restore"));
         } finally {
             // unblock even if the try block fails otherwise we will get bogus failures when we delete all indices in test teardown.

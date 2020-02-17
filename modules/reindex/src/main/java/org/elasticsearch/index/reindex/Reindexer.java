@@ -92,7 +92,8 @@ public class Reindexer {
         this.reindexSslConfig = reindexSslConfig;
     }
 
-    public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
+    public void initTask(BulkByScrollTask task, ReindexRequest request,
+                         ActionListener<Void> listener) {
         BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
     }
 

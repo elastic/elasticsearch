@@ -8,13 +8,14 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -26,19 +27,26 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
+import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
+import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.ilm.UpdateRolloverLifecycleDateStep;
+import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
+import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -71,11 +79,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     private String index;
     private String policy;
+    private String alias;
 
     @Before
     public void refreshIndex() {
-        index = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        policy = randomAlphaOfLength(5);
+        index = "index-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        policy = "policy-" + randomAlphaOfLength(5);
+        alias = "alias-" + randomAlphaOfLength(5);
     }
 
     public static void updatePolicy(String indexName, String policy) throws IOException {
@@ -93,7 +103,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "integTest-0")
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         // create policy
         createFullPolicy(TimeValue.ZERO);
@@ -155,7 +165,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "integTest-0")
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         createFullPolicy(TimeValue.timeValueHours(10));
         // update policy on index
@@ -189,14 +199,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         // asserts that shrink deleted the original index
-        assertBusy(() -> assertFalse(indexExists(originalIndex)), 20, TimeUnit.SECONDS);
+        assertBusy(() -> assertFalse(indexExists(originalIndex)), 30, TimeUnit.SECONDS);
         // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
     public void testRetryFailedShrinkAction() throws Exception {
-        int numShards = 6;
-        int divisor = randomFrom(2, 3, 6);
+        int numShards = 4;
+        int divisor = randomFrom(2, 4);
         int expectedFinalShards = numShards / divisor;
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
@@ -217,12 +227,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(retryRequest));
 
         // assert corrected policy is picked up and index is shrunken
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertBusy(() -> {
-            logger.error(explainIndex(index));
-            assertTrue(indexExists(shrunkenIndex));
-            assertTrue(aliasExists(shrunkenIndex, index));
             Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
-            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
@@ -235,7 +244,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         // create policy
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
@@ -253,7 +262,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
         updateSettingsRequest.setJsonEntity("{\n" +
@@ -268,7 +277,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    {\n" +
             "      \"add\": {\n" +
             "        \"index\": \"" + originalIndex + "\",\n" +
-            "        \"alias\": \"alias\",\n" +
+            "        \"alias\": \"" + alias + "\",\n" +
             "        \"is_write_index\": false\n" +
             "      }\n" +
             "    }\n" +
@@ -282,7 +291,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
-        assertBusy(() -> assertEquals(TerminalPolicyStep.KEY, getStepKeyForIndex(originalIndex)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
         assertBusy(() -> assertTrue(indexExists(originalIndex)));
         assertBusy(() -> assertFalse(indexExists(secondIndex)));
         assertBusy(() -> assertEquals("true", getOnlyIndexSettings(originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
@@ -293,10 +302,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         String allocateNodeName = "integTest-" + randomFrom(0, 1);
         AllocateAction allocateAction = new AllocateAction(null, null, null, singletonMap("_name", allocateNodeName));
-        createNewSingletonPolicy(randomFrom("warm", "cold"), allocateAction);
+        String endPhase = randomFrom("warm", "cold");
+        createNewSingletonPolicy(endPhase, allocateAction);
         updatePolicy(index, policy);
         assertBusy(() -> {
-            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep(endPhase).getKey()));
         });
         ensureGreen(index);
     }
@@ -308,13 +318,74 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas));
         AllocateAction allocateAction = new AllocateAction(finalNumReplicas, null, null, null);
-        createNewSingletonPolicy(randomFrom("warm", "cold"), allocateAction);
+        String endPhase = randomFrom("warm", "cold");
+        createNewSingletonPolicy(endPhase, allocateAction);
         updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep(endPhase).getKey()));
             assertThat(settings.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()), equalTo(String.valueOf(finalNumReplicas)));
         });
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50781")
+    public void testWaitForSnapshot() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        String smlPolicy = randomAlphaOfLengthBetween(4, 10);
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction(smlPolicy));
+        updatePolicy(index, policy);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
+        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo("wait-for-snapshot")));
+
+        String repo = createSnapshotRepo();
+        createSlmPolicy(smlPolicy, repo);
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
+
+        Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        assertOK(client().performRequest(request));
+
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
+
+        request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
+        assertOK(client().performRequest(request));
+
+        request = new Request("DELETE", "/_snapshot/" + repo);
+        assertOK(client().performRequest(request));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50781")
+    public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        String smlPolicy = randomAlphaOfLengthBetween(4, 10);
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction(smlPolicy));
+
+        String repo = createSnapshotRepo();
+        createSlmPolicy(smlPolicy, repo);
+
+        Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        assertOK(client().performRequest(request));
+
+        updatePolicy(index, policy);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
+
+        request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        assertOK(client().performRequest(request));
+
+        request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
+
+        request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
+        assertOK(client().performRequest(request));
+
+        request = new Request("DELETE", "/_snapshot/" + repo);
+        assertOK(client().performRequest(request));
     }
 
     public void testDelete() throws Exception {
@@ -381,13 +452,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
     }
 
     @SuppressWarnings("unchecked")
-    public void testForceMergeAction() throws Exception {
+    public void forceMergeActionWithCodec(String codec) throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
@@ -410,12 +481,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             }
         };
         assertThat(numSegments.get(), greaterThan(1));
-
-        createNewSingletonPolicy("warm", new ForceMergeAction(1));
+        createNewSingletonPolicy("warm", new ForceMergeAction(1, codec));
         updatePolicy(index, policy);
 
         assertBusy(() -> {
-            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             Map<String, Object> settings = getOnlyIndexSettings(index);
             assertThat(numSegments.get(), equalTo(1));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
@@ -423,20 +493,24 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
+    public void testForceMergeAction() throws Exception {
+        forceMergeActionWithCodec(null);
+    }
+
     public void testShrinkAction() throws Exception {
-        int numShards = 6;
-        int divisor = randomFrom(2, 3, 6);
+        int numShards = 4;
+        int divisor = randomFrom(2, 4);
         int expectedFinalShards = numShards / divisor;
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy("warm", new ShrinkAction(expectedFinalShards));
         updatePolicy(index, policy);
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertBusy(() -> {
-            assertTrue(indexExists(shrunkenIndex));
-            assertTrue(aliasExists(shrunkenIndex, index));
             Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
-            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
@@ -456,7 +530,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertFalse(indexExists(shrunkenIndex));
             assertFalse(aliasExists(shrunkenIndex, index));
             Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(numberOfShards)));
             assertNull(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()));
             assertThat(settings.get(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
@@ -500,7 +574,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertTrue(indexExists(shrunkenIndex));
             assertTrue(aliasExists(shrunkenIndex, index));
             Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
-            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(1)));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
@@ -518,7 +592,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("cold").getKey()));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
             assertThat(settings.get("index.frozen"), equalTo("true"));
@@ -556,7 +630,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that the index froze
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("cold").getKey()));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
             assertThat(settings.get("index.frozen"), equalTo("true"));
@@ -574,7 +648,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             assertThat(settings.get(IndexMetaData.INDEX_PRIORITY_SETTING.getKey()), equalTo(String.valueOf(priority)));
         });
     }
@@ -586,7 +660,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             assertNull(settings.get(IndexMetaData.INDEX_PRIORITY_SETTING.getKey()));
         });
     }
@@ -709,7 +783,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         // Index a document
         index(client(), originalIndex, "_id", "foo", "bar");
@@ -727,14 +801,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         addPolicyRequest.setJsonEntity("{\n" +
             "  \"settings\": {\n" +
             "    \"index.lifecycle.name\": \"" + policy + "\",\n" +
-            "    \"index.lifecycle.rollover_alias\": \"alias\"\n" +
+            "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
             "  }\n" +
             "}");
         client().performRequest(addPolicyRequest);
         assertBusy(() -> assertTrue((boolean) explainIndex(originalIndex).getOrDefault("managed", false)));
 
         // Wait for everything to be copacetic
-        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(TerminalPolicyStep.KEY)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
     public void testMoveToInjectedStep() throws Exception {
@@ -744,7 +818,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(new StepKey("new", "complete", "complete"))));
 
@@ -769,7 +843,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             assertTrue(indexExists(shrunkenIndex));
             assertTrue(aliasExists(shrunkenIndex, index));
-            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
         });
     }
 
@@ -780,7 +854,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
             true);
 
         assertBusy(() -> assertThat(getStepKeyForIndex("test-1"), equalTo(new StepKey("hot", "rollover", "check-rollover-ready"))));
@@ -857,7 +931,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         createIndexWithSettings(goodIndex, Settings.builder()
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
@@ -916,7 +990,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.blocks.read_only", true),
             true
         );
@@ -934,72 +1008,560 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         client().performRequest(allowWritesOnIndexSettingUpdate);
 
         // index is not readonly so the ILM should complete successfully
-        assertBusy(() -> assertThat(getStepKeyForIndex(firstIndex), equalTo(TerminalPolicyStep.KEY)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(firstIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
-   public void testILMRolloverOnManuallyRolledIndex() throws Exception {
-       String originalIndex = index + "-000001";
-       String secondIndex = index + "-000002";
-       String thirdIndex = index + "-000003";
+    public void testILMRolloverOnManuallyRolledIndex() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        String thirdIndex = index + "-000003";
 
-       // Set up a policy with rollover
-       createNewSingletonPolicy("hot", new RolloverAction(null, null, 2L));
-       Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-       createIndexTemplate.setJsonEntity("{" +
-           "\"index_patterns\": [\""+ index + "-*\"], \n" +
-           "  \"settings\": {\n" +
-           "    \"number_of_shards\": 1,\n" +
-           "    \"number_of_replicas\": 0,\n" +
-           "    \"index.lifecycle.name\": \"" + policy+ "\", \n" +
-           "    \"index.lifecycle.rollover_alias\": \"alias\"\n" +
-           "  }\n" +
-           "}");
-       client().performRequest(createIndexTemplate);
+        // Set up a policy with rollover
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 2L));
+        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
+        createIndexTemplate.setJsonEntity("{" +
+            "\"index_patterns\": [\"" + index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1,\n" +
+            "    \"number_of_replicas\": 0,\n" +
+            "    \"index.lifecycle.name\": \"" + policy + "\", \n" +
+            "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createIndexTemplate);
 
-       createIndexWithSettings(
-           originalIndex,
-           Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-               .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0),
-           true
-       );
+        createIndexWithSettings(
+            originalIndex,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0),
+            true
+        );
 
-       // Index a document
-       index(client(), originalIndex, "1", "foo", "bar");
-       Request refreshOriginalIndex = new Request("POST", "/" + originalIndex + "/_refresh");
-       client().performRequest(refreshOriginalIndex);
+        // Index a document
+        index(client(), originalIndex, "1", "foo", "bar");
+        Request refreshOriginalIndex = new Request("POST", "/" + originalIndex + "/_refresh");
+        client().performRequest(refreshOriginalIndex);
 
-       // Manual rollover
-       Request rolloverRequest = new Request("POST", "/alias/_rollover");
-       rolloverRequest.setJsonEntity("{\n" +
-           "  \"conditions\": {\n" +
-           "    \"max_docs\": \"1\"\n" +
-           "  }\n" +
-           "}"
-       );
-       client().performRequest(rolloverRequest);
-       assertBusy(() -> assertTrue(indexExists(secondIndex)));
+        // Manual rollover
+        Request rolloverRequest = new Request("POST", "/" + alias + "/_rollover");
+        rolloverRequest.setJsonEntity("{\n" +
+            "  \"conditions\": {\n" +
+            "    \"max_docs\": \"1\"\n" +
+            "  }\n" +
+            "}"
+        );
+        client().performRequest(rolloverRequest);
+        assertBusy(() -> assertTrue(indexExists(secondIndex)));
 
-       // Index another document into the original index so the ILM rollover policy condition is met
-       index(client(), originalIndex, "2", "foo", "bar");
-       client().performRequest(refreshOriginalIndex);
+        // Index another document into the original index so the ILM rollover policy condition is met
+        index(client(), originalIndex, "2", "foo", "bar");
+        client().performRequest(refreshOriginalIndex);
 
-       // Wait for the rollover policy to execute
-       assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(TerminalPolicyStep.KEY)));
+        // Wait for the rollover policy to execute
+        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
 
-       // ILM should manage the second index after attempting (and skipping) rolling the original index
-       assertBusy(() -> assertTrue((boolean) explainIndex(secondIndex).getOrDefault("managed", true)));
+        // ILM should manage the second index after attempting (and skipping) rolling the original index
+        assertBusy(() -> assertTrue((boolean) explainIndex(secondIndex).getOrDefault("managed", true)));
 
-       // index some documents to trigger an ILM rollover
-       index(client(), "alias", "1", "foo", "bar");
-       index(client(), "alias", "2", "foo", "bar");
-       index(client(), "alias", "3", "foo", "bar");
-       Request refreshSecondIndex = new Request("POST", "/" + secondIndex + "/_refresh");
-       client().performRequest(refreshSecondIndex).getStatusLine();
+        // index some documents to trigger an ILM rollover
+        index(client(), alias, "1", "foo", "bar");
+        index(client(), alias, "2", "foo", "bar");
+        index(client(), alias, "3", "foo", "bar");
+        Request refreshSecondIndex = new Request("POST", "/" + secondIndex + "/_refresh");
+        client().performRequest(refreshSecondIndex).getStatusLine();
 
-       // ILM should rollover the second index even though it skipped the first one
-       assertBusy(() -> assertThat(getStepKeyForIndex(secondIndex), equalTo(TerminalPolicyStep.KEY)));
-       assertBusy(() -> assertTrue(indexExists(thirdIndex)));
-   }
+        // ILM should rollover the second index even though it skipped the first one
+        assertBusy(() -> assertThat(getStepKeyForIndex(secondIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+        assertBusy(() -> assertTrue(indexExists(thirdIndex)));
+    }
+
+    public void testRolloverStepRetriesUntilRolledOverIndexIsDeleted() throws Exception {
+        String index = this.index + "-000001";
+        String rolledIndex = this.index + "-000002";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null));
+
+        // create the rolled index so the rollover of the first index fails
+        createIndexWithSettings(
+            rolledIndex,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            false
+        );
+
+        createIndexWithSettings(
+            index,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            true
+        );
+
+        assertBusy(() -> assertThat((Integer) explainIndex(index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30,
+            TimeUnit.SECONDS);
+
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"check-rollover-ready\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"attempt-rollover\"\n" +
+            "  }\n" +
+            "}");
+
+        // Using {@link #waitUntil} here as ILM moves back and forth between the {@link WaitForRolloverReadyStep} step and
+        // {@link org.elasticsearch.xpack.core.ilm.ErrorStep} in order to retry the failing step. As {@link #assertBusy}
+        // increases the wait time between calls exponentially, we might miss the window where the policy is on
+        // {@link WaitForRolloverReadyStep} and the move to `attempt-rollover` request will not be successful.
+        waitUntil(() -> {
+            try {
+                return client().performRequest(moveToStepRequest).getStatusLine().getStatusCode() == 200;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        // Similar to above, using {@link #waitUntil} as we want to make sure the `attempt-rollover` step started failing and is being
+        // retried (which means ILM moves back and forth between the `attempt-rollover` step and the `error` step)
+        waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(index);
+                String step = (String) explainIndexResponse.get("step");
+                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
+                return step != null && step.equals("attempt-rollover") && retryCount != null && retryCount >= 1;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        deleteIndex(rolledIndex);
+
+        // the rollover step should eventually succeed
+        assertBusy(() -> assertThat(indexExists(rolledIndex), is(true)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+    }
+
+    public void testUpdateRolloverLifecycleDateStepRetriesWhenRolloverInfoIsMissing() throws Exception {
+        String index = this.index + "-000001";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+
+        createIndexWithSettings(
+            index,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            true
+        );
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), is(WaitForRolloverReadyStep.NAME)));
+
+        // moving ILM to the "update-rollover-lifecycle-date" without having gone through the actual rollover step
+        // the "update-rollover-lifecycle-date" step will fail as the index has no rollover information
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"check-rollover-ready\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"update-rollover-lifecycle-date\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(moveToStepRequest);
+
+        waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(index);
+                String step = (String) explainIndexResponse.get("step");
+                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
+                return step != null && step.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null && retryCount >= 1;
+            } catch (IOException e) {
+                return false;
+            }
+        });
+
+        index(client(), index, "1", "foo", "bar");
+        Request refreshIndex = new Request("POST", "/" + index + "/_refresh");
+        client().performRequest(refreshIndex);
+
+        // manual rollover the index so the "update-rollover-lifecycle-date" ILM step can continue and finish successfully as the index
+        // will have rollover information now
+        Request rolloverRequest = new Request("POST", "/" + alias + "/_rollover");
+        rolloverRequest.setJsonEntity("{\n" +
+            "  \"conditions\": {\n" +
+            "    \"max_docs\": \"1\"\n" +
+            "  }\n" +
+            "}"
+        );
+        client().performRequest(rolloverRequest);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+    }
+
+    public void testWaitForActiveShardsStep() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            true);
+
+        // create policy
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
+        createIndexTemplate.setJsonEntity("{" +
+            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1,\n" +
+            "    \"number_of_replicas\": 142,\n" +
+            "    \"index.write.wait_for_active_shards\": \"all\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createIndexTemplate);
+
+        // index document to trigger rollover
+        index(client(), originalIndex, "_id", "foo", "bar");
+        assertBusy(() -> assertTrue(indexExists(secondIndex)));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex).getName(), equalTo(WaitForActiveShardsStep.NAME)));
+
+        // reset the number of replicas to 0 so that the second index wait for active shard condition can be met
+        updateIndexSettings(secondIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
+    public void testHistoryIsWrittenWithSuccess() throws Exception {
+        String index = "success-index";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
+        createIndexTemplate.setJsonEntity("{" +
+            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1,\n" +
+            "    \"number_of_replicas\": 0,\n" +
+            "    \"index.lifecycle.name\": \"" + policy+ "\",\n" +
+            "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createIndexTemplate);
+
+        createIndexWithSettings(index + "-1",
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0),
+            true);
+
+        // Index a document
+        index(client(), index + "-1", "1", "foo", "bar");
+        Request refreshIndex = new Request("POST", "/" + index + "-1/_refresh");
+        client().performRequest(refreshIndex);
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index + "-1"), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-indexing-complete"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-follow-shard-tasks"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "pause-follower-index"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "close-follower-index"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "unfollow-follower-index"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "open-follower-index"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-yellow-step"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "attempt-rollover"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "update-rollover-lifecycle-date"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "set-indexing-complete"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "completed"), 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-000002", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
+    public void testHistoryIsWrittenWithFailure() throws Exception {
+        String index = "failure-index";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
+        createIndexTemplate.setJsonEntity("{" +
+            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1,\n" +
+            "    \"number_of_replicas\": 0,\n" +
+            "    \"index.lifecycle.name\": \"" + policy+ "\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createIndexTemplate);
+
+        createIndexWithSettings(index + "-1",
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0),
+            false);
+
+        // Index a document
+        index(client(), index + "-1", "1", "foo", "bar");
+        Request refreshIndex = new Request("POST", "/" + index + "-1/_refresh");
+        client().performRequest(refreshIndex);
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index + "-1").getName(), equalTo(ErrorStep.NAME)));
+
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", false, "ERROR"), 30, TimeUnit.SECONDS);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
+    public void testHistoryIsWrittenWithDeletion() throws Exception {
+        String index = "delete-index";
+
+        createNewSingletonPolicy("delete", new DeleteAction());
+        Request createIndexTemplate = new Request("PUT", "_template/delete_indexes");
+        createIndexTemplate.setJsonEntity("{" +
+            "\"index_patterns\": [\""+ index + "\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1,\n" +
+            "    \"number_of_replicas\": 0,\n" +
+            "    \"index.lifecycle.name\": \"" + policy+ "\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createIndexTemplate);
+
+        // Index should be created and then deleted by ILM
+        createIndexWithSettings(index, Settings.builder(), false);
+
+        assertBusy(() -> {
+            logger.info("--> checking for index deletion...");
+            Request existCheck = new Request("HEAD", "/" + index);
+            Response resp = client().performRequest(existCheck);
+            assertThat(resp.getStatusLine().getStatusCode(), equalTo(404));
+        });
+
+        assertBusy(() -> {
+            assertHistoryIsPresent(policy, index, true, "delete", "delete", "wait-for-shard-history-leases");
+            assertHistoryIsPresent(policy, index, true, "delete", "delete", "complete");
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testRetryableInitializationStep() throws Exception {
+        String index = "retryinit-20xx-01-10";
+        Request stopReq = new Request("POST", "/_ilm/stop");
+        Request startReq = new Request("POST", "/_ilm/start");
+
+        createNewSingletonPolicy("hot", new SetPriorityAction(1));
+
+        // Stop ILM so that the initialize step doesn't run
+        assertOK(client().performRequest(stopReq));
+
+        // Create the index with the origination parsing turn *off* so it doesn't prevent creation
+        createIndexWithSettings(
+            index,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false));
+
+        updateIndexSettings(index, Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true));
+
+        assertOK(client().performRequest(startReq));
+
+        // Wait until an error has occurred.
+        waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(index);
+                String step = (String) explainIndexResponse.get("step");
+                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
+                return step != null && step.equals(InitializePolicyContextStep.KEY.getAction()) && retryCount != null && retryCount >= 1;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        // Turn origination date parsing back off
+        updateIndexSettings(index, Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false));
+
+        assertBusy(() -> {
+            Map<String, Object> explainResp = explainIndex(index);
+            String phase = (String) explainResp.get("phase");
+            assertThat(phase, equalTo("hot"));
+        });
+    }
+
+    public void testRefreshablePhaseJson() throws Exception {
+        String index = "refresh-index";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 100L));
+        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
+        createIndexTemplate.setJsonEntity("{" +
+            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1,\n" +
+            "    \"number_of_replicas\": 0,\n" +
+            "    \"index.lifecycle.name\": \"" + policy+ "\",\n" +
+            "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createIndexTemplate);
+
+        createIndexWithSettings(index + "-1",
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0),
+            true);
+
+        // Index a document
+        index(client(), index + "-1", "1", "foo", "bar");
+
+        // Wait for the index to enter the check-rollover-ready step
+        assertBusy(() -> assertThat(getStepKeyForIndex(index + "-1").getName(), equalTo(WaitForRolloverReadyStep.NAME)));
+
+        // Update the policy to allow rollover at 1 document instead of 100
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+
+        // Index should now have been able to roll over, creating the new index and proceeding to the "complete" step
+        assertBusy(() -> assertThat(indexExists(index + "-000002"), is(true)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index + "-1").getName(), equalTo(PhaseCompleteStep.NAME)));
+    }
+
+    public void testHaltAtEndOfPhase() throws Exception {
+        String index = "halt-index";
+
+        createNewSingletonPolicy("hot", new SetPriorityAction(100));
+
+        createIndexWithSettings(index,
+            Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            randomBoolean());
+
+        // Wait for the index to finish the "hot" phase
+        assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+
+        // Update the policy to add a delete phase
+        {
+            Map<String, LifecycleAction> hotActions = new HashMap<>();
+            hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
+            Map<String, Phase> phases = new HashMap<>();
+            phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
+            phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
+            LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+            // PUT policy
+            XContentBuilder builder = jsonBuilder();
+            lifecyclePolicy.toXContent(builder, null);
+            final StringEntity entity = new StringEntity(
+                "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+            Request request = new Request("PUT", "_ilm/policy/" + policy);
+            request.setEntity(entity);
+            assertOK(client().performRequest(request));
+        }
+
+        // The index should move into the deleted phase and be deleted
+        assertBusy(() -> assertFalse("expected " + index + " to be deleted by ILM", indexExists(index)));
+    }
+
+    // This method should be called inside an assertBusy, it has no retry logic of its own
+    private void assertHistoryIsPresent(String policyName, String indexName, boolean success, String stepName) throws IOException {
+        assertHistoryIsPresent(policyName, indexName, success, null, null, stepName);
+    }
+
+    // This method should be called inside an assertBusy, it has no retry logic of its own
+    private void assertHistoryIsPresent(String policyName, String indexName, boolean success,
+                                        @Nullable String phase, @Nullable String action, String stepName) throws IOException {
+        logger.info("--> checking for history item [{}], [{}], success: [{}], phase: [{}], action: [{}], step: [{}]",
+            policyName, indexName, success, phase, action, stepName);
+        final Request historySearchRequest = new Request("GET", "ilm-history*/_search");
+        historySearchRequest.setJsonEntity("{\n" +
+            "  \"query\": {\n" +
+            "    \"bool\": {\n" +
+            "      \"must\": [\n" +
+            "        {\n" +
+            "          \"term\": {\n" +
+            "            \"policy\": \"" + policyName + "\"\n" +
+            "          }\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"term\": {\n" +
+            "            \"success\": " + success + "\n" +
+            "          }\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"term\": {\n" +
+            "            \"index\": \"" + indexName + "\"\n" +
+            "          }\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"term\": {\n" +
+            "            \"state.step\": \"" + stepName + "\"\n" +
+            "          }\n" +
+            "        }\n" +
+            (phase == null ? "" : ",{\"term\": {\"state.phase\": \"" + phase + "\"}}") +
+            (action == null ? "" : ",{\"term\": {\"state.action\": \"" + action + "\"}}") +
+            "      ]\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        Response historyResponse;
+        try {
+            historyResponse = client().performRequest(historySearchRequest);
+            Map<String, Object> historyResponseMap;
+            try (InputStream is = historyResponse.getEntity().getContent()) {
+                historyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            }
+            logger.info("--> history response: {}", historyResponseMap);
+            int hits = (int)((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value");
+
+            // For a failure, print out whatever history we *do* have for the index
+            if (hits == 0) {
+                final Request allResults = new Request("GET", "ilm-history*/_search");
+                allResults.setJsonEntity("{\n" +
+                    "  \"query\": {\n" +
+                    "    \"bool\": {\n" +
+                    "      \"must\": [\n" +
+                    "        {\n" +
+                    "          \"term\": {\n" +
+                    "            \"policy\": \"" + policyName + "\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "          \"term\": {\n" +
+                    "            \"index\": \"" + indexName + "\"\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      ]\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}");
+                final Response allResultsResp = client().performRequest(historySearchRequest);
+                Map<String, Object> allResultsMap;
+                try (InputStream is = allResultsResp.getEntity().getContent()) {
+                    allResultsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                logger.info("--> expected at least 1 hit, got 0. All history for index [{}]: {}", index, allResultsMap);
+            }
+            assertThat(hits, greaterThanOrEqualTo(1));
+        } catch (ResponseException e) {
+            // Throw AssertionError instead of an exception if the search fails so that assertBusy works as expected
+            logger.error(e);
+            fail("failed to perform search:" + e.getMessage());
+        }
+
+        // Finally, check that the history index is in a good state
+        Step.StepKey stepKey = getStepKeyForIndex("ilm-history-1-000001");
+        assertEquals("hot", stepKey.getPhase());
+        assertEquals(RolloverAction.NAME, stepKey.getAction());
+        assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());
+    }
 
     private void createFullPolicy(TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
@@ -1007,7 +1569,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         hotActions.put(RolloverAction.NAME,  new RolloverAction(null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
-        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
@@ -1066,7 +1628,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             writeIndexSnippet = "\"is_write_index\": true";
         }
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
-            + ", \"aliases\" : { \"alias\": { " + writeIndexSnippet + " } } }");
+            + ", \"aliases\" : { \"" + alias + "\": { " + writeIndexSnippet + " } } }");
         client().performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);
@@ -1111,7 +1673,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     private String getFailedStepForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
-        if (indexResponse == null) return null;
+        if (indexResponse == null) {
+            return null;
+        }
 
         return (String) indexResponse.get("failed_step");
     }
@@ -1155,5 +1719,39 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
+    }
+
+    private void createSlmPolicy(String smlPolicy, String repo) throws IOException {
+        Request request;
+        request = new Request("PUT", "/_slm/policy/" + smlPolicy);
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("schedule", "59 59 23 31 12 ? 2099")
+                .field("repository", repo)
+                .field("name", "snap" + randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT))
+                .startObject("config")
+                    .field("include_global_state", false)
+                .endObject()
+                .endObject()));
+
+        assertOK(client().performRequest(request));
+    }
+
+    private String createSnapshotRepo() throws IOException {
+        String repo = randomAlphaOfLengthBetween(4, 10);
+        Request request = new Request("PUT", "/_snapshot/" + repo);
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .field("max_snapshot_bytes_per_sec", "256b")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+        return repo;
     }
 }

@@ -87,7 +87,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
             // Delegates close job to elected master node, so it becomes the coordinating node.
             // See comment in OpenJobAction.Transport class for more information.
             if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+                listener.onFailure(new MasterNotDiscoveredException());
             } else {
                 transportService.sendRequest(nodes.getMasterNode(), actionName, request,
                         new ActionListenerResponseHandler<>(listener, CloseJobAction.Response::new));

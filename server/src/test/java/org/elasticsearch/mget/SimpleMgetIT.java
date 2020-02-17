@@ -108,8 +108,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
 
     public void testThatMgetShouldWorkWithAliasRouting() throws IOException {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias1").routing("abc"))
-            .addMapping("test", jsonBuilder()
-                .startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
+            .setMapping(jsonBuilder()
+                .startObject().startObject("_doc").startObject("_routing").field("required", true).endObject().endObject().endObject()));
 
         client().prepareIndex("alias1").setId("1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE).get();

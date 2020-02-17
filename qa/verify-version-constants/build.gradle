@@ -37,7 +37,6 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     "${baseName}" {
       version = bwcVersion.toString()
       setting 'http.content_type.required', 'true'
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -353,16 +355,31 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     MetaData metaData = currentState.metaData();
-                    final LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
-                    if (currentLicenses.getLicense() != LicensesMetaData.LICENSE_TOMBSTONE) {
+                    final LicensesMetaData currentLicensesMetadata = metaData.custom(LicensesMetaData.TYPE);
+                    final License currentLicense = LicensesMetaData.extractLicense(currentLicensesMetadata);
+                    if (shouldRemove(currentLicense)) {
                         MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                        LicensesMetaData newMetadata = new LicensesMetaData(LicensesMetaData.LICENSE_TOMBSTONE,
-                            currentLicenses.getMostRecentTrialVersion());
-                        mdBuilder.putCustom(LicensesMetaData.TYPE, newMetadata);
+                        License.Builder specBuilder = License.builder()
+                            .uid(UUID.randomUUID().toString())
+                            .issuedTo(clusterService.getClusterName().value())
+                            .maxNodes(SELF_GENERATED_LICENSE_MAX_NODES)
+                            .issueDate(clock.millis())
+                            .type(License.LicenseType.BASIC)
+                            .expiryDate(BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
+                        License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
+                        LicensesMetaData newLicensesMetadata = new LicensesMetaData(selfGeneratedLicense,
+                            currentLicensesMetadata == null ? null : currentLicensesMetadata.getMostRecentTrialVersion());
+                        mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetadata);
                         return ClusterState.builder(currentState).metaData(mdBuilder).build();
                     } else {
                         return currentState;
                     }
+                }
+
+                private boolean shouldRemove(License license) {
+                    return false == License.LicenseType.isBasic(license.type())
+                        || SELF_GENERATED_LICENSE_MAX_NODES != license.maxNodes()
+                        || BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != license.expiryDate();
                 }
             });
     }

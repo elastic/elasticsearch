@@ -84,6 +84,9 @@ public final class IndexSettings {
                         "[true, false, checksum] but was: " + s);
             }
         }, Property.IndexScope);
+    // This setting is undocumented as it is considered as an escape hatch.
+    public static final Setting<Boolean> ON_HEAP_ID_TERMS_INDEX =
+            Setting.boolSetting("index.force_memory_id_terms_dictinary", false, Property.IndexScope);
 
     /**
      * Index setting describing the maximum value of from + size on a query.

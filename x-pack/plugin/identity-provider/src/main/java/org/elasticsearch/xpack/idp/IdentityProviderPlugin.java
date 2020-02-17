@@ -81,7 +81,23 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.slo_endpoint.post]. Not a valid URI", e);
         }
     }, Setting.Property.NodeScope);
-    public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.signing.keystore.alias",
+
+    public static final Setting<String> IDP_ORGANIZATION_NAME = Setting.simpleString("xpack.idp.organization.name",
+        Setting.Property.NodeScope);
+
+    public static final Setting<String> IDP_ORGANIZATION_DISPLAY_NAME = Setting.simpleString("xpack.idp.organization.display_name",
+        Setting.Property.NodeScope);
+
+    public static final Setting<String> IDP_ORGANIZATION_URL = Setting.simpleString("xpack.idp.organization.url",
+        Setting.Property.NodeScope);
+
+    public static final Setting<String> IDP_CONTACT_GIVEN_NAME = Setting.simpleString("xpack.idp.contact.given_name",
+        Setting.Property.NodeScope);
+
+    public static final Setting<String> IDP_CONTACT_SURNAME = Setting.simpleString("xpack.idp.contact.surname",
+        Setting.Property.NodeScope);
+
+    public static final Setting<String> IDP_CONTACT_EMAIL = Setting.simpleString("xpack.idp.contact.email",
         Setting.Property.NodeScope);
 
     private final Logger logger = LogManager.getLogger();
@@ -107,7 +123,6 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
 
-        enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -130,13 +145,11 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>();
-        settings.add(ENABLED_SETTING);
-        settings.add(IDP_ENTITY_ID);
-        settings.add(IDP_SLO_REDIRECT_ENDPOINT);
-        settings.add(IDP_SLO_POST_ENDPOINT);
-        settings.add(IDP_SSO_REDIRECT_ENDPOINT);
-        settings.add(IDP_SSO_POST_ENDPOINT);
+        settings.addAll(List.of(ENABLED_SETTING, IDP_ENTITY_ID, IDP_SLO_REDIRECT_ENDPOINT, IDP_SLO_POST_ENDPOINT,
+            IDP_SSO_REDIRECT_ENDPOINT, IDP_SSO_POST_ENDPOINT, IDP_ORGANIZATION_NAME, IDP_ORGANIZATION_DISPLAY_NAME, IDP_ORGANIZATION_URL,
+            IDP_CONTACT_GIVEN_NAME, IDP_CONTACT_SURNAME, IDP_CONTACT_EMAIL));
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
+        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);
     }
 }

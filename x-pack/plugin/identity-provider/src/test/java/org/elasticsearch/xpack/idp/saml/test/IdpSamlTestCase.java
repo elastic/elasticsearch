@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FileMatchers;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
+import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
 import org.hamcrest.Matchers;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.io.MarshallingException;
@@ -30,17 +31,21 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
@@ -101,6 +106,20 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    protected void assertValidXml(String xml) throws Exception {
+        new XmlValidator( "saml-schema-metadata-2.0.xsd").validate(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    protected String joinCertificateLines(String... lines) {
+        return Arrays.stream(lines).collect(Collectors.joining(System.lineSeparator()));
+    }
+
+    protected String normaliseXml(String input) {
+        // Remove spaces between elements, and compress other spaces. These patterns don't use \s because
+        // that would match newlines.
+        return input.replaceAll("> +<", "><").replaceAll(" +", " ");
     }
 
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")

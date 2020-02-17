@@ -24,5 +24,11 @@ public interface SamlIdentityProvider {
 
     X509Credential getSigningCredential();
 
+    X509Credential getMetadataSigningCredential();
+
     SamlServiceProvider getRegisteredServiceProvider(String spEntityId);
+
+    SamlIdPMetadataBuilder.OrganizationInfo getOrganization();
+
+    SamlIdPMetadataBuilder.ContactInfo getTechnicalContact();
 }

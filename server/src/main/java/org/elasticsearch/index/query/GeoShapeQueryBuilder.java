@@ -174,12 +174,6 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    @Deprecated
-    public List queryFieldType() {
-        return validContentTypes();
-    }
-
-    @Override
     public void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException {
         if (strategy != null) {
             builder.field(STRATEGY_FIELD.getPreferredName(), strategy.getStrategyName());

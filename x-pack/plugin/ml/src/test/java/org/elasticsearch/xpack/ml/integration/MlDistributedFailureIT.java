@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -489,6 +490,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     // are what we expect them to be:
     private static DataCounts getDataCountsFromIndex(String jobId) {
         SearchResponse searchResponse = client().prepareSearch()
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
                 .get();
         if (searchResponse.getHits().getTotalHits().value != 1) {

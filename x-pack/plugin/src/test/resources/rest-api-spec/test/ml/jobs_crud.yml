@@ -470,7 +470,8 @@
           model_bytes: 10000000
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: .ml-anomalies-shared
 
   - do:
       catch: /Invalid update value for analysis_limits[:] model_memory_limit cannot be decreased below current usage; current usage \[9mb\], update had \[5mb\]/
@@ -926,7 +927,8 @@
           key: value
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: .ml-state
 
   - do:
       catch: /status_exception/
@@ -953,7 +955,8 @@
           key: value
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: .ml-state
 
   - do:
       catch: /status_exception/
@@ -990,7 +993,8 @@
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: .ml-anomalies-shared
 
   - do:
       catch: /status_exception/

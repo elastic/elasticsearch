@@ -33,6 +33,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
@@ -52,7 +53,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.threeten.bp.Duration;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -323,6 +323,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         logger.debug("starting with resumable upload id [{}]", sessionUploadId.get());
 
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
+            // read all the request body, otherwise the SDK client throws a non-retryable StorageException
+            final BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
+
             final Map<String, String> params = new HashMap<>();
             RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
             assertThat(params.get("uploadType"), equalTo("resumable"));
@@ -330,7 +333,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
             if ("POST".equals(exchange.getRequestMethod())) {
                 assertThat(params.get("name"), equalTo("write_large_blob"));
                 if (countInits.decrementAndGet() <= 0) {
-                    byte[] response = Streams.readFully(exchange.getRequestBody()).utf8ToString().getBytes(UTF_8);
+                    byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.getResponseHeaders().add("Location", httpServerUrl() +
                         "/upload/storage/v1/b/bucket/o?uploadType=resumable&upload_id=" + sessionUploadId.get());
@@ -348,7 +351,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                 if (uploadId.equals(sessionUploadId.get()) == false) {
                     logger.debug("session id [{}] is gone", uploadId);
                     assertThat(wrongChunk, greaterThan(0));
-                    Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(HttpStatus.SC_GONE, -1);
                     return;
                 }
@@ -367,7 +369,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                         countInits.set(nbErrors);
                         countUploads.set(nbErrors * totalChunks);
 
-                        Streams.readFully(exchange.getRequestBody());
                         exchange.sendResponseHeaders(HttpStatus.SC_GONE, -1);
                         return;
                     }
@@ -377,14 +378,12 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                 assertTrue(Strings.hasLength(range));
 
                 if (countUploads.decrementAndGet() % 2 == 0) {
-                    final ByteArrayOutputStream requestBody = new ByteArrayOutputStream();
-                    final long bytesRead = Streams.copy(exchange.getRequestBody(), requestBody);
-                    assertThat(Math.toIntExact(bytesRead), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
+                    assertThat(Math.toIntExact(requestBody.length()), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
 
                     final int rangeStart = getContentRangeStart(range);
                     final int rangeEnd = getContentRangeEnd(range);
-                    assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(bytesRead)));
-                    assertArrayEquals(Arrays.copyOfRange(data, rangeStart, rangeEnd + 1), requestBody.toByteArray());
+                    assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(requestBody.length())));
+                    assertThat(new BytesArray(data, rangeStart, rangeEnd - rangeStart + 1), is(requestBody));
 
                     final Integer limit = getContentRangeLimit(range);
                     if (limit != null) {
@@ -399,8 +398,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                 }
             }
 
-            // read all the request body, otherwise the SDK client throws a non-retryable StorageException
-            Streams.readFully(exchange.getRequestBody());
             if (randomBoolean()) {
                 exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
             }

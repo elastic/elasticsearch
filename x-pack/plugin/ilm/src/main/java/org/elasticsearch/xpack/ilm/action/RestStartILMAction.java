@@ -15,14 +15,13 @@ import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestStartILMAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_ilm/start"));
+        return List.of(new Route(POST, "/_ilm/start"));
     }
 
     @Override

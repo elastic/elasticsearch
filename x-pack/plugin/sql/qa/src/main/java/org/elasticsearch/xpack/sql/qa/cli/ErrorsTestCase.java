@@ -106,6 +106,6 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     }
 
     public static void assertFoundOneProblem(String commandResult) {
-        assertEquals(START + "Bad request [[3;33;22mFound 1 problem(s)", commandResult);
+        assertEquals(START + "Bad request [[3;33;22mFound 1 problem", commandResult);
     }
 }

@@ -98,6 +98,7 @@ class LoggingOutputStream extends OutputStream {
         }
         if (used == 0) {
             // only windows \r was in the buffer
+            buffer.used = 0;
             return;
         }
         log(new String(buffer.bytes, 0, used, StandardCharsets.UTF_8));

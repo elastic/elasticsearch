@@ -349,8 +349,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             assertFalse(shard.shouldPeriodicallyFlush());
             assertThat(shard.flushStats().getPeriodic(), greaterThan(0L));
         });
+        shard.sync();
         assertEquals(0, translog.stats().getUncommittedOperations());
-        translog.sync();
         long size = Math.max(translog.stats().getUncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
@@ -369,6 +369,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 commitStats.getUserData(), flushStats.getPeriodic(), flushStats.getTotal());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
+        shard.sync();
         assertEquals(0, translog.stats().getUncommittedOperations());
     }
 

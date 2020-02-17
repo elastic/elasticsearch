@@ -40,6 +40,11 @@ public enum SortOrder implements Writeable {
         public String toString() {
             return "asc";
         }
+
+        @Override
+        public int reverseMul() {
+            return 1;
+        }
     },
     /**
      * Descending order.
@@ -48,6 +53,11 @@ public enum SortOrder implements Writeable {
         @Override
         public String toString() {
             return "desc";
+        }
+
+        @Override
+        public int reverseMul() {
+            return -1;
         }
     };
 
@@ -63,4 +73,9 @@ public enum SortOrder implements Writeable {
     public static SortOrder fromString(String op) {
         return valueOf(op.toUpperCase(Locale.ROOT));
     }
+
+    /**
+     * -1 if the sort is reversed from the standard comparators, 1 otherwise.
+     */
+    public abstract int reverseMul();
 }

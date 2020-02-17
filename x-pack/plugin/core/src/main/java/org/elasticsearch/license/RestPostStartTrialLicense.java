@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends BaseRestHandler {
@@ -27,7 +26,7 @@ public class RestPostStartTrialLicense extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_license/start_trial"));
+        return List.of(new Route(POST, "/_license/start_trial"));
     }
 
     @Override

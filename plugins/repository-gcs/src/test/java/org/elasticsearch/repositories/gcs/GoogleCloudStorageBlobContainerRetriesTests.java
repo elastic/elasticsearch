@@ -323,7 +323,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         logger.debug("starting with resumable upload id [{}]", sessionUploadId.get());
 
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
-            // read all the request body, otherwise the SDK client throws a non-retryable StorageException
             final BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
 
             final Map<String, String> params = new HashMap<>();

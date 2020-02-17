@@ -268,7 +268,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), matchesPattern("failed to find \\[.*geo_shape.*\\] field \\[unmapped\\]"));
+        assertThat(e.getMessage(), matchesPattern("failed to find .*geo_shape.* field \\[unmapped\\]"));
     }
 
     public void testWrongFieldType() throws IOException {

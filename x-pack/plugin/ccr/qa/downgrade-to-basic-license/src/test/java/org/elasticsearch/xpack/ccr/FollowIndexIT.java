@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsString;
@@ -46,7 +47,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         assertBusy(() -> {
             ensureYellow(index1);
             verifyDocuments(index1, 5, "filtered_field:true");
-        });
+        }, 60, TimeUnit.SECONDS);
 
         String index2 = "logs-20190102";
         try (RestClient leaderClient = buildLeaderClient()) {
@@ -101,7 +102,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                             "the license mode [BASIC] on cluster [leader_cluster] does not enable [ccr]"));
                 });
             }
-        });
+        }, 60, TimeUnit.SECONDS);
 
         // Manually following index2 also does not work after the downgrade:
         Exception e = expectThrows(ResponseException.class, () -> followIndex("leader_cluster", index2));

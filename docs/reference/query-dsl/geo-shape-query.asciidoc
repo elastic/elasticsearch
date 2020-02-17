@@ -31,7 +31,7 @@ PUT /example
 {
     "mappings": {
         "properties": {
-            "geo": {
+            "location": {
                 "type": "geo_shape"
             }
         }
@@ -41,7 +41,7 @@ PUT /example
 POST /example/_doc?refresh
 {
     "name": "Wind & Wetter, Berlin, Germany",
-    "geo": {
+    "location: {
         "type": "point",
         "coordinates": [13.400544, 52.530286]
     }
@@ -56,17 +56,24 @@ The following query will find the point using the Elasticsearch's
 --------------------------------------------------
 GET /example/_search
 {
-  "query": {
-    "geo_shape": {
-      "geo": {
-        "shape": {
-          "type": "envelope",
-          "coordinates": [[13.0, 53.0], [14.0, 52.0]]
-        },
-        "relation": "within"
-      }
+    "query":{
+        "bool": {
+            "must": {
+                "match_all": {}
+            },
+            "filter": {
+                "geo_shape": {
+                    "location": {
+                        "shape": {
+                            "type": "envelope",
+                            "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
+                        },
+                        "relation": "within"
+                    }
+                }
+            }
+        }
     }
-  }
 }
 --------------------------------------------------
 

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
+import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -600,6 +601,61 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
     }
 
+    public void testSetSingleNodeAllocationRetriesUntilItSucceeds() throws Exception {
+        int numShards = 2;
+        int expectedFinalShards = 1;
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+
+       ensureGreen(index);
+
+       // unallocate all index shards
+        Request setAllocationToMissingAttribute = new Request("PUT", "/" + index + "/_settings");
+        setAllocationToMissingAttribute.setJsonEntity("{\n" +
+            "  \"settings\": {\n" +
+            "    \"index.routing.allocation.include.rack\": \"bogus_rack\"" +
+            "  }\n" +
+            "}");
+        client().performRequest(setAllocationToMissingAttribute);
+
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "red");
+            request.addParameter("timeout", "70s");
+            request.addParameter("level", "shards");
+        });
+
+        // assign the policy that'll attempt to shrink the index
+        createNewSingletonPolicy("warm", new ShrinkAction(expectedFinalShards));
+        updatePolicy(index, policy);
+
+        assertTrue("ILM did not start retrying the set-single-node-allocation step", waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(index);
+                if (explainIndexResponse == null) {
+                    return false;
+                }
+                String failedStep = (String) explainIndexResponse.get("failed_step");
+                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
+                return failedStep != null && failedStep.equals(SetSingleNodeAllocateStep.NAME) && retryCount != null && retryCount >= 1;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
+        resetAllocationForIndex.setJsonEntity("{\n" +
+            "  \"settings\": {\n" +
+            "    \"index.routing.allocation.include.rack\": null" +
+            "  }\n" +
+            "}");
+        client().performRequest(resetAllocationForIndex);
+
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
+    }
+
     public void testFreezeAction() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -1135,26 +1191,26 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // {@link org.elasticsearch.xpack.core.ilm.ErrorStep} in order to retry the failing step. As {@link #assertBusy}
         // increases the wait time between calls exponentially, we might miss the window where the policy is on
         // {@link WaitForRolloverReadyStep} and the move to `attempt-rollover` request will not be successful.
-        waitUntil(() -> {
+        assertTrue(waitUntil(() -> {
             try {
                 return client().performRequest(moveToStepRequest).getStatusLine().getStatusCode() == 200;
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS));
 
         // Similar to above, using {@link #waitUntil} as we want to make sure the `attempt-rollover` step started failing and is being
         // retried (which means ILM moves back and forth between the `attempt-rollover` step and the `error` step)
-        waitUntil(() -> {
+        assertTrue("ILM did not start retrying the attempt-rollover step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
-                String step = (String) explainIndexResponse.get("step");
+                String failedStep = (String) explainIndexResponse.get("failed_step");
                 Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return step != null && step.equals("attempt-rollover") && retryCount != null && retryCount >= 1;
+                return failedStep != null && failedStep.equals("attempt-rollover") && retryCount != null && retryCount >= 1;
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS));
 
         deleteIndex(rolledIndex);
 
@@ -1196,16 +1252,17 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}");
         client().performRequest(moveToStepRequest);
 
-        waitUntil(() -> {
+        assertTrue("ILM did not start retrying the update-rollover-lifecycle-date step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
-                String step = (String) explainIndexResponse.get("step");
+                String failedStep = (String) explainIndexResponse.get("failed_step");
                 Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return step != null && step.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null && retryCount >= 1;
+                return failedStep != null && failedStep.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null
+                    && retryCount >= 1;
             } catch (IOException e) {
                 return false;
             }
-        });
+        }, 30, TimeUnit.SECONDS));
 
         index(client(), index, "1", "foo", "bar");
         Request refreshIndex = new Request("POST", "/" + index + "/_refresh");
@@ -1391,16 +1448,17 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(startReq));
 
         // Wait until an error has occurred.
-        waitUntil(() -> {
+        assertTrue("ILM did not start retrying the init step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
-                String step = (String) explainIndexResponse.get("step");
+                String failedStep = (String) explainIndexResponse.get("failed_step");
                 Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return step != null && step.equals(InitializePolicyContextStep.KEY.getAction()) && retryCount != null && retryCount >= 1;
+                return failedStep != null && failedStep.equals(InitializePolicyContextStep.KEY.getAction()) && retryCount != null
+                    && retryCount >= 1;
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS));
 
         // Turn origination date parsing back off
         updateIndexSettings(index, Settings.builder()

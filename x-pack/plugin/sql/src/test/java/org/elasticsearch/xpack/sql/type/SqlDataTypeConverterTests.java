@@ -172,19 +172,37 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Converter conversion = converterFor(KEYWORD, to);
             assertNull(conversion.convert(null));
 
-            assertEquals(date(0L), conversion.convert("1970-01-01"));
-            assertEquals(date(1483228800000L), conversion.convert("2017-01-01"));
-            assertEquals(date(-1672531200000L), conversion.convert("1917-01-01"));
-            assertEquals(date(18000000L), conversion.convert("1970-01-01"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10T10:20:30.123"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20:30.123456789"));
+
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10 10:20:30.123"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20:30.123456789"));
+
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20+05:00"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10T10:20:30.123-06:00"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20:30.123456789+03:00"));
+
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20+05:00"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10 10:20:30.123-06:00"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20:30.123456789+03:00"));
 
             // double check back and forth conversion
-
             ZonedDateTime zdt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATE, KEYWORD);
             Converter back = converterFor(KEYWORD, DATE);
             assertEquals(asDateOnly(zdt), back.convert(forward.convert(zdt)));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [date]: Text '0xff' could not be parsed at index 0", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("2020-02-"));
+            assertEquals("cannot cast [2020-02-] to [date]: Text '2020-02-' could not be parsed at index 8", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("2020-"));
+            assertEquals("cannot cast [2020-] to [date]: Text '2020-' could not be parsed at index 5", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("-2020-02-"));
+            assertEquals("cannot cast [-2020-02-] to [date]: Text '-2020-02-' could not be parsed at index 9", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("-2020-"));
+            assertEquals("cannot cast [-2020-] to [date]: Text '-2020-' could not be parsed at index 6", e.getMessage());
         }
     }
 
@@ -285,7 +303,6 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
 
             // double check back and forth conversion
-
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATETIME, KEYWORD);
             Converter back = converterFor(KEYWORD, DATETIME);

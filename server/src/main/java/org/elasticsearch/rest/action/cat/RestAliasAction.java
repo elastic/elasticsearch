@@ -25,7 +25,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -36,9 +35,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestAliasAction extends AbstractCatAction {
 
-    public RestAliasAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/aliases", this);
-        controller.registerHandler(GET, "/_cat/aliases/{alias}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/aliases"),
+            new Route(GET, "/_cat/aliases/{alias}"));
     }
 
     @Override

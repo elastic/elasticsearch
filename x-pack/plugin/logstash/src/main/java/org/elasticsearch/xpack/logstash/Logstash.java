@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
-import java.util.regex.Pattern;
 
 /**
  * This class supplies the logstash featureset and templates
@@ -37,8 +36,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     private static final String LOGSTASH_TEMPLATE_FILE_NAME = "logstash-management";
     private static final String LOGSTASH_INDEX_TEMPLATE_NAME = ".logstash-management";
     private static final String OLD_LOGSTASH_INDEX_NAME = "logstash-index-template";
-    private static final String TEMPLATE_VERSION_PATTERN =
-            Pattern.quote("${logstash.template.version}");
+    private static final String TEMPLATE_VERSION_VARIABLE = "logstash.template.version";
 
     private final boolean enabled;
 
@@ -57,7 +55,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         return templates -> {
             templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
             TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json", templates, LOGSTASH_INDEX_TEMPLATE_NAME,
-                    Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN, LogManager.getLogger(Logstash.class));
+                    Version.CURRENT.toString(), TEMPLATE_VERSION_VARIABLE, LogManager.getLogger(Logstash.class));
             //internal representation of typeless templates requires the default "_doc" type, which is also required for internal templates
             assert templates.get(LOGSTASH_INDEX_TEMPLATE_NAME).mappings().get(MapperService.SINGLE_MAPPING_NAME) != null;
             return templates;

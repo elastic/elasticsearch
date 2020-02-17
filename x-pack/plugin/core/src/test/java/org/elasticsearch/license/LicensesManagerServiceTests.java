@@ -120,7 +120,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         // remove signed licenses
         removeAndAckSignedLicenses(licenseService);
         licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));
+        assertTrue(License.LicenseType.isBasic(licensesMetaData.getLicense().type()));
     }
 
     private void removeAndAckSignedLicenses(final LicenseService licenseService) {

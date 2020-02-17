@@ -87,9 +87,7 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
 
         @Override
         public Query visit(Circle circle) {
-            // use Point visitor
-            Point point = new Point(circle.getX(), circle.getY());
-            return visit(point);
+            throw new QueryShardException(context, "Field [" + fieldName + "] found an unknown shape Circle");
         }
 
         @Override
@@ -127,7 +125,7 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
 
         @Override
         public Query visit(LinearRing ring) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] found and unsupported shape LinearRing");
+            throw new QueryShardException(context, "Field [" + fieldName + "] found an unsupported shape LinearRing");
         }
 
         @Override
@@ -142,8 +140,8 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
 
         @Override
         public Query visit(MultiPoint multiPoint) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.MULTIPOINT +
-                " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
+                + GeoShapeType.MULTIPOINT + " queries");
         }
 
         @Override

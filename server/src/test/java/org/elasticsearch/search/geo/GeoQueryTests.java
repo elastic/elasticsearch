@@ -22,6 +22,7 @@ package org.elasticsearch.search.geo;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -35,11 +36,13 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.locationtech.jts.geom.Coordinate;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -125,15 +128,18 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         CircleBuilder shape = new CircleBuilder().center(new Coordinate(-30, -30)).radius("100m");
         GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
         Geometry geometry = builder.buildGeometry().get(0);
-        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
-                .relation(ShapeRelation.INTERSECTS))
-            .get();
 
-        assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        try {
+            client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+                    .relation(ShapeRelation.INTERSECTS))
+                .get();
+        } catch (
+            Exception e) {
+            assertThat(e.getCause().getMessage(),
+                containsString("failed to create query: "
+                    + GeoShapeType.CIRCLE + " geometry is not supported"));
+        }
     }
 
     public void testIndexPointsPolygon() throws Exception {

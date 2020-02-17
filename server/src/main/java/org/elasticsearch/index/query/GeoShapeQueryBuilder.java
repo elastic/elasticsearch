@@ -170,12 +170,13 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
     @Override
     protected List validContentTypes() {
-        return Arrays.asList(GeoShapeFieldMapper.CONTENT_TYPE);
+        return Arrays.asList(GeoShapeFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.CONTENT_TYPE);
     }
 
     @Override
-    public String queryFieldType() {
-        return GeoShapeFieldMapper.CONTENT_TYPE;
+    @Deprecated
+    public List queryFieldType() {
+        return validContentTypes();
     }
 
     @Override
@@ -198,13 +199,11 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
     @Override
     public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
-        if (fieldType.typeName().equals(GeoShapeFieldMapper.CONTENT_TYPE) == false &&
-            fieldType.typeName().equals(GeoPointFieldMapper.CONTENT_TYPE) == false) {
+        if (!validContentTypes().contains(fieldType.typeName())) {
             throw new QueryShardException(context,
                 "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "]. ["
                 + NAME + "] query supports the following types ["
-                + GeoShapeFieldMapper.CONTENT_TYPE + ", "
-                + GeoPointFieldMapper.CONTENT_TYPE + "]");
+                + String.join(",", validContentTypes()) +  "]");
         }
 
         final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;

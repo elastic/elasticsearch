@@ -30,7 +30,6 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -40,7 +39,7 @@ public class RestRepositoriesAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat/repositories"));
+        return List.of(new Route(GET, "/_cat/repositories"));
     }
 
     @Override

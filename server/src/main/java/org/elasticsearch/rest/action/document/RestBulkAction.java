@@ -95,4 +95,9 @@ public class RestBulkAction extends BaseRestHandler {
     public boolean allowsUnsafeBuffers() {
         return true;
     }
+
+    @Override
+    public boolean isIndexingEndpoint() {
+        return true;
+    }
 }

@@ -225,8 +225,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
+            if (handler.isIndexingEndpoint()) {
+                circuitBreakerService.getBreaker(CircuitBreaker.INDEXING).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
+            }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, handler.isIndexingEndpoint());
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -452,13 +455,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final class ResourceHandlingHttpChannel implements RestChannel {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
+        private final boolean isIndexingEndpoint;
         private final int contentLength;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
+                                    boolean isIndexingEndpoint) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.isIndexingEndpoint = isIndexingEndpoint;
         }
 
         @Override
@@ -509,6 +515,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 throw new IllegalStateException("Channel is already closed");
             }
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+            if (isIndexingEndpoint) {
+                circuitBreakerService.getBreaker(CircuitBreaker.INDEXING).addWithoutBreaking(-contentLength);
+            }
         }
 
     }

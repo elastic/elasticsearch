@@ -134,4 +134,9 @@ public class RestIndexAction extends BaseRestHandler {
                 client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
     }
 
+    @Override
+    public boolean isIndexingEndpoint() {
+        return true;
+    }
+
 }

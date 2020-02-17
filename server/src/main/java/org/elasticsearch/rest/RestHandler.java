@@ -64,6 +64,10 @@ public interface RestHandler {
         return false;
     }
 
+    default boolean isIndexingEndpoint() {
+        return false;
+    }
+
     /**
      * The list of {@link Route}s that this RestHandler is responsible for handling.
      */

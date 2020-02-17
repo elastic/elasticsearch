@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
+import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -106,9 +107,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
         );
 
         ActionListener<Void> reindexingProgressListener = ActionListener.wrap(
-            aVoid -> {
-                progressListener.onResponse(task.getProgressTracker().report());
-            },
+            aVoid -> progressListener.onResponse(task.getStatsHolder().getProgressTracker().report()),
             listener::onFailure
         );
 
@@ -201,7 +200,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                     } else {
                         SearchHit[] hits = itemResponse.getResponse().getHits().getHits();
                         if (hits.length == 0) {
-                            progresses.add(new StoredProgress(new DataFrameAnalyticsTask.ProgressTracker().report()));
+                            progresses.add(new StoredProgress(new ProgressTracker().report()));
                         } else {
                             progresses.add(parseStoredProgress(hits[0]));
                         }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -13,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -48,7 +46,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public final class RestGetTokenAction extends TokenBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetTokenAction.class));
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("token_request",
             a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (SecureString) a[3], (String) a[4],
                     (String) a[5]));
@@ -78,7 +75,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRoute(POST, "/_security/oauth2/token", POST, "/_xpack/security/oauth2/token", deprecationLogger)
+            new ReplacedRoute(POST, "/_security/oauth2/token", POST, "/_xpack/security/oauth2/token")
         );
     }
 

@@ -118,7 +118,6 @@ public class MetaDataCreateIndexService {
      * These index patterns will be converted to hidden indices, at which point they should be removed from this list.
      */
     private static final CharacterRunAutomaton DOT_INDICES_EXCLUSIONS = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(
-        ".slm-history-*",
         ".watch-history-*",
         ".ml-anomalies-*",
         ".ml-notifications-*",

@@ -14,14 +14,13 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestEnrichStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_enrich/_stats"));
+        return List.of(new Route(GET, "/_enrich/_stats"));
     }
 
     @Override

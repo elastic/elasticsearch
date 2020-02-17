@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Req
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.INSTANCE;
 
@@ -21,7 +20,7 @@ public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_ccr/auto_follow/{name}"));
+        return List.of(new Route(DELETE, "/_ccr/auto_follow/{name}"));
     }
 
     @Override

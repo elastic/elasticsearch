@@ -14,8 +14,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -26,9 +24,9 @@ public class RestPutLicenseAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         // TODO: remove POST endpoint?
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_license"),
-            new Route(PUT, "/_license")));
+            new Route(PUT, "/_license"));
     }
 
     @Override

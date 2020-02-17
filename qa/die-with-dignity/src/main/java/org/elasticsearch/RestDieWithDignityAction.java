@@ -25,7 +25,6 @@ import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestDieWithDignityAction extends BaseRestHandler {
@@ -34,7 +33,7 @@ public class RestDieWithDignityAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_die_with_dignity"));
+        return List.of(new Route(GET, "/_die_with_dignity"));
     }
 
     @Override

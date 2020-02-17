@@ -45,7 +45,7 @@ dependencies {
   compile "net.shibboleth.utilities:java-support:7.5.1"
   compile "org.apache.santuario:xmlsec:2.1.4"
   compile "io.dropwizard.metrics:metrics-core:3.2.2"
-  compile ("org.cryptacular:cryptacular:1.2.3") {
+  compile ("org.cryptacular:cryptacular:1.2.4") {
     exclude group: 'org.bouncycastle'
   }
   compile "org.slf4j:slf4j-api:${versions.slf4j}"

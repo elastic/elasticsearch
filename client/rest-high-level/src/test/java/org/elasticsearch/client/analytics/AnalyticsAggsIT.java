@@ -27,16 +27,21 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 
 public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
-    public void testBasic() throws IOException {
+    public void testStringStats() throws IOException {
         BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulk.add(new IndexRequest().source(XContentType.JSON, "message", "trying out elasticsearch"));
         bulk.add(new IndexRequest().source(XContentType.JSON, "message", "more words"));
@@ -54,5 +59,21 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
         assertThat(stats.getDistribution(), hasEntry(equalTo("o"), closeTo(.09, .005)));
         assertThat(stats.getDistribution(), hasEntry(equalTo("r"), closeTo(.12, .005)));
         assertThat(stats.getDistribution(), hasEntry(equalTo("t"), closeTo(.09, .005)));
+    }
+
+    public void testBasic() throws IOException {
+        BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 1, "v", 2));
+        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 2, "v", 3));
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+        SearchRequest search = new SearchRequest("test");
+        search.source().aggregation(new TopMetricsAggregationBuilder(
+                "test", new FieldSortBuilder("s").order(SortOrder.DESC), "v"));
+        SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
+        ParsedTopMetrics top = response.getAggregations().get("test");
+        assertThat(top.getTopMetrics(), hasSize(1));
+        ParsedTopMetrics.TopMetrics metric = top.getTopMetrics().get(0);
+        assertThat(metric.getSort(), equalTo(singletonList(2)));
+        assertThat(metric.getMetrics(), equalTo(singletonMap("v", 3.0)));
     }
 }

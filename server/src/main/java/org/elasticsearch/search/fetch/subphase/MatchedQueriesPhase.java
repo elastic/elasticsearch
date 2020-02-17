@@ -40,7 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
+public final class MatchedQueriesPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) {

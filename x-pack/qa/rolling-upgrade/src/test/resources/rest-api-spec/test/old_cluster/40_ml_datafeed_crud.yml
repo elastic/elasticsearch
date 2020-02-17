@@ -123,8 +123,8 @@ setup:
 ---
 "Put job and datafeed with aggs in old cluster - deprecated interval with warning":
   - skip:
-      version: " - 7.99.99"  #TODO change this after backport
-      reason:  calendar_interval introduced in 7.1.0
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
       features: warnings
 
   - do:

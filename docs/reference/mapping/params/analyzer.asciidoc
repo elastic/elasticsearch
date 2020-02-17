@@ -1,7 +1,7 @@
 [[analyzer]]
 === `analyzer`
 
-The values of <<mapping-index,`analyzed`>> string fields are passed through an
+The values of <<text,`text`>> fields are passed through an
 <<analysis,analyzer>> to convert the string into a stream of _tokens_ or
 _terms_.  For instance, the string `"The quick Brown Foxes."` may, depending
 on which analyzer is used,  be analyzed to the tokens: `quick`, `brown`,

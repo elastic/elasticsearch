@@ -387,69 +387,101 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         if (DOC_FIELD_NAME.equals(fieldName)) {
-            if (order == SortOrder.DESC) {
-                return SORT_DOC_REVERSE;
-            } else {
-                return SORT_DOC;
-            }
-        } else {
-            boolean isUnmapped = false;
-            MappedFieldType fieldType = context.fieldMapper(fieldName);
-            if (fieldType == null) {
-                isUnmapped = true;
-                if (unmappedType != null) {
-                    fieldType = context.getMapperService().unmappedFieldType(unmappedType);
-                } else {
-                    throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
-                }
-            }
-
-            MultiValueMode localSortMode = null;
-            if (sortMode != null) {
-                localSortMode = MultiValueMode.fromString(sortMode.toString());
-            }
-
-            boolean reverse = (order == SortOrder.DESC);
-            if (localSortMode == null) {
-                localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
-            }
-
-            Nested nested = null;
-            if (isUnmapped == false) {
-                if (nestedSort != null) {
-                    if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
-                        throw new QueryShardException(context,
-                            "max_children is only supported on v6.5.0 or higher");
-                    }
-                    if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
-                        throw new QueryShardException(context,
-                            "max_children is only supported on last level of nested sort");
-                    }
-                    validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
-                    nested = resolveNested(context, nestedSort);
-                } else {
-                    nested = resolveNested(context, nestedPath, nestedFilter);
-                }
-            }
-            IndexFieldData<?> fieldData = context.getForField(fieldType);
-            if (fieldData instanceof IndexNumericFieldData == false
-                && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
-                throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
-            }
-            final SortField field;
-            if (numericType != null) {
-                if (fieldData instanceof IndexNumericFieldData == false) {
-                    throw new QueryShardException(context,
-                        "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
-                }
-                SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
-                NumericType resolvedType = resolveNumericType(numericType);
-                field = numericFieldData.sortField(resolvedType, missing, localSortMode, nested, reverse);
-            } else {
-                field = fieldData.sortField(missing, localSortMode, nested, reverse);
-            }
-            return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
+            return order == SortOrder.DESC ? SORT_DOC_REVERSE : SORT_DOC;
         }
+
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        Nested nested = nested(context, fieldType);
+        if (fieldType == null) {
+            fieldType = resolveUnmappedType(context);
+        }
+
+        boolean reverse = order == SortOrder.DESC;
+        IndexFieldData<?> fieldData = context.getForField(fieldType);
+        if (fieldData instanceof IndexNumericFieldData == false
+                && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+            throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
+        }
+        final SortField field;
+        if (numericType != null) {
+            if (fieldData instanceof IndexNumericFieldData == false) {
+                throw new QueryShardException(context,
+                    "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
+            }
+            SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
+            NumericType resolvedType = resolveNumericType(numericType);
+            field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
+        } else {
+            field = fieldData.sortField(missing, localSortMode(), nested, reverse);
+        }
+        return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
+    }
+
+    @Override
+    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
+        if (DOC_FIELD_NAME.equals(fieldName)) {
+            throw new IllegalArgumentException("sorting by _doc is not supported");
+        }
+
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        Nested nested = nested(context, fieldType);
+        if (fieldType == null) {
+            fieldType = resolveUnmappedType(context);
+        }
+
+        IndexFieldData<?> fieldData = context.getForField(fieldType);
+        if (fieldData instanceof IndexNumericFieldData == false
+                && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+            throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
+        }
+        if (numericType != null) {
+            SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
+            NumericType resolvedType = resolveNumericType(numericType);
+            return numericFieldData.newBucketedSort(resolvedType, context.bigArrays(), missing, localSortMode(), nested, order,
+                    fieldType.docValueFormat(null, null));
+        }
+        try {
+            return fieldData.newBucketedSort(context.bigArrays(), missing, localSortMode(), nested, order,
+                    fieldType.docValueFormat(null, null));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("error building sort for field [" + fieldName + "] of type ["
+                    + fieldType.typeName() + "] in index [" + context.index().getName() + "]: " + e.getMessage(), e);
+        }
+    }
+
+    private MappedFieldType resolveUnmappedType(QueryShardContext context) {
+        if (unmappedType == null) {
+            throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
+        }
+        return context.getMapperService().unmappedFieldType(unmappedType);
+    }
+
+    private MultiValueMode localSortMode() {
+        if (sortMode != null) {
+            return MultiValueMode.fromString(sortMode.toString());
+        }
+
+        return order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN;
+    }
+
+    private Nested nested(QueryShardContext context, MappedFieldType fieldType) throws IOException {
+        if (fieldType == null) {
+            return null;
+        }
+        // If we have a nestedSort we'll use that. Otherwise, use old style.
+        if (nestedSort == null) {
+            return resolveNested(context, nestedPath, nestedFilter);
+        }
+        if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+            throw new QueryShardException(context,
+                "max_children is only supported on v6.5.0 or higher");
+        }
+        if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
+            throw new QueryShardException(context,
+                "max_children is only supported on last level of nested sort");
+        }
+        validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
+        return resolveNested(context, nestedSort);
     }
 
     /**

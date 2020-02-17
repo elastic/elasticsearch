@@ -1188,7 +1188,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Nested
     public List<?> getCliSetup() {
-        return cliSetup.getNormalizedCollection();
+        return cliSetup.getFlatNormalizedCollection();
     }
 
     @Nested

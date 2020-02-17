@@ -74,7 +74,8 @@ public final class Aggregations {
         "stats", // https://github.com/elastic/elasticsearch/issues/51925
         "string_stats", // https://github.com/elastic/elasticsearch/issues/51925
         "terms", // https://github.com/elastic/elasticsearch/issues/51073
-        "top_hits"
+        "top_hits",
+        "top_metrics" // https://github.com/elastic/elasticsearch/issues/52236
     );
 
     private Aggregations() {}

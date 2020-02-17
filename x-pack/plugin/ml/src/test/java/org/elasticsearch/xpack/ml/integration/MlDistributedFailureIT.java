@@ -449,6 +449,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // else.
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(200));
 
+        // The timeout here was increased from 10 seconds to 20 seconds in response to the changes in
+        // https://github.com/elastic/elasticsearch/pull/50907 - now that the cluster state is stored
+        // in a Lucene index it can take a while to update when there are many updates in quick
+        // succession, like we see in internal cluster tests of node failure scenarios
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -469,7 +473,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                     .getResponse().results().get(0);
             assertEquals(DatafeedState.STARTED, datafeedStats.getDatafeedState());
             assertNotNull(datafeedStats.getNode());
-        });
+        }, 20, TimeUnit.SECONDS);
 
         long numDocs2 = randomIntBetween(2, 64);
         long now2 = System.currentTimeMillis();

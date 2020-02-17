@@ -606,7 +606,7 @@ public final class RepositoryData {
                         throw new ElasticsearchParseException("version string expected [min_version]");
                     }
                     final Version version = Version.fromString(parser.text());
-                    assert version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
+                    assert SnapshotsService.useShardGenerations(version);
                 } else {
                     throw new ElasticsearchParseException("unknown field name  [" + field + "]");
                 }

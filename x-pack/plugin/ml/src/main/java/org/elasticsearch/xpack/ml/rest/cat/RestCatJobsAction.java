@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -25,13 +24,17 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCatJobsAction extends AbstractCatAction {
 
-    public RestCatJobsAction(RestController controller) {
-        controller.registerHandler(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
-        controller.registerHandler(GET, "_cat/ml/anomaly_detectors", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
+            new Route(GET, "_cat/ml/anomaly_detectors"));
     }
 
     @Override
@@ -68,17 +71,15 @@ public class RestCatJobsAction extends AbstractCatAction {
         table.startHeaders();
 
         // Job Info
-        table.addCell("id", TableColumnAttributeBuilder.builder().setDescription("the job_id").build());
-        table.addCell("state", TableColumnAttributeBuilder.builder()
-            .setDescription("the job state")
-            .setAliases("s")
-            .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
-            .build());
+        table.addCell("id", TableColumnAttributeBuilder.builder("the job_id").build());
+        table.addCell("state",
+            TableColumnAttributeBuilder.builder("the job state")
+                .setAliases("s")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build());
         table.addCell("opened_time",
-            TableColumnAttributeBuilder.builder()
-                .setDescription("the amount of time the job has been opened")
+            TableColumnAttributeBuilder.builder("the amount of time the job has been opened", false)
                 .setAliases("ot")
-                .setDisplayByDefault(false)
                 .build());
         table.addCell("assignment_explanation",
             TableColumnAttributeBuilder.builder("why the job is or is not assigned to a node", false)

@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -173,7 +174,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             repository.finalizeSnapshot(snapshot.getSnapshotId(),
                 ShardGenerations.builder().put(indexId, 0, shardGen).build(),
                 0L, null, 1, Collections.emptyList(), -1L, false,
-                MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(), true, true,
+                MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(), Version.CURRENT,
                 future);
             future.actionGet();
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,

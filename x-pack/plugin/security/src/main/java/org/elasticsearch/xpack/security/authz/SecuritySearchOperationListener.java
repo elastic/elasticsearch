@@ -12,11 +12,12 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGINATING_ACTION_KEY;
@@ -32,12 +33,12 @@ import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGIN
  */
 public final class SecuritySearchOperationListener implements SearchOperationListener {
 
-    private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
 
-    public SecuritySearchOperationListener(ThreadContext threadContext, XPackLicenseState licenseState, AuditTrailService auditTrail) {
-        this.threadContext = threadContext;
+    public SecuritySearchOperationListener(SecurityContext securityContext, XPackLicenseState licenseState, AuditTrailService auditTrail) {
+        this.securityContext = securityContext;
         this.licenseState = licenseState;
         this.auditTrailService = auditTrail;
     }
@@ -48,8 +49,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     @Override
     public void onNewScrollContext(SearchContext searchContext) {
         if (licenseState.isAuthAllowed()) {
-            searchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY,
-                    Authentication.getAuthentication(threadContext));
+            searchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
         }
     }
 
@@ -62,7 +62,8 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
         if (licenseState.isAuthAllowed()) {
             if (searchContext.scrollContext() != null) {
                 final Authentication originalAuth = searchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
-                final Authentication current = Authentication.getAuthentication(threadContext);
+                final Authentication current = securityContext.getAuthentication();
+                final ThreadContext threadContext = securityContext.getThreadContext();
                 final String action = threadContext.getTransient(ORIGINATING_ACTION_KEY);
                 ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, searchContext.id(), action, request,
                         AuditUtil.extractRequestId(threadContext), threadContext.getTransient(AUTHORIZATION_INFO_KEY));

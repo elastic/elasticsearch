@@ -46,6 +46,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
             Response response = client().performRequest(new Request("GET", "_watcher/stats"));
             Map<String, Object> responseBody = entityAsMap(response);
             List<?> stats = (List<?>) responseBody.get("stats");
+            assertThat(stats.size(), equalTo(3));
             for (Object stat : stats) {
                 Map<?, ?> statAsMap = (Map<?, ?>) stat;
                 assertThat(statAsMap.get("watcher_state"), equalTo("started"));

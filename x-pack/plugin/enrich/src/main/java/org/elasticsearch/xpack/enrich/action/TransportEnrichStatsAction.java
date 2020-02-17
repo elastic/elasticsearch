@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -19,7 +20,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
@@ -54,6 +57,10 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
             indexNameExpressionResolver
         );
         this.client = client;
+        transportService.registerRequestHandler(EnrichStatsAction.BWC_NAME,
+            ThreadPool.Names.SAME, false, true, EnrichStatsAction.Request::new,
+            (final EnrichStatsAction.Request request, final TransportChannel channel, Task task) ->
+                execute(task, request, new ChannelActionListener<>(channel, EnrichStatsAction.BWC_NAME, request)));
     }
 
     @Override
@@ -113,6 +120,6 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
 
     @Override
     protected String getMasterActionName(DiscoveryNode node) {
-        return node.getVersion().before(Version.V_7_7_0) ? EnrichStatsAction.OLD_NAME : actionName;
+        return node.getVersion().before(Version.V_7_7_0) ? EnrichStatsAction.BWC_NAME : actionName;
     }
 }

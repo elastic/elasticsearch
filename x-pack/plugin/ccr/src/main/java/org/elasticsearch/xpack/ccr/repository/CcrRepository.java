@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShardRecoveryException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -487,7 +488,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 ByteSizeValue fileSize = new ByteSizeValue(fileMetaData.length());
                 fileInfos.add(new FileInfo(fileMetaData.name(), fileMetaData, fileSize));
             }
-            SnapshotFiles snapshotFiles = new SnapshotFiles(LATEST, fileInfos);
+            SnapshotFiles snapshotFiles = new SnapshotFiles(LATEST, fileInfos, SequenceNumbers.UNASSIGNED_SEQ_NO, "");
             restore(snapshotFiles, store, listener);
         }
 

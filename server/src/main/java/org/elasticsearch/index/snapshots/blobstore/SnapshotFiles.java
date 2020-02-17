@@ -33,6 +33,10 @@ public class SnapshotFiles {
 
     private final List<FileInfo> indexFiles;
 
+    private final long sequenceNo;
+
+    private final String historyUUID;
+
     private Map<String, FileInfo> physicalFiles = null;
 
     /**
@@ -48,9 +52,19 @@ public class SnapshotFiles {
      * @param snapshot   snapshot name
      * @param indexFiles index files
      */
-    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles ) {
+    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles, long sequenceNo, String historyUUID) {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
+        this.sequenceNo = sequenceNo;
+        this.historyUUID = historyUUID;
+    }
+
+    public long sequenceNo() {
+        return sequenceNo;
+    }
+
+    public String historyUUID() {
+        return historyUUID;
     }
 
     /**

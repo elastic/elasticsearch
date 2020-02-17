@@ -1689,39 +1689,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             assert false : new AssertionError("Did not expect #getUserData to throw but saw exception", e);
             return null;
         }
-        final String sequenceNum = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
-        final String localCheckpoint = userCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
-        final String primaryTerm = userCommitData.get(Engine.MAX_PRIMARY_TERM);
+        final long sequenceNum = Long.parseLong(userCommitData.get(SequenceNumbers.MAX_SEQ_NO));
         final String historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
-        if (sequenceNum != null && localCheckpoint != null && primaryTerm != null && historyUUID != null) {
             for (SnapshotFiles snapshotFileSet : snapshots.snapshots()) {
-                final List<BlobStoreIndexShardSnapshot.FileInfo> files = snapshotFileSet.indexFiles();
-                final SegmentInfos segmentInfos;
-                try {
-                    final Directory dir = new ByteBuffersDirectory();
-                    for (BlobStoreIndexShardSnapshot.FileInfo f : files) {
-                        final StoreFileMetaData m = f.metadata();
-                        if (m.hashEqualsContents() == false) {
-                            continue;
-                        }
-                        try (IndexOutput indexOutput = dir.createOutput(m.name(), IOContext.DEFAULT)) {
-                            final BytesRef fileContent = m.hash();
-                            indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
-                        }
-                    }
-                    segmentInfos = SegmentInfos.readLatestCommit(dir);
-                } catch (IOException e) {
-                    logger.debug("Failed to read SegmentInfos from files {}", files);
-                    continue;
+                if(snapshotFileSet.historyUUID().equals(historyUUID) && snapshotFileSet.sequenceNo() == sequenceNum) {
+                    return snapshotFileSet.indexFiles();
                 }
-                final Map<String, String> snapshotUserCommitData = segmentInfos.getUserData();
-                if (sequenceNum.equals(snapshotUserCommitData.get(SequenceNumbers.MAX_SEQ_NO)) &&
-                    localCheckpoint.equals(snapshotUserCommitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) &&
-                    primaryTerm.equals(snapshotUserCommitData.get(Engine.MAX_PRIMARY_TERM)) &&
-                    historyUUID.equals(snapshotUserCommitData.get(Engine.HISTORY_UUID_KEY))) {
-                    return files;
-                }
-            }
         }
         return null;
     }
@@ -1747,7 +1720,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final BlobContainer container = shardContainer(indexId, snapshotShardId);
         executor.execute(ActionRunnable.wrap(restoreListener, l -> {
             final BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
-            final SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
+            final SnapshotFiles snapshotFiles =
+                new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), SequenceNumbers.UNASSIGNED_SEQ_NO, "");
             new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState) {
                 @Override
                 protected void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store,

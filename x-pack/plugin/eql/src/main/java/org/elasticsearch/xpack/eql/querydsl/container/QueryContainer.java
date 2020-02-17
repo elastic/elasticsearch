@@ -5,9 +5,164 @@
  */
 package org.elasticsearch.xpack.eql.querydsl.container;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+
 public class QueryContainer {
+
+    private final Query query;
+    // attributes found in the tree
+    private final AttributeMap<Expression> attributes;
+    // list of fields available in the output
+    private final List<Tuple<FieldExtraction, String>> fields;
+
+    private final boolean trackHits;
+    private final boolean includeFrozen;
+
+    public QueryContainer() {
+        this(null, emptyList(), AttributeMap.emptyAttributeMap(), false, false);
+    }
+
+    private QueryContainer(Query query, List<Tuple<FieldExtraction, String>> fields, AttributeMap<Expression> attributes, boolean trackHits,
+                           boolean includeFrozen) {
+        this.query = query;
+        this.fields = fields;
+        this.attributes = attributes;
+        this.trackHits = trackHits;
+        this.includeFrozen = includeFrozen;
+    }
 
     public QueryContainer withFrozen() {
         throw new UnsupportedOperationException();
+    }
+
+    public Query query() {
+        return query;
+    }
+
+    public List<Tuple<FieldExtraction, String>> fields() {
+        return fields;
+    }
+
+    public boolean shouldTrackHits() {
+        return trackHits;
+    }
+
+    public QueryContainer with(Query q) {
+        return new QueryContainer(q, fields, attributes, trackHits, includeFrozen);
+    }
+
+    public QueryContainer addColumn(Attribute attr) {
+        Expression expression = attributes.getOrDefault(attr, attr);
+        Tuple<QueryContainer, FieldExtraction> tuple = asFieldExtraction(attr);
+        return tuple.v1().addColumn(tuple.v2(), Expressions.id(expression));
+    }
+
+    private Tuple<QueryContainer, FieldExtraction> asFieldExtraction(Attribute attr) {
+        // resolve it Expression
+        Expression expression = attributes.getOrDefault(attr, attr);
+
+        if (expression instanceof FieldAttribute) {
+            FieldAttribute fa = (FieldAttribute) expression;
+            if (fa.isNested()) {
+                throw new UnsupportedOperationException("Nested not yet supported");
+            }
+            return new Tuple<>(this, topHitFieldRef(fa));
+        }
+
+        throw new QlIllegalArgumentException("Unknown output attribute {}", attr);
+    }
+
+    //
+    // reference methods
+    //
+    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
+        FieldAttribute actualField = fieldAttr;
+        FieldAttribute rootField = fieldAttr;
+        StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
+        
+        // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
+        // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
+        // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
+        // the root field to which those sub-fields belong to, are. Instead of "text_field.keyword_subfield" for _source extraction,
+        // we use "text_field", because there is no source for "keyword_subfield".
+        /*
+         *    "text_field": {
+         *       "type": "text",
+         *       "fields": {
+         *         "keyword_subfield": {
+         *           "type": "keyword"
+         *         }
+         *       }
+         *     }
+         */
+        if (fieldAttr.field().isAlias() == false) {
+            while (actualField.parent() != null
+                    && actualField.parent().field().getDataType() != DataTypes.OBJECT
+                    && actualField.parent().field().getDataType() != DataTypes.NESTED
+                    && actualField.field().getDataType().hasDocValues() == false) {
+                actualField = actualField.parent();
+            }
+        }
+        while (rootField.parent() != null) {
+            fullFieldName.insert(0, ".").insert(0, rootField.parent().field().getName());
+            rootField = rootField.parent();
+        }
+
+        throw new UnsupportedOperationException("Extraction pending");
+    }
+
+    public QueryContainer addColumn(FieldExtraction ref, String id) {
+        return new QueryContainer(query, combine(fields, new Tuple<>(ref, id)), attributes, trackHits, includeFrozen);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(query);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        QueryContainer other = (QueryContainer) obj;
+        return Objects.equals(query, other.query);
+    }
+
+    @Override
+    public String toString() {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.humanReadable(true).prettyPrint();
+            SourceGenerator.sourceBuilder(this, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new RuntimeException("error rendering", e);
+        }
     }
 }

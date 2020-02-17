@@ -57,10 +57,18 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
             indexNameExpressionResolver
         );
         this.client = client;
-        transportService.registerRequestHandler(EnrichStatsAction.BWC_NAME,
-            ThreadPool.Names.SAME, false, true, EnrichStatsAction.Request::new,
-            (final EnrichStatsAction.Request request, final TransportChannel channel, Task task) ->
-                execute(task, request, new ChannelActionListener<>(channel, EnrichStatsAction.BWC_NAME, request)));
+        transportService.registerRequestHandler(
+            EnrichStatsAction.BWC_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            EnrichStatsAction.Request::new,
+            (final EnrichStatsAction.Request request, final TransportChannel channel, Task task) -> execute(
+                task,
+                request,
+                new ChannelActionListener<>(channel, EnrichStatsAction.BWC_NAME, request)
+            )
+        );
     }
 
     @Override

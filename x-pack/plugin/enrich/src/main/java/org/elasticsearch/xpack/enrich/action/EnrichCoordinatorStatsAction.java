@@ -138,13 +138,24 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
                 NodeResponse.class
             );
             this.coordinator = coordinator;
-            transportService.registerRequestHandler(EnrichCoordinatorStatsAction.BWC_NAME + "[n]",
-                ThreadPool.Names.SAME, NodeRequest::new,
-                (NodeRequest request, TransportChannel channel, Task task) -> channel.sendResponse(nodeOperation(request, task)));
-            transportService.registerRequestHandler(EnrichCoordinatorStatsAction.BWC_NAME,
-                ThreadPool.Names.SAME, false, true, Request::new,
-                (final Request request, final TransportChannel channel, Task task) ->
-                    execute(task, request, new ChannelActionListener<>(channel, EnrichCoordinatorStatsAction.BWC_NAME, request)));
+            transportService.registerRequestHandler(
+                EnrichCoordinatorStatsAction.BWC_NAME + "[n]",
+                ThreadPool.Names.SAME,
+                NodeRequest::new,
+                (NodeRequest request, TransportChannel channel, Task task) -> channel.sendResponse(nodeOperation(request, task))
+            );
+            transportService.registerRequestHandler(
+                EnrichCoordinatorStatsAction.BWC_NAME,
+                ThreadPool.Names.SAME,
+                false,
+                true,
+                Request::new,
+                (final Request request, final TransportChannel channel, Task task) -> execute(
+                    task,
+                    request,
+                    new ChannelActionListener<>(channel, EnrichCoordinatorStatsAction.BWC_NAME, request)
+                )
+            );
         }
 
         @Override

@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -90,6 +92,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         Property.NodeScope);
 
     private final ThreadPool threadPool;
+    private final CircuitBreakerService circuitBreakerService;
 
     private final Iterable<IndexShard> indexShards;
 
@@ -108,7 +111,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     private final ShardsIndicesStatusChecker statusChecker;
 
-    IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
+    IndexingMemoryController(Settings settings, ThreadPool threadPool, CircuitBreakerService circuitBreakerService,
+                             Iterable<IndexShard> indexServices) {
+        this.circuitBreakerService = circuitBreakerService;
         this.indexShards = indexServices;
 
         ByteSizeValue indexingBuffer = INDEX_BUFFER_SIZE_SETTING.get(settings);
@@ -251,6 +256,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         final AtomicLong bytesWrittenSinceCheck = new AtomicLong();
         final ReentrantLock runLock = new ReentrantLock();
 
+        long lastTotalBytesUsed = 0L;
+
         /** Shard calls this on each indexing/delete op */
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
@@ -329,6 +336,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer,
                     new ByteSizeValue(totalBytesWriting));
             }
+
+            final long totalBytesUsedDiff = totalBytesUsed - lastTotalBytesUsed;
+            circuitBreakerService.getBreaker(CircuitBreaker.INDEXING).addWithoutBreaking(totalBytesUsedDiff);
+            lastTotalBytesUsed = totalBytesUsed;
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
             // throttle the top shards to send back-pressure to ongoing indexing:

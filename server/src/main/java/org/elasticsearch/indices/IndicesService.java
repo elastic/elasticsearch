@@ -254,7 +254,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        indexingMemoryController = new IndexingMemoryController(settings, threadPool,
+        indexingMemoryController = new IndexingMemoryController(settings, threadPool, circuitBreakerService,
                                                                 // ensure we pull an iter with new shards - flatten makes a copy
                                                                 () -> Iterables.flatten(this).iterator());
         this.indexScopedSettings = indexScopedSettings;

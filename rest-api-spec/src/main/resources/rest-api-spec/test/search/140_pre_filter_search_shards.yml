@@ -153,3 +153,32 @@ setup:
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
   - length: { aggregations.idx_terms.buckets: 2 }
+
+    # check that empty responses are correctly handled when rewriting to match_no_docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        # ensure that one shard can return empty response
+        max_concurrent_shard_requests: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.idx_terms.buckets: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        # ensure that one shard can return empty response
+        max_concurrent_shard_requests: 2
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2019-02-01"}}}, "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 0 }
+  - length: { aggregations.idx_terms.buckets: 0 }

@@ -53,7 +53,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -85,7 +84,8 @@ import java.util.function.Function;
  *     {@link #addSimilarity(String, TriFunction)} while existing Providers can be referenced through Settings under the
  *     {@link IndexModule#SIMILARITY_SETTINGS_PREFIX} prefix along with the "type" value.  For example, to reference the
  *     {@link BM25Similarity}, the configuration {@code "index.similarity.my_similarity.type : "BM25"} can be used.</li>
- *      <li>{@link DirectoryService} - Custom {@link DirectoryService} instances can be registered via {@link IndexStorePlugin}</li>
+ *      <li>{@link IndexStorePlugin.DirectoryFactory} - Custom {@link IndexStorePlugin.DirectoryFactory} instances can be registered
+ *      via {@link IndexStorePlugin}</li>
  *      <li>{@link IndexEventListener} - Custom {@link IndexEventListener} instances can be registered via
  *      {@link #addIndexEventListener(IndexEventListener)}</li>
  *      <li>Settings update listener - Custom settings update listener can be registered via
@@ -130,6 +130,7 @@ public final class IndexModule {
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
     private final AtomicBoolean frozen = new AtomicBoolean(false);
+    private final BooleanSupplier allowExpensiveQueries;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -144,13 +145,15 @@ public final class IndexModule {
             final IndexSettings indexSettings,
             final AnalysisRegistry analysisRegistry,
             final EngineFactory engineFactory,
-            final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories) {
+            final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+            final BooleanSupplier allowExpensiveQueries) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
+        this.allowExpensiveQueries = allowExpensiveQueries;
     }
 
     /**
@@ -424,7 +427,7 @@ public final class IndexModule {
                 new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
                 engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
                 directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
-                indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled);
+                indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries);
             success = true;
             return indexService;
         } finally {

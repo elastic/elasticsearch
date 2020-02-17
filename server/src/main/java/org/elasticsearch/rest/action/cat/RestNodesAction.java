@@ -55,7 +55,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -63,6 +62,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
@@ -70,8 +70,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesAction extends AbstractCatAction {
 
-    public RestNodesAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/nodes", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/nodes"));
     }
 
     @Override

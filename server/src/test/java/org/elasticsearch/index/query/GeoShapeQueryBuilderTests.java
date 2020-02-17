@@ -48,11 +48,11 @@ import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
 
@@ -268,7 +268,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("failed to find geo_shape field [unmapped]"));
+        assertThat(e.getMessage(), matchesPattern("failed to find \\[.*geo_shape.*\\] field \\[unmapped\\]"));
     }
 
     public void testWrongFieldType() throws IOException {
@@ -278,8 +278,8 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape) :
             new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape.buildGeometry());
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("Field [mapped_string] is of unsupported type [text]." +
-            " [geo_shape] query supports the following types [geo_shape, geo_point]"));
+        assertThat(e.getMessage(), matchesPattern("Field \\[mapped_string\\] is of unsupported type \\[text\\]." +
+            " \\[geo_shape\\] query supports the following types \\[.*geo_shape.*\\]"));
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {

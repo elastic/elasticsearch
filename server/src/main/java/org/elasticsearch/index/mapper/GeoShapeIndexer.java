@@ -23,6 +23,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -79,7 +80,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         return geometry.visit(new GeometryVisitor<>() {
             @Override
             public Geometry visit(Circle circle) {
-                throw new UnsupportedOperationException("CIRCLE geometry is not supported");
+                throw new UnsupportedOperationException(GeoShapeType.CIRCLE + " geometry is not supported");
             }
 
             @Override

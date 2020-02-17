@@ -335,15 +335,22 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
         createNewSingletonPolicy("delete", new WaitForSnapshotAction(slmPolicy));
         updatePolicy(index, policy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")), slmPolicy);
-        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo("wait-for-snapshot")), slmPolicy);
+        assertBusy( () -> {
+            Map<String, Object> indexILMState = explainIndex(index);
+            assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
+            assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
+        }, slmPolicy);
 
         String repo = createSnapshotRepo();
         createSlmPolicy(slmPolicy, repo);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")), slmPolicy);
-        //wait for step to notice that the slm policy is created and to get out of error
-        assertBusy(() -> assertNull(getFailedStepForIndex(index)), slmPolicy);
+        assertBusy( () -> {
+            Map<String, Object> indexILMState = explainIndex(index);
+            //wait for step to notice that the slm policy is created and to get out of error
+            assertThat(indexILMState.get("failed_step"), nullValue());
+            assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
+            assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
+        }, slmPolicy);
 
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
@@ -373,9 +380,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, slmPolicy);
 
         updatePolicy(index, policy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")), slmPolicy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")), slmPolicy);
-        assertBusy(() -> assertNull(getFailedStepForIndex(index)), slmPolicy);
+
+        assertBusy( () -> {
+            Map<String, Object> indexILMState = explainIndex(index);
+            assertThat(indexILMState.get("failed_step"), nullValue());
+            assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
+            assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
+        }, slmPolicy);
 
         request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));

@@ -35,7 +35,6 @@ configurations {
 task testJar(type: Jar) {
   appendix 'test'
   from sourceSets.test.output
-  include '**/*TestCase.class'
 }
 
 artifacts {

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.info.BuildParams
-
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -11,7 +9,6 @@ final Project repositoryPlugin = project(':plugins:repository-s3')
 dependencies {
   testCompile project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
   testCompile repositoryPlugin
-  testCompile fixture
 }
 
 boolean useFixture = false

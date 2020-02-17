@@ -60,6 +60,11 @@ public interface CircuitBreaker {
      * segments.
      */
     String ACCOUNTING = "accounting";
+    /**
+     * The indexing breaker tracks memory related to data ingestion.
+     * This includes temporary memory used by Lucene to buffer writes.
+     */
+    String INDEXING = "indexing";
 
     enum Type {
         // A regular or ChildMemoryCircuitBreaker

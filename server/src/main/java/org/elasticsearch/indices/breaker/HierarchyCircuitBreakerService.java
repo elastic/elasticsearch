@@ -93,12 +93,20 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
+    public static final Setting<ByteSizeValue> INDEXING_CIRCUIT_BREAKER_LIMIT_SETTING =
+        Setting.memorySizeSetting("node.breaker.indexing.limit", "30%", Property.Dynamic, Property.NodeScope);
+    public static final Setting<Double> INDEXING_CIRCUIT_BREAKER_OVERHEAD_SETTING =
+        Setting.doubleSetting("node.breaker.indexing.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
+    public static final Setting<CircuitBreaker.Type> INDEXING_CIRCUIT_BREAKER_TYPE_SETTING =
+        new Setting<>("node.breaker.indexing.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
+
     private final boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
     private volatile BreakerSettings inFlightRequestsSettings;
     private volatile BreakerSettings requestSettings;
     private volatile BreakerSettings accountingSettings;
+    private volatile BreakerSettings indexingSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
@@ -133,6 +141,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 CircuitBreaker.Durability.PERMANENT
         );
 
+        this.indexingSettings = new BreakerSettings(CircuitBreaker.INDEXING,
+            INDEXING_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+            INDEXING_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+            INDEXING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+            CircuitBreaker.Durability.TRANSIENT
+        );
+
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
                 TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
                 CircuitBreaker.Type.PARENT, null);
@@ -147,6 +162,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(this.fielddataSettings);
         registerBreaker(this.inFlightRequestsSettings);
         registerBreaker(this.accountingSettings);
+        registerBreaker(this.indexingSettings);
 
         clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit,
             this::validateTotalCircuitBreakerLimit);
@@ -158,6 +174,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             this::setRequestBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING, ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             this::setAccountingBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(INDEXING_CIRCUIT_BREAKER_LIMIT_SETTING,
+            INDEXING_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setIndexingBreakerLimit);
     }
 
     private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {
@@ -196,6 +214,15 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(newAccountingSettings);
         HierarchyCircuitBreakerService.this.accountingSettings = newAccountingSettings;
         logger.info("Updated breaker settings for accounting requests: {}", newAccountingSettings);
+    }
+
+    private void setIndexingBreakerLimit(ByteSizeValue newIndexingMax, Double newIndexingOverhead) {
+        BreakerSettings newIndexingSettings = new BreakerSettings(CircuitBreaker.INDEXING,
+            newIndexingMax.getBytes(), newIndexingOverhead, this.indexingSettings.getType(),
+            this.indexingSettings.getDurability());
+        registerBreaker(newIndexingSettings);
+        this.indexingSettings = newIndexingSettings;
+        logger.info("Updated breaker settings for indexing: {}", newIndexingSettings);
     }
 
     private boolean validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {

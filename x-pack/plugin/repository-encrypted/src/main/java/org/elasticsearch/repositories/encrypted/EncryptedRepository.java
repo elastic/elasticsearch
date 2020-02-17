@@ -20,6 +20,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -45,6 +46,8 @@ import javax.crypto.spec.PBEKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -73,7 +76,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
     static final int DATA_KEY_LENGTH_IN_BITS = 256;
     static final long PACKET_START_COUNTER = Long.MIN_VALUE;
     static final int MAX_PACKET_LENGTH_IN_BYTES = 8 << 20; // 8MB
-    static final int METADATA_UID_LENGTH_IN_BYTES = 9; // the length of unique tag appended to the metadata blob name to render it unique
+    static final int METADATA_UID_LENGTH_IN_BYTES = 9; // the length of random tag part of the metadata blob name
     static final int METADATA_UID_LENGTH_IN_CHARS = 12; // base64 encoding with no padding
     // this can be changed freely (can be made a repository parameter) without adjusting
     // the {@link #CURRENT_ENCRYPTION_VERSION_NUMBER}, as long as it stays under the value
@@ -115,7 +118,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
     // password is changed) it does not incur updates to the encrypted blob, but only recreating a new metadata blob.
     // However, the encrypted blob's contents is prepended a fixed length identifier which is used to locate the corresponding metadata.
     // This identifier is static for a given encrypted blob, i.e. it will not change when the metadata is recreated.
-    private final Supplier<byte[]> metadataIdentifierSupplier;
+    private final Supplier<MetadataIdentifier> metadataIdentifierSupplier;
     private final Supplier<XPackLicenseState> licenseStateSupplier;
     // the salted hash of this repository's password on the local node. The password is fixed for the lifetime of the repository.
     private final String repositoryPasswordSaltedHash;
@@ -137,12 +140,12 @@ public final class EncryptedRepository extends BlobStoreRepository {
         // don't use a {@code SecureRandom} though, it would be an unnecessary entropy drain
         this.encryptionNonceSupplier = () -> Randomness.get().nextInt();
         // the metadata used to decrypt the encrypted blob resides in a different blob, one for each encrypted data blob
-        // the metadata blob name is formed from the encrypted data blob name by appending a random tag, enough to make it unique
-        // in the unusual case of data blob overwrite (encrypted data overwrite does not imply metadata overwrite)
+        // the metadata blob name is formed from the encrypted data blob name by appending a random tag and the repository generation,
+        // so as to the metadata blob name unique in the unusual cases of data blob overwrite
         this.metadataIdentifierSupplier = () -> {
             byte[] randomMetadataNameTag = new byte[METADATA_UID_LENGTH_IN_BYTES];
             Randomness.get().nextBytes(randomMetadataNameTag);
-            return randomMetadataNameTag;
+            return new MetadataIdentifier(randomMetadataNameTag, latestKnownRepoGen.get());
         };
         this.licenseStateSupplier = licenseStateSupplier;
         // the salted password hash for this encrypted repository password, on the local node (this is constant)
@@ -150,6 +153,70 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 password);
         // used to verify that the salted password hash in the snapshot metadata matches up with the repository password on the local node
         this.passwordHashVerifier = new HashVerifier(password);
+    }
+
+    static class MetadataIdentifier {
+
+        final byte[] id;
+        final long repositoryGeneration;
+
+        MetadataIdentifier(byte[] id, long repositoryGeneration) {
+            if (Objects.requireNonNull(id).length != METADATA_UID_LENGTH_IN_BYTES) {
+                throw new IllegalStateException("invalid metadata id");
+            }
+            this.id = id;
+            this.repositoryGeneration = repositoryGeneration;
+        }
+
+        byte[] asByteArray() {
+            ByteBuffer byteBuffer = ByteBuffer.allocate(byteLength()).order(ByteOrder.LITTLE_ENDIAN);
+            byteBuffer.put(id);
+            byteBuffer.putLong(METADATA_UID_LENGTH_IN_BYTES, repositoryGeneration);
+            return byteBuffer.array();
+        }
+
+        String asString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append('.');
+            sb.append(new String(Base64.getUrlEncoder().withoutPadding().encode(id), StandardCharsets.UTF_8));
+            sb.append('.');
+            sb.append(repositoryGeneration);
+            return sb.toString();
+        }
+
+        static int byteLength() {
+            return METADATA_UID_LENGTH_IN_BYTES + Long.BYTES;
+        }
+
+        static String formMetadataBlobName(String blobName, MetadataIdentifier metaId) {
+            return blobName + metaId.asString();
+        }
+
+        static Tuple<String, MetadataIdentifier> parseFromMetadataBlobName(String metadataBlobName) {
+            int generationPos = metadataBlobName.lastIndexOf('.');
+            if (generationPos <= 0 || generationPos == metadataBlobName.length() - 1) {
+                throw new IllegalArgumentException("Unrecognized metadata blob name");
+            }
+            long generation = Long.parseLong(metadataBlobName.substring(generationPos + 1));
+            int idPos = metadataBlobName.lastIndexOf('.', generationPos - 1);
+            if (idPos <= 0 || generationPos - idPos != METADATA_UID_LENGTH_IN_CHARS) {
+                throw new IllegalArgumentException("Unrecognized metadata blob name");
+            }
+            byte[] id = Base64.getUrlDecoder().decode(metadataBlobName.substring(idPos + 1, generationPos));
+            MetadataIdentifier metaId = new MetadataIdentifier(id, generation);
+            return new Tuple<>(metadataBlobName.substring(0, idPos), metaId);
+        }
+
+        static MetadataIdentifier fromByteArray(byte[] idAsByteArray) {
+            if (Objects.requireNonNull(idAsByteArray).length != byteLength()) {
+                throw new IllegalArgumentException("Unrecognized metadata blob name");
+            }
+            ByteBuffer byteBuffer = ByteBuffer.wrap(idAsByteArray).order(ByteOrder.LITTLE_ENDIAN);
+            byte[] id = new byte[METADATA_UID_LENGTH_IN_BYTES];
+            byteBuffer.get(id);
+            long generation = byteBuffer.getLong(METADATA_UID_LENGTH_IN_BYTES);
+            return new MetadataIdentifier(id, generation);
+        }
     }
 
     /**
@@ -276,10 +343,10 @@ public final class EncryptedRepository extends BlobStoreRepository {
         private final Supplier<SecretKey> dataEncryptionKeySupplier;
         private final PasswordBasedEncryption metadataEncryption;
         private final Supplier<Integer> encryptionNonceSupplier;
-        private final Supplier<byte[]> metadataIdentifierSupplier;
+        private final Supplier<MetadataIdentifier> metadataIdentifierSupplier;
         EncryptedBlobStore(BlobStoreRepository delegatedBlobStoreRepository, Supplier<SecretKey> dataEncryptionKeySupplier,
                            PasswordBasedEncryption metadataEncryption, Supplier<Integer> encryptionNonceSupplier,
-                           Supplier<byte[]> metadataIdentifierSupplier) {
+                           Supplier<MetadataIdentifier> metadataIdentifierSupplier) {
             this.delegatedBlobStore = delegatedBlobStoreRepository.blobStore();
             this.delegatedBasePath = delegatedBlobStoreRepository.basePath();
             this.dataEncryptionKeySupplier = dataEncryptionKeySupplier;
@@ -308,12 +375,13 @@ public final class EncryptedRepository extends BlobStoreRepository {
         private final Supplier<SecretKey> dataEncryptionKeySupplier;
         private final PasswordBasedEncryption metadataEncryption;
         private final Supplier<Integer> encryptionNonceSupplier;
-        private final Supplier<byte[]> metadataIdentifierSupplier;
+        private final Supplier<MetadataIdentifier> metadataIdentifierSupplier;
         private final BlobContainer delegatedBlobContainer;
         private final BlobContainer encryptionMetadataBlobContainer;
+
         EncryptedBlobContainer(BlobStore delegatedBlobStore, BlobPath delegatedBasePath, BlobPath path,
                                Supplier<SecretKey> dataEncryptionKeySupplier, PasswordBasedEncryption metadataEncryption,
-                               Supplier<Integer> encryptionNonceSupplier, Supplier<byte[]> metadataIdentifierSupplier) {
+                               Supplier<Integer> encryptionNonceSupplier, Supplier<MetadataIdentifier> metadataIdentifierSupplier) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.delegatedBasePath = delegatedBasePath;
             this.path = path;
@@ -354,15 +422,15 @@ public final class EncryptedRepository extends BlobStoreRepository {
         public InputStream readBlob(String blobName) throws IOException {
             final InputStream encryptedDataInputStream = delegatedBlobContainer.readBlob(blobName);
             // read the metadata identifier (fixed length) which is prepended to the encrypted blob
-            final byte[] metadataIdentifier = encryptedDataInputStream.readNBytes(METADATA_UID_LENGTH_IN_BYTES);
-            if (metadataIdentifier.length != METADATA_UID_LENGTH_IN_BYTES) {
+            final byte[] metaId = encryptedDataInputStream.readNBytes(MetadataIdentifier.byteLength());
+            if (metaId.length != MetadataIdentifier.byteLength()) {
                 throw new IOException("Failure to read encrypted blob metadata identifier");
             }
+            final MetadataIdentifier metadataIdentifier = MetadataIdentifier.fromByteArray(metaId);
             // the metadata blob name is the name of the data blob followed by the base64 encoding (URL safe) of the metadata identifier
-            final String metadataBlobName = blobName + new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier),
-                    StandardCharsets.UTF_8);
+            final String metadataBlobName = MetadataIdentifier.formMetadataBlobName(blobName, metadataIdentifier);
             // read the encrypted metadata contents
-            BytesReference encryptedMetadataBytes = Streams.readFully(encryptionMetadataBlobContainer.readBlob(metadataBlobName));
+            final BytesReference encryptedMetadataBytes = Streams.readFully(encryptionMetadataBlobContainer.readBlob(metadataBlobName));
             final BlobEncryptionMetadata metadata;
             try {
                 // decrypt and parse metadata
@@ -405,7 +473,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
             final SecretKey dataEncryptionKey = dataEncryptionKeySupplier.get();
             final int nonce = encryptionNonceSupplier.get();
             // this is the metadata required to decrypt back the (soon to be) encrypted blob
-            BlobEncryptionMetadata metadata = new BlobEncryptionMetadata(nonce, PACKET_LENGTH_IN_BYTES, dataEncryptionKey);
+            final BlobEncryptionMetadata metadata = new BlobEncryptionMetadata(nonce, PACKET_LENGTH_IN_BYTES, dataEncryptionKey);
             // encrypt the metadata
             final byte[] encryptedMetadata;
             try {
@@ -415,9 +483,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
             }
             // the metadata identifier is a sufficiently long random byte array so as to make it practically unique
             // the goal is to avoid overwriting metadata blobs even if the encrypted data blobs are overwritten
-            final byte[] metadataIdentifier = metadataIdentifierSupplier.get();
-            final String metadataBlobName = blobName + new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier),
-                    StandardCharsets.UTF_8);
+            final MetadataIdentifier metadataIdentifier = metadataIdentifierSupplier.get();
+            final String metadataBlobName = MetadataIdentifier.formMetadataBlobName(blobName, metadataIdentifier);
             // first write the encrypted metadata to a UNIQUE blob name
             try (ByteArrayInputStream encryptedMetadataInputStream = new ByteArrayInputStream(encryptedMetadata)) {
                 encryptionMetadataBlobContainer.writeBlob(metadataBlobName, encryptedMetadataInputStream, encryptedMetadata.length, true
@@ -425,9 +492,9 @@ public final class EncryptedRepository extends BlobStoreRepository {
             }
             // afterwards write the encrypted data blob
             // prepended to the encrypted data blob is the unique identifier (fixed length) of the metadata blob
-            final long encryptedBlobSize = metadataIdentifier.length + EncryptionPacketsInputStream.getEncryptionLength(blobSize,
-                    PACKET_LENGTH_IN_BYTES);
-            try (InputStream encryptedInputStream = ChainingInputStream.chain(new ByteArrayInputStream(metadataIdentifier),
+            final long encryptedBlobSize = (long) MetadataIdentifier.byteLength() +
+                    EncryptionPacketsInputStream.getEncryptionLength(blobSize, PACKET_LENGTH_IN_BYTES);
+            try (InputStream encryptedInputStream = ChainingInputStream.chain(new ByteArrayInputStream(metadataIdentifier.asByteArray()),
                     new EncryptionPacketsInputStream(inputStream, dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES), true)) {
                 delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
             }

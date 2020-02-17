@@ -61,7 +61,7 @@ public class EncryptedFSBlobStoreRepositoryIntegTests extends ESBlobStoreReposit
             return blobMetaData.length();
         } else {
             return DecryptionPacketsInputStream.getDecryptionLength(blobMetaData.length() -
-                    EncryptedRepository.METADATA_UID_LENGTH_IN_BYTES, EncryptedRepository.PACKET_LENGTH_IN_BYTES);
+                    EncryptedRepository.MetadataIdentifier.byteLength(), EncryptedRepository.PACKET_LENGTH_IN_BYTES);
         }
     }
 

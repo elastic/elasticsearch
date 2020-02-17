@@ -106,11 +106,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "text").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -138,11 +138,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEnableStore() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "text").field("store", true).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -159,11 +159,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisableIndex() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "text").field("index", false).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -179,14 +179,14 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisableNorms() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "text")
                     .field("norms", false)
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -234,11 +234,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultPositionIncrementGap() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "text").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = indexService.mapperService().merge("_doc",
+        DocumentMapper mapper = indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         assertEquals(mapping, mapper.mappingSource().toString());
@@ -273,14 +273,14 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testPositionIncrementGap() throws IOException {
         final int positionIncrementGap = randomIntBetween(1, 1000);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "text")
                     .field("position_increment_gap", positionIncrementGap)
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = indexService.mapperService().merge("_doc",
+        DocumentMapper mapper = indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         assertEquals(mapping, mapper.mappingSource().toString());
@@ -314,7 +314,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testSearchAnalyzerSerialization() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "text")
@@ -323,11 +323,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
 
         // special case: default index analyzer
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "text")
@@ -336,10 +336,10 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().endObject());
 
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
@@ -347,11 +347,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().endObject());
 
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
 
         // special case: default search analyzer
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
@@ -360,17 +360,17 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().endObject());
 
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
             .field("analyzer", "keyword")
             .endObject()
             .endObject().endObject().endObject());
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        mapper = parser.parse("type", new CompressedXContent(mapping));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -384,7 +384,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testSearchQuoteAnalyzerSerialization() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "text")
@@ -394,11 +394,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
 
         // special case: default index/search analyzer
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "text")
@@ -408,7 +408,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().endObject());
 
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
     }
 
@@ -488,14 +488,14 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEagerGlobalOrdinals() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "text")
                     .field("eager_global_ordinals", true)
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
@@ -503,13 +503,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testFielddata() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "text")
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper disabledMapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper disabledMapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, disabledMapper.mappingSource().toString());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             FieldMapper fieldMapper = (FieldMapper) disabledMapper.mappers().getMapper("field");
@@ -517,14 +517,14 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         });
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "text")
                     .field("fielddata", true)
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper enabledMapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper enabledMapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, enabledMapper.mappingSource().toString());
 
@@ -544,7 +544,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testFrequencyFilter() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "text")
                     .field("fielddata", true)
@@ -555,7 +555,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
         TextFieldMapper fieldMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
@@ -735,7 +735,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject());
 
             indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            MappedFieldType textField = indexService.mapperService().fullName("object.field");
+            MappedFieldType textField = indexService.mapperService().fieldType("object.field");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
@@ -761,7 +761,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject());
 
             indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            MappedFieldType textField = indexService.mapperService().fullName("body.with_prefix");
+            MappedFieldType textField = indexService.mapperService().fieldType("body.with_prefix");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
@@ -778,7 +778,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 throw new UnsupportedOperationException();
             }, null);
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
@@ -793,10 +793,10 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        queryShardContext.getMapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        queryShardContext.getMapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         Query q = new MatchPhraseQueryBuilder("field", "two words").toQuery(queryShardContext);
         assertThat(q, is(new PhraseQuery("field._index_phrase", "two words")));
@@ -862,7 +862,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("index", "false")
@@ -870,13 +870,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parser.parse("_doc", new CompressedXContent(badConfigMapping))
+                () -> parser.parse("type", new CompressedXContent(badConfigMapping))
             );
             assertThat(e.getMessage(), containsString("Cannot set index_phrases on unindexed field [field]"));
         }
 
         {
-            String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("index_options", "freqs")
@@ -884,7 +884,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parser.parse("_doc", new CompressedXContent(badConfigMapping))
+                () -> parser.parse("type", new CompressedXContent(badConfigMapping))
             );
             assertThat(e.getMessage(), containsString("Cannot set index_phrases on field [field] if positions are not enabled"));
         }
@@ -893,7 +893,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     public void testIndexPrefixMapping() throws IOException {
 
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "standard")
@@ -904,7 +904,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-            DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
             assertEquals(mapping, mapper.mappingSource().toString());
 
             assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=2:10"));

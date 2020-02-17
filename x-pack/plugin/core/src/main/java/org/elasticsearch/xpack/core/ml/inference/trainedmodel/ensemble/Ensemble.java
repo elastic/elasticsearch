@@ -207,7 +207,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
+        if (featureNames.isEmpty() == false) {
+            builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
+        }
         NamedXContentObjectHelper.writeNamedObjects(builder, params, true, TRAINED_MODELS.getPreferredName(), models);
         NamedXContentObjectHelper.writeNamedObjects(builder,
             params,
@@ -250,6 +252,10 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public void validate() {
+        if (this.models.isEmpty()) {
+            throw ExceptionsHelper.badRequestException("[{}] must not be empty", TRAINED_MODELS.getPreferredName());
+        }
+
         if (outputAggregator.compatibleWith(targetType) == false) {
             throw ExceptionsHelper.badRequestException(
                 "aggregate_output [{}] is not compatible with target_type [{}]",
@@ -323,8 +329,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         private double[] classificationWeights;
         private boolean modelsAreOrdered;
 
-        private Builder (boolean modelsAreOrdered) {
+        private Builder(boolean modelsAreOrdered) {
             this.modelsAreOrdered = modelsAreOrdered;
+            this.featureNames = Collections.emptyList();
         }
 
         private static Builder builderForParser() {

@@ -293,7 +293,7 @@ public final class PainlessLookupBuilder {
         String importedCanonicalClassName = javaClassName.substring(javaClassName.lastIndexOf('.') + 1).replace('$', '.');
 
         if (canonicalClassName.equals(importedCanonicalClassName)) {
-            if (importClassName == true) {
+            if (importClassName) {
                 throw new IllegalArgumentException("must use no_import parameter on class [" + canonicalClassName + "] with no package");
             }
         } else {

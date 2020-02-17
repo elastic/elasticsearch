@@ -243,7 +243,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         // The model license does not matter, this is the highest licensed level
-        if (licenseState.isActive() && XPackLicenseState.isPlatinumOrTrialOperationMode(licenseState.getOperationMode())) {
+        if (licenseState.isActive() && XPackLicenseState.isAllowedByOperationMode(
+            licenseState.getOperationMode(), License.OperationMode.PLATINUM, true)) {
             return true;
         }
 
@@ -534,6 +535,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     validationException = addValidationError("none of the tags must equal the model_id", validationException);
                     break;
                 }
+            }
+            if (input != null && input.getFieldNames().isEmpty()) {
+                validationException = addValidationError("[input.field_names] must not be empty", validationException);
             }
             if (forCreation) {
                 validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -19,24 +20,29 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
@@ -47,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -59,7 +66,6 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     private final ThreadPool threadPool;
     private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
-    private final Client client;
 
     @Inject
     public TransportStopTransformAction(
@@ -97,7 +103,6 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         this.threadPool = threadPool;
         this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
-        this.client = client;
     }
 
     static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
@@ -125,6 +130,27 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 throw new ElasticsearchStatusException(msg, RestStatus.CONFLICT);
             }
         }
+    }
+
+    static Tuple<Set<String>, Set<String>> findTasksWithoutConfig(ClusterState state, String transformId) {
+        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+
+        Set<String> taskIds = new HashSet<>();
+        Set<String> executorNodes = new HashSet<>();
+
+        if (tasks != null) {
+            Predicate<PersistentTask<?>> taskMatcher = Strings.isAllOrWildcard(new String[] { transformId }) ? t -> true : t -> {
+                TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
+                return Regex.simpleMatch(transformId, transformParams.getId());
+            };
+
+            for (PersistentTasksCustomMetaData.PersistentTask<?> pTask : tasks.findTasks(TransformField.TASK_NAME, taskMatcher)) {
+                executorNodes.add(pTask.getExecutorNode());
+                taskIds.add(pTask.getId());
+            }
+        }
+
+        return new Tuple<>(taskIds, executorNodes);
     }
 
     @Override
@@ -160,7 +186,31 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
                     request.setNodes(TransformNodes.transformTaskNodes(hitsAndIds.v2(), state));
                     super.doExecute(task, request, finalListener);
-                }, listener::onFailure)
+                }, e -> {
+                    if (e instanceof ResourceNotFoundException) {
+                        Tuple<Set<String>, Set<String>> runningTasksAndNodes = findTasksWithoutConfig(state, request.getId());
+                        if (runningTasksAndNodes.v1().isEmpty()) {
+                            listener.onFailure(e);
+                            // found transforms without a config
+                        } else if (request.isForce()) {
+                            request.setExpandedIds(runningTasksAndNodes.v1());
+                            request.setNodes(runningTasksAndNodes.v2().toArray(new String[0]));
+                            super.doExecute(task, request, finalListener);
+                        } else {
+                            listener.onFailure(
+                                new ElasticsearchStatusException(
+                                    TransformMessages.getMessage(
+                                        TransformMessages.REST_STOP_TRANSFORM_WITHOUT_CONFIG,
+                                        Strings.arrayToCommaDelimitedString(runningTasksAndNodes.v1().toArray(new String[0]))
+                                    ),
+                                    RestStatus.CONFLICT
+                                )
+                            );
+                        }
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
             );
         }
     }
@@ -221,13 +271,10 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     private ActionListener<Response> waitForStopListener(Request request, ActionListener<Response> listener) {
 
         ActionListener<Response> onStopListener = ActionListener.wrap(
-            waitResponse -> client.admin()
-                .indices()
-                .prepareRefresh(TransformInternalIndexConstants.LATEST_INDEX_NAME)
-                .execute(ActionListener.wrap(r -> listener.onResponse(waitResponse), e -> {
-                    logger.info("Failed to refresh internal index after delete", e);
-                    listener.onResponse(waitResponse);
-                })),
+            waitResponse -> transformConfigManager.refresh(ActionListener.wrap(r -> listener.onResponse(waitResponse), e -> {
+                logger.warn("Could not refresh state, state information might be outdated", e);
+                listener.onResponse(waitResponse);
+            })),
             listener::onFailure
         );
         return ActionListener.wrap(

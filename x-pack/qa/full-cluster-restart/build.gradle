@@ -66,12 +66,11 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
       versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 2
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = BuildParams.runtimeJavaHome
       user username: "test_user", password: "x-pack-test-password"
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       // some tests rely on the translog not being flushed
-      setting 'indices.memory.shard_inactive_time', '20m'
+      setting 'indices.memory.shard_inactive_time', '60m'
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.license.self_generated.type', 'trial'
@@ -85,6 +84,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
       setting 'xpack.security.transport.ssl.key', 'testnode.pem'
       setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
       keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
     }
   }
 

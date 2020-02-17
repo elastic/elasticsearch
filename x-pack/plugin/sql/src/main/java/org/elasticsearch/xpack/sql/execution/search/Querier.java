@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -86,7 +87,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 // TODO: add retry/back-off
 public class Querier {
 
-    private final Logger log = LogManager.getLogger(getClass());
+    private static final Logger log = LogManager.getLogger(Querier.class);
 
     private final PlanExecutor planExecutor;
     private final Configuration cfg;
@@ -148,6 +149,30 @@ public class Querier {
                 .setIndicesOptions(
                         includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
+    }
+    
+    protected static void logSearchResponse(SearchResponse response, Logger logger) {
+        List<Aggregation> aggs = Collections.emptyList();
+        if (response.getAggregations() != null) {
+            aggs = response.getAggregations().asList();
+        }
+        StringBuilder aggsNames = new StringBuilder();
+        for (int i = 0; i < aggs.size(); i++) {
+            aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
+        }
+        
+        logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+                + "{} successful shards, {} total shards, took {}, timed out [{}]]",
+                response.getHits().getTotalHits().relation.toString(),
+                response.getHits().getTotalHits().value,
+                aggs.size(),
+                aggsNames,
+                response.getFailedShards(),
+                response.getSkippedShards(),
+                response.getSuccessfulShards(),
+                response.getTotalShards(),
+                response.getTook(),
+                response.isTimedOut());
     }
 
     /**
@@ -280,6 +305,10 @@ public class Querier {
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+            if (log.isTraceEnabled()) {
+                logSearchResponse(response, log);
+            }
+            
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
@@ -565,36 +594,51 @@ public class Querier {
             this.sortingColumns = sortingColumns;
         }
 
-        // compare row based on the received attribute sort
-        // if a sort item is not in the list, it is assumed the sorting happened in ES
-        // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
-        //
-        // Take for example ORDER BY a, x, b, y
-        // a, b - are sorted in ES
-        // x, y - need to be sorted client-side
-        // sorting on x kicks in, only if the values for a are equal.
-
+        /**
+         * Compare row based on the received attribute sort
+         * <ul>
+         *     <li>
+         *         If a tuple in {@code sortingColumns} has a null comparator, it is assumed the sorting
+         *         happened in ES and the results are left as is (by using the row ordering), otherwise it is
+         *         sorted based on the given criteria.
+         *     </li>
+         *     <li>
+         *         If no tuple exists in {@code sortingColumns} for an output column, it means this column
+         *         is not included at all in the ORDER BY
+         *     </li>
+         *</ul>
+         *
+         * Take for example ORDER BY a, x, b, y
+         * a, b - are sorted in ES
+         * x, y - need to be sorted client-side
+         * sorting on x kicks in only if the values for a are equal.
+         * sorting on y kicks in only if the values for a, x and b are all equal
+         *
+         */
         // thanks to @jpountz for the row ordering idea as a way to preserve ordering
         @SuppressWarnings("unchecked")
         @Override
         protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
             for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-                int i = tuple.v1().intValue();
+                int columnIdx = tuple.v1().intValue();
                 Comparator comparator = tuple.v2();
 
-                Object vl = l.v1().get(i);
-                Object vr = r.v1().get(i);
+                // Get the values for left and right rows at the current column index
+                Object vl = l.v1().get(columnIdx);
+                Object vr = r.v1().get(columnIdx);
                 if (comparator != null) {
                     int result = comparator.compare(vl, vr);
-                    // if things are equals, move to the next comparator
+                    // if things are not equal: return the comparison result,
+                    // otherwise: move to the next comparator to solve the tie.
                     if (result != 0) {
                         return result > 0;
                     }
                 }
-                // no comparator means the existing order needs to be preserved
+                // no comparator means the rows are pre-ordered by ES for the column at
+                // the current index and the existing order needs to be preserved
                 else {
-                    // check the values - if they are equal move to the next comparator
-                    // otherwise return the row order
+                    // check the values - if they are not equal return the row order
+                    // otherwise: move to the next comparator to solve the tie.
                     if (Objects.equals(vl, vr) == false) {
                         return l.v2().compareTo(r.v2()) > 0;
                     }

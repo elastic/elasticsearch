@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 public class User extends ConfigurationFunction {
 
     public User(Source source, Configuration configuration) {
-        super(source, configuration, DataType.KEYWORD);
+        super(source, configuration, DataTypes.KEYWORD);
     }
 
     @Override

@@ -14,7 +14,7 @@ between `10` and `20`.
 
 [source,console]
 ----
-GET _search
+GET /_search
 {
     "query": {
         "range" : {
@@ -134,6 +134,11 @@ increases the relevance score.
 [[range-query-notes]]
 ==== Notes
 
+[[ranges-on-text-and-keyword]]
+===== Using the `range` query with `text` and `keyword` fields
+Range queries on <<text, `text`>> or <<keyword, `keyword`>> files will not be executed if
+<<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set to false.
+
 [[ranges-on-dates]]
 ===== Using the `range` query with `date` fields
 
@@ -150,7 +155,7 @@ contains a date between today and yesterday.
 
 [source,console]
 ----
-GET _search
+GET /_search
 {
     "query": {
         "range" : {
@@ -212,7 +217,7 @@ UTC offset. For example:
 
 [source,console]
 ----
-GET _search
+GET /_search
 {
   "query": {
     "range": {

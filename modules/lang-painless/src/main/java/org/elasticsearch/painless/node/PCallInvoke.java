@@ -19,19 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.CallNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -55,19 +53,10 @@ public final class PCallInvoke extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        prefix.analyze(scriptRoot, locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        prefix.analyze(scriptRoot, scope);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(scriptRoot, locals);
+        prefix = prefix.cast(scriptRoot, scope);
 
         if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
@@ -91,16 +80,23 @@ public final class PCallInvoke extends AExpression {
 
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(scriptRoot, locals);
+        sub.analyze(scriptRoot, scope);
         actual = sub.actual;
 
         statement = true;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefix.write(classWriter, methodWriter, globals);
-        sub.write(classWriter, methodWriter, globals);
+    CallNode write(ClassNode classNode) {
+        CallNode callNode = new CallNode();
+
+        callNode.setLeftNode(prefix.write(classNode));
+        callNode.setRightNode(sub.write(classNode));
+
+        callNode.setLocation(location);
+        callNode.setExpressionType(actual);
+
+        return callNode;
     }
 
     @Override

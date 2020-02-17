@@ -50,8 +50,10 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testKeystoreUpgrade() throws Exception {
         final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
-        try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-             OutputStream os = Files.newOutputStream(keystore)) {
+        try (
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
+            OutputStream os = Files.newOutputStream(keystore)
+        ) {
             is.transferTo(os);
         }
         try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configFile())) {
@@ -69,7 +71,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testKeystoreDoesNotExist() {
         final UserException e = expectThrows(UserException.class, this::execute);
-        assertThat(e, hasToString(containsString("keystore does not exist at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
+        assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
     }
 
 }

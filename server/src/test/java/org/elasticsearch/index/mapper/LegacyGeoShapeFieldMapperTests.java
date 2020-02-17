@@ -22,15 +22,20 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -44,6 +49,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -53,7 +60,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultConfiguration() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                     .field("type", "geo_shape")
                     .field("strategy", "recursive")
@@ -61,7 +68,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
+            .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
         assertEquals(mapping, defaultMapper.mappingSource().toString());
@@ -695,6 +702,31 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertFieldWarnings("tree", "precision", "strategy", "points_only");
     }
 
+    public void testDisallowExpensiveQueries() throws IOException {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
+                .endObject().endObject()
+                .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+                .parse("type1", new CompressedXContent(mapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
+        LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
+
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> geoShapeFieldMapper.fieldType().geometryQueryBuilder().process(
+                        new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, queryShardContext));
+        assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
+                        "'search.allow_expensive_queries' is set to false.", e.getMessage());
+        assertFieldWarnings("tree");
+    }
+
     public String toXContentString(LegacyGeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         ToXContent.Params params;
@@ -710,5 +742,4 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     public String toXContentString(LegacyGeoShapeFieldMapper mapper) throws IOException {
         return toXContentString(mapper, true);
     }
-
 }

@@ -497,7 +497,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public Number nextKey(Number key) {
-        return emptyBucketInfo.rounding.nextRoundingValue(key.longValue());
+        return emptyBucketInfo.rounding.nextRoundingValue(key.longValue() - offset) + offset;
     }
 
     @Override

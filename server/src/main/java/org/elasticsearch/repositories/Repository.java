@@ -19,8 +19,10 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -113,33 +115,33 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * This method is called on master after all shards are snapshotted.
      *
-     * @param snapshotId         snapshot id
-     * @param shardGenerations   updated shard generations
-     * @param startTime          start time of the snapshot
-     * @param failure            global failure reason or null
-     * @param totalShards        total number of shards
-     * @param shardFailures      list of shard failures
-     * @param repositoryStateId  the unique id identifying the state of the repository when the snapshot began
-     * @param includeGlobalState include cluster global state
-     * @param clusterMetaData    cluster metadata
-     * @param userMetadata       user metadata
-     * @param writeShardGens     if shard generations should be written to the repository
-     * @param listener listener to be called on completion of the snapshot
+     * @param snapshotId            snapshot id
+     * @param shardGenerations      updated shard generations
+     * @param startTime             start time of the snapshot
+     * @param failure               global failure reason or null
+     * @param totalShards           total number of shards
+     * @param shardFailures         list of shard failures
+     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
+     * @param includeGlobalState    include cluster global state
+     * @param clusterMetaData       cluster metadata
+     * @param userMetadata          user metadata
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param listener              listener to be called on completion of the snapshot
      */
     void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                           int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                           boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                          boolean writeShardGens, ActionListener<SnapshotInfo> listener);
+                          Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener);
 
     /**
      * Deletes snapshot
      *
-     * @param snapshotId        snapshot id
-     * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
-     * @param writeShardGens    if shard generations should be written to the repository
-     * @param listener          completion listener
+     * @param snapshotId            snapshot id
+     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param listener              completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener);
+    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion, ActionListener<Void> listener);
 
     /**
      * Returns snapshot throttle time in nanoseconds
@@ -192,16 +194,19 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param store               store to be snapshotted
-     * @param mapperService       the shards mapper service
-     * @param snapshotId          snapshot id
-     * @param indexId             id for the index being snapshotted
-     * @param snapshotIndexCommit commit point
-     * @param snapshotStatus      snapshot status
-     * @param listener            listener invoked on completion
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param snapshotIndexCommit   commit point
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens, ActionListener<String> listener);
+                       IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion, Map<String, Object> userMetadata,
+                       ActionListener<String> listener);
 
     /**
      * Restores snapshot of the shard.
@@ -234,4 +239,12 @@ public interface Repository extends LifecycleComponent {
      * @param state new cluster state
      */
     void updateState(ClusterState state);
+
+    /**
+     * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * during snapshot initialization.
+     */
+    default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
+        return userMetadata;
+    }
 }

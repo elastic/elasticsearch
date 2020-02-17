@@ -45,7 +45,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -53,6 +52,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
@@ -60,9 +60,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
 
-    public RestShardsAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/shards", this);
-        controller.registerHandler(GET, "/_cat/shards/{index}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/shards"),
+            new Route(GET, "/_cat/shards/{index}"));
     }
 
     @Override

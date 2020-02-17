@@ -102,6 +102,10 @@
 ---
 "Test non-empty data frame given body":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/ml-cpp/pull/1003"
+
   - do:
       indices.create:
         index: index-source

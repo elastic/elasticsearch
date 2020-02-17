@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -329,64 +330,78 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50781")
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        String smlPolicy = randomAlphaOfLengthBetween(4, 10);
-        createNewSingletonPolicy("delete", new WaitForSnapshotAction(smlPolicy));
+        String slmPolicy = randomAlphaOfLengthBetween(4, 10);
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction(slmPolicy));
         updatePolicy(index, policy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
-        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo("wait-for-snapshot")));
+        assertBusy( () -> {
+            Map<String, Object> indexILMState = explainIndex(index);
+            assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
+            assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
+        }, slmPolicy);
 
         String repo = createSnapshotRepo();
-        createSlmPolicy(smlPolicy, repo);
+        createSlmPolicy(slmPolicy, repo);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
+        assertBusy( () -> {
+            Map<String, Object> indexILMState = explainIndex(index);
+            //wait for step to notice that the slm policy is created and to get out of error
+            assertThat(indexILMState.get("failed_step"), nullValue());
+            assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
+            assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
+        }, slmPolicy);
 
-        Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
-
-        request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
-        assertOK(client().performRequest(request));
-
-        request = new Request("DELETE", "/_snapshot/" + repo);
-        assertOK(client().performRequest(request));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("complete")), slmPolicy);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50781")
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        String smlPolicy = randomAlphaOfLengthBetween(4, 10);
-        createNewSingletonPolicy("delete", new WaitForSnapshotAction(smlPolicy));
+        String slmPolicy = randomAlphaOfLengthBetween(4, 10);
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction(slmPolicy));
 
         String repo = createSnapshotRepo();
-        createSlmPolicy(smlPolicy, repo);
+        createSlmPolicy(slmPolicy, repo);
 
-        Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
+
+        //wait for slm to finish execution
+        assertBusy(() -> {
+            Response response = client().performRequest(new Request("GET", "/_slm/policy/" + slmPolicy));
+            try (InputStream is = response.getEntity().getContent()) {
+                Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                assertEquals(1, ((Map<?, ?>) ((Map<?, ?>) responseMap.get(slmPolicy)).get("stats")).get("snapshots_taken"));
+            }
+        }, slmPolicy);
 
         updatePolicy(index, policy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
 
-        request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        assertBusy( () -> {
+            Map<String, Object> indexILMState = explainIndex(index);
+            assertThat(indexILMState.get("failed_step"), nullValue());
+            assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
+            assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
+        }, slmPolicy);
+
+        request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
-        assertOK(client().performRequest(request));
+        //wait for slm to finish execution
+        assertBusy(() -> {
+            Response response = client().performRequest(new Request("GET", "/_slm/policy/" + slmPolicy));
+            try (InputStream is = response.getEntity().getContent()) {
+                Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                assertEquals(2, ((Map<?, ?>) ((Map<?, ?>) responseMap.get(slmPolicy)).get("stats")).get("snapshots_taken"));
+            }
+        }, slmPolicy);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
-
-        request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
-        assertOK(client().performRequest(request));
-
-        request = new Request("DELETE", "/_snapshot/" + repo);
-        assertOK(client().performRequest(request));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("complete")), slmPolicy);
     }
 
     public void testDelete() throws Exception {
@@ -1811,11 +1826,29 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .field("type", "fs")
                 .startObject("settings")
                 .field("compress", randomBoolean())
-                .field("location", System.getProperty("tests.path.repo"))
-                .field("max_snapshot_bytes_per_sec", "256b")
+                //random location to avoid clash with other snapshots
+                .field("location", System.getProperty("tests.path.repo")+ "/" + randomAlphaOfLengthBetween(4, 10))
+                .field("max_snapshot_bytes_per_sec", "100m")
                 .endObject()
                 .endObject()));
         assertOK(client().performRequest(request));
         return repo;
+    }
+
+    //adds debug information for waitForSnapshot tests
+    private void assertBusy(CheckedRunnable<Exception> runnable, String slmPolicy) throws Exception {
+        assertBusy(() -> {
+            try {
+                runnable.run();
+            } catch (AssertionError e) {
+                Map<String, Object> slm;
+                try (InputStream is = client().performRequest(new Request("GET", "/_slm/policy/" + slmPolicy)).getEntity().getContent()) {
+                    slm = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, false);
+                } catch (Exception ignored) {
+                    slm = new HashMap<>();
+                }
+                throw new AssertionError("Index:" + explainIndex(index) + "\nSLM:" + slm, e);
+            }
+        });
     }
 }

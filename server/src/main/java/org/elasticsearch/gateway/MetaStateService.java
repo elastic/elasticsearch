@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -33,9 +33,10 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -71,7 +72,27 @@ public class MetaStateService {
     public Tuple<Manifest, MetaData> loadFullState() throws IOException {
         final Manifest manifest = MANIFEST_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         if (manifest == null) {
-            return loadFullStateBWC();
+            if (META_DATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths()) != null) {
+                // not mentioning version constants explicitly since we already assert that this code is dead from v9 onwards
+                throw new IllegalStateException("found on-disk global metadata from a cluster of version 6.x or earlier; you must first " +
+                    "upgrade this node to a 7.x version before you can upgrade it to version " + Version.CURRENT);
+            }
+            final Set<Index> indices = new HashSet<>();
+            for (String indexFolder : nodeEnv.availableIndexFolders()) {
+                final IndexMetaData indexMetadata
+                    = INDEX_META_DATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.resolveIndexFolder(indexFolder));
+                if (indexMetadata != null) {
+                    indices.add(indexMetadata.getIndex());
+                }
+            }
+
+            if (indices.isEmpty() == false) {
+                // not mentioning version constants explicitly since we already assert that this code is dead from v9 onwards
+                throw new IllegalStateException("found on-disk index metadata from a cluster of version 6.x or earlier for indices " +
+                    indices + "; you must first upgrade this node to a 7.x version before you can upgrade it to version " +
+                    Version.CURRENT);
+            }
+            return Tuple.tuple(Manifest.empty(), MetaData.builder().build());
         }
 
         final MetaData.Builder metaDataBuilder;
@@ -101,54 +122,6 @@ public class MetaStateService {
             }
         }
 
-        return new Tuple<>(manifest, metaDataBuilder.build());
-    }
-
-    /**
-     * "Manifest-less" BWC version of loading metadata from disk. See also {@link #loadFullState()}
-     */
-    private Tuple<Manifest, MetaData> loadFullStateBWC() throws IOException {
-        Map<Index, Long> indices = new HashMap<>();
-        MetaData.Builder metaDataBuilder;
-
-        Tuple<MetaData, Long> metaDataAndGeneration =
-                META_DATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-        MetaData globalMetaData = metaDataAndGeneration.v1();
-        long globalStateGeneration = metaDataAndGeneration.v2();
-
-        final IndexGraveyard indexGraveyard;
-        if (globalMetaData != null) {
-            metaDataBuilder = MetaData.builder(globalMetaData);
-            indexGraveyard = globalMetaData.custom(IndexGraveyard.TYPE);
-            // TODO https://github.com/elastic/elasticsearch/issues/38556
-            // assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
-        } else {
-            metaDataBuilder = MetaData.builder();
-            indexGraveyard = IndexGraveyard.builder().build();
-        }
-
-        for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-            Tuple<IndexMetaData, Long> indexMetaDataAndGeneration =
-                    INDEX_META_DATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
-                            nodeEnv.resolveIndexFolder(indexFolderName));
-            // TODO https://github.com/elastic/elasticsearch/issues/38556
-            // assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
-            IndexMetaData indexMetaData = indexMetaDataAndGeneration.v1();
-            long generation = indexMetaDataAndGeneration.v2();
-            if (indexMetaData != null) {
-                if (indexGraveyard.containsIndex(indexMetaData.getIndex())) {
-                    logger.debug("[{}] found metadata for deleted index [{}]", indexFolderName, indexMetaData.getIndex());
-                    // this index folder is cleared up when state is recovered
-                } else {
-                    indices.put(indexMetaData.getIndex(), generation);
-                    metaDataBuilder.put(indexMetaData, false);
-                }
-            } else {
-                logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
-            }
-        }
-
-        Manifest manifest = Manifest.unknownCurrentTermAndVersion(globalStateGeneration, indices);
         return new Tuple<>(manifest, metaDataBuilder.build());
     }
 

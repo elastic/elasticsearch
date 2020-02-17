@@ -32,8 +32,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.HashMap;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MetaStateServiceTests extends ESTestCase {
@@ -95,26 +96,26 @@ public class MetaStateServiceTests extends ESTestCase {
         assertThat(metaStateService.loadGlobalState().hasIndex("test1"), equalTo(false));
     }
 
-    public void testLoadFullStateBWC() throws Exception {
-        IndexMetaData indexMetaData = indexMetaData("test1");
+    public void testLoadFullStateRejectsGlobalMetadataWithoutManifest() throws Exception {
         MetaData metaData = MetaData.builder()
-                .persistentSettings(Settings.builder().put("test1", "value1").build())
-                .put(indexMetaData, true)
-                .build();
+            .persistentSettings(Settings.builder().put("test1", "value1").build())
+            .build();
 
-        long globalGeneration = metaStateService.writeGlobalState("test_write", metaData);
-        long indexGeneration = metaStateService.writeIndex("test_write", indexMetaData);
+        metaStateService.writeGlobalState("test_write", metaData);
 
-        Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
-        Manifest manifest = manifestAndMetaData.v1();
-        assertThat(manifest.getGlobalGeneration(), equalTo(globalGeneration));
-        assertThat(manifest.getIndexGenerations(), hasKey(indexMetaData.getIndex()));
-        assertThat(manifest.getIndexGenerations().get(indexMetaData.getIndex()), equalTo(indexGeneration));
+        assertThat(expectThrows(IllegalStateException.class, metaStateService::loadFullState).getMessage(),
+            containsString("found on-disk global metadata from a cluster of version 6.x or earlier; you must first upgrade this node to " +
+                "a 7.x version before you can upgrade it to version " + Version.CURRENT));
+    }
 
-        MetaData loadedMetaData = manifestAndMetaData.v2();
-        assertThat(loadedMetaData.persistentSettings(), equalTo(metaData.persistentSettings()));
-        assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
-        assertThat(loadedMetaData.index("test1"), equalTo(indexMetaData));
+    public void testLoadFullStateRejectsIndexMetadataWithoutManifest() throws Exception {
+        IndexMetaData indexMetaData = indexMetaData("test1");
+        metaStateService.writeIndex("test_write", indexMetaData);
+
+        assertThat(expectThrows(IllegalStateException.class, metaStateService::loadFullState).getMessage(), allOf(
+            containsString("found on-disk index metadata from a cluster of version 6.x or earlier for indices ["),
+            containsString(indexMetaData.getIndex().toString()),
+            containsString("you must first upgrade this node to a 7.x version before you can upgrade it to version " + Version.CURRENT)));
     }
 
     public void testLoadEmptyStateNoManifest() throws IOException {

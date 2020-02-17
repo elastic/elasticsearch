@@ -87,19 +87,20 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                                                 Version version, ActionListener<SnapshotInfo> listener) {
+                                                 Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
                         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures,
-                            repositoryStateId, includeGlobalState, clusterMetaData, userMetadata, version, listener);
+                            repositoryStateId, includeGlobalState, clusterMetaData, userMetadata, repositoryMetaVersion, listener);
                     }
 
                     @Override
                     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus,
-                                              Version version, Map<String, Object> userMetadata, ActionListener<String> listener) {
+                                              Version repositoryMetaVersion, Map<String, Object> userMetadata,
+                                              ActionListener<String> listener) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
-                        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, version,
-                            userMetadata, listener);
+                        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus,
+                            repositoryMetaVersion, userMetadata, listener);
                     }
 
                     @Override

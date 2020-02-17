@@ -115,33 +115,33 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * This method is called on master after all shards are snapshotted.
      *
-     * @param snapshotId         snapshot id
-     * @param shardGenerations   updated shard generations
-     * @param startTime          start time of the snapshot
-     * @param failure            global failure reason or null
-     * @param totalShards        total number of shards
-     * @param shardFailures      list of shard failures
-     * @param repositoryStateId  the unique id identifying the state of the repository when the snapshot began
-     * @param includeGlobalState include cluster global state
-     * @param clusterMetaData    cluster metadata
-     * @param userMetadata       user metadata
-     * @param version           version of the updated repository metadata to write
-     * @param listener listener to be called on completion of the snapshot
+     * @param snapshotId            snapshot id
+     * @param shardGenerations      updated shard generations
+     * @param startTime             start time of the snapshot
+     * @param failure               global failure reason or null
+     * @param totalShards           total number of shards
+     * @param shardFailures         list of shard failures
+     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
+     * @param includeGlobalState    include cluster global state
+     * @param clusterMetaData       cluster metadata
+     * @param userMetadata          user metadata
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param listener              listener to be called on completion of the snapshot
      */
     void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                           int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                           boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                          Version version, ActionListener<SnapshotInfo> listener);
+                          Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener);
 
     /**
      * Deletes snapshot
      *
-     * @param snapshotId        snapshot id
-     * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
-     * @param version           version of the updated repository metadata to write
-     * @param listener          completion listener
+     * @param snapshotId            snapshot id
+     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param listener              completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener);
+    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion, ActionListener<Void> listener);
 
     /**
      * Returns snapshot throttle time in nanoseconds
@@ -194,18 +194,18 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param store               store to be snapshotted
-     * @param mapperService       the shards mapper service
-     * @param snapshotId          snapshot id
-     * @param indexId             id for the index being snapshotted
-     * @param snapshotIndexCommit commit point
-     * @param snapshotStatus      snapshot status
-     * @param version           version of the updated repository metadata to write
-     * @param userMetadata        user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * @param listener            listener invoked on completion
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param snapshotIndexCommit   commit point
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus, Version version, Map<String, Object> userMetadata,
+                       IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion, Map<String, Object> userMetadata,
                        ActionListener<String> listener);
 
     /**

@@ -236,21 +236,22 @@ class S3Repository extends BlobStoreRepository {
     @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                 MetaData clusterMetaData, Map<String, Object> userMetadata, Version version,
+                                 MetaData clusterMetaData, Map<String, Object> userMetadata, Version repositoryMetaVersion,
                                  ActionListener<SnapshotInfo> listener) {
-        if (version.before(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, clusterMetaData, userMetadata, version, listener);
+            includeGlobalState, clusterMetaData, userMetadata, repositoryMetaVersion, listener);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener) {
-        if (version.before(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
+                               ActionListener<Void> listener) {
+        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
-        super.deleteSnapshot(snapshotId, repositoryStateId, version, listener);
+        super.deleteSnapshot(snapshotId, repositoryStateId, repositoryMetaVersion, listener);
     }
 
     /**

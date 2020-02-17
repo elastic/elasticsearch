@@ -365,7 +365,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public ShardSnapshotStatus(StreamInput in) throws IOException {
             nodeId = in.readOptionalString();
             state = ShardState.fromValue(in.readByte());
-            if (in.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+            if (SnapshotsService.useShardGenerations(in.getVersion())) {
                 generation = in.readOptionalString();
             } else {
                 generation = null;
@@ -392,7 +392,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
             out.writeByte(state.value);
-            if (out.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+            if (SnapshotsService.useShardGenerations(out.getVersion())) {
                 out.writeOptionalString(generation);
             }
             out.writeOptionalString(reason);
@@ -538,9 +538,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 version = Version.readVersion(in);
             } else {
                 // If an older master informs us that shard generations are supported we use the minimum shard generation compatible
-                // version. If shard generations are not supported yet we use 7.5 as a placeholder for a version that does not use shard
+                // version. If shard generations are not supported yet we use a placeholder for a version that does not use shard
                 // generations.
-                version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : Version.V_7_5_0;
+                version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : SnapshotsService.OLD_SNAPSHOT_FORMAT;
             }
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
@@ -581,10 +581,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
                 out.writeMap(entry.userMetadata);
             }
-            if (out.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+            if (out.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 Version.writeVersion(entry.version, out);
             } else {
-                out.writeBoolean(entry.version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION));
+                out.writeBoolean(SnapshotsService.useShardGenerations(entry.version));
             }
         }
     }

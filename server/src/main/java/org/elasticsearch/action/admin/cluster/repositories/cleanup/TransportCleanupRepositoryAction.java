@@ -220,7 +220,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener,
                             l -> blobStoreRepository.cleanup(
                                 repositoryStateId,
-                                snapshotsService.minCompatibleVersion(newState, repositoryName, repositoryData, null),
+                                snapshotsService.minCompatibleVersion(
+                                    newState.nodes().getMinNodeVersion(), repositoryName, repositoryData, null),
                                 ActionListener.wrap(result -> after(null, result), e -> after(e, null)))
                         ));
                     }

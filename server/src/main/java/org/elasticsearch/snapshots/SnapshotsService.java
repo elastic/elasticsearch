@@ -124,6 +124,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
 
+    public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
+
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     private final ClusterService clusterService;
@@ -438,7 +440,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotCreated = true;
 
                     logger.info("snapshot [{}] started", snapshot.snapshot());
-                    final Version version = minCompatibleVersion(clusterState, snapshot.repository(), repositoryData, null);
+                    final Version version =
+                        minCompatibleVersion(clusterState.nodes().getMinNodeVersion(), snapshot.repository(), repositoryData, null);
                     if (indices.isEmpty()) {
                         // No indices in this snapshot - we are done
                         userCreateSnapshotListener.onResponse(snapshot.snapshot());
@@ -467,7 +470,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     final List<IndexId> indexIds = repositoryData.resolveNewIndices(indices);
                                     // Replace the snapshot that was just initialized
                                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
-                                        shards(currentState, indexIds, version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION), repositoryData);
+                                        shards(currentState, indexIds, useShardGenerations(version), repositoryData);
                                     if (!partial) {
                                         Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards,
                                             currentState.metaData());
@@ -808,7 +811,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
             assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
             SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
-            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.repositoryStateId(), state);
+            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.repositoryStateId(), state.nodes().getMinNodeVersion());
         }
     }
 
@@ -1370,7 +1373,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     ));
                 } else {
                     logger.debug("deleted snapshot is not running - deleting files");
-                    deleteSnapshotFromRepository(snapshot, listener, repositoryStateId, newState);
+                    deleteSnapshotFromRepository(snapshot, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
                 }
             }
         });
@@ -1381,16 +1384,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * and the contents of the repository. The minimum version is determined as the lowest version found across all snapshots in the
      * repository and all nodes in the cluster.
      *
-     * @param state          current cluster state
+     * @param minNodeVersion minimum node version in the cluster
      * @param repositoryName name of the repository to modify
      * @param repositoryData current {@link RepositoryData} of that repository
      * @param excluded       snapshot id to ignore when computing the minimum version
      *                       (used to use newer metadata version after a snapshot delete)
      * @return minimum node version that must still be able to read the repository metadata
      */
-    public Version minCompatibleVersion(ClusterState state, String repositoryName, RepositoryData repositoryData,
+    public Version minCompatibleVersion(Version minNodeVersion, String repositoryName, RepositoryData repositoryData,
                                         @Nullable SnapshotId excluded) {
-        Version minCompatVersion = state.nodes().getMinNodeVersion();
+        Version minCompatVersion = minNodeVersion;
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         final Repository repository = repositoriesService.repository(repositoryName);
         for (SnapshotId snapshotId :
@@ -1403,21 +1406,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "] but did not have versions tracked for snapshot [" + snapshotId + "]";
                 try {
                     final Version foundVersion = repository.getSnapshotInfo(snapshotId).version();
-                    if (foundVersion.before(SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                    if (useShardGenerations(SHARD_GEN_IN_REPO_DATA_VERSION) == false) {
                         // We don't really care about the exact version if its before 7.6 as the 7.5 metadata is the oldest we are able
                         // to write out so we stop iterating here and just use 7.5.0 as a placeholder.
-                        return Version.V_7_5_0;
+                        return OLD_SNAPSHOT_FORMAT;
                     }
                     minCompatVersion = minCompatVersion.before(foundVersion) ? minCompatVersion : foundVersion;
                 } catch (SnapshotMissingException e) {
                     logger.warn("Failed to load snapshot metadata, assuming repository is in old format", e);
-                    return Version.V_7_5_0;
+                    return OLD_SNAPSHOT_FORMAT;
                 }
             } else {
                 minCompatVersion = minCompatVersion.before(known) ? minCompatVersion : known;
             }
         }
         return minCompatVersion;
+    }
+
+    public static boolean useShardGenerations(Version repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
     }
 
     /**
@@ -1461,15 +1468,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshot   snapshot
      * @param listener   listener
      * @param repositoryStateId the unique id representing the state of the repository at the time the deletion began
-     * @param state      cluster state
+     * @param minNodeVersion minimum node version in the cluster
      */
     private void deleteSnapshotFromRepository(Snapshot snapshot, @Nullable ActionListener<Void> listener, long repositoryStateId,
-                                              ClusterState state) {
+                                              Version minNodeVersion) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(snapshot.getRepository());
             repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshot(snapshot.getSnapshotId(),
                 repositoryStateId,
-                minCompatibleVersion(state, snapshot.getRepository(), repositoryData, snapshot.getSnapshotId()),
+                minCompatibleVersion(minNodeVersion, snapshot.getRepository(), repositoryData, snapshot.getSnapshotId()),
                 ActionListener.wrap(v -> {
                         logger.info("snapshot [{}] deleted", snapshot);
                         removeSnapshotDeletionFromClusterState(snapshot, null, l);

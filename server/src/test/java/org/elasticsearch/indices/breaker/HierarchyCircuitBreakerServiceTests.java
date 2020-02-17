@@ -202,7 +202,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
             assertThat(exception.getMessage(),
-                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, accounting=0/0b, inflight_requests=0/0b]"));
+                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, indexing=0/0b, accounting=0/0b, " +
+                    "inflight_requests=0/0b]"));
             assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         }
     }
@@ -250,7 +251,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final long requestCircuitBreakerUsed = (requestBreaker.getUsed() + reservationInBytes) * 2;
         assertThat(exception.getMessage(),
             containsString("usages [request=" + requestCircuitBreakerUsed + "/" + new ByteSizeValue(requestCircuitBreakerUsed) +
-                ", fielddata=0/0b, accounting=0/0b, inflight_requests=0/0b]"));
+                ", fielddata=0/0b, indexing=0/0b, accounting=0/0b, inflight_requests=0/0b]"));
         assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         assertEquals(0, requestBreaker.getTrippedCount());
         assertEquals(1, service.stats().getStats(CircuitBreaker.PARENT).getTrippedCount());

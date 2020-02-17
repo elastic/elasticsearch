@@ -121,7 +121,9 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         boolean destructiveRequiresName = randomBoolean();
         if (destructiveRequiresName) {
-            Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), destructiveRequiresName).build();
+            Settings settings = Settings.builder()
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), destructiveRequiresName)
+                .build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
         }
 

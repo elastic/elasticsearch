@@ -151,8 +151,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
 
         // delete all enrich indices for this policy, we delete concrete indices here but not a wildcard index expression
         // as the setting 'action.destructive_requires_name' may be set to true
-        DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(indices)
-            .indicesOptions(LENIENT_OPTIONS);
+        DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(indices).indicesOptions(LENIENT_OPTIONS);
 
         client.admin().indices().delete(deleteRequest, ActionListener.wrap((response) -> {
             if (response.isAcknowledged() == false) {

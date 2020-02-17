@@ -26,6 +26,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
@@ -100,14 +101,19 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";
-        assertThat(fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, null),
+        assertThat(fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockShardContext()),
             equalTo(new ConstantScoreQuery(new TermQuery(new Term(PREFIX_NAME, withinBoundsTerm)))));
 
         // our defaults don't allow a situation where a term can be too small
 
         // this term should be too long to be rewriteable to a term query on the prefix field
         final String longTerm = "toolongforourprefixfieldthistermis";
-        assertThat(fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, null),
+        assertThat(fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC),
             equalTo(new PrefixQuery(new Term(NAME, longTerm))));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
+                "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
     }
 }

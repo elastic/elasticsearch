@@ -1,0 +1,7 @@
+---
+"Enrich stats query smoke test for mixed cluster":
+
+  - do:
+      enrich.stats: {}
+
+  - length: { coordinator_stats: 3 }

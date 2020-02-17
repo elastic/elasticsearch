@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -71,7 +72,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             super(Settings.builder()
                             .put("indices.memory.interval", "200h") // disable it
                             .put(settings)
-                            .build(), null, null);
+                            .build(), null, new NoneCircuitBreakerService(), null);
         }
 
         public void deleteShard(IndexShard shard) {
@@ -351,7 +352,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         Iterable<IndexShard> iterable = () -> (shardRef.get() == null) ? Collections.emptyIterator()
             : Collections.singleton(shardRef.get()).iterator();
         AtomicInteger flushes = new AtomicInteger();
-        IndexingMemoryController imc = new IndexingMemoryController(settings, threadPool, iterable) {
+        IndexingMemoryController imc = new IndexingMemoryController(settings, threadPool, new NoneCircuitBreakerService(), iterable) {
             @Override
             protected void writeIndexingBufferAsync(IndexShard shard) {
                 assertEquals(shard, shardRef.get());
@@ -420,6 +421,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             Settings.builder().put("indices.memory.interval", "200h") // disable it
                 .put("indices.memory.index_buffer_size", "1024b").build(),
             threadPool,
+            new NoneCircuitBreakerService(),
             Collections.singleton(shard)) {
             @Override
             protected long getIndexBufferRAMBytesUsed(IndexShard shard) {

@@ -5,12 +5,12 @@
       reason: temporarily muted till 7.7.0 is updated to handle bwc
       features: node_selector
 
-  - do:
-      node_selector:
-        version: "7.7.0 - 7.99.99"
-      enrich.stats: {}
-
-  - length: { coordinator_stats: 3 }
+#  - do:
+#      node_selector:
+#        version: "7.7.0 - 7.99.99"
+#      enrich.stats: {}
+#
+#  - length: { coordinator_stats: 3 }
 
   - do:
       node_selector:

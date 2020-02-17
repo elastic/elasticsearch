@@ -353,7 +353,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("complete")), slmPolicy);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), slmPolicy);
     }
 
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
@@ -398,7 +398,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             }
         }, slmPolicy);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("complete")), slmPolicy);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), slmPolicy);
     }
 
     public void testDelete() throws Exception {

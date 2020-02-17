@@ -69,6 +69,7 @@ public class SnapshotsInProgressTests extends ESTestCase {
         Entry entry = new Entry(snapshot, randomBoolean(), randomBoolean(), State.INIT,
             indices, System.currentTimeMillis(), randomLong(), shards.build(), SnapshotInfoTests.randomUserMetadata(),
             VersionUtils.randomVersion(random()));
+
         ImmutableOpenMap<String, List<ShardId>> waitingIndices = entry.waitingIndices();
         assertEquals(2, waitingIndices.get(idx1Name).size());
         assertEquals(1, waitingIndices.get(idx2Name).size());

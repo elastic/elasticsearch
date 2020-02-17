@@ -588,6 +588,7 @@ public final class RepositoryData {
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     gens.add(parser.textOrNull());
                                 }
+
                             }
                         }
                         assert indexId != null;
@@ -621,4 +622,5 @@ public final class RepositoryData {
                 Collectors.toMap(Map.Entry::getKey, e -> e.getValue().entrySet().stream()
                     .collect(Collectors.toMap(entry -> indexLookup.get(entry.getKey()), Map.Entry::getValue)))), indexMetaHashes));
     }
+
 }

@@ -79,6 +79,9 @@ public final class TcpTransportChannel implements TransportChannel {
         if (released.compareAndSet(false, true)) {
             assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
             breakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS).addWithoutBreaking(-reservedBytes);
+            if (InboundHandler.isIndexingAction(action)) {
+                breakerService.getBreaker(CircuitBreaker.INDEXING).addWithoutBreaking(-reservedBytes);
+            }
         } else if (isExceptionResponse == false) {
             // only fail if we are not sending an error - we might send the error triggered by the previous
             // sendResponse call

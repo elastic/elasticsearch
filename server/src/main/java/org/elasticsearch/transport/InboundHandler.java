@@ -23,6 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -170,6 +172,10 @@ public class InboundHandler {
                 } else {
                     breaker.addWithoutBreaking(messageLengthBytes);
                 }
+                if (isIndexingAction(message.getActionName())) {
+                    CircuitBreaker indexingBreaker = circuitBreakerService.getBreaker(CircuitBreaker.INDEXING);
+                    indexingBreaker.addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
+                }
                 transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
                     circuitBreakerService, messageLengthBytes, message.isCompress());
                 final T request = reg.newRequest(stream);
@@ -196,6 +202,10 @@ public class InboundHandler {
                 logger.warn(() -> new ParameterizedMessage("Failed to send error message back to client for action [{}]", action), inner);
             }
         }
+    }
+
+    public static boolean isIndexingAction(String actionName) {
+        return actionName.startsWith(BulkAction.NAME) || actionName.startsWith(IndexAction.NAME);
     }
 
     private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,

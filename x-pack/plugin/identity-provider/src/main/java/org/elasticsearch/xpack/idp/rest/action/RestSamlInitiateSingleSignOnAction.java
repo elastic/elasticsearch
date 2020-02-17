@@ -44,7 +44,7 @@ public class RestSamlInitiateSingleSignOnAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "idp_init_sso_action";
+        return "saml_idp_init_sso_action";
     }
 
     @Override

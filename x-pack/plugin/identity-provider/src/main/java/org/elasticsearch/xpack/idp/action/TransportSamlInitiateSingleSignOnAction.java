@@ -72,7 +72,7 @@ public class TransportSamlInitiateSingleSignOnAction
                 Clock.systemUTC(), idp);
             final Response response = builder.build(user, null);
             listener.onResponse(new SamlInitiateSingleSignOnResponse(user.getServiceProvider().getAssertionConsumerService().toString(),
-                SamlUtils.samlObjectToString(response),
+                SamlUtils.getXmlContent(response),
                 user.getServiceProvider().getEntityId()));
         } catch (IOException e) {
             listener.onFailure(new IllegalArgumentException(e.getMessage()));

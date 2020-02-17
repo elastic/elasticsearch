@@ -1406,7 +1406,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "] but did not have versions tracked for snapshot [" + snapshotId + "]";
                 try {
                     final Version foundVersion = repository.getSnapshotInfo(snapshotId).version();
-                    if (useShardGenerations(SHARD_GEN_IN_REPO_DATA_VERSION) == false) {
+                    if (useShardGenerations(foundVersion) == false) {
                         // We don't really care about the exact version if its before 7.6 as the 7.5 metadata is the oldest we are able
                         // to write out so we stop iterating here and just use 7.5.0 as a placeholder.
                         return OLD_SNAPSHOT_FORMAT;
@@ -1423,6 +1423,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return minCompatVersion;
     }
 
+    /**
+     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
+     *
+     * @param repositoryMetaVersion version to check
+     * @return true if version supports {@link ShardGenerations}
+     */
     public static boolean useShardGenerations(Version repositoryMetaVersion) {
         return repositoryMetaVersion.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
     }

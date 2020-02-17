@@ -79,10 +79,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         return geometry.visit(new GeometryVisitor<>() {
             @Override
             public Geometry visit(Circle circle) {
-                double[] latlon = new double[]{circle.getX(), circle.getY()};
-                normalizePoint(latlon);
-                double radius = circle.getRadiusMeters();
-                return new Circle(latlon[0], latlon[1], radius);
+                throw new UnsupportedOperationException("CIRCLE geometry is not supported");
             }
 
             @Override

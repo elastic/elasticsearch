@@ -62,6 +62,9 @@ public class GeoPolygonProcessor {
      * Splits the specified polygon by datelines and adds them to the supplied polygon array
      */
     public static void decomposePolygon(Polygon polygon, boolean orientation, List<Polygon> collector) {
+        if (polygon.isEmpty()) {
+            return;
+        }
         int numEdges = polygon.getPolygon().length() - 1; // Last point is repeated
         for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
             numEdges += polygon.getHole(i).length() - 1;

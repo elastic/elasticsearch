@@ -48,6 +48,9 @@ public class GeoLineProcessor {
      * Splits the specified line by datelines and adds them to the supplied lines array
      */
     public static void decomposeLine(Line line, List<Line> collector) {
+        if (line.isEmpty()) {
+            return;
+        }
         double[] lons = new double[line.length()];
         double[] lats = new double[lons.length];
 

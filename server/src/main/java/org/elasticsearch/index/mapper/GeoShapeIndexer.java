@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 
 /**
@@ -92,7 +91,9 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                 // decompose linestrings crossing dateline into array of Lines
                 List<Line> lines = new ArrayList<>();
                 GeoLineProcessor.decomposeLine(line, lines);
-                if (lines.size() == 1) {
+                if (lines.isEmpty()) {
+                    return GeometryCollection.EMPTY;
+                } else if (lines.size() == 1) {
                     return lines.get(0);
                 } else {
                     return new MultiLine(lines);
@@ -156,7 +157,9 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             public Geometry visit(Polygon polygon) {
                 List<Polygon> polygons = new ArrayList<>();
                 GeoPolygonProcessor.decomposePolygon(polygon, orientation, polygons);
-                if (polygons.size() == 1) {
+                if (polygons.isEmpty()) {
+                    return GeometryCollection.EMPTY;
+                } else if (polygons.size() == 1) {
                     return polygons.get(0);
                 } else {
                     return new MultiPolygon(polygons);
@@ -268,19 +271,11 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         }
     }
 
-
     public static org.apache.lucene.geo.Polygon toLucenePolygon(Polygon polygon) {
         org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[polygon.getNumberOfHoles()];
         for(int i = 0; i<holes.length; i++) {
             holes[i] = new org.apache.lucene.geo.Polygon(polygon.getHole(i).getY(), polygon.getHole(i).getX());
         }
         return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getY(), polygon.getPolygon().getX(), holes);
-    }
-
-    /**
-     * Normalizes longitude while accepting -180 degrees as a valid value
-     */
-    private static double normalizeLonMinus180Inclusive(double lon) {
-        return  Math.abs(lon) > 180 ? normalizeLon(lon) : lon;
     }
 }

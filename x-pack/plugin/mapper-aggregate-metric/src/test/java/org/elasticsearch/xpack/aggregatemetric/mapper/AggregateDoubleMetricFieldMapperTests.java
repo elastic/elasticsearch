@@ -488,7 +488,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
                     .endArray().endObject()),
                 XContentType.JSON)));
         assertThat(e.getCause().getMessage(),
-            containsString("Field [metric] of type [aggregate_metric_double] doesn't not support " +
+            containsString("Field [metric] of type [aggregate_metric_double] does not support " +
                 "indexing multiple values for the same field in the same document"));
     }
 

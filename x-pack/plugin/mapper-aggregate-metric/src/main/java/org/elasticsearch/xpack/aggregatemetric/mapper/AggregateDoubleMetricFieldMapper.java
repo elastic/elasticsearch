@@ -414,7 +414,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                 if (context.doc().getField(delegateFieldMapper.fieldType().name()) != null) {
                     throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                        "] doesn't not support indexing multiple values for the same field in the same document");
+                        "] does not support indexing multiple values for the same field in the same document");
                 }
 
                 delegateFieldMapper.parse(context);

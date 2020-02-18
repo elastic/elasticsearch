@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 
@@ -339,24 +340,81 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         assertThat(ex.getMessage(), equalTo(msg));
     }
 
-    public void testTreeWithEmptyFeatureNames() {
-        String msg = "[feature_names] must not be empty for tree model";
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
-            Tree.builder()
-                .setRoot(TreeNode.builder(0)
-                    .setLeftChild(1)
-                    .setSplitFeature(1)
-                    .setThreshold(randomDouble()))
-                .setFeatureNames(Collections.emptyList())
-                .build()
-                .validate();
-        });
-        assertThat(ex.getMessage(), equalTo(msg));
-    }
-
     public void testOperationsEstimations() {
         Tree tree = buildRandomTree(Arrays.asList("foo", "bar", "baz"), 5);
         assertThat(tree.estimatedNumOperations(), equalTo(7L));
+    }
+
+    public void testMaxFeatureIndex() {
+
+        int numFeatures = randomIntBetween(1, 15);
+        // We need a tree where every feature is used, choose a depth big enough to
+        // accommodate those non-leave nodes (leaf nodes don't have a feature index)
+        int depth = (int) Math.ceil(Math.log(numFeatures +1) / Math.log(2)) + 1;
+        List<String> featureNames = new ArrayList<>(numFeatures);
+        for (int i=0; i<numFeatures; i++) {
+            featureNames.add("feature" + i);
+        }
+
+        Tree.Builder builder = Tree.builder().setFeatureNames(featureNames);
+
+        // build a tree using feature indices 0..numFeatures -1
+        int featureIndex = 0;
+        TreeNode.Builder node = builder.addJunction(0, featureIndex++, true, randomDouble());
+        List<Integer> childNodes = List.of(node.getLeftChild(), node.getRightChild());
+
+        for (int i = 0; i < depth -1; i++) {
+            List<Integer> nextNodes = new ArrayList<>();
+            for (int nodeId : childNodes) {
+                if (i == depth -2) {
+                    builder.addLeaf(nodeId, randomDouble());
+                } else {
+                    TreeNode.Builder childNode =
+                            builder.addJunction(nodeId, featureIndex++ % numFeatures, true, randomDouble());
+                    nextNodes.add(childNode.getLeftChild());
+                    nextNodes.add(childNode.getRightChild());
+                }
+            }
+            childNodes = nextNodes;
+        }
+
+        Tree tree = builder.build();
+
+        assertEquals(numFeatures, tree.maxFeatureIndex() +1);
+    }
+
+    public void testMaxFeatureIndexSingleNodeTree() {
+        Tree tree = Tree.builder()
+                .setRoot(TreeNode.builder(0).setLeafValue(10.0))
+                .setFeatureNames(Collections.emptyList())
+                .build();
+
+        assertEquals(-1, tree.maxFeatureIndex());
+    }
+
+    public void testValidateGivenMissingFeatures() {
+        List<String> featureNames = Arrays.asList("foo", "bar", "baz");
+
+        // build a tree referencing a feature at index 3 which is not in the featureNames list
+        Tree.Builder builder = Tree.builder().setFeatureNames(featureNames);
+        builder.addJunction(0, 0, true, randomDouble());
+        builder.addJunction(1, 1, true, randomDouble());
+        builder.addJunction(2, 3, true, randomDouble());
+        builder.addLeaf(3, randomDouble());
+        builder.addLeaf(4, randomDouble());
+        builder.addLeaf(5, randomDouble());
+        builder.addLeaf(6, randomDouble());
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build().validate());
+        assertThat(e.getDetailedMessage(), containsString("feature index [3] is out of bounds for the [feature_names] array"));
+    }
+
+    public void testValidateGivenTreeWithNoFeatures() {
+        Tree.builder()
+                .setRoot(TreeNode.builder(0).setLeafValue(10.0))
+                .setFeatureNames(Collections.emptyList())
+                .build()
+                .validate();
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<? extends Object> values) {

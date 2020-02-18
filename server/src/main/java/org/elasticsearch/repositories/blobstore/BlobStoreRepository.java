@@ -896,13 +896,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         getRepositoryData(ActionListener.wrap(existingRepositoryData -> {
 
             final Map<IndexId, String> indexMetas;
-            final Map<String, String> indexMetaHashes;
+            final Map<String, String> indexMetaIdentifiers;
             if (writeIndexGens) {
-                indexMetaHashes = ConcurrentCollections.newConcurrentMap();
+                indexMetaIdentifiers = ConcurrentCollections.newConcurrentMap();
                 indexMetas = ConcurrentCollections.newConcurrentMap();
             } else {
                 indexMetas = null;
-                indexMetaHashes = null;
+                indexMetaIdentifiers = null;
             }
 
             final ActionListener<SnapshotInfo> allMetaListener = new GroupedActionListener<>(
@@ -910,7 +910,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
                     final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
                     final RepositoryData updatedRepositoryData = existingRepositoryData.addSnapshot(
-                        snapshotId, snapshotInfo.state(), Version.CURRENT, shardGenerations, indexMetas, indexMetaHashes);
+                        snapshotId, snapshotInfo.state(), Version.CURRENT, shardGenerations, indexMetas, indexMetaIdentifiers);
                     writeIndexGen(updatedRepositoryData, repositoryStateId, repositoryMetaVersion, ActionListener.wrap(v -> {
                         if (writeShardGens) {
                             cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
@@ -934,15 +934,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 executor.execute(ActionRunnable.run(allMetaListener, () -> {
                         final IndexMetaData indexMetaData = clusterMetaData.index(index.getName());
                         if (writeIndexGens) {
-                            final String hash = IndexMetaDataGenerations.hashIndexMetaData(indexMetaData);
-                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(hash);
+                            final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
+                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
                             if (metaUUID == null) {
                                 // We don't yet have this version of the metadata so we write it
                                 metaUUID = UUIDs.base64UUID();
                                 indexMetaDataFormat.write(indexMetaData, indexContainer(index), metaUUID, false);
-                                indexMetaHashes.put(hash, metaUUID);
+                                indexMetaIdentifiers.put(identifiers, metaUUID);
                             }
-                            indexMetas.put(index, hash);
+                            indexMetas.put(index, identifiers);
                         } else {
                             indexMetaDataFormat.write(
                                 clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false);

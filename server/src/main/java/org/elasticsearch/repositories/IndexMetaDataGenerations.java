@@ -21,68 +21,58 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.snapshots.SnapshotId;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Tracks the blob uuids of blobs containing {@link IndexMetaData} for snapshots as well as the hash of
- * each of these blobs.
+ * Tracks the blob uuids of blobs containing {@link IndexMetaData} for snapshots as well an identifier for each of these blobs.
  * Before writing a new {@link IndexMetaData} blob during snapshot finalization in
- * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#finalizeSnapshot} an instance of {@link IndexMetaData} should be
- * hashed and then used to check if it already exists in the repository via {@link #getIndexMetaBlobId(String)}.
+ * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#finalizeSnapshot} the identifier for an instance of
+ * {@link IndexMetaData} should be computed and then used to check if it already exists in the repository via
+ * {@link #getIndexMetaBlobId(String)}.
  */
 public final class IndexMetaDataGenerations {
 
     public static final IndexMetaDataGenerations EMPTY = new IndexMetaDataGenerations(Collections.emptyMap(), Collections.emptyMap());
 
     /**
-     * Map of {@link SnapshotId} to a map of the indices in a snapshot mapping {@link IndexId} to metadata hash.
-     * The hashes in the nested map can be mapped to the relevant blob uuid via {@link #getIndexMetaBlobId}.
+     * Map of {@link SnapshotId} to a map of the indices in a snapshot mapping {@link IndexId} to metadata identifiers.
+     * The identifiers in the nested map can be mapped to the relevant blob uuid via {@link #getIndexMetaBlobId}.
      */
     final Map<SnapshotId, Map<IndexId, String>> lookup;
 
     /**
-     * Map of index metadata hash to blob uuid.
+     * Map of index metadata identifier to blob uuid.
      */
-    final Map<String, String> hashes;
+    final Map<String, String> identifiers;
 
-    IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> hashes) {
-        assert hashes.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet())) :
-            "Hash mappings " + hashes +" don't track the same blob ids as the lookup map " + lookup;
+    IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
+        assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet())) :
+            "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
         assert lookup.values().stream().noneMatch(Map::isEmpty) : "Lookup contained empty map [" + lookup + "]";
         this.lookup = Map.copyOf(lookup);
-        this.hashes = Map.copyOf(hashes);
+        this.identifiers = Map.copyOf(identifiers);
     }
 
     public boolean isEmpty() {
-        return hashes.isEmpty();
+        return identifiers.isEmpty();
     }
 
     /**
-     * Gets the blob id by the hash of {@link IndexMetaData} (computed via {@link #hashIndexMetaData}) or {@code null} if none is
-     * tracked for the hash.
+     * Gets the blob id by the identifier of {@link IndexMetaData} (computed via {@link #buildUniqueIdentifier}) or {@code null} if none is
+     * tracked for the identifier.
      *
-     * @param metaHash hash of {@link IndexMetaData}
-     * @return blob id for the given metadata hash or {@code null} if the hash is not part of the repository yet
+     * @param metaIdentifier identifier for {@link IndexMetaData}
+     * @return blob id for the given metadata identifier or {@code null} if the identifier is not part of the repository yet
      */
     @Nullable
-    public String getIndexMetaBlobId(String metaHash) {
-        return hashes.get(metaHash);
+    public String getIndexMetaBlobId(String metaIdentifier) {
+        return identifiers.get(metaIdentifier);
     }
 
     /**
@@ -96,27 +86,27 @@ public final class IndexMetaDataGenerations {
      * @return blob id for the given index metadata
      */
     public String indexMetaBlobId(SnapshotId snapshotId, IndexId indexId) {
-        final String hash = lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
-        if (hash == null) {
+        final String identifier = lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
+        if (identifier == null) {
             return snapshotId.getUUID();
         } else {
-            return hashes.get(hash);
+            return identifiers.get(identifier);
         }
     }
 
     /**
-     * Create a new instance with the given snapshot and index metadata uuids and hashes added.
+     * Create a new instance with the given snapshot and index metadata uuids and identifiers added.
      *
      * @param snapshotId SnapshotId
-     * @param newLookup new mappings of index + snapshot to index metadata hash
-     * @param newHashes new mappings of index metadata hash to blob id
+     * @param newLookup new mappings of index + snapshot to index metadata identifier
+     * @param newIdentifiers new mappings of index metadata identifier to blob id
      * @return instance with added snapshot
      */
     public IndexMetaDataGenerations withAddedSnapshot(SnapshotId snapshotId, Map<IndexId, String> newLookup,
-                                                      Map<String, String> newHashes) {
+                                                      Map<String, String> newIdentifiers) {
         final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(this.lookup);
-        final Map<String, String> updatedIndexMetaHashes = new HashMap<>(hashes);
-        updatedIndexMetaHashes.putAll(newHashes);
+        final Map<String, String> updatedIndexMetaIdentifiers = new HashMap<>(identifiers);
+        updatedIndexMetaIdentifiers.putAll(newIdentifiers);
         updatedIndexMetaLookup.compute(snapshotId, (snId, lookup) -> {
             if (lookup == null) {
                 if (newLookup.isEmpty()) {
@@ -129,7 +119,7 @@ public final class IndexMetaDataGenerations {
                 return Map.copyOf(updated);
             }
         });
-        return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaHashes);
+        return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
     }
 
     /**
@@ -141,15 +131,15 @@ public final class IndexMetaDataGenerations {
     public IndexMetaDataGenerations withRemovedSnapshot(SnapshotId snapshotId) {
         final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(lookup);
         updatedIndexMetaLookup.remove(snapshotId);
-        final Map<String, String> updatedIndexMetaDataHashes = new HashMap<>(hashes);
-        updatedIndexMetaDataHashes.keySet().removeIf(
-            k -> updatedIndexMetaLookup.values().stream().noneMatch(hashes -> hashes.containsValue(k)));
-        return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaDataHashes);
+        final Map<String, String> updatedIndexMetaIdentifiers = new HashMap<>(identifiers);
+        updatedIndexMetaIdentifiers.keySet().removeIf(
+            k -> updatedIndexMetaLookup.values().stream().noneMatch(identifiers -> identifiers.containsValue(k)));
+        return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hashes, lookup);
+        return Objects.hash(identifiers, lookup);
     }
 
     @Override
@@ -161,57 +151,24 @@ public final class IndexMetaDataGenerations {
             return false;
         }
         final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
-        return lookup.equals(other.lookup) && hashes.equals(other.hashes);
+        return lookup.equals(other.lookup) && identifiers.equals(other.identifiers);
     }
 
     @Override
     public String toString() {
-        return "IndexMetaDataGenerations{lookup:" + lookup + "}{hashes:" + hashes + "}";
+        return "IndexMetaDataGenerations{lookup:" + lookup + "}{identifier:" + identifiers + "}";
     }
 
     /**
-     * Serialize and return the hex encoded SHA256 of {@link IndexMetaData}.
+     * Compute identifier for {@link IndexMetaData} from its index uuid as well as its settings-, mapping- and alias-version.
+     * If an index did not see a change in its settings, mappings or aliases between two points in time then the identifier will not change
+     * between them either.
      *
      * @param indexMetaData IndexMetaData
-     * @return hex encoded SHA-256
+     * @return identifier string
      */
-    public static String hashIndexMetaData(IndexMetaData indexMetaData) {
-        // Remove primary terms and version from the metadata to get a consistent hash across allocation changes
-        final IndexMetaData.Builder normalized = IndexMetaData.builder(indexMetaData).version(1L);
-        for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-            normalized.primaryTerm(i, 1L);
-        }
-        // IndexMetaData is serialized as a number of nested maps without any ordering guarantees. To get a consistent hash we first turn
-        // it into a nested tree-map to get deterministic ordering across all fields and then hash the nested tree-map
-        // TODO: Do the conversion of metadata to map more efficiently without the serialization round-trip
-        final Map<String, Object> normalizedMap = deepSort(
-            XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(normalized.build()), true));
-        MessageDigest digest = MessageDigests.sha256();
-        try (StreamOutput hashOut = new OutputStreamStreamOutput(new OutputStream() {
-            @Override
-            public void write(int b) {
-                digest.update((byte) b);
-            }
-
-            @Override
-            public void write(byte[] b, int off, int len) {
-                digest.update(b, off, len);
-            }
-        })) {
-            hashOut.writeMap(normalizedMap);
-        } catch (IOException e) {
-            throw new AssertionError("No actual IO happens here", e);
-        }
-        return MessageDigests.toHexString(digest.digest());
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> deepSort(Map<String, Object> map) {
-        final TreeMap<String, Object> result = new TreeMap<>();
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            final Object value = entry.getValue();
-            result.put(entry.getKey(), value instanceof Map ? deepSort((Map<String, Object>) value) : value);
-        }
-        return result;
+    public static String buildUniqueIdentifier(IndexMetaData indexMetaData) {
+        return indexMetaData.getIndexUUID() + "-" + indexMetaData.getSettingsVersion() + "-"
+            + indexMetaData.getMappingVersion() + "-" + indexMetaData.getAliasesVersion();
     }
 }

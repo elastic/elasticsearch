@@ -9,7 +9,7 @@ IMPORTANT: Elastic does not endorse, promote or provide support for this applica
 
 ==== Prerequisites
 
-* SQL Workbench/J build 125 or higher
+* https://www.sql-workbench.eu/[SQL Workbench/J] build 125 or higher
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== Add {es} JDBC driver

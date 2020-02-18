@@ -9,7 +9,7 @@ IMPORTANT: Elastic does not endorse, promote or provide support for this applica
 
 ==== Prerequisites
 
-* SQuirreL SQL version 4.0.0 or higher
+* http://squirrel-sql.sourceforge.net/[SQuirreL SQL] version 4.0.0 or higher
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== Add {es} JDBC Driver

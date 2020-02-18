@@ -561,10 +561,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
         String name = this.name != null ? this.name : pft.name();
         QueryShardContext percolateShardContext = wrap(context);
-        percolateShardContext.setAllowUnmappedFields(false);
-        percolateShardContext.setMapUnmappedFieldAsString(pft.mapUnmappedFieldsAsText);
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField,
-            percolateShardContext);
+            percolateShardContext,
+            pft.mapUnmappedFieldsAsText);
 
         return pft.percolateQuery(name, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
@@ -607,7 +606,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType,
-                                                 QueryShardContext context) {
+                                                 QueryShardContext context,
+                                                 boolean mapUnmappedFieldsAsString) {
         Version indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
@@ -633,6 +633,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             assert valueLength > 0;
                             QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                             assert in.read() == -1;
+                            PercolatorFieldMapper.configureContext(context, mapUnmappedFieldsAsString);
+                            // TODO: we are not rewriting here to avoid date ranges to be rewritten, but this likely causes other bugs
                             return queryBuilder.toQuery(context);
                         }
                     }

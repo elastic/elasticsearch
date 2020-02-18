@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
@@ -41,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalDouble;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 
@@ -138,12 +136,14 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             throw ExceptionsHelper.badRequestException(
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
         }
-        List<Double> inferenceResults = this.models.stream().map(model -> {
+        double[][] inferenceResults = new double[this.models.size()][];
+        int i = 0;
+        for (TrainedModel model : models) {
             InferenceResults results = model.infer(fields, NullInferenceConfig.INSTANCE);
-            assert results instanceof SingleValueInferenceResults;
-            return ((SingleValueInferenceResults)results).value();
-        }).collect(Collectors.toList());
-        List<Double> processed = outputAggregator.processValues(inferenceResults);
+            assert results instanceof RawInferenceResults;
+            inferenceResults[i++] = ((RawInferenceResults)results).getValue();
+        }
+        double[] processed = outputAggregator.processValues(inferenceResults);
         return buildResults(processed, config);
     }
 
@@ -152,17 +152,17 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return targetType;
     }
 
-    private InferenceResults buildResults(List<Double> processedInferences, InferenceConfig config) {
+    private InferenceResults buildResults(double[] processedInferences, InferenceConfig config) {
         // Indicates that the config is useless and the caller just wants the raw value
         if (config instanceof NullInferenceConfig) {
-            return new RawInferenceResults(outputAggregator.aggregate(processedInferences));
+            return new RawInferenceResults(new double[] {outputAggregator.aggregate(processedInferences)});
         }
         switch(targetType) {
             case REGRESSION:
                 return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences), config);
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
-                assert classificationWeights == null || processedInferences.size() == classificationWeights.length;
+                assert classificationWeights == null || processedInferences.length == classificationWeights.length;
                 // Adjust the probabilities according to the thresholds
                 Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
                     processedInferences,

@@ -110,7 +110,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public void testInferWithStump() {
         Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
-        builder.setRoot(TreeNode.builder(0).setLeafValue(42.0));
+        builder.setRoot(TreeNode.builder(0).setLeafValue(Collections.singletonList(42.0)));
         builder.setFeatureNames(Collections.emptyList());
 
         Tree tree = builder.build();

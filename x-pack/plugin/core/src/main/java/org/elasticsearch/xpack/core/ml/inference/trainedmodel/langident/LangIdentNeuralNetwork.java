@@ -29,7 +29,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
@@ -125,7 +124,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         double[] h0 = hiddenLayer.productPlusBias(false, embeddedVector);
         double[] scores = softmaxLayer.productPlusBias(true, h0);
 
-        List<Double> probabilities = softMax(Arrays.stream(scores).boxed().collect(Collectors.toList()));
+        double[] probabilities = softMax(scores);
 
         ClassificationConfig classificationConfig = (ClassificationConfig) config;
         Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(

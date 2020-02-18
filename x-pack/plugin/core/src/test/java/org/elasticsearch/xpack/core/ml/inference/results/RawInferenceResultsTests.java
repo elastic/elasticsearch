@@ -5,22 +5,33 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
-public class RawInferenceResultsTests extends AbstractWireSerializingTestCase<RawInferenceResults> {
+import java.util.Arrays;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+
+public class RawInferenceResultsTests extends ESTestCase {
 
     public static RawInferenceResults createRandomResults() {
-        return new RawInferenceResults(randomDouble());
+        int n = randomIntBetween(1, 10);
+        double[] results = new double[n];
+        for (int i = 0; i < n; i++) {
+            results[i] = randomDouble();
+        }
+        return new RawInferenceResults(results);
     }
 
-    @Override
-    protected RawInferenceResults createTestInstance() {
-        return createRandomResults();
+    public void testEqualityAndHashcode() {
+        int n = randomIntBetween(1, 10);
+        double[] results = new double[n];
+        for (int i = 0; i < n; i++) {
+            results[i] = randomDouble();
+        }
+        RawInferenceResults lft = new RawInferenceResults(results);
+        RawInferenceResults rgt = new RawInferenceResults(Arrays.copyOf(results, n));
+        assertThat(lft, equalTo(rgt));
+        assertThat(lft.hashCode(), equalTo(rgt.hashCode()));
     }
 
-    @Override
-    protected Writeable.Reader<RawInferenceResults> instanceReader() {
-        return RawInferenceResults::new;
-    }
 }

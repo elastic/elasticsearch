@@ -5,28 +5,28 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
-import java.util.Objects;
+import java.util.Arrays;
 
-public class RawInferenceResults extends SingleValueInferenceResults {
+public class RawInferenceResults implements InferenceResults {
 
     public static final String NAME = "raw";
 
-    public RawInferenceResults(double value) {
-        super(value);
+    private final double[] value;
+    public RawInferenceResults(double[] value) {
+        this.value = value;
     }
 
-    public RawInferenceResults(StreamInput in) throws IOException {
-        super(in.readDouble());
+    public double[] getValue() {
+        return value;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        throw new UnsupportedOperationException("[raw] does not support wire serialization");
     }
 
     @Override
@@ -34,12 +34,12 @@ public class RawInferenceResults extends SingleValueInferenceResults {
         if (object == this) { return true; }
         if (object == null || getClass() != object.getClass()) { return false; }
         RawInferenceResults that = (RawInferenceResults) object;
-        return Objects.equals(value(), that.value());
+        return Arrays.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value());
+        return Arrays.hashCode(value);
     }
 
     @Override

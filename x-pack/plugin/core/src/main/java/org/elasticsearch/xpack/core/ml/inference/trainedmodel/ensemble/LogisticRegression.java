@@ -78,31 +78,29 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
     }
 
     @Override
-    public List<Double> processValues(List<Double> values) {
+    public double[] processValues(double[][] values) {
         Objects.requireNonNull(values, "values must not be null");
-        if (weights != null && values.size() != weights.length) {
+        assert values[0].length == 1;
+        if (weights != null && values.length != weights.length) {
             throw new IllegalArgumentException("values must be the same length as weights.");
         }
         double summation = weights == null ?
-            values.stream().mapToDouble(Double::valueOf).sum() :
-            IntStream.range(0, weights.length).mapToDouble(i -> values.get(i) * weights[i]).sum();
+            Arrays.stream(values).mapToDouble(vs -> vs[0]).sum() :
+            IntStream.range(0, weights.length).mapToDouble(i -> values[i][0] * weights[i]).sum();
         double probOfClassOne = sigmoid(summation);
         assert 0.0 <= probOfClassOne && probOfClassOne <= 1.0;
-        return Arrays.asList(1.0 - probOfClassOne, probOfClassOne);
+        return new double[] {1.0 - probOfClassOne, probOfClassOne};
     }
 
     @Override
-    public double aggregate(List<Double> values) {
+    public double aggregate(double[] values) {
         Objects.requireNonNull(values, "values must not be null");
-        assert values.size() == 2;
+        assert values.length == 2;
         int bestValue = 0;
         double bestProb = Double.NEGATIVE_INFINITY;
-        for (int i = 0; i < values.size(); i++) {
-            if (values.get(i) == null) {
-                throw new IllegalArgumentException("values must not contain null values");
-            }
-            if (values.get(i) > bestProb) {
-                bestProb = values.get(i);
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] > bestProb) {
+                bestProb = values[i];
                 bestValue = i;
             }
         }

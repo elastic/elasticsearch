@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -126,7 +127,12 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             return;
         }
 
-        deleteIndicesAndPolicy(request.getName(), ActionListener.wrap((response) -> {
+        GetIndexRequest indices = new GetIndexRequest().indices(EnrichPolicy.getBaseName(request.getName()) + "-*")
+            .indicesOptions(IndicesOptions.lenientExpand());
+
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, indices);
+
+        deleteIndicesAndPolicy(concreteIndices, request.getName(), ActionListener.wrap((response) -> {
             enrichPolicyLocks.releasePolicy(request.getName());
             listener.onResponse(response);
         }, (exc) -> {
@@ -135,10 +141,15 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
         }));
     }
 
-    private void deleteIndicesAndPolicy(String name, ActionListener<AcknowledgedResponse> listener) {
-        // delete all enrich indices for this policy
-        DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(EnrichPolicy.getBaseName(name) + "-*")
-            .indicesOptions(LENIENT_OPTIONS);
+    private void deleteIndicesAndPolicy(String[] indices, String name, ActionListener<AcknowledgedResponse> listener) {
+        if (indices.length == 0) {
+            deletePolicy(name, listener);
+            return;
+        }
+
+        // delete all enrich indices for this policy, we delete concrete indices here but not a wildcard index expression
+        // as the setting 'action.destructive_requires_name' may be set to true
+        DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(indices).indicesOptions(LENIENT_OPTIONS);
 
         client.admin().indices().delete(deleteRequest, ActionListener.wrap((response) -> {
             if (response.isAcknowledged() == false) {

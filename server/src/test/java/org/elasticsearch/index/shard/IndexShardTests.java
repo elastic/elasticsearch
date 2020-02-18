@@ -1123,20 +1123,29 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // initialize the local knowledge on the primary of the persisted global checkpoint on the primary
         primaryShard.updateGlobalCheckpointForShard(shardRouting.allocationId().getId(), primaryShard.getLastKnownGlobalCheckpoint());
-
+        PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
+        primaryShard.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, "test");
+        Releasable permit = permitFuture.actionGet();
         // simulate a background maybe sync; it should only run if the knowledge on the replica of the global checkpoint lags the primary
         primaryShard.maybeSyncGlobalCheckpoint("test");
         assertThat(
                 synced.get(),
                 equalTo(maxSeqNo == primaryShard.getLastKnownGlobalCheckpoint() && (replicaGlobalCheckpoint < checkpoint)));
-
+        permit.close();
+        if (synced.get() == false) {
+            primaryShard.maybeSyncGlobalCheckpoint("test");
+            assertTrue(synced.get());
+        }
         // simulate that the background sync advanced the global checkpoint on the replica
         primaryShard.updateGlobalCheckpointForShard(replicaAllocationId, primaryShard.getLastKnownGlobalCheckpoint());
 
+        primaryShard.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, "test");
+        permit = permitFuture.actionGet();
         // reset our boolean so that we can assert after another simulated maybe sync
         synced.set(false);
 
         primaryShard.maybeSyncGlobalCheckpoint("test");
+        permit.close();
 
         // this time there should not be a sync since all the replica copies are caught up with the primary
         assertFalse(synced.get());

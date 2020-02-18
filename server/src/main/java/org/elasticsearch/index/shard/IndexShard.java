@@ -2276,8 +2276,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         // only sync if there are no operations in flight, or when using async durability
         final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        final int inFlightOperations = indexShardOperationPermits.getActiveOperationsCount();
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
-        if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
+        if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability || inFlightOperations == 0) {
             final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
             final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
             // async durability means that the local checkpoint might lag (as it is only advanced on fsync)
@@ -2290,7 +2291,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // check if the persisted global checkpoint
                     || StreamSupport
                             .stream(globalCheckpoints.values().spliterator(), false)
-                            .anyMatch(v -> v.value < globalCheckpoint);
+                            .anyMatch(v -> v.value < globalCheckpoint)
+                    || (inFlightOperations == 0 && globalCheckpoint < stats.getMaxSeqNo());
             // only sync if index is not closed and there is a shard lagging the primary
             if (syncNeeded && indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN) {
                 logger.trace("syncing global checkpoint for [{}]", reason);

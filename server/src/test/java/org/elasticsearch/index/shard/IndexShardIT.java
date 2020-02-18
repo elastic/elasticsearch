@@ -325,6 +325,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testMaybeFlush() throws Exception {
         createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(between(100, 200)))
             .build());
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -349,7 +350,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             assertFalse(shard.shouldPeriodicallyFlush());
             assertThat(shard.flushStats().getPeriodic(), greaterThan(0L));
         });
-        shard.sync();
+
+        assertBusy(() -> assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(2L)));
         assertEquals(0, translog.stats().getUncommittedOperations());
         long size = Math.max(translog.stats().getUncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
@@ -369,7 +371,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 commitStats.getUserData(), flushStats.getPeriodic(), flushStats.getTotal());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
-        shard.sync();
+        assertBusy(() -> assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(3L)));
         assertEquals(0, translog.stats().getUncommittedOperations());
     }
 

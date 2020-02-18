@@ -57,7 +57,7 @@ public class AllocationDeciders extends AllocationDecider {
                     ret.add(decision);
                 }
             } else {
-                addDebugDecision(ret, decision, allocation);
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -84,7 +84,7 @@ public class AllocationDeciders extends AllocationDecider {
                     ret.add(decision);
                 }
             } else {
-                addDebugDecision(ret, decision, allocation);
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -113,7 +113,7 @@ public class AllocationDeciders extends AllocationDecider {
                     ret.add(decision);
                 }
             } else {
-                addDebugDecision(ret, decision, allocation);
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -132,7 +132,7 @@ public class AllocationDeciders extends AllocationDecider {
                     ret.add(decision);
                 }
             } else {
-                addDebugDecision(ret, decision, allocation);
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -151,7 +151,7 @@ public class AllocationDeciders extends AllocationDecider {
                     ret.add(decision);
                 }
             } else {
-                addDebugDecision(ret, decision, allocation);
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -170,7 +170,7 @@ public class AllocationDeciders extends AllocationDecider {
                     ret.add(decision);
                 }
             } else {
-                addDebugDecision(ret, decision, allocation);
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -189,7 +189,7 @@ public class AllocationDeciders extends AllocationDecider {
                     ret.add(decision);
                 }
             } else {
-                addDebugDecision(ret, decision, allocation);
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -208,7 +208,7 @@ public class AllocationDeciders extends AllocationDecider {
                     ret.add(decision);
                 }
             } else {
-                addDebugDecision(ret, decision, allocation);
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -236,13 +236,14 @@ public class AllocationDeciders extends AllocationDecider {
                     ret.add(decision);
                 }
             } else {
-                addDebugDecision(ret, decision, allocation);
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
     }
 
-    private void addDebugDecision(Decision.Multi ret, Decision decision, RoutingAllocation allocation) {
+    private void addDecision(Decision.Multi ret, Decision decision, RoutingAllocation allocation) {
+        // We never add ALWAYS decisions and only add YES decisions when requested by debug mode (since Multi default is YES).
         if (decision != Decision.ALWAYS
             && (allocation.getDebugMode() == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {
             ret.add(decision);

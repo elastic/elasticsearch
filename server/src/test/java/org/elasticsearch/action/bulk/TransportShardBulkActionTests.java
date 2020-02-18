@@ -876,7 +876,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
             final CountDownLatch latch = new CountDownLatch(1);
             TransportShardBulkAction.performOnPrimary(
-                bulkShardRequest, shard, null, rejectingThreadPool::absoluteTimeInMillis, (update, shardId, listener) -> {
+                bulkShardRequest, shard, null, rejectingThreadPool::absoluteTimeInMillis, (update, shardId, type, listener) -> {
                     // There should indeed be a mapping update
                     assertNotNull(update);
                     updateCalled.incrementAndGet();

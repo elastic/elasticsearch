@@ -338,6 +338,49 @@ public final class EncryptedRepository extends BlobStoreRepository {
         }
     }
 
+    private DeleteResult cleanUnreferencedEncryptionMetadata(EncryptedBlobContainer blobContainer) throws IOException {
+        Map<String, BlobMetaData> allMetadataBlobs = blobContainer.encryptionMetadataBlobContainer.listBlobs();
+        Map<String, BlobMetaData> allDataBlobs = blobContainer.delegatedBlobContainer.listBlobs();
+        // map from the data blob name to all the associated metadata
+        Map<String, List<Tuple<MetadataIdentifier, String>>> metaDataByBlobName = new HashMap<>();
+        List<String> metadataBlobsToDelete = new ArrayList<>();
+        for (String metadataBlobName : allMetadataBlobs.keySet()) {
+            final Tuple<String, MetadataIdentifier> blobNameAndMetaId;
+            try {
+                blobNameAndMetaId = MetadataIdentifier.parseFromMetadataBlobName(metadataBlobName);
+            } catch (IllegalArgumentException e) {
+                // ignore invalid metadata blob names, which most likely have been created externally
+                continue;
+            }
+            if (false == allDataBlobs.containsKey(blobNameAndMetaId.v1()) && blobNameAndMetaId.v2().repositoryGeneration < latestKnownRepoGen.get()) {
+                // the data blob for this metadata blob is not going to appear, the repo moved to a new generation, which means that a
+                // "parent" blob of it appeared
+                metadataBlobsToDelete.add(blobNameAndMetaId.v1());
+            }
+            // group metadata blobs by their associated blob name
+            metaDataByBlobName.putIfAbsent(blobNameAndMetaId.v1(), new ArrayList<>()).add(new Tuple<>(blobNameAndMetaId.v2(),
+                    metadataBlobName));
+        }
+        metaDataByBlobName.entrySet().forEach(entry -> {
+            if (entry.getValue().size() > 1) {
+                // if there are multiple versions of the metadata, then remove ones created in olden repository generations
+                // since overwrites cannot happen across repository generations
+                long maxRepositoryGeneration =
+                        entry.getValue().stream().map(meta -> meta.v1().repositoryGeneration).max(Long::compare).get();
+                entry.getValue().forEach(meta -> {
+                    if (meta.v1().repositoryGeneration < maxRepositoryGeneration) {
+                        metadataBlobsToDelete.add(meta.v2());
+                    }
+                });
+            }
+        });
+        logger.info("[{}] Found unreferenced metadata blobs {} at path {}. Cleaning them up", metadata.name(), metadataBlobsToDelete,
+                blobContainer.encryptionMetadataBlobContainer.path());
+        blobContainer().deleteBlobsIgnoringIfNotExists(metadataBlobsToDelete);
+        return new DeleteResult(metadataBlobsToDelete.size(),
+                metadataBlobsToDelete.stream().mapToLong(name -> allMetadataBlobs.get(name).length()).sum());
+    }
+
     private static class EncryptedBlobStore implements BlobStore {
 
         private final BlobStore delegatedBlobStore;
@@ -539,9 +582,9 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
             // find all the metadata blob names that must be deleted
             Map<String, List<String>> blobNamesToMetadataNamesToDelete = new HashMap<>(blobNamesToDelete.size());
-            Set<String> allMetadataBlobs = new HashSet<>();
+            Set<String> allMetadataBlobNames = new HashSet<>();
             try {
-                allMetadataBlobs = encryptionMetadataBlobContainer.listBlobs().keySet();
+                allMetadataBlobNames = encryptionMetadataBlobContainer.listBlobs().keySet();
             } catch (IOException e) {
                 // the metadata blob container might not even exist
                 // the encrypted data is the "anchor" for encrypted blobs, if those are removed, the encrypted blob as a whole is
@@ -549,7 +592,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 // therefore this tolerates metadata delete failures, when data deletes are successful
                 logger.warn("Failure to list blobs of metadata blob container " + encryptionMetadataBlobContainer.path(), e);
             }
-            for (String metadataBlobName : allMetadataBlobs) {
+            for (String metadataBlobName : allMetadataBlobNames) {
                 final String blobNameForMetadata;
                 try {
                     blobNameForMetadata = MetadataIdentifier.parseFromMetadataBlobName(metadataBlobName).v1();
@@ -570,6 +613,9 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 if (entry.getValue().size() == 1) {
                     metadataBlobNamesToDelete.add(entry.getValue().get(0));
                 }
+                // technically, duplicate metadata written during olden repository generations could be removed here as well,
+                // but this code should not be aware of what a repository generation is, so let the metadata linger, it will
+                // be garbage collected by cleanup
             });
 
             // then delete the encrypted data blobs

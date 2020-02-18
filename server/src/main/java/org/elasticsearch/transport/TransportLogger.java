@@ -76,6 +76,7 @@ public final class TransportLogger {
                 final boolean isRequest = TransportStatus.isRequest(status);
                 final String type = isRequest ? "request" : "response";
                 Version version = Version.fromId(streamInput.readInt());
+                streamInput.setVersion(version);
                 sb.append(" [length: ").append(messageLengthWithHeader);
                 sb.append(", request id: ").append(requestId);
                 sb.append(", type: ").append(type);

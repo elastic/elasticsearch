@@ -115,6 +115,7 @@ public class SamlAuthnRequestValidator {
                         logAndRespond(
                             new ParameterizedMessage("Unable to validate signature of authentication request [{}] using credentials [{}]",
                             queryString, SamlUtils.describeCredentials(Collections.singletonList(sp.getSigningCredential()))), listener);
+                        return;
                     }
                 } else if (Strings.hasText(sigAlg)) {
                     logAndRespond(new ParameterizedMessage("Query string [{}] contains a SigAlg parameter but Signature is missing",

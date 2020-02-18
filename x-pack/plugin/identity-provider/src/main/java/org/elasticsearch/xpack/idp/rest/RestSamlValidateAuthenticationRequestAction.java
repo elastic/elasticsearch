@@ -37,7 +37,7 @@ public class RestSamlValidateAuthenticationRequestAction extends BaseRestHandler
 
     @Override
     public String getName() {
-        return "idp_validate_authn_request_action";
+        return "saml_idp_validate_authn_request_action";
     }
 
     @Override

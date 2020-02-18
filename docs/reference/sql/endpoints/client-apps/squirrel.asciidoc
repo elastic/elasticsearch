@@ -3,10 +3,7 @@
 [[sql-client-apps-squirrel]]
 === SQuirreL SQL
 
-[quote, http://squirrel-sql.sourceforge.net/]
-____
-http://squirrel-sql.sourceforge.net/[SQuirreL SQL] is a graphical, [multi-platform] Java program that will allow you to view the structure of a JDBC compliant database [...].
-____
+You can use the {es} JDBC driver to access {es} data from SQuirreL SQL.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 

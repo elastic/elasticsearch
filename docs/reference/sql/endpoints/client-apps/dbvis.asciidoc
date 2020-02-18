@@ -3,10 +3,7 @@
 [[sql-client-apps-dbvis]]
 === DbVisualizer
 
-[quote, http://www.dbvis.com/]
-____
-https://www.dbvis.com/[DbVisualizer] is a database management and analysis tool for all major databases.
-____
+You can use the {es} JDBC driver to access {es} data from DbVisualizer.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 

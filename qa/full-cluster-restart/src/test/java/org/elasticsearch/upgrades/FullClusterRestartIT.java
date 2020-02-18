@@ -36,13 +36,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
-
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -1343,7 +1341,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertFalse((Boolean) healthRsp.get("timed_out"));
     }
 
-    public void testPeerRecoveryRetentionLeases() throws IOException {
+    public void testPeerRecoveryRetentionLeases() throws Exception {
         assumeTrue(getOldClusterVersion() + " does not support soft deletes", getOldClusterVersion().onOrAfter(Version.V_6_5_0));
         if (isRunningAgainstOldCluster()) {
             XContentBuilder settings = jsonBuilder();
@@ -1363,11 +1361,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(settings));
             client().performRequest(createIndex);
-            ensureGreen(index);
-        } else {
-            ensureGreen(index);
-            RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index);
         }
+        ensureGreen(index);
+        ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
     }
 
     /**

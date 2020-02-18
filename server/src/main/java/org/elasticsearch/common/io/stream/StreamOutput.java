@@ -1139,22 +1139,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
-     *
-     * @param collection the collection of strings
-     * @throws IOException if an I/O exception occurs writing the collection
-     */
-    public void writeOptionalStringCollection(final Collection<String> collection) throws IOException {
-        if (collection != null) {
-            writeBoolean(true);
-            writeCollection(collection, StreamOutput::writeString);
-        } else {
-            writeBoolean(false);
-        }
-    }
-
-    /**
      * Writes a list of {@link NamedWriteable} objects.
      */
     public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {

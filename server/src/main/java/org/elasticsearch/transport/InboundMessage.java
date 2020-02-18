@@ -62,6 +62,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 long requestId = streamInput.readLong();
                 byte status = streamInput.readByte();
                 Version remoteVersion = Version.fromId(streamInput.readInt());
+                streamInput.setVersion(remoteVersion);
                 final boolean isHandshake = TransportStatus.isHandshake(status);
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
 

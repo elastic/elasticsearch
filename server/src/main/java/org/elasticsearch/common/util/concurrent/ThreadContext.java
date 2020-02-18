@@ -272,7 +272,7 @@ public final class ThreadContext implements Writeable {
 
     public static List<String> readAllowedSystemIndices(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO update version on backport
-            return in.readOptionalStringList();
+            return in.readStringList();
         } else {
             return emptyList();
         }
@@ -654,7 +654,7 @@ public final class ThreadContext implements Writeable {
 
             out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO update version on backport
-                out.writeOptionalStringCollection(allowedSystemIndexPatterns);
+                out.writeStringCollection(allowedSystemIndexPatterns);
             }
         }
     }

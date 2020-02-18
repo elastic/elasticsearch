@@ -5,14 +5,11 @@
 
 beta[]
 
-[quote, https://dbeaver.io/]
-____
-https://dbeaver.io/[DBeaver] DBeaver is free and open source universal database tool for developers and database administrators.
-____
+You can use the {es} JDBC driver to access {es} data from DBeaver.
 
 ==== Prerequisites
 
-* DBeaver version 5.1.4 or higher
+* https://dbeaver.io/[DBeaver] version 5.1.4 or higher
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== New Connection

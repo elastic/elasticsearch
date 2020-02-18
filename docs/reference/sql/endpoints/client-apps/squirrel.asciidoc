@@ -5,13 +5,11 @@
 
 beta[]
 
-[quote, http://squirrel-sql.sourceforge.net/]
-____
-http://squirrel-sql.sourceforge.net/[SQuirreL SQL] is a graphical, [multi-platform] Java program that will allow you to view the structure of a JDBC compliant database [...].
-____
+You can use the {es} JDBC driver to access {es} data from SQuirreL SQL.
 
 ==== Prerequisites
 
+* http://squirrel-sql.sourceforge.net/[SQuirreL SQL]
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== Add {es} JDBC Driver

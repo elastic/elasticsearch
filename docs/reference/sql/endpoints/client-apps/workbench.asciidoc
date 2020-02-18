@@ -5,13 +5,11 @@
 
 beta[]
 
-[quote, https://www.sql-workbench.eu/]
-____
-https://www.sql-workbench.eu/[SQL Workbench/J] is a free, DBMS-independent, cross-platform SQL query tool.
-____
+You can use the {es} JDBC driver to access {es} data from SQL Workbench/J.
 
 ==== Prerequisites
 
+* https://www.sql-workbench.eu/[SQL Workbench/J]
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== Add {es} JDBC driver

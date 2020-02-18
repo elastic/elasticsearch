@@ -5,13 +5,11 @@
 
 beta[]
 
-[quote, http://www.dbvis.com/]
-____
-https://www.dbvis.com/[DbVisualizer] is a database management and analysis tool for all major databases.
-____
+You can use the {es} JDBC driver to access {es} data from DbVisualizer.
 
 ==== Prerequisites
 
+* https://www.dbvis.com/[DbVisualizer]
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== Add {es} JDBC driver

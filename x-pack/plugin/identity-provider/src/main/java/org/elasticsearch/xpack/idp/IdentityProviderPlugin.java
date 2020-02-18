@@ -31,7 +31,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
+import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
@@ -39,11 +41,12 @@ import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestActio
 import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
+import org.elasticsearch.xpack.idp.saml.rest.action.RestPutSamlServiceProviderAction;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -106,17 +109,19 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
         SamlInit.initialize();
         CloudIdp idp = new CloudIdp(environment, settings);
-        return List.of();
+        SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
+        return List.of(index);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
-            return Collections.emptyList();
+            return List.of();
         }
         return List.of(
             new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
-            new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class)
+            new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
+            new ActionHandler<>(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class)
         );
     }
 
@@ -126,11 +131,13 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
-            return Collections.emptyList();
+            return List.of();
         }
         return List.of(
             new RestSamlInitiateSingleSignOnAction(),
-            new RestSamlValidateAuthenticationRequestAction());
+            new RestSamlValidateAuthenticationRequestAction(),
+            new RestPutSamlServiceProviderAction()
+        );
     }
 
     @Override

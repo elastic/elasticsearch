@@ -11,6 +11,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,7 +44,7 @@ import java.util.stream.Collectors;
 /**
  * This class models the storage of a {@link SamlServiceProvider} as an Elasticsearch document.
  */
-public class SamlServiceProviderDocument implements ToXContentObject {
+public class SamlServiceProviderDocument implements ToXContentObject, Writeable {
 
     public static class Privileges {
         @Nullable
@@ -49,7 +52,7 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         public String resource;
         @Nullable
         public String loginAction;
-        public Map<String, String> groupActions;
+        public Map<String, String> groupActions = Map.of();
 
         public void setApplication(String application) {
             this.application = application;
@@ -225,6 +228,7 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         }
     }
 
+    @Nullable
     public String docId;
 
     public String name;
@@ -237,7 +241,6 @@ public class SamlServiceProviderDocument implements ToXContentObject {
     public Instant created;
     public Instant lastModified;
 
-    @Nullable
     public Set<String> nameIdFormats = Set.of();
 
     @Nullable
@@ -246,6 +249,68 @@ public class SamlServiceProviderDocument implements ToXContentObject {
     public final Privileges privileges = new Privileges();
     public final AttributeNames attributeNames = new AttributeNames();
     public final Certificates certificates = new Certificates();
+
+    public SamlServiceProviderDocument() {
+    }
+
+    public SamlServiceProviderDocument(StreamInput in) throws IOException {
+        docId = in.readOptionalString();
+        name = in.readString();
+        entityId = in.readString();
+        acs = in.readString();
+        enabled = in.readBoolean();
+        created = in.readInstant();
+        lastModified = in.readInstant();
+        nameIdFormats = in.readSet(StreamInput::readString);
+        authenticationExpiryMillis = in.readBoolean() ? in.readVLong() : null;
+
+        privileges.application = in.readOptionalString();
+        privileges.resource = in.readString();
+        privileges.loginAction = in.readOptionalString();
+        privileges.groupActions = in.readMap(StreamInput::readString, StreamInput::readString);
+
+        attributeNames.principal = in.readString();
+        attributeNames.email = in.readOptionalString();
+        attributeNames.name = in.readOptionalString();
+        attributeNames.groups = in.readOptionalString();
+
+        certificates.serviceProviderSigning = in.readStringList();
+        certificates.identityProviderSigning = in.readStringList();
+        certificates.identityProviderMetadataSigning = in.readStringList();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(docId);
+        out.writeString(name);
+        out.writeString(entityId);
+        out.writeString(acs);
+        out.writeBoolean(enabled);
+        out.writeInstant(created);
+        out.writeInstant(lastModified);
+        out.writeCollection(nameIdFormats, StreamOutput::writeString);
+        if (authenticationExpiryMillis == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVLong(authenticationExpiryMillis);
+        }
+
+        out.writeOptionalString(privileges.application);
+        out.writeString(privileges.resource);
+        out.writeOptionalString(privileges.loginAction);
+        out.writeMap(privileges.groupActions == null ? Map.of() : privileges.groupActions,
+            StreamOutput::writeString, StreamOutput::writeString);
+
+        out.writeString(attributeNames.principal);
+        out.writeOptionalString(attributeNames.email);
+        out.writeOptionalString(attributeNames.name);
+        out.writeOptionalString(attributeNames.groups);
+
+        out.writeStringCollection(certificates.serviceProviderSigning);
+        out.writeStringCollection(certificates.identityProviderSigning);
+        out.writeStringCollection(certificates.identityProviderMetadataSigning);
+    }
 
     public String getDocId() {
         return docId;
@@ -269,6 +334,10 @@ public class SamlServiceProviderDocument implements ToXContentObject {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public void setCreated(Instant created) {
+        this.created = created;
     }
 
     public void setCreatedMillis(Long millis) {
@@ -435,7 +504,7 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         return builder.endObject();
     }
 
-    interface Fields {
+    public interface Fields {
         ParseField NAME = new ParseField("name");
         ParseField ENTITY_ID = new ParseField("entity_id");
         ParseField ACS = new ParseField("acs");
@@ -469,5 +538,10 @@ public class SamlServiceProviderDocument implements ToXContentObject {
             ParseField IDP_SIGNING = new ParseField("idp_signing");
             ParseField IDP_METADATA = new ParseField("idp_metadata");
         }
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{docId=" + docId + ", name=" + name + ", entityId=" + entityId + "}@" + hashCode();
     }
 }

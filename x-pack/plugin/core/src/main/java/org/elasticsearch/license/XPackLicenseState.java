@@ -8,8 +8,10 @@ package org.elasticsearch.license;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 
 /**
@@ -288,15 +291,16 @@ public class XPackLicenseState {
         }
     }
 
+    // State lock which will allow reading the state as long as an active write is not occurring.
+    private final ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
+    private final ReleasableLock readLock = new ReleasableLock(stateLock.readLock());
+    private final ReleasableLock writeLock = new ReleasableLock(stateLock.writeLock());
+
     private final List<LicenseStateListener> listeners;
     private final boolean isSecurityEnabled;
     private final boolean isSecurityExplicitlyEnabled;
 
-    // Since Status is the only field that can be updated, we do not need to synchronize access to
-    // XPackLicenseState. However, if status is read multiple times in a method, a local variable should be
-    // be used to avoid update races. If additional volatile state is added to XPackLicenseState, we may need
-    // to reintroduce synchronization.
-    private volatile Status status = new Status(OperationMode.TRIAL, true);
+    private Status status = new Status(OperationMode.TRIAL, true);
 
     public XPackLicenseState(Settings settings) {
         this.listeners = new CopyOnWriteArrayList<>();
@@ -325,7 +329,7 @@ public class XPackLicenseState {
      *                               trial was prior to this metadata being tracked (6.1)
      */
     void update(OperationMode mode, boolean active, @Nullable Version mostRecentTrialVersion) {
-        synchronized (this) {
+        try (Releasable lock = writeLock.acquire()) {
             status = new Status(mode, active);
         }
         listeners.forEach(LicenseStateListener::licenseStateChanged);
@@ -343,12 +347,16 @@ public class XPackLicenseState {
 
     /** Return the current license type. */
     public OperationMode getOperationMode() {
-        return status.mode;
+        try (Releasable lock = readLock.acquire()) {
+            return status.mode;
+        }
     }
 
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
-        return status.active;
+        try (Releasable lock = readLock.acquire()) {
+            return status.active;
+        }
     }
 
     /**
@@ -411,28 +419,30 @@ public class XPackLicenseState {
      * @return the type of realms that are enabled based on the license {@link OperationMode}
      */
     public AllowedRealmType allowedRealmType() {
-        // Local variable to avoid impact of a status change in between reads
-        Status currentStatus = this.status;
+        try (Releasable lock = readLock.acquire()) {
+            Status currentStatus = this.status;
 
-        final boolean isSecurityCurrentlyEnabled =
-            isSecurityEnabled(currentStatus.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-        if (isSecurityCurrentlyEnabled) {
-            switch (currentStatus.mode) {
-                case PLATINUM:
-                case ENTERPRISE:
-                case TRIAL:
-                    return AllowedRealmType.ALL;
-                case GOLD:
-                    return AllowedRealmType.DEFAULT;
-                case BASIC:
-                case STANDARD:
-                    return AllowedRealmType.NATIVE;
-                default:
-                    return AllowedRealmType.NONE;
+            final boolean isSecurityCurrentlyEnabled =
+                isSecurityEnabled(currentStatus.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+            if (isSecurityCurrentlyEnabled) {
+                switch (currentStatus.mode) {
+                    case PLATINUM:
+                    case ENTERPRISE:
+                    case TRIAL:
+                        return AllowedRealmType.ALL;
+                    case GOLD:
+                        return AllowedRealmType.DEFAULT;
+                    case BASIC:
+                    case STANDARD:
+                        return AllowedRealmType.NATIVE;
+                    default:
+                        return AllowedRealmType.NONE;
+                }
+            } else {
+                return AllowedRealmType.NONE;
             }
-        } else {
-            return AllowedRealmType.NONE;
         }
+
     }
 
     /**
@@ -653,7 +663,9 @@ public class XPackLicenseState {
      *  EQL is available for all license types except {@link OperationMode#MISSING}
      */
     public boolean isEqlAllowed() {
-        return status.active;
+        try (Releasable lock = readLock.acquire()) {
+            return status.active;
+        }
     }
 
     /**
@@ -715,17 +727,21 @@ public class XPackLicenseState {
     }
 
     public boolean isTrialLicense() {
-        return status.mode == OperationMode.TRIAL;
+        try (Releasable lock = readLock.acquire()) {
+            return status.mode == OperationMode.TRIAL;
+        }
     }
 
     /**
      * @return true if security is available to be used with the current license type
      */
     public boolean isSecurityAvailable() {
-        // Local variable to avoid impact of a status change in between reads
-        OperationMode mode = status.mode;
-        return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.STANDARD ||
+        try (Releasable lock = readLock.acquire()) {
+            // Local variable to avoid impact of a status change in between reads
+            OperationMode mode = status.mode;
+            return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.STANDARD ||
                 mode == OperationMode.TRIAL || mode == OperationMode.BASIC || mode == OperationMode.ENTERPRISE;
+        }
     }
 
     /**
@@ -737,12 +753,14 @@ public class XPackLicenseState {
      *         </ul>
      */
     public boolean isSecurityDisabledByLicenseDefaults() {
-        switch (status.mode) {
-            case TRIAL:
-            case BASIC:
-                return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+        try (Releasable lock = readLock.acquire()) {
+            switch (status.mode) {
+                case TRIAL:
+                case BASIC:
+                    return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+            }
+            return false;
         }
-        return false;
     }
 
     public static boolean isTransportTlsRequired(License license, Settings settings) {
@@ -811,13 +829,15 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        // Do not need to synchronize creation, because the only variable field "state" is volatile. The
-        // listeners field is a CopyOnWriteArrayList so it is thread safe to share.
-        return new XPackLicenseState(this);
+        try (Releasable lock = readLock.acquire()) {
+            return new XPackLicenseState(this);
+        }
     }
 
     private boolean isAllowedBySecurity() {
-        return isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+        try (Releasable lock = readLock.acquire()) {
+            return isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+        }
     }
 
     /**
@@ -832,16 +852,17 @@ public class XPackLicenseState {
      */
     private boolean isAllowedByLicenseAndSecurity(
         OperationMode minimumMode, boolean needSecurity, boolean needActive, boolean allowTrial) {
-        // Local variable to avoid impact of a status change in between reads
-        Status currentStatus = this.status;
+        try (Releasable lock = readLock.acquire()) {
+            Status currentStatus = this.status;
 
-        if (needSecurity && false == isSecurityEnabled(currentStatus.mode, isSecurityExplicitlyEnabled, isSecurityEnabled)) {
-            return false;
+            if (needSecurity && false == isSecurityEnabled(currentStatus.mode, isSecurityExplicitlyEnabled, isSecurityEnabled)) {
+                return false;
+            }
+            if (needActive && false == currentStatus.active) {
+                return false;
+            }
+            return isAllowedByOperationMode(currentStatus.mode, minimumMode, allowTrial);
         }
-        if (needActive && false == currentStatus.active) {
-            return false;
-        }
-        return isAllowedByOperationMode(currentStatus.mode, minimumMode, allowTrial);
     }
 
 }

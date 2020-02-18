@@ -110,7 +110,7 @@ public class TransportStartReindexTaskAction
         boolean storeTaskResult = request.getWaitForCompletion() == false;
         ReindexTaskParams job = new ReindexTaskParams(storeTaskResult, included);
 
-        ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest());
+        ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest(), request.isResilient());
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {
@@ -118,7 +118,7 @@ public class TransportStartReindexTaskAction
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> persistentTask) {
                         if (request.getWaitForCompletion()) {
-                            waitForReindexDone(persistentTask.getId(), listener);
+                            waitForReindexDone(persistentTask.getId(), request.isResilient(), listener);
                         } else {
                             waitForReindexTask(persistentTask.getId(), listener);
                         }
@@ -139,7 +139,7 @@ public class TransportStartReindexTaskAction
         });
     }
 
-    private void waitForReindexDone(String taskId, ActionListener<StartReindexTaskAction.Response> listener) {
+    private void waitForReindexDone(String taskId, boolean resilient, ActionListener<StartReindexTaskAction.Response> listener) {
         // TODO: Configurable timeout?
         persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexPredicate(true), null,
             new PersistentTasksService.WaitForPersistentTaskListener<ReindexTaskParams>() {
@@ -147,15 +147,20 @@ public class TransportStartReindexTaskAction
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> task) {
                     ReindexPersistentTaskState state = (ReindexPersistentTaskState) task.getState();
                     if (state.getStatus() == ReindexPersistentTaskState.Status.ASSIGNMENT_FAILED) {
-                        listener.onFailure(new ElasticsearchException("Reindexing failed. Task node could not assign itself as the "
-                            + "coordinating node in the " + ReindexIndexClient.REINDEX_ALIAS + " index"));
+                        if (resilient) {
+                            listener.onFailure(new ElasticsearchException("Resilient reindexing failed. New coordinating node could not " +
+                                "assign itself as the coordinating node in the " + ReindexIndexClient.REINDEX_ALIAS + " index"));
+                        } else {
+                            listener.onFailure(new ElasticsearchException("Non-resilient reindexing failed. Coordinating node failed and " +
+                                "fail-over is disabled in non-resilient mode"));
+                        }
                     } else if (state.getStatus() == ReindexPersistentTaskState.Status.DONE) {
                         reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
                             @Override
                             public void onResponse(ReindexTaskState taskState) {
                                 ReindexTaskStateDoc reindexState = taskState.getStateDoc();
                                 if (reindexState.getException() == null) {
-                                    listener.onResponse(new StartReindexTaskAction.Response(null, taskId,
+                                    listener.onResponse(new StartReindexTaskAction.Response(task.getId(), taskId,
                                         reindexState.getReindexResponse()));
                                 } else {
                                     Exception exception = reindexState.getException();
@@ -188,7 +193,7 @@ public class TransportStartReindexTaskAction
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> task) {
                     ReindexPersistentTaskState state = (ReindexPersistentTaskState) task.getState();
-                    listener.onResponse(new StartReindexTaskAction.Response(state.getEphemeralTaskId().toString(), taskId));
+                    listener.onResponse(new StartReindexTaskAction.Response(task.getId(), state.getEphemeralTaskId().toString()));
                 }
 
                 @Override

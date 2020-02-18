@@ -29,17 +29,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -49,9 +48,7 @@ public class RestNodesActionTests extends ESTestCase {
 
     @Before
     public void setUpAction() {
-        UsageService usageService = new UsageService();
-        action = new RestNodesAction(
-            new RestController(Collections.emptySet(), null, null, null, usageService));
+        action = new RestNodesAction();
     }
 
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {
@@ -69,15 +66,14 @@ public class RestNodesActionTests extends ESTestCase {
         action.buildTable(false, new FakeRestRequest(), clusterStateResponse, nodesInfoResponse, nodesStatsResponse);
     }
 
-    public void testCatNodesWithLocalDeprecationWarning() {
+    public void testCatNodesRejectsLocalParameter() {
+        assumeTrue("test is only needed in v8, can be removed in v9", Version.CURRENT.major == Version.V_7_0_0.major + 1);
         TestThreadPool threadPool = new TestThreadPool(RestNodesActionTests.class.getName());
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         FakeRestRequest request = new FakeRestRequest();
-        request.params().put("local", randomFrom("", "true", "false"));
-
-        action.doCatRequest(request, client);
-        assertWarnings(RestNodesAction.LOCAL_DEPRECATED_MESSAGE);
-
+        request.params().put("local", randomFrom("", "true", "false", randomAlphaOfLength(10)));
+        assertThat(expectThrows(IllegalArgumentException.class, () -> action.doCatRequest(request, client)).getMessage(),
+            is("parameter [local] is not supported"));
         terminate(threadPool);
     }
 }

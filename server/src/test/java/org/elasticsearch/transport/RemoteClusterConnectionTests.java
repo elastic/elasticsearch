@@ -56,7 +56,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -84,7 +83,6 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RemoteClusterConnectionTests extends ESTestCase {
@@ -519,7 +517,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     DiscoveryNode node = randomFrom(discoverableNodes);
                                     try {
                                         connection.getConnectionManager().getConnection(node);
-                                    } catch (NodeNotConnectedException e) {
+                                    } catch (NoSuchRemoteClusterException e) {
                                         // Ignore
                                     }
                                 }
@@ -546,51 +544,24 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     public void testGetConnection() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+             MockTransportService disconnectedTransport = startTransport("disconnected_node", knownNodes, Version.CURRENT)) {
 
-            DiscoveryNode connectedNode = seedTransport.getLocalDiscoNode();
-            assertThat(connectedNode, notNullValue());
-            knownNodes.add(connectedNode);
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            knownNodes.add(seedNode);
 
-            DiscoveryNode disconnectedNode = discoverableTransport.getLocalDiscoNode();
-            assertThat(disconnectedNode, notNullValue());
-            knownNodes.add(disconnectedNode);
+            DiscoveryNode disconnectedNode = disconnectedTransport.getLocalNode();
 
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
-                Transport.Connection seedConnection = new CloseableConnection() {
-                    @Override
-                    public DiscoveryNode getNode() {
-                        return connectedNode;
-                    }
-
-                    @Override
-                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                        throws TransportException {
-                        // no-op
-                    }
-                };
-
-                ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
-                StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
-
-                connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> connectedNode.equals(node));
-
-                connectionManager.addGetConnectionBehavior(connectedNode.getAddress(), (cm, discoveryNode) -> seedConnection);
-
-                connectionManager.addGetConnectionBehavior(disconnectedNode.getAddress(), (cm, discoveryNode) -> {
-                    throw new NodeNotConnectedException(discoveryNode, "");
-                });
-
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
-                Settings settings = buildRandomSettings(clusterAlias, addresses(connectedNode));
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, connectionManager)) {
+                Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
                     PlainActionFuture.get(fut -> connection.ensureConnected(ActionListener.map(fut, x -> null)));
                     for (int i = 0; i < 10; i++) {
                         //always a direct connection as the remote node is already connected
-                        Transport.Connection remoteConnection = connection.getConnection(connectedNode);
-                        assertSame(seedConnection, remoteConnection);
+                        Transport.Connection remoteConnection = connection.getConnection(seedNode);
+                        assertEquals(seedNode, remoteConnection.getNode());
                     }
                     for (int i = 0; i < 10; i++) {
                         // we don't use the transport service connection manager so we will get a proxy connection for the local node
@@ -599,7 +570,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         assertThat(remoteConnection.getNode(), equalTo(service.getLocalNode()));
                     }
                     for (int i = 0; i < 10; i++) {
-                        //always a proxy connection as the target node is not connected
+                        // always a proxy connection as the target node is not connected
                         Transport.Connection remoteConnection = connection.getConnection(disconnectedNode);
                         assertThat(remoteConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
                         assertThat(remoteConnection.getNode(), sameInstance(disconnectedNode));

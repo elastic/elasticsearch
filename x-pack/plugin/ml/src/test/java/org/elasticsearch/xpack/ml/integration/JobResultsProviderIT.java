@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -14,6 +17,8 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -29,10 +34,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -75,8 +81,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
@@ -106,9 +117,77 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
 
-        resultsPersisterService = new ResultsPersisterService(client(), clusterService, builder.build());
+        OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
+        resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, builder.build());
         auditor = new AnomalyDetectionAuditor(client(), "test_node");
         waitForMlTemplates();
+    }
+
+    public void testPutJob_CreatesResultsIndex() {
+
+        Job.Builder job1 = new Job.Builder("first_job");
+        job1.setAnalysisConfig(createAnalysisConfig("by_field_1", Collections.emptyList()));
+        job1.setDataDescription(new DataDescription.Builder());
+
+        // Put fist job. This should create the results index as it's the first job.
+        client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job1)).actionGet();
+
+        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        Map<String, Object> mappingProperties = getIndexMappingProperties(sharedResultsIndex);
+
+        // Assert mappings have a few fields from the template
+        assertThat(mappingProperties.keySet(), hasItems("anomaly_score", "bucket_count"));
+        // Assert mappings have the by field
+        assertThat(mappingProperties.keySet(), hasItem("by_field_1"));
+
+        // Check aliases have been created
+        assertThat(getAliases(sharedResultsIndex), containsInAnyOrder(AnomalyDetectorsIndex.jobResultsAliasedName(job1.getId()),
+            AnomalyDetectorsIndex.resultsWriteAlias(job1.getId())));
+
+        // Now let's create a second job to test things work when the index exists already
+        assertThat(mappingProperties.keySet(), not(hasItem("by_field_2")));
+
+        Job.Builder job2 = new Job.Builder("second_job");
+        job2.setAnalysisConfig(createAnalysisConfig("by_field_2", Collections.emptyList()));
+        job2.setDataDescription(new DataDescription.Builder());
+
+        client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job2)).actionGet();
+
+        mappingProperties = getIndexMappingProperties(sharedResultsIndex);
+
+        // Assert mappings have a few fields from the template
+        assertThat(mappingProperties.keySet(), hasItems("anomaly_score", "bucket_count"));
+        // Assert mappings have the by field
+        assertThat(mappingProperties.keySet(), hasItems("by_field_1", "by_field_2"));
+
+        // Check aliases have been created
+        assertThat(getAliases(sharedResultsIndex), containsInAnyOrder(
+            AnomalyDetectorsIndex.jobResultsAliasedName(job1.getId()),
+            AnomalyDetectorsIndex.resultsWriteAlias(job1.getId()),
+            AnomalyDetectorsIndex.jobResultsAliasedName(job2.getId()),
+            AnomalyDetectorsIndex.resultsWriteAlias(job2.getId())
+        ));
+    }
+
+    public void testPutJob_WithCustomResultsIndex() {
+        Job.Builder job = new Job.Builder("foo");
+        job.setResultsIndexName("bar");
+        job.setAnalysisConfig(createAnalysisConfig("by_field", Collections.emptyList()));
+        job.setDataDescription(new DataDescription.Builder());
+
+        client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
+
+        String customIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar";
+        Map<String, Object> mappingProperties = getIndexMappingProperties(customIndex);
+
+        // Assert mappings have a few fields from the template
+        assertThat(mappingProperties.keySet(), hasItems("anomaly_score", "bucket_count"));
+        // Assert mappings have the by field
+        assertThat(mappingProperties.keySet(), hasItem("by_field"));
+
+        // Check aliases have been created
+        assertThat(getAliases(customIndex), containsInAnyOrder(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()),
+            AnomalyDetectorsIndex.resultsWriteAlias(job.getId())));
     }
 
     @AwaitsFix(bugUrl ="https://github.com/elastic/elasticsearch/issues/40134")
@@ -260,6 +339,38 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             assertThat("bar", not(isIn(cal.getJobIds())));
             assertThat("cat", not(isIn(cal.getJobIds())));
         }
+    }
+
+    private Map<String, Object> getIndexMappingProperties(String index) {
+        GetMappingsRequest request = new GetMappingsRequest().indices(index);
+        GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
+        ImmutableOpenMap<String, MappingMetaData> indexMappings = response.getMappings();
+        assertNotNull(indexMappings);
+        MappingMetaData typeMappings = indexMappings.get(index);
+        assertNotNull("expected " + index + " in " + indexMappings, typeMappings);
+        Map<String, Object> mappings = typeMappings.getSourceAsMap();
+        assertNotNull(mappings);
+
+        // Assert _meta info is present
+        assertThat(mappings.keySet(), hasItem("_meta"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) mappings.get("_meta");
+        assertThat(meta.keySet(), hasItem("version"));
+        assertThat(meta.get("version"), equalTo(Version.CURRENT.toString()));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+        assertNotNull("expected 'properties' field in " + mappings, properties);
+        return properties;
+    }
+
+    private Set<String> getAliases(String index) {
+        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(
+            new GetAliasesRequest().indices(index)).actionGet();
+        ImmutableOpenMap<String, List<AliasMetaData>> aliases = getAliasesResponse.getAliases();
+        assertThat(aliases.containsKey(index), is(true));
+        List<AliasMetaData> aliasMetaData = aliases.get(index);
+        return aliasMetaData.stream().map(AliasMetaData::alias).collect(Collectors.toSet());
     }
 
     private List<Calendar> getCalendars(String jobId) throws Exception {
@@ -620,17 +731,20 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
-        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
+        JobResultsPersister persister =
+            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);
         persister.persistModelSizeStats(modelSizeStats, () -> true);
     }
 
     private void indexModelSnapshot(ModelSnapshot snapshot) {
-        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
+        JobResultsPersister persister =
+            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);
         persister.persistModelSnapshot(snapshot, WriteRequest.RefreshPolicy.IMMEDIATE, () -> true);
     }
 
     private void indexQuantiles(Quantiles quantiles) {
-        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
+        JobResultsPersister persister =
+            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);
         persister.persistQuantiles(quantiles, () -> true);
     }
 

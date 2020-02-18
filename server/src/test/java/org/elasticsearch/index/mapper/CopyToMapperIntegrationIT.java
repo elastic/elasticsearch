@@ -39,7 +39,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     public void testDynamicTemplateCopyTo() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("test-idx")
-                        .addMapping("_doc", createDynamicTemplateMapping())
+                        .setMapping(createDynamicTemplateMapping())
         );
 
         int recordCount = between(1, 200);

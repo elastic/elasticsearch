@@ -44,7 +44,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     private AmazonEC2 buildClient(Ec2ClientSettings clientSettings) {
         final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
-        final ClientConfiguration configuration = buildConfiguration(logger, clientSettings);
+        final ClientConfiguration configuration = buildConfiguration(clientSettings);
         final AmazonEC2 client = buildClient(credentials, configuration);
         if (Strings.hasText(clientSettings.endpoint)) {
             logger.debug("using explicit ec2 endpoint [{}]", clientSettings.endpoint);
@@ -55,12 +55,11 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     // proxy for testing
     AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
-        final AmazonEC2 client = new AmazonEC2Client(credentials, configuration);
-        return client;
+        return new AmazonEC2Client(credentials, configuration);
     }
 
     // pkg private for tests
-    static ClientConfiguration buildConfiguration(Logger logger, Ec2ClientSettings clientSettings) {
+    static ClientConfiguration buildConfiguration(Ec2ClientSettings clientSettings) {
         final ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.

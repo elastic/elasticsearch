@@ -29,16 +29,23 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class BootstrapTests extends ESTestCase {
     Environment env;
     List<FileSystem> fileSystems = new ArrayList<>();
+
+    private static final int MAX_PASSPHRASE_LENGTH = 10;
 
     @After
     public void closeMockFileSystems() throws IOException {
@@ -66,4 +73,49 @@ public class BootstrapTests extends ESTestCase {
             assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
         }
     }
+
+    public void testReadCharsFromStdin() throws Exception {
+        assertPassphraseRead("hello", "hello");
+        assertPassphraseRead("hello\n", "hello");
+        assertPassphraseRead("hello\r\n", "hello");
+
+        assertPassphraseRead("hellohello", "hellohello");
+        assertPassphraseRead("hellohello\n", "hellohello");
+        assertPassphraseRead("hellohello\r\n", "hellohello");
+
+        assertPassphraseRead("hello\nhi\n", "hello");
+        assertPassphraseRead("hello\r\nhi\r\n", "hello");
+    }
+
+    public void testPassphraseTooLong() throws Exception {
+        byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
+        try (InputStream stream = new ByteArrayInputStream(source)) {
+            expectThrows(
+                RuntimeException.class,
+                "Password exceeded maximum length of 10",
+                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
+            );
+        }
+    }
+
+    public void testNoPassPhraseProvided() throws Exception {
+        byte[] source = "\r\n".getBytes(StandardCharsets.UTF_8);
+        try (InputStream stream = new ByteArrayInputStream(source)) {
+            expectThrows(
+                RuntimeException.class,
+                "Keystore passphrase required but none provided.",
+                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
+            );
+        }
+    }
+
+    private void assertPassphraseRead(String source, String expected) {
+        try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8))) {
+            SecureString result = Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
+            assertThat(result, equalTo(expected));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }

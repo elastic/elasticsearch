@@ -21,6 +21,8 @@ include::common-options.asciidoc[]
 --------------------------------------------------
 // NOTCONSOLE
 
+The name of the current pipeline can be accessed from the `_ingest.pipeline` ingest metadata key.
+
 An example of using this processor for nesting pipelines would be:
 
 Define an inner pipeline:

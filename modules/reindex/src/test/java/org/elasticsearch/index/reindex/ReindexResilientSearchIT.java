@@ -72,7 +72,7 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
 
         // create index and mapping up front to avoid master involvement, since that can result in an item failing with NodeClosedException.
         assertAcked(prepareCreate("dest")
-            .addMapping("_doc", jsonBuilder()
+            .setMapping(jsonBuilder()
                 .startObject()
                     .startObject("properties")
                         .startObject("data")
@@ -102,7 +102,8 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
         StartReindexTaskAction.Request request = new StartReindexTaskAction.Request(reindexRequest, false);
         StartReindexTaskAction.Response response = client().execute(StartReindexTaskAction.INSTANCE, request).get();
 
-        TaskId taskId = new TaskId(response.getTaskId());
+        TaskId taskId = new TaskId(response.getEphemeralTaskId());
+        String persistentTaskId = response.getPersistentTaskId();
 
         Set<String> reindexNodeNames = Arrays.stream(internalCluster().getNodeNames())
             .map(name -> Tuple.tuple(internalCluster().getInstance(NodeClient.class, name).getLocalNodeId(), name))
@@ -138,8 +139,14 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
             });
         }
 
-        rethrottle().setTaskId(taskId)
-            .setRequestsPerSecond(Float.POSITIVE_INFINITY).execute().get();
+        if (randomBoolean()) {
+            ensureYellow(".reindex");
+            client().execute(RethrottlePersistentReindexAction.INSTANCE, new RethrottlePersistentReindexAction.Request(persistentTaskId,
+                Float.POSITIVE_INFINITY)).actionGet();
+        } else {
+            rethrottle().setTaskId(taskId)
+                .setRequestsPerSecond(Float.POSITIVE_INFINITY).execute().get();
+        }
 
         Map<String, Object> reindexResponse = client().admin().cluster().prepareGetTask(taskId).setWaitForCompletion(true)
             .get(TimeValue.timeValueSeconds(30)).getTask().getResponseAsMap();

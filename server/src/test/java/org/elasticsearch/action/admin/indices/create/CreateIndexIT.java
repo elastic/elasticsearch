@@ -93,7 +93,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testNonNestedMappings() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
+            .setMapping(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("date")
                         .field("type", "date")
@@ -110,7 +110,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testEmptyNestedMappings() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject().endObject()));
+            .setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
@@ -121,7 +121,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testMappingParamAndNestedMismatch() throws Exception {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> prepareCreate("test")
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject()
+                .setMapping(XContentFactory.jsonBuilder().startObject()
                         .startObject("type2").endObject()
                     .endObject()).get());
         assertThat(e.getMessage(), startsWith("Failed to parse mapping: Root mapping definition has unsupported parameters"));
@@ -129,7 +129,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testEmptyMappings() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
+            .setMapping(XContentFactory.jsonBuilder().startObject()
                 .startObject("_doc").endObject()
             .endObject()));
 

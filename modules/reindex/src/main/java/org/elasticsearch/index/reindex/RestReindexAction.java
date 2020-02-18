@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -35,6 +34,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -47,10 +47,14 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     private final ClusterService clusterService;
 
-    public RestReindexAction(RestController controller, ClusterService clusterService) {
+    public RestReindexAction(ClusterService clusterService) {
         super(ReindexAction.INSTANCE);
         this.clusterService = clusterService;
-        controller.registerHandler(POST, "/_reindex", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_reindex"));
     }
 
     @Override
@@ -63,15 +67,16 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         // todo: remove system property escape hatch in 8.0
         // todo: fix version constant on backport to 7.x
         if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_0_0)
-                || System.getProperty("es.reindex.resilience", "true").equals("false")) {
+                || System.getProperty("es.reindex.persistent", "true").equals("false")) {
             return doPrepareRequest(request, client, true, true);
         }
 
+        boolean resilient = System.getProperty("es.reindex.persistent.resilient", "true").equals("false") == false;
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
 
         // Build the internal request
         StartReindexTaskAction.Request internal = new StartReindexTaskAction.Request(setCommonOptions(request, buildRequest(request)),
-            waitForCompletion);
+            waitForCompletion, resilient);
         /*
          * Let's try and validate before forking so the user gets some error. The
          * task can't totally validate until it starts but this is better than
@@ -108,8 +113,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 public RestResponse buildResponse(StartReindexTaskAction.Response response, XContentBuilder builder) throws Exception {
                     builder.startObject();
                     // This is the ephemeral task-id from the first node that is assigned the task (for BWC).
-                    builder.field("task", response.getTaskId());
-
+                    builder.field("task", response.getEphemeralTaskId());
+                    // this is the new persistent task id
+                    builder.field("id", response.getPersistentTaskId());
                     // TODO: Are there error conditions for the non-wait case?
                     return new BytesRestResponse(RestStatus.OK, builder.endObject());
                 }

@@ -639,14 +639,14 @@ through either the
 NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via SAML.
 
-This is an example of a simple role mapping that grants the `kibana_user` role
+This is an example of a simple role mapping that grants the `example_role` role
 to any user who authenticates against the `saml1` realm:
 
 [source,console]
 --------------------------------------------------
-PUT /_security/role_mapping/saml-kibana
+PUT /_security/role_mapping/saml-example
 {
-  "roles": [ "kibana_user" ],
+  "roles": [ "example_role" ], <1>
   "enabled": true,
   "rules": {
     "field": { "realm.name": "saml1" }
@@ -654,6 +654,10 @@ PUT /_security/role_mapping/saml-kibana
 }
 --------------------------------------------------
 
+<1> The `example_role` role is *not* a builtin Elasticsearch role.
+This example assumes that you have created a custom role of your own, with
+appropriate access to your <<roles-indices-priv,indices>> and
+{kibana-ref}/kibana-privileges.html#kibana-feature-privileges[Kibana features].
 
 The attributes that are mapped via the realm configuration are used to process
 role mapping rules, and these rules determine which roles a user is granted.
@@ -932,7 +936,7 @@ POST /_security/saml/prepare
 --------------------------------------------------
 
 . Handle the response from `/_security/saml/prepare`. The response from {es} will contain 3 parameters:
-  `redirect`, `realm' and `id`. The custom web application would need to store the value for `id`
+  `redirect`, `realm` and `id`. The custom web application would need to store the value for `id`
  in the user's session (client side in a cookie or server side if session information is
 persisted this way). It must also redirect the user's browser to the URL that  was returned in the 
   `redirect` parameter. The `id` value should not be disregarded as it is used as a nonce in SAML in

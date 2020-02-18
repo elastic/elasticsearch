@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -122,6 +123,8 @@ public interface Processor {
 
         public final IngestService ingestService;
 
+        public final Consumer<Runnable> genericExecutor;
+
         /**
          * Provides scheduler support
          */
@@ -134,7 +137,7 @@ public interface Processor {
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
                           LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-                          IngestService ingestService, Client client) {
+                          IngestService ingestService, Client client, Consumer<Runnable> genericExecutor ) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
@@ -143,6 +146,7 @@ public interface Processor {
             this.scheduler = scheduler;
             this.ingestService = ingestService;
             this.client = client;
+            this.genericExecutor = genericExecutor;
         }
 
     }

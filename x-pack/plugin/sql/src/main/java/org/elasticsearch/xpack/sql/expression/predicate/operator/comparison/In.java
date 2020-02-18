@@ -5,18 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.expression.Nullability;
-import org.elasticsearch.xpack.sql.expression.TypeResolutions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -25,9 +27,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.type.DataTypes.areTypesCompatible;
-import static org.elasticsearch.xpack.sql.util.StringUtils.ordinal;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.util.StringUtils.ordinal;
 
 public class In extends ScalarFunction {
 
@@ -63,7 +64,7 @@ public class In extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataTypes.BOOLEAN;
     }
 
     @Override
@@ -74,14 +75,13 @@ public class In extends ScalarFunction {
     @Override
     public boolean foldable() {
         return Expressions.foldable(children()) ||
-            (Expressions.foldable(list) && list().stream().allMatch(e -> e.dataType() == DataType.NULL));
+                (Expressions.foldable(list) && list().stream().allMatch(Expressions::isNull));
     }
 
     @Override
     public Boolean fold() {
         // Optimization for early return and Query folding to LocalExec
-        if (value.dataType() == DataType.NULL ||
-            list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
+        if (Expressions.isNull(value) || list.size() == 1 && Expressions.isNull(list.get(0))) {
             return null;
         }
         return InProcessor.apply(value.fold(), Foldables.valuesOf(list, value.dataType()));
@@ -126,13 +126,13 @@ public class In extends ScalarFunction {
         DataType dt = value.dataType();
         for (int i = 0; i < list.size(); i++) {
             Expression listValue = list.get(i);
-            if (areTypesCompatible(dt, listValue.dataType()) == false) {
+            if (SqlDataTypes.areCompatible(dt, listValue.dataType()) == false) {
                 return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
                     ordinal(i + 1),
                     sourceText(),
-                    dt.typeName,
+                    dt.typeName(),
                     Expressions.name(listValue),
-                    listValue.dataType().typeName));
+                    listValue.dataType().typeName()));
             }
         }
 

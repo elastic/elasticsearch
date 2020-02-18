@@ -88,8 +88,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 [[ml-close-job-example]]
 ==== {api-examples-title}
 
-The following example closes the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/low_request_rate/_close

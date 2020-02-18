@@ -49,7 +49,7 @@ public class MissingIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", "tag", "type=keyword").get());
+                .setMapping("tag", "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         numDocs = randomIntBetween(5, 20);
         numDocsMissing = randomIntBetween(1, numDocs - 1);
@@ -75,7 +75,7 @@ public class MissingIT extends ESIntegTestCase {
                     .endObject()));
         }
 
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()

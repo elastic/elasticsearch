@@ -19,14 +19,28 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+/**
+ * Standard test case for testing the wire serialization of subclasses of {@linkplain Writeable}.
+ * See {@link AbstractNamedWriteableTestCase} for subclasses of {@link NamedWriteable}.
+ */
 public abstract class AbstractWireSerializingTestCase<T extends Writeable> extends AbstractWireTestCase<T> {
+    /**
+     * Returns a {@link Writeable.Reader} that can be used to de-serialize the instance
+     */
+    protected abstract Writeable.Reader<T> instanceReader();
 
+    /**
+     * Copy the {@link Writeable} by round tripping it through {@linkplain StreamInput} and {@linkplain StreamOutput}.
+     */
     @Override
-    protected T copyInstance(T instance, Version version) throws IOException {
+    protected final T copyInstance(T instance, Version version) throws IOException {
         return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version);
     }
 }

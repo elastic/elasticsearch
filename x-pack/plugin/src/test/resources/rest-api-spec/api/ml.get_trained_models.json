@@ -46,14 +46,21 @@
         "description": "Should the model definition be decompressed into valid JSON or returned in a custom compressed format. Defaults to true."
       },
       "from":{
+        "required": false,
         "type":"int",
         "description":"skips a number of trained models",
         "default":0
       },
       "size":{
+        "required": false,
         "type":"int",
         "description":"specifies a max number of trained models to get",
         "default":100
+      },
+      "tags": {
+        "required": false,
+        "type":"list",
+        "description":"A comma-separated list of tags that the model must have."
       }
     }
   }

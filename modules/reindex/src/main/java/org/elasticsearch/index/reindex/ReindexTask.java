@@ -140,9 +140,8 @@ public class ReindexTask extends AllocatedPersistentTask {
 
     private void execute(ReindexTaskParams reindexTaskParams) {
         long allocationId = getAllocationId();
-
         ReindexTaskStateUpdater taskUpdater = new ReindexTaskStateUpdater(reindexIndexClient, client.threadPool(), getPersistentTaskId(),
-            allocationId, new ActionListener<>() {
+            allocationId, taskId, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {
                 reindexDone(stateDoc, reindexTaskParams.shouldStoreResult());
@@ -158,13 +157,13 @@ public class ReindexTask extends AllocatedPersistentTask {
         taskUpdater.assign(new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {
-                ReindexRequest reindexRequest = stateDoc.getReindexRequest();
+                ReindexRequest reindexRequest = stateDoc.getRethrottledReindexRequest();
                 description = reindexRequest.getDescription();
                 reindexer.initTask(childTask, reindexRequest, stateDoc.getCheckpointStatus(), new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {
                         transientStatus = childTask.getStatus();
-                        performReindex(reindexTaskParams, stateDoc, taskUpdater);
+                        performReindex(reindexRequest, reindexTaskParams, stateDoc, taskUpdater);
                     }
 
                     @Override
@@ -238,8 +237,8 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void performReindex(ReindexTaskParams reindexTaskParams, ReindexTaskStateDoc stateDoc, ReindexTaskStateUpdater taskUpdater) {
-        ReindexRequest reindexRequest = stateDoc.getReindexRequest();
+    private void performReindex(ReindexRequest reindexRequest, ReindexTaskParams reindexTaskParams, ReindexTaskStateDoc stateDoc,
+                                ReindexTaskStateUpdater taskUpdater) {
         ScrollableHitSource.Checkpoint initialCheckpoint = stateDoc.getCheckpoint();
         ThreadContext threadContext = client.threadPool().getThreadContext();
 
@@ -260,7 +259,7 @@ public class ReindexTask extends AllocatedPersistentTask {
             }), initialCheckpoint, (checkpoint, status) -> {
                 transientStatus = status;
                 taskUpdater.onCheckpoint(checkpoint, status);
-            }, true);
+            }, stateDoc.isResilient());
         }
         // send this after we started reindex to ensure sub-tasks are created.
         sendStartedNotification(reindexTaskParams.shouldStoreResult());

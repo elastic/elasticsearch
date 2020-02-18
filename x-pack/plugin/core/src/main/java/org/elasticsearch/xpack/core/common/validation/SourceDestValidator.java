@@ -46,7 +46,6 @@ public final class SourceDestValidator {
 
     // messages
     public static final String SOURCE_INDEX_MISSING = "Source index [{0}] does not exist";
-    public static final String SOURCE_LOWERCASE = "Source index [{0}] must be lowercase";
     public static final String DEST_IN_SOURCE = "Destination index [{0}] is included in source expression [{1}]";
     public static final String DEST_LOWERCASE = "Destination index [{0}] must be lowercase";
     public static final String NEEDS_REMOTE_CLUSTER_SEARCH = "Source index is configured with a remote index pattern(s) [{0}]"
@@ -59,6 +58,7 @@ public final class SourceDestValidator {
         + "alias [{0}], at least a [{1}] license is required, found license [{2}]";
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
+    public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RemoteClusterService remoteClusterService;
@@ -216,7 +216,7 @@ public final class SourceDestValidator {
         }
     }
 
-    interface SourceDestValidation {
+    public interface SourceDestValidation {
         void validate(Context context, ActionListener<Context> listener);
     }
 
@@ -228,18 +228,7 @@ public final class SourceDestValidator {
     public static final SourceDestValidation REMOTE_SOURCE_VALIDATION = new RemoteSourceEnabledAndRemoteLicenseValidation();
     public static final SourceDestValidation DESTINATION_IN_SOURCE_VALIDATION = new DestinationInSourceValidation();
     public static final SourceDestValidation DESTINATION_SINGLE_INDEX_VALIDATION = new DestinationSingleIndexValidation();
-
-    // set of default validation collections, if you want to automatically benefit from new validators, use those
-    public static final List<SourceDestValidation> PREVIEW_VALIDATIONS = Arrays.asList(SOURCE_MISSING_VALIDATION, REMOTE_SOURCE_VALIDATION);
-
-    public static final List<SourceDestValidation> ALL_VALIDATIONS = Arrays.asList(
-        SOURCE_MISSING_VALIDATION,
-        REMOTE_SOURCE_VALIDATION,
-        DESTINATION_IN_SOURCE_VALIDATION,
-        DESTINATION_SINGLE_INDEX_VALIDATION
-    );
-
-    public static final List<SourceDestValidation> NON_DEFERABLE_VALIDATIONS = Arrays.asList(DESTINATION_SINGLE_INDEX_VALIDATION);
+    public static final SourceDestValidation REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION = new RemoteSourceNotSupportedValidation();
 
     /**
      * Create a new Source Dest Validator
@@ -299,10 +288,11 @@ public final class SourceDestValidator {
             }
         }, listener::onFailure);
 
+        // We traverse the validations in reverse order as we chain the listeners from back to front
         for (int i = validations.size() - 1; i >= 0; i--) {
-            final SourceDestValidation validation = validations.get(i);
+            SourceDestValidation validation = validations.get(i);
             final ActionListener<Context> previousValidationListener = validationListener;
-            validationListener = ActionListener.wrap(c -> { validation.validate(c, previousValidationListener); }, listener::onFailure);
+            validationListener = ActionListener.wrap(c -> validation.validate(c, previousValidationListener), listener::onFailure);
         }
 
         validationListener.onResponse(context);
@@ -427,13 +417,13 @@ public final class SourceDestValidator {
                 return;
             }
 
-            if (context.resolvedSource.contains(destIndex)) {
+            if (context.resolveSource().contains(destIndex)) {
                 context.addValidationError(DEST_IN_SOURCE, destIndex, Strings.arrayToCommaDelimitedString(context.getSource()));
                 listener.onResponse(context);
                 return;
             }
 
-            if (context.resolvedSource.contains(context.resolveDest())) {
+            if (context.resolveSource().contains(context.resolveDest())) {
                 context.addValidationError(
                     DEST_IN_SOURCE,
                     context.resolveDest(),
@@ -450,6 +440,17 @@ public final class SourceDestValidator {
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
             context.resolveDest();
+            listener.onResponse(context);
+        }
+    }
+
+    static class RemoteSourceNotSupportedValidation implements SourceDestValidation {
+
+        @Override
+        public void validate(Context context, ActionListener<Context> listener) {
+            if (context.resolveRemoteSource().isEmpty() == false) {
+                context.addValidationError(REMOTE_SOURCE_INDICES_NOT_SUPPORTED);
+            }
             listener.onResponse(context);
         }
     }

@@ -221,6 +221,10 @@ and default time zone. Also calculations with `now` are not supported.
 <<vector-functions, Functions for vector fields>> are accessible through
 `script_score` query.
 
+===== Allow expensive queries
+Script score queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.
+
 [[script-score-faster-alt]]
 ===== Faster alternatives
 The `script_score` query calculates the score for
@@ -281,7 +285,7 @@ as described in <<random-score-function, random score function>>.
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10(doc['field'].value * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }
@@ -297,7 +301,7 @@ a value `1` if a document doesn't have a field `field`:
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10((doc['field'].size() == 0 ? 1 : doc['field'].value()) * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }

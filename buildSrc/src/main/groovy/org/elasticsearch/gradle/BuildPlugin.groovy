@@ -32,6 +32,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.testclusters.TestDistribution
 import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.Action
 import org.gradle.api.GradleException
@@ -424,7 +425,7 @@ class BuildPlugin implements Plugin<Project> {
                             dependencyNode.appendNode('groupId', dependency.group)
                             dependencyNode.appendNode('artifactId', dependency.getDependencyProject().convention.getPlugin(BasePluginConvention).archivesBaseName)
                             dependencyNode.appendNode('version', dependency.version)
-                            dependencyNode.appendNode('scope', 'runtime')
+                            dependencyNode.appendNode('scope', 'compile')
                         }
                     }
                 }
@@ -654,6 +655,7 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(testOutputDir)
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
+                    project.mkdir(test.workingDir.toPath().resolve('temp'))
 
                     //TODO remove once jvm.options are added to test system properties
                     test.systemProperty ('java.locale.providers','SPI,COMPAT')
@@ -685,15 +687,12 @@ class BuildPlugin implements Plugin<Project> {
                     test.jvmArgs '-ea', '-esa'
                 }
 
-                // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-                test.systemProperties 'java.io.tmpdir': './temp',
-                        'java.awt.headless': 'true',
+                test.systemProperties 'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,
                         'tests.task': test.path,
                         'tests.security.manager': 'true',
                         'jna.nosys': 'true'
-
 
                 // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
                 if (System.getProperty('ignore.tests.seed') != null) {
@@ -706,6 +705,8 @@ class BuildPlugin implements Plugin<Project> {
                 nonInputProperties.systemProperty('gradle.dist.lib', new File(project.class.location.toURI()).parent)
                 nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
                 nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
+                // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
+                nonInputProperties.systemProperty('java.io.tmpdir', test.workingDir.toPath().resolve('temp'))
 
                 nonInputProperties.systemProperty('compiler.java', "${-> BuildParams.compilerJavaVersion.majorVersion}")
 

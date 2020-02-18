@@ -26,7 +26,12 @@ cluster privileges to use this API. See
 [[ml-put-datafeed-desc]]
 ==== {api-description-title}
 
-You can associate only one {dfeed} to each {anomaly-job}.
+{ml-docs}/ml-dfeeds.html[{dfeeds-cap}] retrieve data from {es} for analysis by
+an {anomaly-job}. You can associate only one {dfeed} to each {anomaly-job}.
+
+The {dfeed} contains a query that runs at a defined interval (`frequency`). If
+you are concerned about delayed data, you can add a delay (`query_delay`) at
+each interval. See {ml-docs}/ml-delayed-data-detection.html[Handling delayed data].
 
 [IMPORTANT]
 ====

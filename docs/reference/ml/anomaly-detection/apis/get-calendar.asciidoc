@@ -35,7 +35,8 @@ For more information, see
 ==== {api-path-parms-title}
 
 `<calendar_id>`::
-  (Required, string) Identifier for the calendar.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 [[ml-get-calendar-request-body]]
 ==== {api-request-body-title}
@@ -53,7 +54,8 @@ The API returns an array of calendar resources, which have the following
 properties:
 
 `calendar_id`::
-(string) A numerical character string that uniquely identifies the calendar.
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `job_ids`::
 (array) An array of {anomaly-job} identifiers. For example:

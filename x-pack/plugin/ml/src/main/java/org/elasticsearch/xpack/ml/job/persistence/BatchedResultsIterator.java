@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -16,7 +16,7 @@ public abstract class BatchedResultsIterator<T> extends BatchedDocumentsIterator
 
     private final ResultsFilterBuilder filterBuilder;
 
-    public BatchedResultsIterator(Client client, String jobId, String resultType) {
+    public BatchedResultsIterator(OriginSettingClient client, String jobId, String resultType) {
         super(client, AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         this.filterBuilder = new ResultsFilterBuilder(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), resultType));
     }

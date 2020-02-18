@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,33 +20,33 @@ import java.util.Set;
 public abstract class Foldables {
 
     @SuppressWarnings("unchecked")
-    public static <T> T valueOf(Expression e, DataType to) {
+    private static <T> T valueOf(Expression e, DataType to) {
         if (e.foldable()) {
-            return (T) DataTypeConversion.conversionFor(e.dataType(), to).convert(e.fold());
+            return (T) SqlDataTypeConverter.convert(e.fold(), to);
         }
-        throw new SqlIllegalArgumentException("Cannot determine value for {}", e);
+        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
 
     public static Object valueOf(Expression e) {
         if (e.foldable()) {
             return e.fold();
         }
-        throw new SqlIllegalArgumentException("Cannot determine value for {}", e);
+        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
 
     public static Integer intValueOf(Expression e) {
-        return valueOf(e, DataType.INTEGER);
+        return valueOf(e, DataTypes.INTEGER);
     }
 
     public static double doubleValueOf(Expression e) {
-        return valueOf(e, DataType.DOUBLE);
+        return valueOf(e, DataTypes.DOUBLE);
     }
 
     public static <T> List<T> valuesOf(List<Expression> list, DataType to) {
         return foldTo(list, to, new ArrayList<>(list.size()));
     }
 
-    public static <T> Set<T> valuesOfNoDuplicates(List<Expression> list, DataType to) {
+    public static <T> Set<T> valuesUnique(List<Expression> list, DataType to) {
         return foldTo(list, to, new LinkedHashSet<>(list.size()));
     }
 
@@ -56,6 +58,6 @@ public abstract class Foldables {
     }
 
     public static List<Double> doubleValuesOf(List<Expression> list) {
-        return valuesOf(list, DataType.DOUBLE);
+        return valuesOf(list, DataTypes.DOUBLE);
     }
 }

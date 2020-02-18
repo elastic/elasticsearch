@@ -247,7 +247,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
             final StepListener<TransportService.HandshakeResponse> handshakeStep = new StepListener<>();
             openConnectionStep.whenComplete(connection -> {
-                ConnectionProfile connectionProfile = connectionManager.getConnectionManager().getConnectionProfile();
+                ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
                 transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
                     getRemoteClusterNamePredicate(), handshakeStep);
             }, onFailure);
@@ -412,7 +412,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 Version.CURRENT.minimumCompatibilityVersion());
         } else {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
-            String hostName = address.substring(0, indexOfPortSeparator(address));
+            String hostName = RemoteConnectionStrategy.parseHost(proxyAddress);
             return new DiscoveryNode("", clusterAlias + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
                 transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.BUILT_IN_ROLES,
                 Version.CURRENT.minimumCompatibilityVersion());
@@ -427,14 +427,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
         }
         return DEFAULT_NODE_PREDICATE;
-    }
-
-    private static int indexOfPortSeparator(String remoteHost) {
-        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
-        if (portSeparator == -1 || portSeparator == remoteHost.length()) {
-            throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");
-        }
-        return portSeparator;
     }
 
     private static DiscoveryNode maybeAddProxyAddress(String proxyAddress, DiscoveryNode node) {

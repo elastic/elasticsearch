@@ -446,7 +446,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
         // Cannot delete during a restore
         final RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
-        if (restoreInProgress != null) {
+        if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
             return false;
         }
 
@@ -480,6 +480,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     logger.debug("retrying SLM snapshot retention deletion after snapshot operation has completed");
                     reRun.accept(state);
                 } else {
+                    logger.trace("received new cluster state but a snapshot operation is still running");
                     observer.waitForNextChange(this);
                 }
             } catch (Exception e) {

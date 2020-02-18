@@ -92,7 +92,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
@@ -128,7 +127,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
@@ -335,7 +333,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(190 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+                new ByteSizeValue(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test").setId("0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
@@ -351,8 +349,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             assertFalse(shard.shouldPeriodicallyFlush());
             assertThat(shard.flushStats().getPeriodic(), greaterThan(0L));
         });
+        shard.sync();
         assertEquals(0, translog.stats().getUncommittedOperations());
-        translog.sync();
         long size = Math.max(translog.stats().getUncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
@@ -371,6 +369,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 commitStats.getUserData(), flushStats.getPeriodic(), flushStats.getTotal());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
+        shard.sync();
         assertEquals(0, translog.stats().getUncommittedOperations());
     }
 
@@ -417,8 +416,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final boolean flush = randomBoolean();
         final Settings settings;
         if (flush) {
-            // size of the operation plus two generations of overhead.
-            settings = Settings.builder().put("index.translog.flush_threshold_size", "180b").build();
+            // size of the operation plus the overhead of one generation.
+            settings = Settings.builder().put("index.translog.flush_threshold_size", "125b").build();
         } else {
             // size of the operation plus header and footer
             settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").build();
@@ -836,43 +835,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (IndexShard indexShard : indexService) {
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
         }
-    }
-
-    public void testLimitNumberOfRetainedTranslogFiles() throws Exception {
-        String indexName = "test";
-        int translogRetentionTotalFiles = randomIntBetween(0, 50);
-        Settings.Builder settings = Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
-            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.getKey(), translogRetentionTotalFiles);
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1024 * 1024)));
-        }
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 10_000)));
-        }
-        IndexService indexService = createIndex(indexName, settings.build());
-        IndexShard shard = indexService.getShard(0);
-        shard.rollTranslogGeneration();
-        CheckedRunnable<IOException> checkTranslog = () -> {
-            try (Stream<Path> files = Files.list(getTranslog(shard).location()).sorted(Comparator.reverseOrder())) {
-                long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
-                assertThat(totalFiles, either(lessThanOrEqualTo((long) translogRetentionTotalFiles)).or(equalTo(1L)));
-            }
-        };
-        for (int i = 0; i < 100; i++) {
-            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
-            if (randomInt(100) < 10) {
-                client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).get();
-                checkTranslog.run();
-            }
-            if (randomInt(100) < 10) {
-                shard.rollTranslogGeneration();
-            }
-        }
-        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
-        checkTranslog.run();
     }
 
     /**

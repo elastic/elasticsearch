@@ -28,7 +28,7 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     public SamlAuthenticateResponse(StreamInput in) throws IOException {
         super(in);
         principal = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             realm = in.readString();
         }
         tokenString = in.readString();
@@ -67,7 +67,7 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeString(realm);
         }
         out.writeString(tokenString);

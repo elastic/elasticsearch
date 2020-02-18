@@ -73,10 +73,10 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public static Tree buildRandomTree(List<String> featureNames, int depth) {
         Tree.Builder builder = Tree.builder();
-        int numFeatures = featureNames.size() - 1;
+        int maxFeatureIndex = featureNames.size() - 1;
         builder.setFeatureNames(featureNames);
 
-        TreeNode.Builder node = builder.addJunction(0, randomInt(numFeatures), true, randomDouble());
+        TreeNode.Builder node = builder.addJunction(0, randomInt(maxFeatureIndex), true, randomDouble());
         List<Integer> childNodes = List.of(node.getLeftChild(), node.getRightChild());
 
         for (int i = 0; i < depth -1; i++) {
@@ -87,7 +87,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                     builder.addLeaf(nodeId, randomDouble());
                 } else {
                     TreeNode.Builder childNode =
-                        builder.addJunction(nodeId, randomInt(numFeatures), true, randomDouble());
+                        builder.addJunction(nodeId, randomInt(maxFeatureIndex), true, randomDouble());
                     nextNodes.add(childNode.getLeftChild());
                     nextNodes.add(childNode.getRightChild());
                 }

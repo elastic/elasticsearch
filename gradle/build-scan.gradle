@@ -79,12 +79,6 @@ buildScan {
       }
       value 'Git Commit ID', BuildParams.gitRevision
       link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
-      if (System.getenv('GIT_PREVIOUS_COMMIT')) {
-        background {
-          def changes = "git diff --name-only ${System.getenv('GIT_PREVIOUS_COMMIT')}..${System.getenv('GIT_COMMIT')}".execute().text.trim()
-          value 'Git Changes', changes
-        }
-      }
     }
   } else {
     tag 'LOCAL'

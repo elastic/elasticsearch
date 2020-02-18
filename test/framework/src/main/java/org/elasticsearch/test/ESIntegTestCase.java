@@ -873,8 +873,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
         if (actionGet.isTimedOut()) {
-            final String hotThreads = client().admin().cluster().prepareNodesHotThreads().setIgnoreIdleThreads(false).get().getNodes()
-                .stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
+            final String hotThreads = client().admin().cluster().prepareNodesHotThreads().setThreads(99999).setIgnoreIdleThreads(false)
+                .get().getNodes().stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
             logger.info("{} timed out, cluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
                 client().admin().cluster().prepareState().get().getState(),

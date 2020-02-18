@@ -9,6 +9,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,6 +40,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.KeyGenerator;
@@ -60,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -274,22 +279,49 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     public void cleanup(long repositoryStateId, boolean writeShardGens, ActionListener<RepositoryCleanupResult> listener) {
-        super.cleanup(repositoryStateId, writeShardGens, ActionListener.wrap(repositoryCleanupResult -> {
-            EncryptedBlobContainer encryptedBlobContainer = (EncryptedBlobContainer) blobContainer();
-            cleanUpOrphanedMetadataRecursively(encryptedBlobContainer);
-            listener.onResponse(repositoryCleanupResult);
-        }, listener::onFailure));
-    }
+        final StepListener<RepositoryCleanupResult> baseCleanupStep = new StepListener<>();
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
-    private void cleanUpOrphanedMetadataRecursively(EncryptedBlobContainer encryptedBlobContainer) throws IOException{
-        encryptedBlobContainer.cleanUpOrphanedMetadata();
-        for (BlobContainer childEncryptedBlobContainer : encryptedBlobContainer.children().values()) {
-            try {
-                cleanUpOrphanedMetadataRecursively((EncryptedBlobContainer) childEncryptedBlobContainer);
-            } catch(IOException e) {
-                logger.warn("Failure to clean-up blob container [" + childEncryptedBlobContainer.path() + "]", e);
-            }
-        }
+        super.cleanup(repositoryStateId, writeShardGens, baseCleanupStep);
+
+        baseCleanupStep.whenComplete(baseCleanupResult -> {
+            final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
+                DeleteResult deleteResult = new DeleteResult(baseCleanupResult.blobs(), baseCleanupResult.bytes());
+                for (DeleteResult result : deleteResults) {
+                    deleteResult = deleteResult.add(result);
+                }
+                listener.onResponse(new RepositoryCleanupResult(deleteResult));
+            }, listener::onFailure), 2);
+
+            // clean unreferenced metadata blobs on the root blob container
+            executor.execute(ActionRunnable.supply(groupedListener, () -> {
+                EncryptedBlobContainer encryptedBlobContainer = (EncryptedBlobContainer) blobContainer();
+                return cleanUnreferencedEncryptionMetadata(encryptedBlobContainer);
+            }));
+
+            // clean indices blob containers
+            executor.execute(ActionRunnable.supply(groupedListener, () -> {
+                EncryptedBlobContainer indicesBlobContainer = (EncryptedBlobContainer) blobStore().blobContainer(indicesPath());
+                Map<String, BlobContainer> metadataIndices = indicesBlobContainer.encryptionMetadataBlobContainer.children();
+                Map<String, BlobContainer> dataIndices = indicesBlobContainer.delegatedBlobContainer.children();
+                DeleteResult deleteResult = DeleteResult.ZERO;
+                for (Map.Entry<String, BlobContainer> metadataIndexContainer : metadataIndices.entrySet()) {
+                    if (false == dataIndices.containsKey(metadataIndexContainer.getKey())) {
+                        // the index metadata blob container exists but the encrypted data blob container does not
+                        Long indexGeneration = findFirstGeneration(metadataIndexContainer.getValue());
+                        if (indexGeneration != null && indexGeneration < latestKnownRepoGen.get()) {
+                            logger.debug("[{}] Found stale metadata index container [{}]. Cleaning it up", metadata.name(),
+                                    metadataIndexContainer.getValue().path());
+                            deleteResult = deleteResult.add(metadataIndexContainer.getValue().delete());
+                            logger.debug("[{}] Cleaned up stale metadata index container [{}]", metadata.name(),
+                                    metadataIndexContainer.getValue().path());
+                        }
+                    }
+                }
+                return deleteResult;
+            }));
+
+        }, listener::onFailure);
     }
 
     @Override
@@ -380,6 +412,24 @@ public final class EncryptedRepository extends BlobStoreRepository {
         return new DeleteResult(metadataBlobsToDelete.size(),
                 metadataBlobsToDelete.stream().mapToLong(name -> allMetadataBlobs.get(name).length()).sum());
     }
+
+    // aux "ugly" function which infers the repository generation under which an index blob container has been created
+    private Long findFirstGeneration(BlobContainer metadataBlobContainer) throws IOException {
+        for (String metaBlobName : metadataBlobContainer.listBlobs().keySet()) {
+            try {
+                return MetadataIdentifier.parseFromMetadataBlobName(metaBlobName).v2().repositoryGeneration;
+            } catch (IllegalArgumentException e) {
+                // ignored, let's find another meta blob name we can parse
+            }
+        }
+        for (BlobContainer child : metadataBlobContainer.children().values()) {
+            Long generation = findFirstGeneration(child);
+            if (generation != null) {
+                return generation;
+            }
+        }
+        return null;
+    };
 
     private static class EncryptedBlobStore implements BlobStore {
 
@@ -663,57 +713,6 @@ public final class EncryptedRepository extends BlobStoreRepository {
                         encryptionNonceSupplier, metadataIdentifierSupplier));
             }
             return result;
-        }
-
-        public void cleanUpOrphanedMetadata() throws IOException {
-            // delete encryption metadata blobs which don't pair with any data blobs
-            Set<String> foundEncryptedBlobs = delegatedBlobContainer.listBlobs().keySet();
-            final Set<String> foundMetadataBlobs;
-            try {
-                foundMetadataBlobs = encryptionMetadataBlobContainer.listBlobs().keySet();
-            } catch (IOException e) {
-                logger.warn("Failure to list blobs of metadata blob container " + encryptionMetadataBlobContainer.path(), e);
-                return;
-            }
-            List<String> orphanedMetadataBlobs = new ArrayList<>();
-            for (String metadataBlobName : foundMetadataBlobs) {
-                // also remove unrecognized blobs in the metadata blob container (mainly because it's tedious in the general
-                // case to tell between bogus and legit stale metadata, and it would require reading the blobs, which is not worth it)
-                boolean invalidMetadataName = metadataBlobName.length() <= METADATA_UID_LENGTH_IN_CHARS;
-                if (invalidMetadataName) {
-                    orphanedMetadataBlobs.add(metadataBlobName);
-                    continue;
-                }
-                String blobName = metadataBlobName.substring(0, metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS);
-                if (false == foundEncryptedBlobs.contains(blobName)) {
-                    orphanedMetadataBlobs.add(metadataBlobName);
-                }
-            }
-            try {
-                encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(orphanedMetadataBlobs);
-            } catch (IOException e) {
-                logger.warn("Failure to delete orphaned metadata blobs " + orphanedMetadataBlobs + " from blob container "
-                        + encryptionMetadataBlobContainer.path(), e);
-            }
-            // delete encryption metadata blob containers which don't pair with any data blob containers
-            Set<String> foundEncryptedBlobContainers = delegatedBlobContainer.children().keySet();
-            final Map<String, BlobContainer> foundMetadataBlobContainers;
-            try {
-                foundMetadataBlobContainers = encryptionMetadataBlobContainer.children();
-            } catch (IOException e) {
-                logger.warn("Failure to list child blob containers for metadata blob container " + encryptionMetadataBlobContainer.path(),
-                        e);
-                return;
-            }
-            for (Map.Entry<String, BlobContainer> metadataBlobContainer : foundMetadataBlobContainers.entrySet()) {
-                if (false == foundEncryptedBlobContainers.contains(metadataBlobContainer.getKey())) {
-                    try {
-                        metadataBlobContainer.getValue().delete();
-                    } catch (IOException e) {
-                        logger.warn("Failure to delete orphaned metadata blob container " + metadataBlobContainer.getValue().path(), e);
-                    }
-                }
-            }
         }
     }
 

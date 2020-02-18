@@ -967,7 +967,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private BlobPath indicesPath() {
+    protected BlobPath indicesPath() {
         return basePath().add("indices");
     }
 

@@ -690,18 +690,25 @@ public final class Settings implements ToXContentFragment {
 
     /** Returns the fully qualified setting names contained in this settings object. */
     public Set<String> keySet() {
-        synchronized (keys) {
-            if (keys.get() == null) {
-                if (secureSettings == null) {
-                    keys.set(settings.keySet());
-                } else {
-                    Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
-                    // uniquify, since for legacy reasons the same setting name may exist in both
-                    keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+        Set<String> keySet = keys.get();
+        if (keySet == null) {
+            synchronized (keys) {
+                // check again under lock
+                keySet = keys.get();
+                if (keySet == null) {
+                    // compute and store keySet
+                    if (secureSettings == null) {
+                        keySet = settings.keySet();
+                    } else {
+                        Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
+                        // uniquify, since for legacy reasons the same setting name may exist in both
+                        keySet = Collections.unmodifiableSet(stream.collect(Collectors.toSet()));
+                    }
+                    keys.set(keySet);
                 }
             }
         }
-        return keys.get();
+        return keySet;
     }
 
     /**

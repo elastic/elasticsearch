@@ -903,13 +903,6 @@ total number of categories (in the {version} version of the {stack}, it's two)
 to predict then we will report all category probabilities. Defaults to 2.
 end::num-top-classes[]
 
-tag::num-top-feature-importance-values[]
-Advanced configuration option. If set, feature importance for the top
-most important features will be computed. Importance is calculated
-using the SHAP (SHapley Additive exPlanations) method as described in
-https://papers.nips.cc/paper/7062-a-unified-approach-to-interpreting-model-predictions.pdf[Lundberg, S. M., & Lee, S.-I. A Unified Approach to Interpreting Model Predictions. In NeurIPS 2017.].
-end::num-top-feature-importance-values[]
-
 tag::over-field-name[]
 The field used to split the data. In particular, this property is used for 
 analyzing the splits with respect to the history of all splits. It is used for 

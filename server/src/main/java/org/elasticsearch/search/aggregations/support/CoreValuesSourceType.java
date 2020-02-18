@@ -224,6 +224,72 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
         public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
+    },
+    // TODO: Ordinal Numbering sync with types from master
+    IP{
+        @Override
+        public ValuesSource getEmpty() {
+            return BYTES.getEmpty();
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            return BYTES.getScript(script, scriptValueType);
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            return BYTES.getField(fieldContext, script);
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            return BYTES.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        }
+    },
+    DATE {
+        @Override
+        public ValuesSource getEmpty() {
+            return NUMERIC.getEmpty();
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            return NUMERIC.getScript(script, scriptValueType);
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            return NUMERIC.getField(fieldContext, script);
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        }
+
+    },
+    BOOLEAN {
+        @Override
+        public ValuesSource getEmpty() {
+            return NUMERIC.getEmpty();
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            return NUMERIC.getScript(script, scriptValueType);
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            return NUMERIC.getField(fieldContext, script);
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        }
+
     };
 
     public static ValuesSourceType fromString(String name) {

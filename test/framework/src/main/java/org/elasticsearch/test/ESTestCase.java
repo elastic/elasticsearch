@@ -620,6 +620,35 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextFloat();
     }
 
+    /**
+     * Returns a float value in the interval [start, end) if lowerInclusive is
+     * set to true, (start, end) otherwise.
+     *
+     * @param start          lower bound of interval to draw uniformly distributed random numbers from
+     * @param end            upper bound
+     * @param lowerInclusive whether or not to include lower end of the interval
+     */
+    public static float randomFloatBetween(float start, float end, boolean lowerInclusive) {
+        float result = 0.0f;
+
+        if (start == -Float.MAX_VALUE || end == Float.MAX_VALUE) {
+            // formula below does not work with very large floats
+            result = Float.intBitsToFloat(randomInt());
+            while (result < start || result > end || Float.isNaN(result)) {
+                result = Float.intBitsToFloat(randomInt());
+            }
+        } else {
+            result = randomFloat();
+            if (lowerInclusive == false) {
+                while (result <= 0.0) {
+                    result = randomFloat();
+                }
+            }
+            result = result * end + (1.0f - result) * start;
+        }
+        return result;
+    }
+
     public static double randomDouble() {
         return random().nextDouble();
     }

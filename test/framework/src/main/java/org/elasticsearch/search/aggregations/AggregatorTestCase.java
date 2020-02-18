@@ -18,20 +18,29 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -51,23 +60,36 @@ import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
@@ -79,6 +101,8 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -90,6 +114,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -106,6 +131,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
+
+    private static List<String> TYPE_TEST_BLACKLIST = List.of(
+        ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
+        GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
+
+        TextFieldMapper.CONTENT_TYPE, // TODO Does not support doc values, but does support FD, needs a lot of mocking
+        ObjectMapper.NESTED_CONTENT_TYPE, // TODO support for nested
+        CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
+        FieldAliasMapper.CONTENT_TYPE // TODO support alias
+    );
+
 
     /**
      * Allows subclasses to provide alternate names for the provided field type, which
@@ -523,6 +559,163 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return reader;
         }
     }
+
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return null;
+    }
+
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return Collections.emptyList();
+    }
+
+    public void testSupportedFieldTypes() throws IOException {
+
+        MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
+        String fieldName = "typeTestFieldName";
+        List<ValuesSourceType> supportedVSTypes = getSupportedValuesSourceTypes();
+
+        if (supportedVSTypes.isEmpty()) {
+            // If the test says it doesn't support any VStypes, it has not been converted yet so skip
+            return;
+        } else if (supportedVSTypes.contains(CoreValuesSourceType.ANY)) {
+            throw new IllegalArgumentException("Tests should not specify CoreValuesSourceType.ANY as a supported ValuesSourceType, " +
+                "but should instead list the concrete ValuesSourceTypes that are supported");
+        }
+
+        for (Map.Entry<String, Mapper.TypeParser> mappedType : mapperRegistry.getMapperParsers().entrySet()) {
+            if (TYPE_TEST_BLACKLIST.contains(mappedType.getKey())) {
+                continue;
+            }
+
+            if (mappedType.getKey().equals(ObjectMapper.CONTENT_TYPE)) {
+                // Cannot aggregate objects
+                continue;
+            }
+
+            Map<String, Object> source = new HashMap<>();
+            source.put("type", mappedType.getKey());
+            source.put("doc_values", "true");
+
+            FieldMapper mapper = null;
+            try {
+                Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
+                mapper = (FieldMapper) builder.build(new BuilderContext(settings, new ContentPath()));
+            } catch (Exception e) {
+                fail();
+            }
+            MappedFieldType fieldType = mapper.fieldType();
+
+
+            try (Directory directory = newDirectory()) {
+                RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+                writeTestDoc(fieldType, fieldName, indexWriter);
+                indexWriter.close();
+
+                try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                    IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                    AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
+
+                    try {
+                        searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                        if (supportedVSTypes.contains(fieldType.getValuesSourceType()) == false) {
+                            fail("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
+                                + fieldType.typeName() + "] but executing against the field did not throw an excetion");
+                        }
+                    } catch (Exception e) {
+                        if (supportedVSTypes.contains(fieldType.getValuesSourceType())) {
+                            fail("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
+                                + fieldType.typeName() + "] but executing against the field threw an exception: [" + e.getMessage() + "]");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
+
+        if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.NUMERIC)) {
+            iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomLong())));
+        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.DATE)) {
+            iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomNonNegativeLong())));
+        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.BYTES)) {
+            if (fieldType.typeName().equals(BinaryFieldMapper.CONTENT_TYPE)) {
+                iw.addDocument(singleton(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes)));
+            } else {
+                iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef("a"))));
+            }
+        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.RANGE)) {
+            Object start;
+            Object end;
+            RangeType rangeType;
+
+            if (fieldType.typeName().equals(RangeType.DOUBLE.typeName())) {
+                start = randomDouble();
+                end = randomDoubleBetween(Math.nextUp((Double)start), Double.MAX_VALUE, false);
+                rangeType = RangeType.DOUBLE;
+            } else if (fieldType.typeName().equals(RangeType.FLOAT.typeName())) {
+                start = randomFloat();
+                end = randomFloatBetween(Math.nextUp((Float) start), Float.MAX_VALUE, false);
+                rangeType = RangeType.DOUBLE;
+            } else if (fieldType.typeName().equals(RangeType.IP.typeName())) {
+                boolean v4 = randomBoolean();
+                start = randomIp(v4);
+                end = randomIp(v4);
+                rangeType = RangeType.IP;
+            } else if (fieldType.typeName().equals(RangeType.LONG.typeName())) {
+                start = randomLong();
+                end = randomLongBetween((Long)start + 1, Long.MAX_VALUE);
+                rangeType = RangeType.LONG;
+            } else if (fieldType.typeName().equals(RangeType.INTEGER.typeName())) {
+                start = randomInt();
+                end = randomIntBetween((Integer)start, Integer.MAX_VALUE);
+                rangeType = RangeType.INTEGER;
+            } else if (fieldType.typeName().equals(RangeType.DATE.typeName())) {
+                start = randomNonNegativeLong();
+                end = randomLongBetween((Long)start + 1, Long.MAX_VALUE);
+                rangeType = RangeType.DATE;
+            } else {
+                throw new IllegalStateException("Unknown type of range [" + fieldType.typeName() + "]");
+            }
+
+            final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range)))));
+
+        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.BOOLEAN)) {
+            iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomBoolean() ? 0 : 1)));
+        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.IP)) {
+            boolean v4 = randomBoolean();
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.GEOPOINT)) {
+            iw.addDocument(singleton(new LatLonDocValuesField(fieldName, randomDouble(), randomDouble())));
+        } else {
+            throw new IllegalStateException("Unknown field type [" + fieldType.typeName() + "]");
+        }
+    }
+
+    private class MockParserContext extends Mapper.TypeParser.ParserContext {
+        MockParserContext() {
+            super(null, null, null, null, null);
+        }
+    }
+
+    private static InetAddress randomIp(boolean v4) {
+        try {
+            if (v4) {
+                byte[] ipv4 = new byte[4];
+                random().nextBytes(ipv4);
+                return InetAddress.getByAddress(ipv4);
+            } else {
+                byte[] ipv6 = new byte[16];
+                random().nextBytes(ipv6);
+                return InetAddress.getByAddress(ipv6);
+            }
+        } catch (UnknownHostException e) {
+            throw new AssertionError();
+        }
+    }
+
 
     @After
     private void cleanupReleasables() {

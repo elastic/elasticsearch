@@ -51,7 +51,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Function;
 
-public class ConstantKeywordIndexFieldData extends AbstractIndexOrdinalsFieldData {
+public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -64,16 +64,16 @@ public class ConstantKeywordIndexFieldData extends AbstractIndexOrdinalsFieldDat
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ConstantKeywordIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
+            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
         }
 
     }
 
-    private static class ConstantKeywordAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
+    private static class ConstantAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
         private final String value;
 
-        ConstantKeywordAtomicFieldData(String value) {
+        ConstantAtomicFieldData(String value) {
             super(DEFAULT_SCRIPT_FUNCTION);
             this.value = value;
         }
@@ -131,14 +131,14 @@ public class ConstantKeywordIndexFieldData extends AbstractIndexOrdinalsFieldDat
 
     }
 
-    private final ConstantKeywordAtomicFieldData atomicFieldData;
+    private final ConstantAtomicFieldData atomicFieldData;
 
-    private ConstantKeywordIndexFieldData(IndexSettings indexSettings, String name, String value) {
+    private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value) {
         super(indexSettings, name, null, null,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
-        atomicFieldData = new ConstantKeywordAtomicFieldData(value);
+        atomicFieldData = new ConstantAtomicFieldData(value);
     }
 
     @Override

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ProcessInfo;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
@@ -33,10 +34,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
@@ -57,13 +56,11 @@ import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -508,7 +505,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that there are no files with a GID other than 0.
      */
     public void test101AllFilesAreGroupZero() {
-        final String findResults = sh.run("find . -not -gid 0").stdout;
+        final String findResults = sh.run("find . \\! -group 0").stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
     }
@@ -603,16 +600,13 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Java process running inside the container has the expected UID, GID and username.
      */
     public void test130JavaHasCorrectOwnership() {
-        final List<String> processes = sh.run("ps -o uid,gid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
+        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "java");
 
-        assertThat("Expected a single java process", processes, hasSize(1));
+        assertThat("Incorrect UID", info.uid, equalTo(1000));
+        assertThat("Incorrect username", info.username, equalTo("elasticsearch"));
 
-        final String[] fields = processes.get(0).trim().split("\\s+");
-
-        assertThat(fields, arrayWithSize(3));
-        assertThat("Incorrect UID", fields[0], equalTo("1000"));
-        assertThat("Incorrect GID", fields[1], equalTo("0"));
-        assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
+        assertThat("Incorrect GID", info.gid, equalTo(0));
+        assertThat("Incorrect group", info.group, equalTo("root"));
     }
 
     /**
@@ -620,17 +614,15 @@ public class DockerTests extends PackagingTestCase {
      * The PID is particularly important because PID 1 handles signal forwarding and child reaping.
      */
     public void test131InitProcessHasCorrectPID() {
-        final List<String> processes = sh.run("ps -o pid,uid,gid,user -p 1").stdout.lines().skip(1).collect(Collectors.toList());
+        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "tini");
 
-        assertThat("Expected a single process", processes, hasSize(1));
+        assertThat("Incorrect PID", info.pid, equalTo(1));
 
-        final String[] fields = processes.get(0).trim().split("\\s+");
+        assertThat("Incorrect UID", info.uid, equalTo(1000));
+        assertThat("Incorrect username", info.username, equalTo("elasticsearch"));
 
-        assertThat(fields, arrayWithSize(4));
-        assertThat("Incorrect PID", fields[0], equalTo("1"));
-        assertThat("Incorrect UID", fields[1], equalTo("1000"));
-        assertThat("Incorrect GID", fields[2], equalTo("0"));
-        assertThat("Incorrect username", fields[3], equalTo("elasticsearch"));
+        assertThat("Incorrect GID", info.gid, equalTo(0));
+        assertThat("Incorrect group", info.group, equalTo("root"));
     }
 
     /**

@@ -190,7 +190,8 @@ public class Docker {
                 // Give the container a chance to crash out
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
-                psOutput = dockerShell.run("ps -ww ax").stdout;
+                // Set COLUMNS so that `ps` doesn't truncate its output
+                psOutput = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'").stdout;
 
                 if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
                     isElasticsearchRunning = true;
@@ -416,7 +417,7 @@ public class Docker {
     public static void assertPermissionsAndOwnership(Path path, Set<PosixFilePermission> expectedPermissions) {
         logger.debug("Checking permissions and ownership of [" + path + "]");
 
-        final String[] components = dockerShell.run("stat --format=\"%U %G %A\" " + path).stdout.split("\\s+");
+        final String[] components = dockerShell.run("stat -c \"%U %G %A\" " + path).stdout.split("\\s+");
 
         final String username = components[0];
         final String group = components[1];
@@ -489,13 +490,15 @@ public class Docker {
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
 
-        // These are installed to help users who are working with certificates.
-        Stream.of("zip", "unzip").forEach(cliPackage -> {
-            // We could run `yum list installed $pkg` but that causes yum to call out to the network.
-            // rpm does the job just as well.
-            final Shell.Result result = dockerShell.runIgnoreExitCode("rpm -q " + cliPackage);
-            assertTrue(cliPackage + " ought to be installed. " + result, result.isSuccess());
-        });
+        // zip/unzip are installed to help users who are working with certificates.
+        // pigz is useful for compressing large heapdumps more quickly than gzip.
+        Stream.of("zip", "unzip", "pigz")
+            .forEach(
+                cliPackage -> assertTrue(
+                    cliPackage + " ought to be installed. ",
+                    dockerShell.runIgnoreExitCode("which " + cliPackage).isSuccess()
+                )
+            );
     }
 
     private static void verifyDefaultInstallation(Installation es) {

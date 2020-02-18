@@ -11,20 +11,17 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM centos:7 AS builder
-
-RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \
-    yum install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
-    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
-    (exit \$exit_code)
+FROM elasticsearch/centos-base:7 AS builder
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
-RUN groupadd -g 1000 elasticsearch && \
-    adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
+RUN addgroup -g 1000 elasticsearch && \
+    adduser -D -u 1000 -G elasticsearch -h /usr/share/elasticsearch elasticsearch
 
 WORKDIR /usr/share/elasticsearch
 
+# This step may use `curl`, if we're not packaging the locally built artifacts. For that reason,
+# this step in the builder doesn't use the `elasticsearch/centos-base` iamge - yet.
 ${source_elasticsearch}
 
 RUN tar zxf /opt/${elasticsearch} --strip-components=1
@@ -35,16 +32,6 @@ RUN chmod 0775 config config/jvm.options.d data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-#
-# The tini GitHub page gives instructions for verifying the binary using
-# gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against a checksum that we have
-# computed.
-ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini /tini
-COPY config/tini.sha512 /tini.sha512
-RUN sha512sum -c /tini.sha512 && chmod +x /tini
 
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):
@@ -52,19 +39,13 @@ RUN sha512sum -c /tini.sha512 && chmod +x /tini
 # Add entrypoint
 ################################################################################
 
-FROM centos:7
+FROM elasticsearch/centos-base:7
 
 ENV ELASTIC_CONTAINER true
 
-COPY --from=builder /tini /tini
-
-RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \
-    yum install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \
-    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
-    (exit \$exit_code)
-
-RUN groupadd -g 1000 elasticsearch && \
-    adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \
+RUN addgroup -g 1000 elasticsearch && \
+    adduser -D -u 1000 -G elasticsearch -h /usr/share/elasticsearch elasticsearch && \
+    addgroup elasticsearch root && \
     chmod 0775 /usr/share/elasticsearch && \
     chgrp 0 /usr/share/elasticsearch
 
@@ -80,11 +61,12 @@ ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
+# 1. Sync the user and group of /etc/passwd
+# 2. Set correct permissions of the entrypoint
+# 3. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
 RUN chmod g=u /etc/passwd && \
-    chmod 0775 /usr/local/bin/docker-entrypoint.sh
-
-# Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-RUN find / -xdev -perm -4000 -exec chmod ug-s {} +
+    chmod 0775 /usr/local/bin/docker-entrypoint.sh && \
+    find / -xdev -perm -4000 -exec chmod ug-s {} +
 
 EXPOSE 9200 9300
 
@@ -110,7 +92,10 @@ LABEL org.label-schema.build-date="${build_date}" \
 
 USER elasticsearch:root
 
-ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+# Our actual entrypoint is `tini`, a minimal but functional init program. It calls our actual entrypoint for us,
+# and correctly forwards signals.
+ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
 

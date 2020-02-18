@@ -96,23 +96,29 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
-        return new BucketedSort.ForDoubles(bigArrays, sortOrder, format) {
+    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+            int bucketSize, BucketedSort.ExtraData extra) {
+        return new BucketedSort.ForDoubles(bigArrays, sortOrder, format, bucketSize, extra) {
             private final double dMissingValue = (Double) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                return new Leaf() {
+                return new Leaf(ctx) {
                     private final NumericDoubleValues values = getNumericDocValues(ctx, dMissingValue);
+                    private double docValue;
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
+                        if (values.advanceExact(doc)) {
+                            docValue = values.doubleValue();
+                            return true;
+                        }
+                        return false;
                     }
 
                     @Override
-                    protected double docValue() throws IOException {
-                        return values.doubleValue();
+                    protected double docValue() {
+                        return docValue;
                     }
                 };
             }

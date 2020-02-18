@@ -61,19 +61,38 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
         assertThat(stats.getDistribution(), hasEntry(equalTo("t"), closeTo(.09, .005)));
     }
 
-    public void testBasic() throws IOException {
+    public void testTopMetricsSingle() throws IOException {
         BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulk.add(new IndexRequest().source(XContentType.JSON, "s", 1, "v", 2));
         bulk.add(new IndexRequest().source(XContentType.JSON, "s", 2, "v", 3));
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
         SearchRequest search = new SearchRequest("test");
         search.source().aggregation(new TopMetricsAggregationBuilder(
-                "test", new FieldSortBuilder("s").order(SortOrder.DESC), "v"));
+                "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
         assertThat(top.getTopMetrics(), hasSize(1));
         ParsedTopMetrics.TopMetrics metric = top.getTopMetrics().get(0);
         assertThat(metric.getSort(), equalTo(singletonList(2)));
         assertThat(metric.getMetrics(), equalTo(singletonMap("v", 3.0)));
+    }
+
+    public void testTopMetricsDouble() throws IOException {
+        BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 1, "v", 2));
+        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 2, "v", 3));
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+        SearchRequest search = new SearchRequest("test");
+        search.source().aggregation(new TopMetricsAggregationBuilder(
+                "test", new FieldSortBuilder("s").order(SortOrder.DESC), 2, "v"));
+        SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
+        ParsedTopMetrics top = response.getAggregations().get("test");
+        assertThat(top.getTopMetrics(), hasSize(2));
+        ParsedTopMetrics.TopMetrics metric = top.getTopMetrics().get(0);
+        assertThat(metric.getSort(), equalTo(singletonList(2)));
+        assertThat(metric.getMetrics(), equalTo(singletonMap("v", 3.0)));
+        metric = top.getTopMetrics().get(1);
+        assertThat(metric.getSort(), equalTo(singletonList(1)));
+        assertThat(metric.getMetrics(), equalTo(singletonMap("v", 2.0)));
     }
 }

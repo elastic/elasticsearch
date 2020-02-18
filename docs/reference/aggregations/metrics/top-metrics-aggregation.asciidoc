@@ -14,7 +14,7 @@ POST /test/_bulk?refresh
 {"index": {}}
 {"s": 1, "v": 3.1415}
 {"index": {}}
-{"s": 2, "v": 1}
+{"s": 2, "v": 1.0}
 {"index": {}}
 {"s": 3, "v": 2.71828}
 POST /test/_search?filter_path=aggregations
@@ -73,6 +73,53 @@ the same sort values then this aggregation could return either document's fields
 At this point `metric` supports only `{"field": "field_name"}` and all metrics
 are returned as double precision floating point numbers. Expect more to
 come here.
+
+==== `size`
+
+`top_metrics` can return the top few document's worth of metrics using the size parameter:
+
+[source,console,id=search-aggregations-metrics-top-metrics-size]
+----
+POST /test/_bulk?refresh
+{"index": {}}
+{"s": 1, "v": 3.1415}
+{"index": {}}
+{"s": 2, "v": 1.0}
+{"index": {}}
+{"s": 3, "v": 2.71828}
+POST /test/_search?filter_path=aggregations
+{
+  "aggs": {
+    "tm": {
+      "top_metrics": {
+        "metric": {"field": "v"},
+        "sort": {"s": "desc"},
+        "size": 2
+      }
+    }
+  }
+}
+----
+
+Which returns:
+
+[source,js]
+----
+{
+  "aggregations": {
+    "tm": {
+      "top": [
+        {"sort": [3], "metrics": {"v": 2.718280076980591 } },
+        {"sort": [2], "metrics": {"v": 1.0 } }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE
+
+NOTE: If `size` is more than `1` the `top_metrics` aggregation can't be the target of a sort.
+
 
 ==== Examples
 

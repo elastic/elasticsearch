@@ -104,23 +104,29 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
-        return new BucketedSort.ForLongs(bigArrays, sortOrder, format) {
+    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+            int bucketSize, BucketedSort.ExtraData extra) {
+        return new BucketedSort.ForLongs(bigArrays, sortOrder, format, bucketSize, extra) {
             private final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                return new Leaf() {
+                return new Leaf(ctx) {
                     private final NumericDocValues values = getNumericDocValues(ctx, lMissingValue);
+                    private long value;
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
+                        if (values.advanceExact(doc)) {
+                            value = values.longValue();
+                            return true;
+                        }
+                        return false;
                     }
 
                     @Override
-                    protected long docValue() throws IOException {
-                        return values.longValue();
+                    protected long docValue() {
+                        return value;
                     }
                 };
             }

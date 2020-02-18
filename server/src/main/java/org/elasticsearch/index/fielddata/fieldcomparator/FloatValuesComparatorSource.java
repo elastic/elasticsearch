@@ -85,8 +85,9 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
-        return new BucketedSort.ForFloats(bigArrays, sortOrder, format) {
+    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+                int bucketSize, BucketedSort.ExtraData extra) {
+        return new BucketedSort.ForFloats(bigArrays, sortOrder, format, bucketSize, extra) {
             private final float dMissingValue = (Float) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
@@ -94,20 +95,25 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                return new Leaf() {
+                return new Leaf(ctx) {
                     private final NumericDoubleValues values = getNumericDocValues(ctx, dMissingValue);
+                    private float value;
 
                     @Override
                     public void setScorer(Scorable scorer) {}
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
+                        if (values.advanceExact(doc)) {
+                            value = (float) values.doubleValue();
+                            return true;
+                        }
+                        return false;
                     }
 
                     @Override
-                    protected float docValue() throws IOException {
-                        return (float) values.doubleValue();
+                    protected float docValue() {
+                        return value;
                     }
                 };
             }

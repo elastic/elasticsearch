@@ -122,6 +122,8 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
+    public static final Version SEQUENCE_NUM_TRACKING_VERSION = Version.V_8_0_0;
+
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
 
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;

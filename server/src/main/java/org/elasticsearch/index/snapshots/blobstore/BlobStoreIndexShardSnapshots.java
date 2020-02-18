@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.io.IOException;
@@ -135,6 +136,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
 
     static final class ParseFields {
         static final ParseField FILES = new ParseField("files");
+        static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
+        static final ParseField HISTORY_UUID = new ParseField("history_uuid");
         static final ParseField SNAPSHOTS = new ParseField("snapshots");
     }
 
@@ -207,6 +210,10 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 builder.value(fileInfo.name());
             }
             builder.endArray();
+            if (snapshot.sequenceNo() > SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                builder.field(ParseFields.SEQUENCE_NUM.getPreferredName(), snapshot.sequenceNo());
+                builder.field(ParseFields.HISTORY_UUID.getPreferredName(), snapshot.historyUUID());
+            }
             builder.endObject();
         }
         builder.endObject();
@@ -219,6 +226,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             token = parser.nextToken();
         }
         Map<String, List<String>> snapshotsMap = new HashMap<>();
+        Map<String, String> historyUUIDs = new HashMap<>();
+        Map<String, Long> sequenceNumbers = new HashMap<>();
         Map<String, FileInfo> files = new HashMap<>();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -250,15 +259,19 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
-                                if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                    if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                                        throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
-                                    }
+                                if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) &&
+                                    parser.nextToken() == XContentParser.Token.START_ARRAY) {
                                     List<String> fileNames = new ArrayList<>();
                                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                         fileNames.add(parser.text());
                                     }
                                     snapshotsMap.put(snapshot, fileNames);
+                                } else if (ParseFields.HISTORY_UUID.match(currentFieldName, parser.getDeprecationHandler())) {
+                                    parser.nextToken();
+                                    historyUUIDs.put(snapshot, parser.text());
+                                } else if (ParseFields.SEQUENCE_NUM.match(currentFieldName, parser.getDeprecationHandler())) {
+                                    parser.nextToken();
+                                    sequenceNumbers.put(snapshot, parser.longValue());
                                 }
                             }
                         }
@@ -277,7 +290,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 assert fileInfo != null;
                 fileInfosBuilder.add(fileInfo);
             }
-            snapshots.add(new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder)));
+            snapshots.add(new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder),
+                sequenceNumbers.getOrDefault(entry.getKey(), SequenceNumbers.UNASSIGNED_SEQ_NO),
+                historyUUIDs.getOrDefault(entry.getKey(), "")));
         }
         return new BlobStoreIndexShardSnapshots(files, Collections.unmodifiableList(snapshots));
     }

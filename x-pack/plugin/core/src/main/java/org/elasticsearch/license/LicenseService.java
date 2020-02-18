@@ -353,32 +353,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    MetaData metaData = currentState.metaData();
-                    final LicensesMetaData currentLicensesMetadata = metaData.custom(LicensesMetaData.TYPE);
-                    final License currentLicense = LicensesMetaData.extractLicense(currentLicensesMetadata);
-                    if (shouldRemove(currentLicense)) {
-                        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                        License.Builder specBuilder = License.builder()
-                            .uid(UUID.randomUUID().toString())
-                            .issuedTo(clusterService.getClusterName().value())
-                            .maxNodes(SELF_GENERATED_LICENSE_MAX_NODES)
-                            .issueDate(clock.millis())
-                            .type(License.LicenseType.BASIC)
-                            .expiryDate(BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
-                        License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
-                        LicensesMetaData newLicensesMetadata = new LicensesMetaData(selfGeneratedLicense,
-                            currentLicensesMetadata == null ? null : currentLicensesMetadata.getMostRecentTrialVersion());
-                        mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetadata);
-                        return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                    } else {
-                        return currentState;
-                    }
-                }
-
-                private boolean shouldRemove(License license) {
-                    return false == License.LicenseType.isBasic(license.type())
-                        || SELF_GENERATED_LICENSE_MAX_NODES != license.maxNodes()
-                        || BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != license.expiryDate();
+                    final StartBasicClusterTask startBasicClusterTask =
+                        new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock,
+                            new PostStartBasicRequest().acknowledge(true), null);
+                    return startBasicClusterTask.execute(currentState);
                 }
             });
     }

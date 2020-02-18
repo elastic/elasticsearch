@@ -40,7 +40,7 @@ public class UserPrivilegeResolver {
                 throw new IllegalArgumentException("a user without access ([" + hasAccess + "]) may not have groups ([" + groups + "])");
             }
             this.hasAccess = hasAccess;
-            this.groups = Set.copyOf(Objects.requireNonNull(groups, "groups may not br null"));
+            this.groups = Set.copyOf(Objects.requireNonNull(groups, "groups may not be null"));
         }
 
         @Override

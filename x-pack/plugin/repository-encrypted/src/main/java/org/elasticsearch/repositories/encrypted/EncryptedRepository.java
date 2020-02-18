@@ -514,7 +514,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
             DeleteResult deleteResult = delegatedBlobContainer.delete();
             // then delete metadata
             try {
-                encryptionMetadataBlobContainer.delete();
+                deleteResult = deleteResult.add(encryptionMetadataBlobContainer.delete());
             } catch (IOException e) {
                 // the encryption metadata blob container might not exist at all
                 logger.warn("Failure to delete metadata blob container " + encryptionMetadataBlobContainer.path(), e);
@@ -525,44 +525,75 @@ public final class EncryptedRepository extends BlobStoreRepository {
         @Override
         public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
             Objects.requireNonNull(blobNames);
-            // first delete the encrypted data blob
-            delegatedBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
-            // then delete metadata
+
+            // find all the blob names that must be deleted
             Set<String> blobNamesSet = new HashSet<>(blobNames);
-            List<String> metadataBlobsToDelete = new ArrayList<>(blobNames.size());
-            final Set<String> allMetadataBlobs;
+            Set<String> blobNamesToDelete = new HashSet<>();
+            for (String existingBlobName : delegatedBlobContainer.listBlobs().keySet()) {
+                if (blobNamesSet.contains(existingBlobName)) {
+                    blobNamesToDelete.add(existingBlobName);
+                }
+            }
+
+            // find all the metadata blob names that must be deleted
+            Map<String, List<String>> blobNamesToMetadataNamesToDelete = new HashMap<>(blobNamesToDelete.size());
+            Set<String> allMetadataBlobs = new HashSet<>();
             try {
                 allMetadataBlobs = encryptionMetadataBlobContainer.listBlobs().keySet();
             } catch (IOException e) {
-                // the encryption metadata blob container might not exist at all
+                // the metadata blob container might not even exist
+                // the encrypted data is the "anchor" for encrypted blobs, if those are removed, the encrypted blob as a whole is
+                // considered removed, even if, technically, the metadata is still lingering (it should later be removed by cleanup)
+                // therefore this tolerates metadata delete failures, when data deletes are successful
                 logger.warn("Failure to list blobs of metadata blob container " + encryptionMetadataBlobContainer.path(), e);
-                return;
             }
             for (String metadataBlobName : allMetadataBlobs) {
-                boolean invalidMetadataName = metadataBlobName.length() <= METADATA_UID_LENGTH_IN_CHARS;
-                if (invalidMetadataName) {
+                final String blobNameForMetadata;
+                try {
+                    blobNameForMetadata = MetadataIdentifier.parseFromMetadataBlobName(metadataBlobName).v1();
+                } catch (IllegalArgumentException e) {
+                    // ignore invalid metadata blob names, which most likely have been created externally
                     continue;
                 }
-                String blobName = metadataBlobName.substring(0, metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS);
-                if (blobNamesSet.contains(blobName)) {
-                    metadataBlobsToDelete.add(metadataBlobName);
+                // group metadata blob names to their associated blob name
+                if (blobNamesToDelete.contains(blobNameForMetadata)) {
+                    blobNamesToMetadataNamesToDelete.putIfAbsent(blobNameForMetadata, new ArrayList<>(1)).add(metadataBlobName);
                 }
             }
+            // Metadata deletes when there are multiple for the same blob is un-safe, so don't try it now.
+            // It is unsafe because metadata "appears" before the data and there could be an overwrite in progress for which only
+            // the metadata, but not the encrypted data, shows up.
+            List<String> metadataBlobNamesToDelete = new ArrayList<>(blobNamesToMetadataNamesToDelete.size());
+            blobNamesToMetadataNamesToDelete.entrySet().forEach(entry -> {
+                if (entry.getValue().size() == 1) {
+                    metadataBlobNamesToDelete.add(entry.getValue().get(0));
+                }
+            });
+
+            // then delete the encrypted data blobs
+            delegatedBlobContainer.deleteBlobsIgnoringIfNotExists(new ArrayList<>(blobNamesToDelete));
+
+            // lastly delete metadata blobs
             try {
-                encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(metadataBlobsToDelete);
+                encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(metadataBlobNamesToDelete);
             } catch (IOException e) {
-                logger.warn("Failure to delete metadata blobs " + metadataBlobsToDelete + " from blob container "
+                logger.warn("Failure to delete metadata blobs " + metadataBlobNamesToDelete + " from blob container "
                         + encryptionMetadataBlobContainer.path(), e);
             }
         }
 
         @Override
         public Map<String, BlobMetaData> listBlobs() throws IOException {
-            // the encrypted data blob container is the source-of-truth for list operations
-            // the metadata blob container mirrors its structure, but in some failure cases it might contain
-            // additional orphaned metadata blobs
-            // can list blobs that cannot be decrypted (because metadata is missing or corrupted)
+            // The encrypted data blobs "anchor" the metadata-data blob pair, i.e. the encrypted blob "exists" if only the data exists.
+            // In all circumstances, barring an "external" access to the repository, the metadata associated to the data must exist.
             return delegatedBlobContainer.listBlobs();
+        }
+
+        @Override
+        public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+            // The encrypted data blobs "anchor" the metadata-data blob pair, i.e. the encrypted blob "exists" if only the data exists.
+            // In all circumstances, barring an "external" access to the repository, the metadata associated to the data must exist.
+            return delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
         }
 
         @Override
@@ -584,15 +615,6 @@ public final class EncryptedRepository extends BlobStoreRepository {
                         encryptionNonceSupplier, metadataIdentifierSupplier));
             }
             return result;
-        }
-
-        @Override
-        public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-            // the encrypted data blob container is the source-of-truth for list operations
-            // the metadata blob container mirrors its structure, but in some failure cases it might contain
-            // additional orphaned metadata blobs
-            // can list blobs that cannot be decrypted (because metadata is missing or corrupted)
-            return delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
         }
 
         public void cleanUpOrphanedMetadata() throws IOException {

@@ -48,9 +48,12 @@ scores be positive or `0`.
 --
 
 `min_score`::
-(Optional, float) Documents with a <<relevance-scores,relevance score>> lower
+(Optional, float) Documents with a score lower
 than this floating point number are excluded from the search results.
 
+`boost`::
+(Optional, float) Documents' scores produced by `script` are
+multiplied by `boost` to produce final documents' scores. Defaults to `1.0`.
 
 [[script-score-query-notes]]
 ==== Notes

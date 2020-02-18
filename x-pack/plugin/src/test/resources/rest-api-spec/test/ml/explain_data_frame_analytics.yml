@@ -102,10 +102,6 @@
 ---
 "Test non-empty data frame given body":
 
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/ml-cpp/pull/1003"
-
   - do:
       indices.create:
         index: index-source
@@ -129,8 +125,10 @@
         body:
           source: { index: "index-source" }
           analysis: { outlier_detection: {} }
-  - match: { memory_estimation.expected_memory_without_disk: "3kb" }
-  - match: { memory_estimation.expected_memory_with_disk: "3kb" }
+  - match:
+      memory_estimation.expected_memory_without_disk: / \dkb /
+  - match:
+      memory_estimation.expected_memory_with_disk: / \dkb /
   - length: { field_selection: 2 }
   - match: { field_selection.0.name: "x" }
   - match: { field_selection.0.mapping_types: ["float"] }
@@ -157,8 +155,10 @@
         body:
           source: { index: "index-source" }
           analysis: { outlier_detection: {} }
-  - match: { memory_estimation.expected_memory_without_disk: "4kb" }
-  - match: { memory_estimation.expected_memory_with_disk: "4kb" }
+  - match:
+      memory_estimation.expected_memory_without_disk: / \dkb /
+  - match:
+      memory_estimation.expected_memory_with_disk: / \dkb /
 
   - do:
       index:
@@ -172,8 +172,10 @@
         body:
           source: { index: "index-source" }
           analysis: { outlier_detection: {} }
-  - match: { memory_estimation.expected_memory_without_disk: "6kb" }
-  - match: { memory_estimation.expected_memory_with_disk: "5kb" }
+  - match:
+      memory_estimation.expected_memory_without_disk: / \dkb /
+  - match:
+      memory_estimation.expected_memory_with_disk: / \dkb /
 
 ---
 "Test field_selection given body":

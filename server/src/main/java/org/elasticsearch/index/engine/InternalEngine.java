@@ -180,8 +180,6 @@ public class InternalEngine extends Engine {
     @Nullable
     private final String historyUUID;
 
-    private volatile long lastOpPrimaryTerm;
-
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, LocalCheckpointTracker::new);
     }
@@ -222,12 +220,6 @@ public class InternalEngine extends Engine {
                 bootstrapAppendOnlyInfoFromWriter(writer);
                 historyUUID = loadHistoryUUID(writer);
                 indexWriter = writer;
-                final String maxPrimaryTerm = store.readLastCommittedSegmentsInfo().getUserData().get(MAX_PRIMARY_TERM);
-                if (maxPrimaryTerm == null) {
-                    lastOpPrimaryTerm = engineConfig.getPrimaryTermSupplier().getAsLong();
-                } else {
-                    lastOpPrimaryTerm = Long.parseLong(maxPrimaryTerm);
-                }
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
@@ -2291,14 +2283,13 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(7);
+                final Map<String, String> commitData = new HashMap<>(6);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
-                commitData.put(MAX_PRIMARY_TERM, Long.toString(lastOpPrimaryTerm));
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
@@ -2375,7 +2366,6 @@ public class InternalEngine extends Engine {
      */
     protected final void markSeqNoAsSeen(long seqNo) {
         localCheckpointTracker.advanceMaxSeqNo(seqNo);
-        lastOpPrimaryTerm = engineConfig.getPrimaryTermSupplier().getAsLong();
     }
 
     /**
@@ -2612,7 +2602,6 @@ public class InternalEngine extends Engine {
             throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
         }
         this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
-        lastOpPrimaryTerm = engineConfig.getPrimaryTermSupplier().getAsLong();
     }
 
     private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {

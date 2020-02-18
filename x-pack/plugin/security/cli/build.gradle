@@ -24,6 +24,14 @@ forbiddenPatterns {
   exclude '**/*.jks'
 }
 
+thirdPartyAudit {
+  ignoreMissingClasses(
+    // Used in org.bouncycastle.pqc.crypto.qtesla.QTeslaKeyEncodingTests
+    'junit.framework.Assert',
+    'junit.framework.TestCase'
+  )
+}
+
 if (BuildParams.inFipsJvm) {
   test.enabled = false
   jarHell.enabled = false

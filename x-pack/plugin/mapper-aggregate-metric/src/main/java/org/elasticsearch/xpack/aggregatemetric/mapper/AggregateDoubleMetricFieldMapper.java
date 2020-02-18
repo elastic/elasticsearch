@@ -377,7 +377,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        if (context.externalValueSet() == true) {
+        if (context.externalValueSet()) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
 
@@ -437,7 +437,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
             }
         } catch (Exception e) {
-            if (ignoreMalformed.value() == true) {
+            if (ignoreMalformed.value()) {
                 if (subParser != null) {
                     // close the subParser so we advance to the end of the object
                     subParser.close();

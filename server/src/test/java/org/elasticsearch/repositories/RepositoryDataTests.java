@@ -283,10 +283,10 @@ public class RepositoryDataTests extends ESTestCase {
         final SnapshotId snapshotId = randomFrom(repositoryData.getSnapshotIds());
         final IndexMetaDataGenerations indexMetaDataGenerations = repositoryData.indexMetaDataGenerations();
         final Collection<IndexId> indicesToUpdate = repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotId);
-        final Map<IndexId, String> hashesToRemove = indexMetaDataGenerations.lookup.get(snapshotId).entrySet().stream()
+        final Map<IndexId, String> identifiersToRemove = indexMetaDataGenerations.lookup.get(snapshotId).entrySet().stream()
             .filter(e -> indicesToUpdate.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, e -> indexMetaDataGenerations.getIndexMetaBlobId(e.getValue())));
-        assertEquals(repositoryData.indexMetaDataToRemoveAfterRemovingSnapshot(snapshotId), hashesToRemove);
+        assertEquals(repositoryData.indexMetaDataToRemoveAfterRemovingSnapshot(snapshotId), identifiersToRemove);
     }
 
     // Test removing snapshot from random data that has some or all index metadata shared
@@ -302,15 +302,15 @@ public class RepositoryDataTests extends ESTestCase {
             builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
         }
         final Map<IndexId, String> newIndices = new HashMap<>();
-        final Map<String, String> newHashes = new HashMap<>();
+        final Map<String, String> newIdentifiers = new HashMap<>();
         final Map<IndexId, String> removeFromOther = new HashMap<>();
         for (IndexId indexId : randomSubsetOf(repositoryData.getIndices().values())) {
             if (indicesInOther.contains(indexId)) {
                 removeFromOther.put(indexId, repositoryData.indexMetaDataGenerations().indexMetaBlobId(otherSnapshotId, indexId));
             }
-            final String hash = randomAlphaOfLength(256);
-            newIndices.put(indexId, hash);
-            newHashes.put(hash, UUIDs.randomBase64UUID(random()));
+            final String identifier = randomAlphaOfLength(20);
+            newIndices.put(indexId, identifier);
+            newIdentifiers.put(identifier, UUIDs.randomBase64UUID(random()));
             builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
         }
         final ShardGenerations shardGenerations = builder.build();
@@ -319,9 +319,9 @@ public class RepositoryDataTests extends ESTestCase {
         final SnapshotId newSnapshot = new SnapshotId(randomAlphaOfLength(7), UUIDs.randomBase64UUID(random()));
 
         RepositoryData newRepoData =
-            repositoryData.addSnapshot(newSnapshot, SnapshotState.SUCCESS, Version.CURRENT, shardGenerations, indexLookup, newHashes);
+            repositoryData.addSnapshot(newSnapshot, SnapshotState.SUCCESS, Version.CURRENT, shardGenerations, indexLookup, newIdentifiers);
         assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshot(newSnapshot), newIndices.entrySet().stream().collect(
-            Collectors.toMap(Map.Entry::getKey, e -> newHashes.get(e.getValue()))));
+            Collectors.toMap(Map.Entry::getKey, e -> newIdentifiers.get(e.getValue()))));
         assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshot(otherSnapshotId), removeFromOther);
     }
 

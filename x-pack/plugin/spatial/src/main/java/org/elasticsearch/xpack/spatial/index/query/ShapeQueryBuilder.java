@@ -104,7 +104,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
     @Override
     @SuppressWarnings({ "rawtypes" })
-    protected List validContentTypes(){
+    protected List<String> validContentTypes(){
         return Arrays.asList(GeoShapeFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.CONTENT_TYPE);
     }
 

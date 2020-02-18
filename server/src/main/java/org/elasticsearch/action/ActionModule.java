@@ -21,7 +21,6 @@ package org.elasticsearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -413,13 +412,8 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
-        final boolean restrictSystemIndices = isSnapshot() && RestController.RESTRICT_SYSTEM_INDICES.get(settings);
+        final boolean restrictSystemIndices = RestController.RESTRICT_SYSTEM_INDICES.get(settings);
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restrictSystemIndices);
-    }
-
-    // pkg-private for testing
-    boolean isSnapshot() {
-        return Build.CURRENT.isSnapshot();
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

@@ -1146,6 +1146,23 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional list of strings. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public List<String> readOptionalStringList() throws IOException {
+        final boolean isPresent = readBoolean();
+        if (isPresent) {
+            return readList(StreamInput::readString);
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {

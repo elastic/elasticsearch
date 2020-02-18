@@ -318,6 +318,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     protected long readSnapshotIndexLatestBlob() throws IOException {
+        // the index.latest blob is not encrypted
         EncryptedBlobContainer encryptedBlobContainer = (EncryptedBlobContainer) blobContainer();
         return Numbers.bytesToLong(Streams.readFully(encryptedBlobContainer.delegatedBlobContainer.readBlob(INDEX_LATEST_BLOB))
                 .toBytesRef());
@@ -330,6 +331,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
             bStream.writeLong(newGen);
             genBytes = bStream.bytes();
         }
+        // the index.latest blob is not encrypted
         EncryptedBlobContainer encryptedBlobContainer = (EncryptedBlobContainer) blobContainer();
         try (InputStream stream = genBytes.streamInput()) {
             encryptedBlobContainer.delegatedBlobContainer.writeBlobAtomic(INDEX_LATEST_BLOB, stream, genBytes.length(), false);

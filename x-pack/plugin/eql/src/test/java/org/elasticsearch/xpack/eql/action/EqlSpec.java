@@ -11,11 +11,51 @@ import org.elasticsearch.common.Strings;
 import java.util.Arrays;
 
 public class EqlSpec {
-    String description;
-    String note;
-    String[] tags;
-    String query;
-    int[] expectedEventIds;
+    private String description;
+    private String note;
+    private String[] tags;
+    private String query;
+    private long[] expectedEventIds;
+
+    public String description() {
+        return description;
+    }
+
+    public void description(String description) {
+        this.description = description;
+    }
+
+    public String note() {
+        return note;
+    }
+
+    public void note(String note) {
+        this.note = note;
+    }
+
+    public String[] tags() {
+        return tags;
+    }
+
+    public void tags(String[] tags) {
+        this.tags = tags;
+    }
+
+    public String query() {
+        return query;
+    }
+
+    public void query(String query) {
+        this.query = query;
+    }
+
+    public long[] expectedEventIds() {
+        return expectedEventIds;
+    }
+
+    public void expectedEventIds(long[] expectedEventIds) {
+        this.expectedEventIds = expectedEventIds;
+    }
 
     @Override
     public String toString() {

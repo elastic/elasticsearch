@@ -44,7 +44,7 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
             .setSource(endgame.getBytes(StandardCharsets.UTF_8), XContentType.JSON).get());
 
         // Insert test data
-        InputStream is = EqlActionIT.class.getResourceAsStream("/endgame.dat");
+        InputStream is = EqlActionIT.class.getResourceAsStream("/endgame.ndjson");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
         try (BufferedReader reader = new BufferedReader(
             new InputStreamReader(is, StandardCharsets.UTF_8))) {
@@ -68,27 +68,27 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
             boolean supported = true;
             // Check if spec is supported, simple iteration, cause the list is short.
             for (EqlSpec unSpec : unsupportedSpecs) {
-                if (spec.query.equals(unSpec.query)) {
+                if (spec.query() != null && spec.query().equals(unSpec.query())) {
                     supported = false;
                     break;
                 }
             }
 
             if (supported) {
-                logger.info("execute: " + spec.query);
+                logger.info("execute: " + spec.query());
                 EqlSearchResponse response = new EqlSearchRequestBuilder(client(), EqlSearchAction.INSTANCE)
-                    .indices(testIndexName).rule(spec.query).get();
+                    .indices(testIndexName).rule(spec.query()).get();
 
                 List<SearchHit> events = response.hits().events();
                 assertNotNull(events);
 
                 final int len = events.size();
-                final int ids[] = new int[len];
+                final long ids[] = new long[len];
                 for (int i = 0; i < events.size(); i++) {
                     ids[i] = events.get(i).docId();
                 }
                 final String msg = "unexpected result for spec: [" + spec.toString() + "]";
-                assertArrayEquals(msg, spec.expectedEventIds, ids);
+                assertArrayEquals(msg, spec.expectedEventIds(), ids);
             }
         }
     }

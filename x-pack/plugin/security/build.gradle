@@ -56,10 +56,9 @@ dependencies {
     compile 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc
-  compile "com.nimbusds:oauth2-oidc-sdk:6.16.5"
-  compile "com.nimbusds:nimbus-jose-jwt:8.2"
+  compile "com.nimbusds:oauth2-oidc-sdk:7.0"
+  compile "com.nimbusds:nimbus-jose-jwt:8.6"
   compile "com.nimbusds:lang-tag:1.4.4"
-  compile "com.sun.mail:jakarta.mail:1.6.3"
   compile "net.jcip:jcip-annotations:1.0"
   compile "net.minidev:json-smart:2.3"
   compile "net.minidev:accessors-smart:1.2"

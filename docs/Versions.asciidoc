@@ -1,8 +1,8 @@
 
 include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
 
-:lucene_version:        8.4.0
-:lucene_version_path:   8_4_0
+:lucene_version:        8.5.0
+:lucene_version_path:   8_5_0
 :jdk:                   11.0.2
 :jdk_major:             11
 :build_flavor:          default
@@ -57,6 +57,16 @@ endif::[]
 :javadoc-xpack: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack
 :javadoc-license: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/license
 :javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
+
+///////
+Permanently unreleased branches (master, n.X)
+///////
+ifeval::["{source_branch}"=="master"]
+:permanently-unreleased-branch:
+endif::[]
+ifeval::["{source_branch}"=="{major-version}"]
+:permanently-unreleased-branch:
+endif::[]
 
 ///////
 Shared attribute values are pulled from elastic/docs

@@ -1,0 +1,25 @@
+#
+# SAMPLE KIBANA CONFIGURATION FOR ENABLING SSL TO ELASTICSEARCH
+#
+# This is a sample configuration snippet for Kibana that configures SSL for connections to Elasticsearch
+#
+# This was automatically generated at: ${DATE} ${TIME}
+# This configuration was intended for version ${VERSION}
+#
+# You should review these settings, and then update the main kibana.yml configuration file.
+#
+#-------------------------------------------------------------------------------------------------
+#  You also need to update the URLs in your "elasticsearch.hosts" setting to use the "https" URL.
+#  e.g. If your kibana.yml file currently has
+#
+#  elasticsearch.hosts: [ "http://localhost:9200" ]
+#
+#  then you should change this to:
+#
+#  elasticsearch.hosts: [ "https://localhost:9200" ]
+#
+#-------------------------------------------------------------------------------------------------
+
+# This configures Kibana to trust a specific Certificate Authority for connections to Elasticsearch
+elasticsearch.ssl.certificateAuthorities: [ "config/${CA_CERT_NAME}" ]
+

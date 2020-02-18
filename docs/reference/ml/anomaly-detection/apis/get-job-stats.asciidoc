@@ -66,51 +66,51 @@ related error counts. The `data_count` values are cumulative for the lifetime of
 a job. If a model snapshot is reverted or old results are deleted, the job
 counts are not reset.
 
-`bucket_count`:::
+`data_counts`.`bucket_count`:::
 (long) The number of bucket results produced by the job.
 
-`earliest_record_timestamp`:::
+`data_counts`.`earliest_record_timestamp`:::
 (date) The timestamp of the earliest chronologically input document.
 
-`empty_bucket_count`:::
+`data_counts`.`empty_bucket_count`:::
 (long) The number of buckets which did not contain any data. If your data
 contains many empty buckets, consider increasing your `bucket_span` or using
 functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or
 `non_zero_count`.
 
-`input_bytes`:::
+`data_counts`.`input_bytes`:::
 (long) The number of bytes of input data posted to the job.
 
-`input_field_count`:::
+`data_counts`.`input_field_count`:::
 (long) The total number of fields in input documents posted to the job. This
 count includes fields that are not used in the analysis. However, be aware that
 if you are using a {dfeed}, it extracts only the required fields from the
 documents it retrieves before posting them to the job.
 
-`input_record_count`:::
+`data_counts`.`input_record_count`:::
 (long) The number of input documents posted to the job.
 
-`invalid_date_count`:::
+`data_counts`.`invalid_date_count`:::
 (long) The number of input documents with either a missing date field or a date
 that could not be parsed.
 
-`job_id`:::
+`data_counts`.`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`last_data_time`:::
+`data_counts`.`last_data_time`:::
 (date) The timestamp at which data was last analyzed, according to server time.
 
-`latest_empty_bucket_timestamp`:::
+`data_counts`.`latest_empty_bucket_timestamp`:::
 (date) The timestamp of the last bucket that did not contain any data.
 
-`latest_record_timestamp`:::
+`data_counts`.`latest_record_timestamp`:::
 (date) The timestamp of the latest chronologically input document.
 
-`latest_sparse_bucket_timestamp`:::
+`data_counts`.`latest_sparse_bucket_timestamp`:::
 (date) The timestamp of the last bucket that was considered sparse.
 
-`missing_field_count`:::
+`data_counts`.`missing_field_count`:::
 (long) The number of input documents that are missing a field that the job is
 configured to analyze. Input documents with missing fields are still processed
 because it is possible that not all fields are missing. The value of
@@ -123,33 +123,34 @@ necessarily a cause for concern.
 
 --
 
-`out_of_order_timestamp_count`:::
+`data_counts`.`out_of_order_timestamp_count`:::
 (long) The number of input documents that are out of time sequence and outside
 of the latency window. This information is applicable only when you provide data
 to the job by using the <<ml-post-data,post data API>>. These out of order
 documents are  discarded, since jobs require time series data to be in ascending
 chronological order.
 
-`processed_field_count`:::
+`data_counts`.`processed_field_count`:::
 (long) The total number of fields in all the documents that have been processed
 by the job. Only fields that are specified in the detector configuration object
 contribute to this count. The timestamp is not included in this count.
 
-`processed_record_count`:::
+`data_counts`.`processed_record_count`:::
 (long) The number of input documents that have been processed by the job. This
 value includes documents with missing fields, since they are nonetheless
 analyzed. If you use {dfeeds} and have aggregations in your search query, the
 `processed_record_count` will be the number of aggregation results processed,
 not the number of {es} documents.
 
-`sparse_bucket_count`:::
+`data_counts`.`sparse_bucket_count`:::
 (long) The number of buckets that contained few data points compared to the
 expected number of data points. If your data contains many sparse buckets,
 consider using a longer `bucket_span`.
 
 [[forecastsstats]]`forecasts_stats`::
-(object) An object that provides statistical information about forecasts
-of this job. It has the following properties:
+(object) An object that provides statistical information about forecasts 
+belonging to this job. Some statistics are omitted if no forecasts have been 
+made. It has the following properties:
 +
 --
 NOTE: Unless there is at least one forecast, `memory_bytes`, `records`,
@@ -157,25 +158,29 @@ NOTE: Unless there is at least one forecast, `memory_bytes`, `records`,
 
 --
 
-`forecasted_jobs`:::
-(long) The number of jobs that have at least one forecast.
+`forecasts_stats`.`forecasted_jobs`:::
+(long) A value of `0` indicates that forecasts do not exist for this job. A 
+value of `1` indicates that at least one forecast exists.
 
-`memory_bytes`:::
-(object) Statistics about the memory usage: minimum, maximum, average and total.
+`forecasts_stats`.`memory_bytes`:::
+(object) The `avg`, `min`, `max` and `total` memory usage in bytes for forecasts 
+related to this job. If there are no forecasts, this property is omitted.
 
-`records`:::
-(object) Statistics about the number of forecast records: minimum, maximum,
-saverage and total.
+`forecasts_stats`.`records`:::
+(object) The `avg`, `min`, `max` and `total` number of model_forecast documents 
+written for forecasts related to this job. If there are no forecasts, this property is omitted.
 
-`processing_time_ms`:::
-(object) Statistics about the forecast runtime in milliseconds: minimum, maximum,
-average and total.
+`forecasts_stats`.`processing_time_ms`:::
+(object) The `avg`, `min`, `max` and `total` runtime in milliseconds for 
+forecasts related to this job. If there are no forecasts, this property is omitted.
 
-`status`:::
-(object) Counts per forecast status. For example: `{"finished" : 2}`. 
+`forecasts_stats`.`status`:::
+(object) The count of forecasts by their status. For example: 
+{"finished" : 2, "started" : 1}. If there are no forecasts, this property is omitted.
 
-`total`:::
-(long) The number of forecasts currently available for this model.
+`forecasts_stats`.`total`:::
+(long) The number of individual forecasts currently available for this job. A 
+value of `1` or more indicates that forecasts exist.
 
 `job_id`::
 (string)
@@ -185,19 +190,48 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 (object) An object that provides information about the size and contents of the
 model. It has the following properties:
  
-`bucket_allocation_failures_count`:::
+`model_size_stats`.`bucket_allocation_failures_count`:::
 (long) The number of buckets for which new entities in incoming data were not
 processed due to insufficient model memory. This situation is also signified
 by a `hard_limit: memory_status` property value.
 
-`job_id`:::
+`model_size_stats`.`categorized_doc_count`:::
+(long) The number of documents that have had a field categorized.
+
+`model_size_stats`.`categorization_status`:::
+(string) The status of categorization for this job.
+Contains one of the following values.
++
+--
+* `ok`: Categorization is performing acceptably well (or not being
+used at all).
+* `warn`: Categorization is detecting a distribution of categories
+that suggests the input data is inappropriate for categorization.
+Problems could be that there is only one category, more than 90% of
+categories are rare, the number of categories is greater than 50% of
+the number of categorized documents, there are no frequently
+matched categories, or more than 50% of categories are dead.
+
+--
+
+`model_size_stats`.`dead_category_count`:::
+(long) The number of categories created by categorization that will
+never be assigned again because another category's definition
+makes it a superset of the dead category.  (Dead categories are a
+side effect of the way categorization has no prior training.)
+
+`model_size_stats`.`frequent_category_count`:::
+(long) The number of categories that match more than 1% of categorized
+documents.
+
+`model_size_stats`.`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`log_time`:::
+`model_size_stats`.`log_time`:::
 (date) The timestamp of the `model_size_stats` according to server time.
 
-`memory_status`:::
+`model_size_stats`.`memory_status`:::
 (string) The status of the mathematical models. This property can have one of
 the following values:
 +
@@ -209,43 +243,40 @@ and older unused models will be pruned to free up space.
 As a result, not all incoming data was processed.
 --
 
-`model_bytes`:::
+`model_size_stats`.`model_bytes`:::
 (long) The number of bytes of memory used by the models. This is the maximum
 value since the last time the model was persisted. If the job is closed,
 this value indicates the latest size.
 
-`model_bytes_exceeded`:::
+`model_size_stats`.`model_bytes_exceeded`:::
  (long) The number of bytes over the high limit for memory usage at the last
  allocation failure.
 
-`model_bytes_memory_limit`:::
+`model_size_stats`.`model_bytes_memory_limit`:::
 (long) The upper limit for memory usage, checked on increasing values.
 
-`result_type`:::
+`model_size_stats`.`rare_category_count`:::
+(long) The number of categories that match just one categorized document.
+
+`model_size_stats`.`result_type`:::
 (string) For internal use. The type of result.
 
-`total_by_field_count`:::
-(long) The number of `by` field values that were analyzed by the models.
-+
---
-NOTE: The `by` field values are counted separately for each detector and
-partition.
+`model_size_stats`.`total_by_field_count`:::
+(long) The number of `by` field values that were analyzed by the models. This 
+value is cumulative for all detectors.
 
---
+`model_size_stats`.`total_category_count`:::
+(long) The number of categories created by categorization.
 
-`total_over_field_count`:::
-(long) The number of `over` field values that were analyzed by the models.
-+
---
-NOTE: The `over` field values are counted separately for each detector and
-partition.
+`model_size_stats`.`total_over_field_count`:::
+(long) The number of `over` field values that were analyzed by the models. This 
+value is cumulative for all detectors.
 
---
+`model_size_stats`.`total_partition_field_count`:::
+(long) The number of `partition` field values that were analyzed by the models. 
+This value is cumulative for all detectors.
 
-`total_partition_field_count`:::
-(long) The number of `partition` field values that were analyzed by the models.
-
-`timestamp`:::
+`model_size_stats`.`timestamp`:::
 (date) The timestamp of the `model_size_stats` according to the timestamp of the
 data.
 
@@ -253,20 +284,20 @@ data.
 (object) Contains properties for the node that runs the job. This information is
 available only for open jobs.
 
-`attributes`:::
+`node`.`attributes`:::
 (object) Lists node attributes. For example,
 `{"ml.machine_memory": "17179869184", "ml.max_open_jobs" : "20"}`.
   
-`ephemeral_id`:::
+`node`.`ephemeral_id`:::
 (string) The ephemeral ID of the node.
 
-`id`:::
+`node`.`id`:::
 (string) The unique identifier of the node.
 
-`name`:::
+`node`.`name`:::
 (string) The node name.
 
-`transport_address`:::
+`node`.`transport_address`:::
 (string) The host and port where transport HTTP connections are accepted.
 
 `open_time`::
@@ -295,31 +326,31 @@ then re-opened.
 (object) An object that provides statistical information about timing aspect of
 this job. It has the following properties:
 
-`average_bucket_processing_time_ms`:::
+`timing_stats`.`average_bucket_processing_time_ms`:::
 (double) Average of all bucket processing times in milliseconds.
 
-`bucket_count`:::
+`timing_stats`.`bucket_count`:::
 (long) The number of buckets processed.
 
-`exponential_average_bucket_processing_time_ms`:::
+`timing_stats`.`exponential_average_bucket_processing_time_ms`:::
 (double) Exponential moving average of all bucket processing times in
 milliseconds.
 
-`exponential_average_bucket_processing_time_per_hour_ms`:::
+`timing_stats`.`exponential_average_bucket_processing_time_per_hour_ms`:::
 (double) Exponentially-weighted moving average of bucket processing times
 calculated in a 1 hour time window.
 
-`job_id`:::
+`timing_stats`.`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`maximum_bucket_processing_time_ms`:::
+`timing_stats`.`maximum_bucket_processing_time_ms`:::
 (double) Maximum among all bucket processing times in milliseconds.
 
-`minimum_bucket_processing_time_ms`:::
+`timing_stats`.`minimum_bucket_processing_time_ms`:::
 (double) Minimum among all bucket processing times in milliseconds.
 
-`total_bucket_processing_time_ms`:::
+`timing_stats`.`total_bucket_processing_time_ms`:::
 (double) Sum of all bucket processing times in milliseconds.
 
 [[ml-get-job-stats-response-codes]]
@@ -375,6 +406,12 @@ The API returns the following results:
         "total_partition_field_count" : 2,
         "bucket_allocation_failures_count" : 0,
         "memory_status" : "ok",
+        "categorized_doc_count" : 0,
+        "total_category_count" : 0,
+        "frequent_category_count" : 0,
+        "rare_category_count" : 0,
+        "dead_category_count" : 0,
+        "categorization_status" : "ok",
         "log_time" : 1576017596000,
         "timestamp" : 1580410800000
       },

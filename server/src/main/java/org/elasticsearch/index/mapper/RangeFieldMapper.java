@@ -94,7 +94,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public Builder docValues(boolean docValues) {
-            if (docValues == true) {
+            if (docValues) {
                 throw new IllegalArgumentException("field [" + name + "] does not currently support " + TypeParsers.DOC_VALUES);
             }
             return super.docValues(docValues);

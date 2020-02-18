@@ -31,7 +31,7 @@ If your search is CPU-bound, you should investigate buying faster CPUs.
 Documents should be modeled so that search-time operations are as cheap as possible.
 
 In particular, joins should be avoided. <<nested,`nested`>> can make queries
-several times slower and <<mapping-parent-field,parent-child>> relations can make
+several times slower and <<parent-join,parent-child>> relations can make
 queries hundreds of times slower. So if the same questions can be answered without
 joins by denormalizing documents, significant speedups can be expected.
 
@@ -414,7 +414,7 @@ queries, this can speed up queries significantly.
 [[faster-prefix-queries]]
 === Faster prefix queries with `index_prefixes`
 
-The <<text,`text`>> field has an <<index-phrases,`index_prefixes`>> option that
+The <<text,`text`>> field has an <<index-prefixes,`index_prefixes`>> option that
 indexes prefixes of all terms and is automatically leveraged by query parsers to
 run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.

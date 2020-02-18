@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -129,7 +130,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testFieldDataStats() {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .addMapping("type", "field", "type=text,fielddata=true",
+                .setMapping("field", "type=text,fielddata=true",
                         "field2", "type=text,fielddata=true").get());
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").execute().actionGet();
@@ -192,7 +193,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testClearAllCaches() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
-                .addMapping("type", "field", "type=text,fielddata=true").get());
+                .setMapping("field", "type=text,fielddata=true").get());
         ensureGreen();
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test").setId("1").setSource("field", "value1").execute().actionGet();
@@ -594,7 +595,8 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testSegmentsStats() {
         assertAcked(prepareCreate("test_index")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)));
         ensureGreen();
 
         NumShards test1 = getNumShards("test_index");
@@ -773,11 +775,9 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testCompletionFieldsParam() throws Exception {
         assertAcked(prepareCreate("test1")
-                .addMapping(
-                        "_doc",
+                .setMapping(
                         "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}" +
-                            ",\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}",
-                    XContentType.JSON));
+                            ",\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"));
         ensureGreen();
 
         client().prepareIndex("test1").setId(Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}"
@@ -982,9 +982,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         indexRandom(false, true,
                 client().prepareIndex("index").setId("1").setSource("foo", "bar"),
                 client().prepareIndex("index").setId("2").setSource("foo", "baz"));
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
-        }
+        persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         refresh();
         ensureGreen();
 
@@ -1019,17 +1017,15 @@ public class IndexStatsIT extends ESIntegTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its cached is evicted.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            persistGlobalCheckpoint("index");
-            assertBusy(() -> {
-                for (final ShardStats shardStats : client().admin().indices().prepareStats("index").get().getIndex("index").getShards()) {
-                    final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
-                    assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
-                        .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
-                }
-            });
-            flush("index");
-        }
+        persistGlobalCheckpoint("index");
+        assertBusy(() -> {
+            for (final ShardStats shardStats : client().admin().indices().prepareStats("index").get().getIndex("index").getShards()) {
+                final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+                assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
+                    .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
+            }
+        });
+        flush("index");
         logger.info("--> force merging to a single segment");
         ForceMergeResponse forceMergeResponse =
             client().admin().indices().prepareForceMerge("index").setFlush(true).setMaxNumSegments(1).get();

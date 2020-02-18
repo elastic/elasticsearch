@@ -24,7 +24,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
+import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 
 import java.io.IOException;
@@ -131,7 +131,7 @@ public class DataFrameDataExtractor {
                 .setScroll(SCROLL_TIMEOUT)
                 // This ensures the search throws if there are failures and the scroll context gets cleared automatically
                 .setAllowPartialSearchResults(false)
-                .addSort(DataFrameAnalyticsIndex.ID_COPY, SortOrder.ASC)
+                .addSort(DestinationIndex.ID_COPY, SortOrder.ASC)
                 .setIndices(context.indices)
                 .setSize(context.scrollSize)
                 .setQuery(context.query);
@@ -267,10 +267,7 @@ public class DataFrameDataExtractor {
     }
 
     public Set<String> getCategoricalFields(DataFrameAnalysis analysis) {
-        return context.extractedFields.getAllFields().stream()
-            .filter(extractedField -> analysis.getAllowedCategoricalTypes(extractedField.getName()).containsAll(extractedField.getTypes()))
-            .map(ExtractedField::getName)
-            .collect(Collectors.toUnmodifiableSet());
+        return ExtractedFieldsDetector.getCategoricalFields(context.extractedFields, analysis);
     }
 
     public static class DataSummary {

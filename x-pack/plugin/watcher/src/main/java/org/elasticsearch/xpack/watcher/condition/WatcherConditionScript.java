@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
@@ -38,7 +37,7 @@ public abstract class WatcherConditionScript {
         return ctx;
     }
 
-    public interface Factory extends ScriptFactory {
+    public interface Factory {
         WatcherConditionScript newInstance(Map<String, Object> params, WatchExecutionContext watcherContext);
     }
 

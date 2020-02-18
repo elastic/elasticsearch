@@ -40,8 +40,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 [[ml-delete-snapshot-example]]
 ==== {api-examples-title}
 
-The following example deletes the `1491948163` snapshot:
-
 [source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/farequote/model_snapshots/1491948163

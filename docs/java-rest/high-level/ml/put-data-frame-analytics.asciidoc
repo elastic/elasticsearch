@@ -117,10 +117,11 @@ include-tagged::{doc-tests-file}[{api}-classification]
 <4> The applied shrinkage. A double in [0.001, 1].
 <5> The maximum number of trees the forest is allowed to contain. An integer in [1, 2000].
 <6> The fraction of features which will be used when selecting a random bag for each candidate split. A double in (0, 1].
-<7> The name of the prediction field in the results object.
-<8> The percentage of training-eligible rows to be used in training. Defaults to 100%.
-<9> The seed to be used by the random generator that picks which rows are used in training.
-<10> The number of top classes to be reported in the results. Defaults to 2.
+<7> If set, feature importance for the top most important features will be computed.
+<8> The name of the prediction field in the results object.
+<9> The percentage of training-eligible rows to be used in training. Defaults to 100%.
+<10> The seed to be used by the random generator that picks which rows are used in training.
+<11> The number of top classes to be reported in the results. Defaults to 2.
 
 ===== Regression
 
@@ -137,9 +138,10 @@ include-tagged::{doc-tests-file}[{api}-regression]
 <4> The applied shrinkage. A double in [0.001, 1].
 <5> The maximum number of trees the forest is allowed to contain. An integer in [1, 2000].
 <6> The fraction of features which will be used when selecting a random bag for each candidate split. A double in (0, 1].
-<7> The name of the prediction field in the results object.
-<8> The percentage of training-eligible rows to be used in training. Defaults to 100%.
-<9> The seed to be used by the random generator that picks which rows are used in training.
+<7> If set, feature importance for the top most important features will be computed.
+<8> The name of the prediction field in the results object.
+<9> The percentage of training-eligible rows to be used in training. Defaults to 100%.
+<10> The seed to be used by the random generator that picks which rows are used in training.
 
 ==== Analyzed fields
 

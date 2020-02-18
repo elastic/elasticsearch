@@ -374,7 +374,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             });
 
             if (registerType) {
-                mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+                mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
                     STRING_FIELD_NAME, "type=text",
                     STRING_FIELD_NAME_2, "type=keyword",
                     STRING_ALIAS_FIELD_NAME, "type=alias,path=" + STRING_FIELD_NAME,
@@ -400,11 +400,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }
-                
+
         public static Predicate<String> indexNameMatcher() {
             // Simplistic index name matcher used for testing
             return pattern -> Regex.simpleMatch(pattern, index.getName());
-        }                 
+        }
 
         @Override
         public void close() throws IOException {
@@ -413,7 +413,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
                 indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
-                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher());
+                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher(), () -> true);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

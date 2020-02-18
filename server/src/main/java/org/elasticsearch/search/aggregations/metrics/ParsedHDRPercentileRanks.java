@@ -49,7 +49,7 @@ public class ParsedHDRPercentileRanks extends ParsedPercentileRanks {
         };
     }
 
-    private static ObjectParser<ParsedHDRPercentileRanks, Void> PARSER =
+    private static final ObjectParser<ParsedHDRPercentileRanks, Void> PARSER =
             new ObjectParser<>(ParsedHDRPercentileRanks.class.getSimpleName(), true, ParsedHDRPercentileRanks::new);
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);

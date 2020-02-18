@@ -23,12 +23,12 @@
         body:
           transient:
             cluster.remote.test_remote_cluster.mode: "sniff"
-            cluster.remote.test_remote_cluster.sniff.node_connections: "2"
-            cluster.remote.test_remote_cluster.sniff.seeds: $remote_ip
+            cluster.remote.test_remote_cluster.node_connections: "2"
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
 
   - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.sniff\.node_connections: "2"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.sniff\.seeds: $remote_ip}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.node_connections: "2"}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
 
   # we do another search here since this will enforce the connection to be established
   # otherwise the cluster might not have been connected yet.
@@ -66,33 +66,33 @@
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.mode: "simple"
-            cluster.remote.test_remote_cluster.sniff.seeds: null
-            cluster.remote.test_remote_cluster.sniff.node_connections: null
-            cluster.remote.test_remote_cluster.simple.socket_connections: "10"
-            cluster.remote.test_remote_cluster.simple.addresses: $remote_ip
+            cluster.remote.test_remote_cluster.mode: "proxy"
+            cluster.remote.test_remote_cluster.seeds: null
+            cluster.remote.test_remote_cluster.node_connections: null
+            cluster.remote.test_remote_cluster.proxy_socket_connections: "10"
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
-  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "simple"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.simple\.socket_connections: "10"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.simple\.addresses: $remote_ip}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_socket_connections: "10"}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
 
   - do:
       cluster.remote_info: {}
 
   - match: { test_remote_cluster.connected: true }
-  - match: { test_remote_cluster.addresses.0: $remote_ip }
+  - match: { test_remote_cluster.address: $remote_ip }
   - gt:    { test_remote_cluster.num_sockets_connected: 0}
   - match: { test_remote_cluster.max_socket_connections: 10}
   - match: { test_remote_cluster.initial_connect_timeout: "30s" }
-  - match: { test_remote_cluster.mode: "simple" }
+  - match: { test_remote_cluster.mode: "proxy" }
 
   - do:
       cluster.put_settings:
         body:
           transient:
             cluster.remote.test_remote_cluster.mode: null
-            cluster.remote.test_remote_cluster.simple.socket_connections: null
-            cluster.remote.test_remote_cluster.simple.addresses: null
+            cluster.remote.test_remote_cluster.proxy_socket_connections: null
+            cluster.remote.test_remote_cluster.proxy_address: null
 
 ---
 "skip_unavailable is returned as part of _remote/info response":

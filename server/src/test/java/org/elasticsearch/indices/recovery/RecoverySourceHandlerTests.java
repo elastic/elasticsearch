@@ -102,7 +102,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.zip.CRC32;
 
@@ -137,7 +136,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         } else {
             // verify that both sending and receiving files can be completed with a single thread
             threadPool = new TestThreadPool(getTestName(),
-                new FixedExecutorBuilder(Settings.EMPTY, "recovery_executor", between(1, 16), between(16, 128), "recovery_executor"));
+                new FixedExecutorBuilder(Settings.EMPTY, "recovery_executor", between(1, 16), between(16, 128), "recovery_executor",
+                    false));
             recoveryExecutor = threadPool.executor("recovery_executor");
         }
     }
@@ -447,7 +447,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final IndexMetaData.Builder indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(0,5))
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1,5))
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
             .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())));
         if (randomBoolean()) {
@@ -467,10 +466,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 8)) {
 
             @Override
-            void phase1(IndexCommit snapshot, Consumer<ActionListener<RetentionLease>> createRetentionLease,
-                        IntSupplier translogOps, ActionListener<SendFileResult> listener) {
+            void phase1(IndexCommit snapshot, long startingSeqNo, IntSupplier translogOps, ActionListener<SendFileResult> listener) {
                 phase1Called.set(true);
-                super.phase1(snapshot, createRetentionLease, translogOps, listener);
+                super.phase1(snapshot, startingSeqNo, translogOps, listener);
             }
 
             @Override
@@ -679,14 +677,22 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 }
             }
         };
+        final StartRecoveryRequest startRecoveryRequest = getStartRecoveryRequest();
         final RecoverySourceHandler handler = new RecoverySourceHandler(
-            shard, recoveryTarget, threadPool, getStartRecoveryRequest(), between(1, 16), between(1, 4));
+            shard, recoveryTarget, threadPool, startRecoveryRequest, between(1, 16), between(1, 4)) {
+            @Override
+            void createRetentionLease(long startingSeqNo, ActionListener<RetentionLease> listener) {
+                final String leaseId = ReplicationTracker.getPeerRecoveryRetentionLeaseId(startRecoveryRequest.targetNode().getId());
+                listener.onResponse(new RetentionLease(leaseId, startingSeqNo, threadPool.absoluteTimeInMillis(),
+                    ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+            }
+        };
         cancelRecovery.set(() -> handler.cancel("test"));
         final StepListener<RecoverySourceHandler.SendFileResult> phase1Listener = new StepListener<>();
         try {
             final CountDownLatch latch = new CountDownLatch(1);
             handler.phase1(DirectoryReader.listCommits(dir).get(0),
-                l -> recoveryExecutor.execute(() -> l.onResponse(null)),
+                0,
                 () -> 0,
                 new LatchedActionListener<>(phase1Listener, latch));
             latch.await();

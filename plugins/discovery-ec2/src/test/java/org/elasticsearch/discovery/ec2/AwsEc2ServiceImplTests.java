@@ -120,8 +120,8 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
                                               String expectedProxyUsername,
                                               String expectedProxyPassword,
                                               int expectedReadTimeout) {
-        final ClientConfiguration configuration = AwsEc2ServiceImpl.buildConfiguration(logger,
-                Ec2ClientSettings.getClientSettings(settings));
+        final ClientConfiguration configuration = AwsEc2ServiceImpl.buildConfiguration(
+            Ec2ClientSettings.getClientSettings(settings));
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));

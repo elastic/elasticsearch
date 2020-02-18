@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -162,6 +163,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING,
+            LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
@@ -179,7 +181,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             @SuppressWarnings("unused")
             ILMHistoryTemplateRegistry ilmTemplateRegistry =
                 new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
-            ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService));
+            ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
+                clusterService, threadPool));
             indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
                 getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get()));
             components.add(indexLifecycleInitialisationService.get());
@@ -226,7 +229,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(WaitForSnapshotAction.NAME), WaitForSnapshotAction::parse)
         );
     }
 
@@ -237,29 +241,29 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         List<RestHandler> handlers = new ArrayList<>();
         if (ilmEnabled) {
             handlers.addAll(Arrays.asList(
-                new RestPutLifecycleAction(restController),
-                new RestGetLifecycleAction(restController),
-                new RestDeleteLifecycleAction(restController),
-                new RestExplainLifecycleAction(restController),
-                new RestRemoveIndexLifecyclePolicyAction(restController),
-                new RestMoveToStepAction(restController),
-                new RestRetryAction(restController),
-                new RestStopAction(restController),
-                new RestStartILMAction(restController),
-                new RestGetStatusAction(restController)
+                new RestPutLifecycleAction(),
+                new RestGetLifecycleAction(),
+                new RestDeleteLifecycleAction(),
+                new RestExplainLifecycleAction(),
+                new RestRemoveIndexLifecyclePolicyAction(),
+                new RestMoveToStepAction(),
+                new RestRetryAction(),
+                new RestStopAction(),
+                new RestStartILMAction(),
+                new RestGetStatusAction()
             ));
         }
         if (slmEnabled) {
             handlers.addAll(Arrays.asList(
-                new RestPutSnapshotLifecycleAction(restController),
-                new RestDeleteSnapshotLifecycleAction(restController),
-                new RestGetSnapshotLifecycleAction(restController),
-                new RestExecuteSnapshotLifecycleAction(restController),
-                new RestGetSnapshotLifecycleStatsAction(restController),
-                new RestExecuteSnapshotRetentionAction(restController),
-                new RestStopSLMAction(restController),
-                new RestStartSLMAction(restController),
-                new RestGetSLMStatusAction(restController)
+                new RestPutSnapshotLifecycleAction(),
+                new RestDeleteSnapshotLifecycleAction(),
+                new RestGetSnapshotLifecycleAction(),
+                new RestExecuteSnapshotLifecycleAction(),
+                new RestGetSnapshotLifecycleStatsAction(),
+                new RestExecuteSnapshotRetentionAction(),
+                new RestStopSLMAction(),
+                new RestStartSLMAction(),
+                new RestGetSLMStatusAction()
             ));
         }
         return handlers;

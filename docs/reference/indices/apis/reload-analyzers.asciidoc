@@ -6,8 +6,6 @@
 <titleabbrev>Reload search analyzers</titleabbrev>
 ++++
 
-experimental::[]
-
 Reloads an index's <<search-analyzer,search analyzers>> and their resources.
 
 [source,console]

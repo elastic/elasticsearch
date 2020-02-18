@@ -26,6 +26,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.client.cluster.RemoteInfoRequest;
+import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -137,5 +139,34 @@ public final class ClusterClient {
                                    ActionListener<ClusterHealthResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, ClusterRequestConverters::clusterHealth, options,
                 ClusterHealthResponse::fromXContent, listener, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()));
+    }
+
+    /**
+     * Get the remote cluster information using the Remote cluster info API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-remote-info.html"> Remote cluster info
+     * API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public RemoteInfoResponse remoteInfo(RemoteInfoRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, ClusterRequestConverters::remoteInfo, options,
+                RemoteInfoResponse::fromXContent, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()));
+    }
+
+    /**
+     * Asynchronously get remote cluster information using the Remote cluster info API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-remote-info.html"> Remote cluster info
+     * API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable remoteInfoAsync(RemoteInfoRequest request, RequestOptions options,
+                                       ActionListener<RemoteInfoResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, ClusterRequestConverters::remoteInfo, options,
+                RemoteInfoResponse::fromXContent, listener, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()));
     }
 }

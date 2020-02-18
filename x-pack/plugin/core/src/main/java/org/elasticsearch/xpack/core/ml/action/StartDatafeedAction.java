@@ -136,7 +136,11 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
 
         public static final ParseField INDICES = new ParseField("indices");
 
-        public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(MlTasks.DATAFEED_TASK_NAME, true, DatafeedParams::new);
+        public static final ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(
+            MlTasks.DATAFEED_TASK_NAME,
+            true,
+            DatafeedParams::new
+        );
         static {
             PARSER.declareString((params, datafeedId) -> params.datafeedId = datafeedId, DatafeedConfig.ID);
             PARSER.declareString((params, startTime) -> params.startTime = parseDateOrThrow(

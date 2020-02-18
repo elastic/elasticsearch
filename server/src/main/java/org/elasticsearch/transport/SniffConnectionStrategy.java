@@ -68,7 +68,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS_OLD = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
         "cluster.remote.",
         "seeds",
         (ns, key) -> Setting.listSetting(
@@ -79,24 +79,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 parsePort(s);
                 return s;
             },
-            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope));
-
-    /**
-     * A list of initial seed nodes to discover eligible nodes from the remote cluster
-     */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "sniff.seeds",
-        (ns, key) -> Setting.listSetting(key,
-            REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(ns),
-            s -> {
-                // validate seed address
-                parsePort(s);
-                return s;
-            },
-            s -> REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(ns).get(s),
             new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope));
@@ -138,7 +120,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting.AffixSetting<Integer> REMOTE_NODE_CONNECTIONS = Setting.affixKeySetting(
         "cluster.remote.",
-        "sniff.node_connections",
+        "node_connections",
         (ns, key) -> intSetting(
             key,
             REMOTE_CONNECTIONS_PER_CLUSTER,
@@ -194,7 +176,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
-        return Stream.of(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD);
+        return Stream.of(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
     }
 
     static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
@@ -265,7 +247,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
             final StepListener<TransportService.HandshakeResponse> handshakeStep = new StepListener<>();
             openConnectionStep.whenComplete(connection -> {
-                ConnectionProfile connectionProfile = connectionManager.getConnectionManager().getConnectionProfile();
+                ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
                 transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
                     getRemoteClusterNamePredicate(), handshakeStep);
             }, onFailure);
@@ -430,7 +412,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 Version.CURRENT.minimumCompatibilityVersion());
         } else {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
-            String hostName = address.substring(0, indexOfPortSeparator(address));
+            String hostName = RemoteConnectionStrategy.parseHost(proxyAddress);
             return new DiscoveryNode("", clusterAlias + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
                 transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.BUILT_IN_ROLES,
                 Version.CURRENT.minimumCompatibilityVersion());
@@ -445,14 +427,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
         }
         return DEFAULT_NODE_PREDICATE;
-    }
-
-    private static int indexOfPortSeparator(String remoteHost) {
-        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
-        if (portSeparator == -1 || portSeparator == remoteHost.length()) {
-            throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");
-        }
-        return portSeparator;
     }
 
     private static DiscoveryNode maybeAddProxyAddress(String proxyAddress, DiscoveryNode node) {
@@ -483,13 +457,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return Objects.equals(oldProxy, newProxy) == false;
     }
 
-    static class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
+    public static class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         final List<String> seedNodes;
         final int maxConnectionsPerCluster;
         final int numNodesConnected;
 
-        SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected) {
+        public SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected) {
             this.seedNodes = seedNodes;
             this.maxConnectionsPerCluster = maxConnectionsPerCluster;
             this.numNodesConnected = numNodesConnected;
@@ -528,6 +502,18 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public String modeName() {
             return "sniff";
+        }
+
+        public List<String> getSeedNodes() {
+            return seedNodes;
+        }
+
+        public int getMaxConnectionsPerCluster() {
+            return maxConnectionsPerCluster;
+        }
+
+        public int getNumNodesConnected() {
+            return numNodesConnected;
         }
 
         @Override

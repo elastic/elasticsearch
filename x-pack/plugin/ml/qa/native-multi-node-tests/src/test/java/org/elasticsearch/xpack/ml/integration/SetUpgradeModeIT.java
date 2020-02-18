@@ -135,7 +135,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
     private void startRealtime(String jobId) throws Exception {
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();

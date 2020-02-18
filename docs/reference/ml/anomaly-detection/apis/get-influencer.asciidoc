@@ -55,10 +55,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 (Optional, double) Returns influencers with anomaly scores greater than or
 equal to this value.
 
-`page`::
-`from`:::
+`page`.`from`::
 (Optional, integer) Skips the specified number of influencers.
-`size`:::
+`page`.`size`::
 (Optional, integer) Specifies the maximum number of influencers to obtain.
 
 `sort`::

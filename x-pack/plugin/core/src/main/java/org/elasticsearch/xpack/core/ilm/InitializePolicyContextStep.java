@@ -38,22 +38,26 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             return clusterState;
         }
 
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState
-            .fromIndexMetadata(indexMetaData);
-
-        if (lifecycleState.getLifecycleDate() != null) {
-            return clusterState;
-        }
-
         IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(indexMetaData);
-        if (shouldParseIndexName(indexMetaData.getSettings())) {
-            long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
-            indexMetadataBuilder.settingsVersion(indexMetaData.getSettingsVersion() + 1)
-                .settings(Settings.builder()
-                    .put(indexMetaData.getSettings())
-                    .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
-                    .build()
-                );
+        LifecycleExecutionState lifecycleState;
+        try {
+            lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+            if (lifecycleState.getLifecycleDate() != null) {
+                return clusterState;
+            }
+
+            if (shouldParseIndexName(indexMetaData.getSettings())) {
+                long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
+                indexMetadataBuilder.settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                    .settings(Settings.builder()
+                        .put(indexMetaData.getSettings())
+                        .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
+                        .build()
+                    );
+            }
+        } catch (Exception e) {
+            String policy = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+            throw new InitializePolicyException(policy, index.getName(), e);
         }
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
@@ -66,5 +70,10 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             MetaData.builder(clusterState.getMetaData()).put(indexMetadataBuilder)
         );
         return newClusterStateBuilder.build();
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 }

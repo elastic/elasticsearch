@@ -13,22 +13,24 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RegressionTests extends AbstractSerializingTestCase<Regression> {
+public class RegressionTests extends AbstractBWCSerializationTestCase<Regression> {
 
-    private static final BoostedTreeParams BOOSTED_TREE_PARAMS = new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0);
+    private static final BoostedTreeParams BOOSTED_TREE_PARAMS = BoostedTreeParams.builder().build();
 
     @Override
     protected Regression doParseInstance(XContentParser parser) throws IOException {
@@ -47,6 +49,39 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true);
         Long randomizeSeed = randomBoolean() ? null : randomLong();
         return new Regression(dependentVariableName, boostedTreeParams, predictionFieldName, trainingPercent, randomizeSeed);
+    }
+
+    public static Regression mutateForVersion(Regression instance, Version version) {
+        return new Regression(instance.getDependentVariable(),
+            BoostedTreeParamsTests.mutateForVersion(instance.getBoostedTreeParams(), version),
+            instance.getPredictionFieldName(),
+            instance.getTrainingPercent(),
+            instance.getRandomizeSeed());
+    }
+
+    @Override
+    protected void assertOnBWCObject(Regression bwcSerializedObject, Regression testInstance, Version version) {
+        if (version.onOrAfter(Version.V_7_6_0)) {
+            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
+            return;
+        }
+
+        Regression newBwc = new Regression(bwcSerializedObject.getDependentVariable(),
+            bwcSerializedObject.getBoostedTreeParams(),
+            bwcSerializedObject.getPredictionFieldName(),
+            bwcSerializedObject.getTrainingPercent(),
+            42L);
+        Regression newInstance = new Regression(testInstance.getDependentVariable(),
+            testInstance.getBoostedTreeParams(),
+            testInstance.getPredictionFieldName(),
+            testInstance.getTrainingPercent(),
+            42L);
+        super.assertOnBWCObject(newBwc, newInstance, version);
+    }
+
+    @Override
+    protected Regression mutateInstanceForVersion(Regression instance, Version version) {
+        return mutateForVersion(instance, version);
     }
 
     @Override
@@ -99,8 +134,18 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
             equalTo(Map.of("dependent_variable", "foo", "prediction_field_name", "foo_prediction")));
     }
 
-    public void testFieldCardinalityLimitsIsNonNull() {
-        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
+    public void testRequiredFieldsIsNonEmpty() {
+        assertThat(createTestInstance().getRequiredFields(), is(not(empty())));
+    }
+
+    public void testFieldCardinalityLimitsIsEmpty() {
+        assertThat(createTestInstance().getFieldCardinalityConstraints(), is(empty()));
+    }
+
+    public void testGetExplicitlyMappedFields() {
+        assertThat(
+            new Regression("foo").getExplicitlyMappedFields(null, "results"),
+            hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
     }
 
     public void testGetStateDocId() {

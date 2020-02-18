@@ -32,6 +32,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
@@ -49,7 +50,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class Packages {
 
@@ -165,7 +165,7 @@ public class Packages {
 
         final Result passwdResult = sh.run("getent passwd elasticsearch");
         final Path homeDir = Paths.get(passwdResult.stdout.trim().split(":")[5]);
-        assertFalse("elasticsearch user home directory must not exist", Files.exists(homeDir));
+        assertThat("elasticsearch user home directory must not exist", homeDir, fileDoesNotExist());
 
         Stream.of(
             es.home,
@@ -181,6 +181,10 @@ public class Packages {
         // we shell out here because java's posix file permission view doesn't support special modes
         assertThat(es.config, file(Directory, "root", "elasticsearch", p750));
         assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+
+        final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
+        assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
+        assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
         Stream.of(
             "elasticsearch.keystore",
@@ -207,7 +211,7 @@ public class Packages {
 
         Stream.of(
             "NOTICE.txt",
-            "README.textile"
+            "README.asciidoc"
         ).forEach(doc -> assertThat(es.home.resolve(doc), file(File, "root", "root", p644)));
 
         assertThat(es.envFile, file(File, "root", "elasticsearch", p660));
@@ -280,32 +284,7 @@ public class Packages {
         return sh.runIgnoreExitCode("service elasticsearch start");
     }
 
-    /**
-     * Clears the systemd journal. This is intended to clear the <code>journalctl</code> output
-     * before a test that checks the journal output.
-     */
-    public static void clearJournal(Shell sh) {
-        if (isSystemd()) {
-            sh.run("rm -rf /run/log/journal/*");
-            final Result result = sh.runIgnoreExitCode("systemctl restart systemd-journald");
-
-            // Sometimes the restart fails on Debian 10 with:
-            //    Job for systemd-journald.service failed because the control process exited with error code.
-            //    See "systemctl status systemd-journald.service" and "journalctl -xe" for details.]
-            //
-            // ...so run these commands in an attempt to figure out what's going on.
-            if (result.isSuccess() == false) {
-                logger.error("Failed to restart systemd-journald: " + result);
-
-                logger.error(sh.runIgnoreExitCode("systemctl status systemd-journald.service"));
-                logger.error(sh.runIgnoreExitCode("journalctl -xe"));
-
-                fail("Couldn't clear the systemd journal as restarting systemd-journald failed");
-            }
-        }
-    }
-
-    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws IOException {
+    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws Exception {
         waitForElasticsearch(installation);
 
         if (isSystemd()) {
@@ -324,12 +303,49 @@ public class Packages {
         }
     }
 
-    public static void restartElasticsearch(Shell sh, Installation installation) throws IOException {
+    public static void restartElasticsearch(Shell sh, Installation installation) throws Exception {
         if (isSystemd()) {
             sh.run("systemctl restart elasticsearch.service");
         } else {
             sh.run("service elasticsearch restart");
         }
         assertElasticsearchStarted(sh, installation);
+    }
+
+    /**
+     * A small wrapper for retrieving only recent journald logs for the
+     * Elasticsearch service. It works by creating a cursor for the logs
+     * when instantiated, and advancing that cursor when the {@code clear()}
+     * method is called.
+     */
+    public static class JournaldWrapper {
+        private Shell sh;
+        private String cursor;
+
+        /**
+         * Create a new wrapper for Elasticsearch JournalD logs.
+         * @param sh A shell with appropriate permissions.
+         */
+        public JournaldWrapper(Shell sh) {
+            this.sh = sh;
+            clear();
+        }
+
+        /**
+         * "Clears" the journaled messages by retrieving the latest cursor
+         * for Elasticsearch logs and storing it in class state.
+         */
+        public void clear() {
+            cursor = sh.run("sudo journalctl --unit=elasticsearch.service --lines=0 --show-cursor -o cat" +
+                " | sed -e 's/-- cursor: //'").stdout.trim();
+        }
+
+        /**
+         * Retrieves all log messages coming after the stored cursor.
+         * @return Recent journald logs for the Elasticsearch service.
+         */
+        public Result getLogs() {
+            return sh.run("journalctl -u elasticsearch.service --after-cursor='" + this.cursor + "'");
+        }
     }
 }

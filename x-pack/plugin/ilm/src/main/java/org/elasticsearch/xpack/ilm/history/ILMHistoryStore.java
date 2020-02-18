@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm.history;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -31,11 +32,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -54,26 +57,52 @@ public class ILMHistoryStore implements Closeable {
     public static final String ILM_HISTORY_INDEX_PREFIX = "ilm-history-" + INDEX_TEMPLATE_VERSION + "-";
     public static final String ILM_HISTORY_ALIAS = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
-    private final Client client;
-    private final ClusterService clusterService;
     private final boolean ilmHistoryEnabled;
     private final BulkProcessor processor;
+    private final ThreadPool threadPool;
 
-    public ILMHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService) {
-        this.client = client;
-        this.clusterService = clusterService;
-        ilmHistoryEnabled = LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
+    public ILMHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService, ThreadPool threadPool) {
+        this.ilmHistoryEnabled = LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
+        this.threadPool = threadPool;
 
         this.processor = BulkProcessor.builder(
             new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN)::bulk,
             new BulkProcessor.Listener() {
                 @Override
-                public void beforeBulk(long executionId, BulkRequest request) { }
+                public void beforeBulk(long executionId, BulkRequest request) {
+                    // Prior to actually performing the bulk, we should ensure the index exists, and
+                    // if we were unable to create it or it was in a bad state, we should not
+                    // attempt to index documents.
+                    try {
+                        final CompletableFuture<Boolean> indexCreated = new CompletableFuture<>();
+                        ensureHistoryIndex(client, clusterService.state(), ActionListener.wrap(indexCreated::complete,
+                            ex -> {
+                                logger.warn("failed to create ILM history store index prior to issuing bulk request", ex);
+                                indexCreated.completeExceptionally(ex);
+                            }));
+                        indexCreated.get(2, TimeUnit.MINUTES);
+                    } catch (Exception e) {
+                        logger.warn(new ParameterizedMessage("unable to index the following ILM history items:\n{}",
+                            request.requests().stream()
+                                .filter(dwr -> (dwr instanceof IndexRequest))
+                                .map(dwr -> ((IndexRequest) dwr))
+                                .map(IndexRequest::sourceAsMap)
+                                .map(Object::toString)
+                                .collect(Collectors.joining("\n"))), e);
+                        throw new ElasticsearchException(e);
+                    }
+                }
 
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                     long items = request.numberOfActions();
-                    logger.trace("indexed [{}] items into ILM history index", items);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("indexed [{}] items into ILM history index [{}]", items,
+                            Arrays.stream(response.getItems())
+                                .map(BulkItemResponse::getIndex)
+                                .distinct()
+                                .collect(Collectors.joining(",")));
+                    }
                     if (response.hasFailures()) {
                         Map<String, String> failures = Arrays.stream(response.getItems())
                             .filter(BulkItemResponse::isFailed)
@@ -105,18 +134,25 @@ public class ILMHistoryStore implements Closeable {
                 LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), item);
             return;
         }
-        logger.trace("about to index ILM history item in index [{}]: [{}]", ILM_HISTORY_ALIAS, item);
-        ensureHistoryIndex(client, clusterService.state(), ActionListener.wrap(createdIndex -> {
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                item.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                IndexRequest request = new IndexRequest(ILM_HISTORY_ALIAS).source(builder);
-                processor.add(request);
-            } catch (IOException exception) {
-                logger.error(new ParameterizedMessage("failed to index ILM history item in index [{}]: [{}]",
-                    ILM_HISTORY_ALIAS, item), exception);
-            }
-        }, ex -> logger.error(new ParameterizedMessage("failed to ensure ILM history index exists, not indexing history item [{}]",
-            item), ex)));
+        logger.trace("queueing ILM history item for indexing [{}]: [{}]", ILM_HISTORY_ALIAS, item);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            item.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            IndexRequest request = new IndexRequest(ILM_HISTORY_ALIAS).source(builder);
+            // TODO: remove the threadpool wrapping when the .add call is non-blocking
+            //  (it can currently execute the bulk request occasionally)
+            //  see: https://github.com/elastic/elasticsearch/issues/50440
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                try {
+                    processor.add(request);
+                } catch (Exception e) {
+                    logger.error(new ParameterizedMessage("failed add ILM history item to queue for index [{}]: [{}]",
+                        ILM_HISTORY_ALIAS, item), e);
+                }
+            });
+        } catch (IOException exception) {
+            logger.error(new ParameterizedMessage("failed to queue ILM history item in index [{}]: [{}]",
+                ILM_HISTORY_ALIAS, item), exception);
+        }
     }
 
     /**
@@ -134,6 +170,7 @@ public class ILMHistoryStore implements Closeable {
 
         if (ilmHistory == null && initialHistoryIndex == null) {
             // No alias or index exists with the expected names, so create the index with appropriate alias
+            logger.debug("creating ILM history index [{}]", initialHistoryIndexName);
             client.admin().indices().prepareCreate(initialHistoryIndexName)
                 .setWaitForActiveShards(1)
                 .addAlias(new Alias(ILM_HISTORY_ALIAS)

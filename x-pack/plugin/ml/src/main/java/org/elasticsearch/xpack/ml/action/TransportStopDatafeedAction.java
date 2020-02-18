@@ -125,16 +125,19 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
             // Delegates stop datafeed to elected master node, so it becomes the coordinating node.
             // See comment in TransportStartDatafeedAction for more information.
             if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+                listener.onFailure(new MasterNotDiscoveredException());
             } else {
                 transportService.sendRequest(nodes.getMasterNode(), actionName, request,
                         new ActionListenerResponseHandler<>(listener, StopDatafeedAction.Response::new));
             }
         } else {
-            datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds(), ActionListener.wrap(
+            PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(),
+                request.allowNoDatafeeds(),
+                tasks,
+                request.isForce(),
+                ActionListener.wrap(
                     expandedIds -> {
-                        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-
                         List<String> startedDatafeeds = new ArrayList<>();
                         List<String> stoppingDatafeeds = new ArrayList<>();
                         List<String> notStoppedDatafeeds = new ArrayList<>();
@@ -257,7 +260,9 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     protected void taskOperation(StopDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTask,
                                  ActionListener<StopDatafeedAction.Response> listener) {
         DatafeedState taskState = DatafeedState.STOPPING;
-        datafeedTask.updatePersistentTaskState(taskState, ActionListener.wrap(task -> {
+        datafeedTask.updatePersistentTaskState(taskState,
+            ActionListener.wrap(
+                task -> {
                     // we need to fork because we are now on a network threadpool
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                         @Override

@@ -128,7 +128,7 @@ The response from the above index request:
           [30.000365257263184, 10.0]
         ]
       ],
-      "type": "polygon"
+      "type": "Polygon"
     }
   }
 }

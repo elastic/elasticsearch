@@ -190,7 +190,8 @@ public class LicenseServiceTests extends ESTestCase {
             .issuer(randomAlphaOfLengthBetween(5, 60))
             .issuedTo(randomAlphaOfLengthBetween(5, 60))
             .issueDate(System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(randomLongBetween(1, 5000)))
-            .maxNodes(randomIntBetween(1, 500))
+            .maxNodes(type == License.LicenseType.ENTERPRISE ? -1 : randomIntBetween(1, 500))
+            .maxResourceUnits(type == License.LicenseType.ENTERPRISE ? randomIntBetween(10, 500) : -1)
             .signature(null)
             .build();
     }

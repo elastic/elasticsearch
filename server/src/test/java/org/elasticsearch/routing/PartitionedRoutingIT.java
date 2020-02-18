@@ -23,7 +23,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.mockito.internal.util.collections.Sets;
@@ -45,7 +44,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_routing_shards", shards)
                         .put("index.routing_partition_size", partitionSize))
-                    .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+                    .setMapping("{\"_routing\":{\"required\":true}}")
                     .execute().actionGet();
                 ensureGreen();
 
@@ -74,7 +73,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .put("index.number_of_routing_shards", currentShards)
                 .put("index.number_of_replicas", numberOfReplicas())
                 .put("index.routing_partition_size", partitionSize))
-            .addMapping("_doc", "{\"_doc\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+            .setMapping("{\"_routing\":{\"required\":true}}")
             .execute().actionGet();
         ensureGreen();
 

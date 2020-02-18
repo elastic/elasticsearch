@@ -139,7 +139,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -200,7 +200,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -231,10 +231,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         PostDataAction.Response postDataResponse = client().execute(PostDataAction.INSTANCE, postDataRequest).actionGet();
         assertEquals(1L, postDataResponse.getDataCounts().getInputRecordCount());
 
-        // Confirm the job state is now failed
-        jobStatsRequest = new GetJobsStatsAction.Request(jobId);
-        jobStatsResponse = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).actionGet();
-        assertEquals(JobState.FAILED, jobStatsResponse.getResponse().results().get(0).getState());
+        // Confirm the job state is now failed - this may take a while to update in cluster state
+        assertBusy(() -> {
+            GetJobsStatsAction.Request jobStatsRequest2 = new GetJobsStatsAction.Request(jobId);
+            GetJobsStatsAction.Response jobStatsResponse2 = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest2).actionGet();
+            assertEquals(JobState.FAILED, jobStatsResponse2.getResponse().results().get(0).getState());
+        });
 
         // It's impossible to reliably get the datafeed into a stopping state at the point when the ML node is removed from the cluster
         // using externally accessible actions.  The only way this situation could occur in reality is through extremely unfortunate
@@ -248,11 +250,13 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             client().execute(UpdatePersistentTaskStatusAction.INSTANCE, updatePersistentTaskStatusRequest).actionGet();
         assertNotNull(updatePersistentTaskStatusResponse.getTask());
 
-        // Confirm the datafeed state is now stopping
-        GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
-        GetDatafeedsStatsAction.Response datafeedStatsResponse =
-            client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
-        assertEquals(DatafeedState.STOPPING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+        // Confirm the datafeed state is now stopping - this may take a while to update in cluster state
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response datafeedStatsResponse =
+                client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
+            assertEquals(DatafeedState.STOPPING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+        });
 
         // Stop the node running the failed job/stopping datafeed
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
@@ -265,10 +269,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         StopDatafeedAction.Response stopDatafeedResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).actionGet();
         assertTrue(stopDatafeedResponse.isStopped());
 
-        // Confirm the datafeed state is now stopped
-        datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
-        datafeedStatsResponse = client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
-        assertEquals(DatafeedState.STOPPED, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+        // Confirm the datafeed state is now stopped - shouldn't need a busy check here as
+        // the stop endpoint shouldn't return until its effects are externally visible
+        GetDatafeedsStatsAction.Request datafeedStatsRequest2 = new GetDatafeedsStatsAction.Request(datafeedId);
+        GetDatafeedsStatsAction.Response datafeedStatsResponse2 =
+            client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest2).actionGet();
+        assertEquals(DatafeedState.STOPPED, datafeedStatsResponse2.getResponse().results().get(0).getDatafeedState());
 
         // We should be allowed to force stop the unassigned failed job
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
@@ -293,7 +299,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -416,7 +422,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             GetJobsStatsAction.Response statsResponse =
                     client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
             assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
-        });
+        }, 20, TimeUnit.SECONDS);
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
         client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
@@ -424,7 +432,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     private void run(String jobId, CheckedRunnable<Exception> disrupt) throws Exception {
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -435,7 +443,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         setupJobAndDatafeed(jobId, "data_feed_id", TimeValue.timeValueSeconds(1));
         waitForDatafeed(jobId, numDocs1);
 
-        client().admin().indices().prepareSyncedFlush().get();
+        client().admin().indices().prepareFlush().get();
 
         disrupt.run();
 
@@ -449,6 +457,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // else.
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(200));
 
+        // The timeout here was increased from 10 seconds to 20 seconds in response to the changes in
+        // https://github.com/elastic/elasticsearch/pull/50907 - now that the cluster state is stored
+        // in a Lucene index it can take a while to update when there are many updates in quick
+        // succession, like we see in internal cluster tests of node failure scenarios
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -469,7 +481,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                     .getResponse().results().get(0);
             assertEquals(DatafeedState.STARTED, datafeedStats.getDatafeedState());
             assertNotNull(datafeedStats.getNode());
-        });
+        }, 20, TimeUnit.SECONDS);
 
         long numDocs2 = randomIntBetween(2, 64);
         long now2 = System.currentTimeMillis();

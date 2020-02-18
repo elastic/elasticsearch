@@ -23,6 +23,7 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpContext;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +53,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.threeten.bp.Duration;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -151,13 +152,12 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
             // Auth
             httpServer.createContext("/token", new FakeOAuth2HttpHandler()),
             // Does bucket exists?
-            httpServer.createContext("/storage/v1/b/bucket", exchange -> {
+            httpServer.createContext("/storage/v1/b/bucket", safeHandler(exchange -> {
                 byte[] response = ("{\"kind\":\"storage#bucket\",\"name\":\"bucket\",\"id\":\"0\"}").getBytes(UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
                 exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
                 exchange.getResponseBody().write(response);
-                exchange.close();
-            })
+            }))
         );
 
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, service);
@@ -240,13 +240,13 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         final CountDown countDown = new CountDown(maxRetries);
 
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext("/upload/storage/v1/b/bucket/o", exchange -> {
+        httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
             if (countDown.countDown()) {
-                Optional<Tuple<String, BytesArray>> content = parseMultipartRequestBody(exchange.getRequestBody());
+                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(exchange.getRequestBody());
                 assertThat(content.isPresent(), is(true));
                 assertThat(content.get().v1(), equalTo("write_blob_max_retries"));
-                if (Objects.deepEquals(bytes, content.get().v2().array())) {
+                if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
                     byte[] response = ("{\"bucket\":\"bucket\",\"name\":\"" + content.get().v1() + "\"}").getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
@@ -254,7 +254,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                 } else {
                     exchange.sendResponseHeaders(HttpStatus.SC_BAD_REQUEST, -1);
                 }
-                exchange.close();
                 return;
             }
             if (randomBoolean()) {
@@ -265,8 +264,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                     exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
                 }
             }
-            exchange.close();
-        });
+        }));
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null);
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
@@ -324,7 +322,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         final AtomicReference<String> sessionUploadId = new AtomicReference<>(UUIDs.randomBase64UUID());
         logger.debug("starting with resumable upload id [{}]", sessionUploadId.get());
 
-        httpServer.createContext("/upload/storage/v1/b/bucket/o", exchange -> {
+        httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
+            final BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
+
             final Map<String, String> params = new HashMap<>();
             RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
             assertThat(params.get("uploadType"), equalTo("resumable"));
@@ -332,13 +332,12 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
             if ("POST".equals(exchange.getRequestMethod())) {
                 assertThat(params.get("name"), equalTo("write_large_blob"));
                 if (countInits.decrementAndGet() <= 0) {
-                    byte[] response = Streams.readFully(exchange.getRequestBody()).utf8ToString().getBytes(UTF_8);
+                    byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.getResponseHeaders().add("Location", httpServerUrl() +
                         "/upload/storage/v1/b/bucket/o?uploadType=resumable&upload_id=" + sessionUploadId.get());
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
-                    exchange.close();
                     return;
                 }
                 if (allowReadTimeout.get()) {
@@ -351,9 +350,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                 if (uploadId.equals(sessionUploadId.get()) == false) {
                     logger.debug("session id [{}] is gone", uploadId);
                     assertThat(wrongChunk, greaterThan(0));
-                    Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(HttpStatus.SC_GONE, -1);
-                    exchange.close();
                     return;
                 }
 
@@ -371,9 +368,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                         countInits.set(nbErrors);
                         countUploads.set(nbErrors * totalChunks);
 
-                        Streams.readFully(exchange.getRequestBody());
                         exchange.sendResponseHeaders(HttpStatus.SC_GONE, -1);
-                        exchange.close();
                         return;
                     }
                 }
@@ -382,37 +377,30 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                 assertTrue(Strings.hasLength(range));
 
                 if (countUploads.decrementAndGet() % 2 == 0) {
-                    final ByteArrayOutputStream requestBody = new ByteArrayOutputStream();
-                    final long bytesRead = Streams.copy(exchange.getRequestBody(), requestBody);
-                    assertThat(Math.toIntExact(bytesRead), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
+                    assertThat(Math.toIntExact(requestBody.length()), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
 
                     final int rangeStart = getContentRangeStart(range);
                     final int rangeEnd = getContentRangeEnd(range);
-                    assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(bytesRead)));
-                    assertArrayEquals(Arrays.copyOfRange(data, rangeStart, rangeEnd + 1), requestBody.toByteArray());
+                    assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(requestBody.length())));
+                    assertThat(new BytesArray(data, rangeStart, rangeEnd - rangeStart + 1), is(requestBody));
 
                     final Integer limit = getContentRangeLimit(range);
                     if (limit != null) {
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-                        exchange.close();
                         return;
                     } else {
                         exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d/%d", rangeStart, rangeEnd));
                         exchange.getResponseHeaders().add("Content-Length", "0");
                         exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
-                        exchange.close();
                         return;
                     }
                 }
             }
 
-            // read all the request body, otherwise the SDK client throws a non-retryable StorageException
-            Streams.readFully(exchange.getRequestBody());
             if (randomBoolean()) {
                 exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
             }
-            exchange.close();
-        });
+        }));
 
         final TimeValue readTimeout = allowReadTimeout.get() ? TimeValue.timeValueSeconds(3) : null;
 
@@ -424,6 +412,17 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         assertThat(countInits.get(), equalTo(0));
         assertThat(countUploads.get(), equalTo(0));
         assertThat(allow410Gone.get(), is(false));
+    }
+
+    private HttpHandler safeHandler(HttpHandler handler) {
+        final HttpHandler loggingHandler = ESMockAPIBasedRepositoryIntegTestCase.wrap(handler, logger);
+        return exchange -> {
+            try {
+                loggingHandler.handle(exchange);
+            } finally {
+                exchange.close();
+            }
+        };
     }
 
     private static byte[] randomBlobContent() {

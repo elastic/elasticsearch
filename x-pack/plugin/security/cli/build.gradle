@@ -21,6 +21,13 @@ dependencies {
 dependencyLicenses {
     mapping from: /bc.*/, to: 'bouncycastle'
 }
+thirdPartyAudit {
+  ignoreMissingClasses(
+    // Used in org.bouncycastle.pqc.crypto.qtesla.QTeslaKeyEncodingTests
+    'junit.framework.Assert',
+    'junit.framework.TestCase'
+  )
+}
 
 if (project.inFipsJvm) {
     unitTest.enabled = false
@@ -33,5 +40,5 @@ if (project.inFipsJvm) {
     // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
     // rather than provide a long list of exclusions, disable the check on FIPS.
     thirdPartyAudit.enabled = false
-
 }
+

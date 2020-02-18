@@ -57,6 +57,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -187,6 +188,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         rerouteWithAllocateLocalGateway(commonSettings);
     }
 
+    @TestLogging(reason = "https://github.com/elastic/elasticsearch/issues/52000",
+        value = "org.elasticsearch.gateway.PersistedClusterStateService:DEBUG,org.elasticsearch.cluster.service.MasterService:DEBUG")
     public void testDelayWithALargeAmountOfShards() throws Exception {
         Settings commonSettings = Settings.builder()
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)

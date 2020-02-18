@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.StampedLock;
 import java.util.function.BiFunction;
 
 /**
@@ -292,9 +292,9 @@ public class XPackLicenseState {
     }
 
     // State lock which will allow reading the state as long as an active write is not occurring.
-    private final ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
-    private final ReleasableLock readLock = new ReleasableLock(stateLock.readLock());
-    private final ReleasableLock writeLock = new ReleasableLock(stateLock.writeLock());
+    private final StampedLock stateLock = new StampedLock();
+    private final ReleasableLock readLock = new ReleasableLock(stateLock.asReadLock());
+    private final ReleasableLock writeLock = new ReleasableLock(stateLock.asWriteLock());
 
     private final List<LicenseStateListener> listeners;
     private final boolean isSecurityEnabled;

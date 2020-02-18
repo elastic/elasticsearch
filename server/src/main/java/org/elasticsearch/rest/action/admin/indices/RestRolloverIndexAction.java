@@ -29,17 +29,15 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/{index}/_rollover"),
-            new Route(POST, "/{index}/_rollover/{new_index}")));
+            new Route(POST, "/{index}/_rollover/{new_index}"));
     }
 
     @Override

@@ -43,8 +43,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -67,11 +65,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_msearch"),
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
-            new Route(POST, "/{index}/_msearch")));
+            new Route(POST, "/{index}/_msearch"));
     }
 
     @Override

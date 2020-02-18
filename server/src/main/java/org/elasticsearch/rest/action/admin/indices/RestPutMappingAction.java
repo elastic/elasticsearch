@@ -33,8 +33,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -43,11 +41,11 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/{index}/_mapping/"),
             new Route(PUT, "/{index}/_mapping/"),
             new Route(POST, "/{index}/_mappings/"),
-            new Route(PUT, "/{index}/_mappings/")));
+            new Route(PUT, "/{index}/_mappings/"));
     }
 
     @Override

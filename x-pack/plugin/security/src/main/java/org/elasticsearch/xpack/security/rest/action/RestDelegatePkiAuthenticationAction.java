@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
@@ -47,7 +46,7 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_security/delegate_pki"));
+        return List.of(new Route(POST, "/_security/delegate_pki"));
     }
 
     @Override

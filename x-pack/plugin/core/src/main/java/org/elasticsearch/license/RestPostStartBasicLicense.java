@@ -14,7 +14,6 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartBasicLicense extends BaseRestHandler {
@@ -23,7 +22,7 @@ public class RestPostStartBasicLicense extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_license/start_basic"));
+        return List.of(new Route(POST, "/_license/start_basic"));
     }
 
     @Override

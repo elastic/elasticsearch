@@ -250,6 +250,12 @@ public class PivotTests extends ESTestCase {
                     + "}"
             );
         }
+        if (agg.equals(AggregationType.FILTER.getName())) {
+            return parseAggregations(
+                "{" + "\"pivot_filter\": {" + "  \"filter\": {" + "   \"term\": {\"field\": \"value\"}" + "  }" + "}" + "}"
+            );
+        }
+
         return parseAggregations(
             "{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n" + "    }\n" + "  }" + "}"
         );

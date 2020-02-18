@@ -16,6 +16,7 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
@@ -50,6 +51,7 @@ public final class AggregationResultUtils {
         tempMap.put(GeoCentroid.class.getName(), new GeoCentroidAggExtractor());
         tempMap.put(GeoBounds.class.getName(), new GeoBoundsAggExtractor());
         tempMap.put(Percentiles.class.getName(), new PercentilesAggExtractor());
+        tempMap.put(SingleBucketAggregation.class.getName(), new SingleBucketAggExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
@@ -96,7 +98,7 @@ public final class AggregationResultUtils {
                 if (aggResult != null) {
                     final String fieldType = fieldTypeMap.get(aggName);
                     AggValueExtractor extractor = getExtractor(aggResult);
-                    updateDocument(document, aggName, extractor.value(aggResult, fieldType));
+                    updateDocument(document, aggName, extractor.value(aggResult, fieldType, fieldTypeMap));
                 }
             }
 
@@ -117,6 +119,8 @@ public final class AggregationResultUtils {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoBounds.class.getName());
         } else if (aggregation instanceof Percentiles) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(Percentiles.class.getName());
+        } else if (aggregation instanceof SingleBucketAggregation) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(SingleBucketAggregation.class.getName());
         } else {
             // Execution should never reach this point!
             // Creating transforms with unsupported aggregations shall not be possible
@@ -175,12 +179,12 @@ public final class AggregationResultUtils {
     }
 
     interface AggValueExtractor {
-        Object value(Aggregation aggregation, String fieldType);
+        Object value(Aggregation aggregation, String fieldType, Map<String, String> fieldTypeMap);
     }
 
     static class SingleValueAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
             SingleValue aggregation = (SingleValue) agg;
             // If the double is invalid, this indicates sparse data
             if (Numbers.isValidDouble(aggregation.value()) == false) {
@@ -198,7 +202,7 @@ public final class AggregationResultUtils {
 
     static class PercentilesAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
             Percentiles aggregation = (Percentiles) agg;
 
             HashMap<String, Double> percentiles = new HashMap<>();
@@ -211,9 +215,27 @@ public final class AggregationResultUtils {
         }
     }
 
+    static class SingleBucketAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
+            SingleBucketAggregation aggregation = (SingleBucketAggregation) agg;
+
+            if (aggregation.getAggregations().iterator().hasNext() == false) {
+                return aggregation.getDocCount();
+            }
+
+            HashMap<String, Object> nested = new HashMap<>();
+            for (Aggregation subAgg : aggregation.getAggregations()) {
+                nested.put(subAgg.getName(), getExtractor(subAgg).value(subAgg, fieldTypeMap.get(agg.getName()), fieldTypeMap));
+            }
+
+            return nested;
+        }
+    }
+
     static class ScriptedMetricAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
             ScriptedMetric aggregation = (ScriptedMetric) agg;
             return aggregation.aggregation();
         }
@@ -221,7 +243,7 @@ public final class AggregationResultUtils {
 
     static class GeoCentroidAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
             GeoCentroid aggregation = (GeoCentroid) agg;
             // if the account is `0` iff there is no contained centroid
             return aggregation.count() > 0 ? aggregation.centroid().toString() : null;
@@ -230,7 +252,7 @@ public final class AggregationResultUtils {
 
     static class GeoBoundsAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
             GeoBounds aggregation = (GeoBounds) agg;
             if (aggregation.bottomRight() == null || aggregation.topLeft() == null) {
                 return null;

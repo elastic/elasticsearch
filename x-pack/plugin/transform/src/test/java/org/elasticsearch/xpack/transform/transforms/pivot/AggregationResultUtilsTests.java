@@ -779,6 +779,66 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
     }
 
+    private SingleBucketAggregation createSingleBucketAgg(String name, long docCount, Aggregation... subAggregations) {
+        SingleBucketAggregation agg = mock(SingleBucketAggregation.class);
+        when(agg.getDocCount()).thenReturn(docCount);
+        when(agg.getName()).thenReturn(name);
+        if (subAggregations != null) {
+            org.elasticsearch.search.aggregations.Aggregations subAggs = new org.elasticsearch.search.aggregations.Aggregations(
+                Arrays.asList(subAggregations)
+            );
+            when(agg.getAggregations()).thenReturn(subAggs);
+        } else {
+            when(agg.getAggregations()).thenReturn(null);
+        }
+        return agg;
+    }
+
+    public void testSingleBucketAggExtractor() {
+        Aggregation agg = createSingleBucketAgg("sba", 42L);
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "long", Collections.emptyMap()), equalTo(42L));
+
+        agg = createSingleBucketAgg("sba", 42L, createSingleMetricAgg("sub1", 100.0, "100.0"));
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()),
+            equalTo(Collections.singletonMap("sub1", 100.0))
+        );
+
+        agg = createSingleBucketAgg(
+            "sba",
+            42L,
+            createSingleMetricAgg("sub1", 100.0, "100.0"),
+            createSingleMetricAgg("sub2", 33.33, "33.33")
+        );
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()),
+            equalTo(asMap("sub1", 100.0, "sub2", 33.33))
+        );
+
+        agg = createSingleBucketAgg(
+            "sba",
+            42L,
+            createSingleMetricAgg("sub1", 100.0, "100.0"),
+            createSingleMetricAgg("sub2", 33.33, "33.33"),
+            createSingleBucketAgg("sub3", 42L)
+        );
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()),
+            equalTo(asMap("sub1", 100.0, "sub2", 33.33, "sub3", 42L))
+        );
+
+        agg = createSingleBucketAgg(
+            "sba",
+            42L,
+            createSingleMetricAgg("sub1", 100.0, "100.0"),
+            createSingleMetricAgg("sub2", 33.33, "33.33"),
+            createSingleBucketAgg("sub3", 42L, createSingleMetricAgg("subsub1", 11.1, "11.1"))
+        );
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()),
+            equalTo(asMap("sub1", 100.0, "sub2", 33.33, "sub3", asMap("subsub1", 11.1)))
+        );
+    }
 
     private void executeTest(
         GroupConfig groups,

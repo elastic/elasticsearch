@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -235,7 +235,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         indices.add(AnomalyDetectorsIndex.configIndexName());
         indices.add(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         indices.add(MlMetaIndex.INDEX_NAME);
-        indices.add(AuditorField.NOTIFICATIONS_INDEX);
+        indices.add(NotificationsIndex.NOTIFICATIONS_INDEX);
         indices.add(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         for (String indexName : indices) {
             IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);

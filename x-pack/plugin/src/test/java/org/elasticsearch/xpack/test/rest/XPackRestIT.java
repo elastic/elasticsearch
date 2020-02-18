@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.junit.After;
@@ -89,7 +89,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             List<String> templates = new ArrayList<>();
             templates.addAll(
                 Arrays.asList(
-                    AuditorField.NOTIFICATIONS_INDEX,
+                    NotificationsIndex.NOTIFICATIONS_INDEX,
                     MlMetaIndex.INDEX_NAME,
                     AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                     AnomalyDetectorsIndex.jobResultsIndexPrefix(),

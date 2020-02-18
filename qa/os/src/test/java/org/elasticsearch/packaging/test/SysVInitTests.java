@@ -24,8 +24,7 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
-import java.nio.file.Files;
-
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -59,7 +58,7 @@ public class SysVInitTests extends PackagingTestCase {
 
     public void test20Start() throws Exception {
         startElasticsearch();
-        assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
+        assertThat(installation.logs.resolve("gc.log"), fileExists());
         ServerUtils.runElasticsearchTests();
         sh.run("service elasticsearch status"); // returns 0 exit status when ok
     }

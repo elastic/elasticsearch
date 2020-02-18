@@ -534,6 +534,19 @@ SELECT HISTOGRAM(YEAR(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY
 null           |10   
 ;
 
+histogramDateTimeWithScalars
+schema::h:ts|c:l
+SELECT HISTOGRAM(birth_date, INTERVAL 20 MONTHS + INTERVAL 30 MONTHS) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY c DESC;
+
+           h            |       c
+------------------------+---------------
+1957-09-06T00:00:00.000Z|31
+1953-07-29T00:00:00.000Z|24
+1961-10-15T00:00:00.000Z|20
+1949-06-20T00:00:00.000Z|15
+null                    |10
+;
+
 histogramYearOnDateTimeWithScalars
 schema::year:i|c:l
 SELECT YEAR(CAST(birth_date + INTERVAL 5 YEARS AS DATE) + INTERVAL 20 MONTHS) AS year, COUNT(*) as c FROM test_emp GROUP BY 1;

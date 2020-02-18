@@ -29,18 +29,20 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestPluginsAction extends AbstractCatAction {
 
-    public RestPluginsAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/plugins", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/plugins"));
     }
 
     @Override

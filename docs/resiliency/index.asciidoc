@@ -22,10 +22,10 @@ improvements throughout this page to provide the full context.
 
 If you’re interested in more on how we approach ensuring resiliency in
 Elasticsearch, you may be interested in Igor Motov’s talk
-http://www.elastic.co/videos/improving-elasticsearch-resiliency[Improving Elasticsearch Resiliency].
+https://www.elastic.co/videos/improving-elasticsearch-resiliency[Improving Elasticsearch Resiliency].
 
 You may also be interested in our blog post
-http://www.elastic.co/blog/resiliency-elasticsearch[Resiliency in Elasticsearch],
+https://www.elastic.co/blog/resiliency-elasticsearch[Resiliency in Elasticsearch],
 which details our thought processes when addressing resiliency in both
 Elasticsearch and the work our developers do upstream in Apache Lucene.
 

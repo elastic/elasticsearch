@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderTests.DevNullClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -349,6 +350,77 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             assertEquals(100L, sizeOfRelocatingShards(allocation, node, false, "/dev/null"));
             assertEquals(90L, sizeOfRelocatingShards(allocation, node, true, "/dev/null"));
         }
+    }
+
+    public void testInactiveReplicaShardSize() {
+        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        shardSizes.put("[test][0][p]", 100L);
+        shardSizes.put("[test][0][r]", 0L);
+        shardSizes.put("[test][1][p]", 100L);
+        shardSizes.put("[test][1][r]", 10L);
+        shardSizes.put("[test][2][p]", 100L);
+        shardSizes.put("[test][2][r]", 110L);
+
+        ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
+        MetaData.Builder metaBuilder = MetaData.builder();
+        metaBuilder.put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+                                                                   .put("index.uuid", "1234")).numberOfShards(3).numberOfReplicas(1));
+        MetaData metaData = metaBuilder.build();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        routingTableBuilder.addAsNew(metaData.index("test"));
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTableBuilder.build()).build();
+        RoutingAllocation allocation = new RoutingAllocation(null, null, clusterState, info, 0);
+
+        final Index index = new Index("test", "1234");
+
+        // start primary shard 0
+        ShardRouting test_0_primary = ShardRouting.newUnassigned(new ShardId(index, 0), true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_0_primary = ShardRoutingHelper.initialize(test_0_primary, "node1");
+        test_0_primary = ShardRoutingHelper.moveToStarted(test_0_primary);
+
+        // create a new unassigned replica
+        ShardRouting test_0_replica = ShardRouting.newUnassigned(new ShardId(index, 0), false, PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+
+        assertEquals(100L, getExpectedShardSize(test_0_primary, 0L, allocation));
+        // unassigned replica shard should evaluate shard size as primary
+        assertEquals(100L, getExpectedShardSize(test_0_replica, 0L, allocation));
+
+        // start primary shard 1
+        ShardRouting test_1_primary = ShardRouting.newUnassigned(new ShardId(index, 1), true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_1_primary = ShardRoutingHelper.initialize(test_1_primary, "node1");
+        test_1_primary = ShardRoutingHelper.moveToStarted(test_1_primary);
+
+        // create an initializing replica
+        ShardRouting test_1_replica = ShardRouting.newUnassigned(new ShardId(index, 1), false, PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_1_replica = ShardRoutingHelper.initialize(test_1_replica, "node2");
+
+        assertEquals(100L, getExpectedShardSize(test_1_primary, 0L, allocation));
+        // initializing replica shard should evaluate shard size as primary
+        assertEquals(100L, getExpectedShardSize(test_1_replica, 0L, allocation));
+
+        // start primary shard 2
+        ShardRouting test_2_primary = ShardRouting.newUnassigned(new ShardId(index, 2), true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_2_primary = ShardRoutingHelper.initialize(test_2_primary, "node1");
+        test_2_primary = ShardRoutingHelper.moveToStarted(test_2_primary);
+
+        // create a started replica
+        ShardRouting test_2_replica = ShardRouting.newUnassigned(new ShardId(index, 2), false, PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_2_replica = ShardRoutingHelper.initialize(test_2_replica, "node2");
+        test_2_replica = ShardRoutingHelper.moveToStarted(test_2_replica);
+
+        assertEquals(100L, getExpectedShardSize(test_2_primary, 0L, allocation));
+        // active replica shard should evaluate shard size as it's local shard size
+        assertEquals(110L, getExpectedShardSize(test_2_replica, 0L, allocation));
     }
 
     public long sizeOfRelocatingShards(RoutingAllocation allocation, RoutingNode node, boolean subtractShardsMovingAway, String dataPath) {

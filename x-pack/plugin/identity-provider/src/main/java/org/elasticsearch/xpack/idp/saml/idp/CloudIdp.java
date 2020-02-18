@@ -142,9 +142,9 @@ public class CloudIdp implements SamlIdentityProvider {
         // TODO Fetch all the registered service providers from the index (?) they are persisted.
         // For now hardcode something to use.
         Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
-        registeredSps.put("kibana_url", new CloudServiceProvider("kibana_url", "kibana_url/api/security/v1/saml",
-            NameID.TRANSIENT, false, false,null));
-
+        registeredSps.put("https://sp.some.org",
+            new CloudServiceProvider("https://sp.some.org", "https://sp.some.org/api/security/v1/saml", NameID.TRANSIENT, false, false,
+                null));
         return registeredSps;
     }
 

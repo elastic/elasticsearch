@@ -31,6 +31,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
+import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -106,12 +110,11 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-
-        enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(
+        return List.of(
+            new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
             new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class)
         );
     }
@@ -124,7 +127,9 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(new RestSamlValidateAuthenticationRequestAction());
+        return List.of(
+            new RestSamlInitiateSingleSignOnAction(),
+            new RestSamlValidateAuthenticationRequestAction());
     }
 
     @Override

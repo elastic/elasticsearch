@@ -61,7 +61,7 @@ import java.util.stream.Collectors;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
 public final class SamlUtils {
-
+    private static final String SAML_MARSHALLING_ERROR_STRING = "_unserializable_";
     private static final AtomicBoolean INITIALISED = new AtomicBoolean(false);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final Logger LOGGER = LogManager.getLogger();
@@ -155,12 +155,16 @@ public final class SamlUtils {
         serializer.transform(new DOMSource(element), new StreamResult(writer));
     }
 
-    static String samlObjectToString(SAMLObject object) {
+    public static String getXmlContent(SAMLObject object){
+        return getXmlContent(object, false);
+    }
+
+    public static String getXmlContent(SAMLObject object, boolean prettyPrint) {
         try {
-            return toString(XMLObjectSupport.marshall(object), true);
+            return toString(XMLObjectSupport.marshall(object), prettyPrint);
         } catch (MarshallingException e) {
             LOGGER.info("Error marshalling SAMLObject ", e);
-            return "_unserializable_";
+            return SAML_MARSHALLING_ERROR_STRING;
         }
     }
 

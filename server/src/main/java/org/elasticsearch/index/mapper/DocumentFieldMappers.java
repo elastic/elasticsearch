@@ -71,7 +71,7 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
      * Returns the leaf mapper associated with this field name. Note that the returned mapper
      * could be either a concrete {@link FieldMapper}, or a {@link FieldAliasMapper}.
      *
-     * To access a field's type information, {@link MapperService#fullName} should be used instead.
+     * To access a field's type information, {@link MapperService#fieldType} should be used instead.
      */
     public Mapper getMapper(String field) {
         return fieldMappers.get(field);

@@ -38,6 +38,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -151,7 +152,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNewRestore(metaData.index("test"), new SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
-                    new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())), Version.CURRENT, "test"),
+                    new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())), Version.CURRENT,
+                        new IndexId("test", UUIDs.randomBase64UUID(random()))),
                     new IntHashSet()).build()).build();
         for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED));
@@ -168,7 +170,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .routingTable(RoutingTable.builder().addAsRestore(metaData.index("test"),
                     new SnapshotRecoverySource(
                         UUIDs.randomBase64UUID(), new Snapshot("rep1",
-                        new SnapshotId("snp1", UUIDs.randomBase64UUID())), Version.CURRENT, "test")).build()).build();
+                        new SnapshotId("snp1", UUIDs.randomBase64UUID())), Version.CURRENT,
+                        new IndexId("test", UUIDs.randomBase64UUID(random())))).build()).build();
         for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED));
         }

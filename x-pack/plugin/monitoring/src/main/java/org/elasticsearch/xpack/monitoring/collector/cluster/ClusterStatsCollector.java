@@ -105,7 +105,8 @@ public class ClusterStatsCollector extends Collector {
         final List<XPackFeatureSet.Usage> xpackUsage = collect(usageSupplier);
         final boolean apmIndicesExist = doAPMIndicesExist(clusterState);
         // if they have any other type of license, then they are either okay or already know
-        final boolean clusterNeedsTLSEnabled = license.operationMode() == License.OperationMode.TRIAL &&
+        final boolean clusterNeedsTLSEnabled = license != null &&
+                                               license.operationMode() == License.OperationMode.TRIAL &&
                                                settings.hasValue(SECURITY_ENABLED.getKey()) &&
                                                SECURITY_ENABLED.get(settings) &&
                                                TRANSPORT_SSL_ENABLED.get(settings) == false;

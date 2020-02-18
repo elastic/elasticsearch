@@ -52,10 +52,11 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.core.IsNot.not;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertThat;
 
 /**
  * Wrappers and convenience methods for common filesystem operations
@@ -308,8 +309,8 @@ public class FileUtils {
         return distribution.path;
     }
 
-    public static void assertPathsExist(Path... paths) {
-        Arrays.stream(paths).forEach(path -> assertTrue(path + " should exist", Files.exists(path)));
+    public static void assertPathsExist(final Path... paths) {
+        Arrays.stream(paths).forEach(path -> assertThat(path, fileExists()));
     }
 
     public static Matcher<Path> fileWithGlobExist(String glob) throws IOException {
@@ -326,8 +327,8 @@ public class FileUtils {
         };
     }
 
-    public static void assertPathsDontExist(Path... paths) {
-        Arrays.stream(paths).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
+    public static void assertPathsDoNotExist(final Path... paths) {
+        Arrays.stream(paths).forEach(path -> assertThat(path, fileDoesNotExist()));
     }
 
     public static void deleteIfExists(Path path) {

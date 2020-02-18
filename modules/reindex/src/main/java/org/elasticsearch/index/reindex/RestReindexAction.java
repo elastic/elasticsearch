@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -35,6 +34,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -47,10 +47,14 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     private final ClusterService clusterService;
 
-    public RestReindexAction(RestController controller, ClusterService clusterService) {
+    public RestReindexAction(ClusterService clusterService) {
         super(ReindexAction.INSTANCE);
         this.clusterService = clusterService;
-        controller.registerHandler(POST, "/_reindex", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_reindex"));
     }
 
     @Override

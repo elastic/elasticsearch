@@ -102,10 +102,10 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-                new RestReindexAction(restController, clusterService.get()),
-                new RestUpdateByQueryAction(restController),
-                new RestDeleteByQueryAction(restController),
-                new RestRethrottleAction(restController, nodesInCluster));
+                new RestReindexAction(clusterService.get()),
+                new RestUpdateByQueryAction(),
+                new RestDeleteByQueryAction(),
+                new RestRethrottleAction(nodesInCluster));
     }
 
     @Override

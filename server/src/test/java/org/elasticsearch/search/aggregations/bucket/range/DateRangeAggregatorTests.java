@@ -50,7 +50,9 @@ import static java.util.Collections.singleton;
 public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     private String NUMBER_FIELD_NAME = "number";
+    private String UNMAPPED_FIELD_NAME = "field_not_appearing_in_this_index";
     private String DATE_FIELD_NAME = "date";
+
     private long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
     private long milli2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
 
@@ -94,16 +96,12 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-        public void  testMissingDateWithDateField() throws IOException {
+        public void  testMissingDateStringWithDateField() throws IOException {
             DateFieldMapper.Builder builder = new DateFieldMapper.Builder(DATE_FIELD_NAME)
                 .withResolution(DateFieldMapper.Resolution.MILLISECONDS);
             DateFieldMapper.DateFieldType fieldType = builder.fieldType();
             fieldType.setHasDocValues(true);
             fieldType.setName(DATE_FIELD_NAME);
-
-            // These values should work because aggs scale nanosecond up to millisecond always.
-            long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
-            long milli2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
 
             DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
                 .field(DATE_FIELD_NAME)
@@ -123,7 +121,41 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             }, fieldType);
         }
 
-        public void  testMissingDateWithNumberField() throws IOException {
+    public void  testNumberFieldDateRanges() throws IOException {
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
+            .field(NUMBER_FIELD_NAME)
+            .addRange("2015-11-13", "2015-11-14");
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName(NUMBER_FIELD_NAME);
+
+        expectThrows(NumberFormatException.class,
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+            }, range -> fail("Should have thrown exception"), fieldType));
+    }
+
+    public void  testNumberFieldNumberRanges() throws IOException {
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
+            .field(NUMBER_FIELD_NAME)
+            .addRange(0, 5);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName(NUMBER_FIELD_NAME);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+        }, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(1, ranges.size());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, fieldType);
+    }
+
+    public void  testMissingDateStringWithNumberField() throws IOException {
             DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
                 .field(NUMBER_FIELD_NAME)
                 .addRange("2015-11-13", "2015-11-14")
@@ -179,7 +211,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 }, fieldType);
         }
 
-        public void testUnsupportedType() {
+        public void testKeywordField() {
             DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
                 .field("not_a_number")
                 .addRange("2015-11-13", "2015-11-14");

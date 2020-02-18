@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.ParsedComposite;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
@@ -105,9 +106,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
 
-        namedXContents = map.entrySet().stream()
-                .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
-                .collect(Collectors.toList());
+        namedXContents = map.entrySet()
+            .stream()
+            .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
+            .collect(Collectors.toList());
     }
 
     @Override
@@ -118,56 +120,29 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResults() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig("{ \"" + targetField + "\" : {"
-                + "\"terms\" : {"
-                + "   \"field\" : \"doesn't_matter_for_this_test\""
-                + "} } }");
+        GroupConfig groupBy = parseGroupConfig(
+            "{ \"" + targetField + "\" : {" + "\"terms\" : {" + "   \"field\" : \"doesn't_matter_for_this_test\"" + "} } }"
+        );
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
         Collection<AggregationBuilder> aggregationBuilders = Collections.singletonList(AggregationBuilders.avg(aggName));
 
         Map<String, Object> input = asMap(
-                "buckets",
-                    asList(
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID1"),
-                                  aggTypedName, asMap(
-                                          "value", 42.33),
-                                  DOC_COUNT, 8),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID2"),
-                                  aggTypedName, asMap(
-                                          "value", 28.99),
-                                  DOC_COUNT, 3),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID3"),
-                                  aggTypedName, asMap(
-                                          "value", Double.NaN),
-                                  DOC_COUNT, 0)
-                    ));
+            "buckets",
+            asList(
+                asMap(KEY, asMap(targetField, "ID1"), aggTypedName, asMap("value", 42.33), DOC_COUNT, 8),
+                asMap(KEY, asMap(targetField, "ID2"), aggTypedName, asMap("value", 28.99), DOC_COUNT, 3),
+                asMap(KEY, asMap(targetField, "ID3"), aggTypedName, asMap("value", Double.NaN), DOC_COUNT, 0)
+            )
+        );
 
         List<Map<String, Object>> expected = asList(
-                asMap(
-                        targetField, "ID1",
-                        aggName, 42.33
-                        ),
-                asMap(
-                        targetField, "ID2",
-                        aggName, 28.99
-                        ),
-                asMap(
-                        targetField, "ID3",
-                        aggName, null
-                        )
-                );
-        Map<String, String> fieldTypeMap = asStringMap(
-            targetField, "keyword",
-            aggName, "double"
+            asMap(targetField, "ID1", aggName, 42.33),
+            asMap(targetField, "ID2", aggName, 28.99),
+            asMap(targetField, "ID3", aggName, null)
         );
+        Map<String, String> fieldTypeMap = asStringMap(targetField, "keyword", aggName, "double");
         executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 11);
     }
 
@@ -175,172 +150,53 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig("{"
-                + "\"" + targetField + "\" : {"
+        GroupConfig groupBy = parseGroupConfig(
+            "{"
+                + "\""
+                + targetField
+                + "\" : {"
                 + "  \"terms\" : {"
                 + "     \"field\" : \"doesn't_matter_for_this_test\""
                 + "  } },"
-                + "\"" + targetField2 + "\" : {"
+                + "\""
+                + targetField2
+                + "\" : {"
                 + "  \"terms\" : {"
                 + "     \"field\" : \"doesn't_matter_for_this_test\""
                 + "  } }"
-                + "}");
+                + "}"
+        );
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
         Collection<AggregationBuilder> aggregationBuilders = Collections.singletonList(AggregationBuilders.avg(aggName));
 
         Map<String, Object> input = asMap(
-                "buckets",
-                    asList(
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID1",
-                                          targetField2, "ID1_2"
-                                          ),
-                                  aggTypedName, asMap(
-                                          "value", 42.33),
-                                  DOC_COUNT, 1),
-                            asMap(
-                                    KEY, asMap(
-                                            targetField, "ID1",
-                                            targetField2, "ID2_2"
-                                            ),
-                                    aggTypedName, asMap(
-                                            "value", 8.4),
-                                    DOC_COUNT, 2),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID2",
-                                          targetField2, "ID1_2"
-                                          ),
-                                  aggTypedName, asMap(
-                                          "value", 28.99),
-                                  DOC_COUNT, 3),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID3",
-                                          targetField2, "ID2_2"
-                                          ),
-                                  aggTypedName, asMap(
-                                          "value", Double.NaN),
-                                  DOC_COUNT, 0)
-                    ));
+            "buckets",
+            asList(
+                asMap(KEY, asMap(targetField, "ID1", targetField2, "ID1_2"), aggTypedName, asMap("value", 42.33), DOC_COUNT, 1),
+                asMap(KEY, asMap(targetField, "ID1", targetField2, "ID2_2"), aggTypedName, asMap("value", 8.4), DOC_COUNT, 2),
+                asMap(KEY, asMap(targetField, "ID2", targetField2, "ID1_2"), aggTypedName, asMap("value", 28.99), DOC_COUNT, 3),
+                asMap(KEY, asMap(targetField, "ID3", targetField2, "ID2_2"), aggTypedName, asMap("value", Double.NaN), DOC_COUNT, 0)
+            )
+        );
 
         List<Map<String, Object>> expected = asList(
-                asMap(
-                        targetField, "ID1",
-                        targetField2, "ID1_2",
-                        aggName, 42.33
-                        ),
-                asMap(
-                        targetField, "ID1",
-                        targetField2, "ID2_2",
-                        aggName, 8.4
-                        ),
-                asMap(
-                        targetField, "ID2",
-                        targetField2, "ID1_2",
-                        aggName, 28.99
-                        ),
-                asMap(
-                        targetField, "ID3",
-                        targetField2, "ID2_2",
-                        aggName, null
-                        )
-                );
-        Map<String, String> fieldTypeMap = asStringMap(
-            aggName, "double",
-            targetField, "keyword",
-            targetField2, "keyword"
+            asMap(targetField, "ID1", targetField2, "ID1_2", aggName, 42.33),
+            asMap(targetField, "ID1", targetField2, "ID2_2", aggName, 8.4),
+            asMap(targetField, "ID2", targetField2, "ID1_2", aggName, 28.99),
+            asMap(targetField, "ID3", targetField2, "ID2_2", aggName, null)
         );
+        Map<String, String> fieldTypeMap = asStringMap(aggName, "double", targetField, "keyword", targetField2, "keyword");
         executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 6);
     }
 
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig("{\"" + targetField + "\" : {"
-                + "\"terms\" : {"
-                + "   \"field\" : \"doesn't_matter_for_this_test\""
-                + "} } }");
-
-        String aggName = randomAlphaOfLengthBetween(5, 10);
-        String aggTypedName = "avg#" + aggName;
-
-        String aggName2 = randomAlphaOfLengthBetween(5, 10) + "_2";
-        String aggTypedName2 = "max#" + aggName2;
-
-        Collection<AggregationBuilder> aggregationBuilders = asList(AggregationBuilders.avg(aggName), AggregationBuilders.max(aggName2));
-
-        Map<String, Object> input = asMap(
-                "buckets",
-                    asList(
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID1"),
-                                  aggTypedName, asMap(
-                                          "value", 42.33),
-                                  aggTypedName2, asMap(
-                                          "value", 9.9),
-                                  DOC_COUNT, 111),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID2"),
-                                  aggTypedName, asMap(
-                                          "value", 28.99),
-                                  aggTypedName2, asMap(
-                                          "value", 222.33),
-                                  DOC_COUNT, 88),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID3"),
-                                  aggTypedName, asMap(
-                                          "value", 12.55),
-                                  aggTypedName2, asMap(
-                                          "value", Double.NaN),
-                                  DOC_COUNT, 1)
-                    ));
-
-        List<Map<String, Object>> expected = asList(
-                asMap(
-                        targetField, "ID1",
-                        aggName, 42.33,
-                        aggName2, 9.9
-                        ),
-                asMap(
-                        targetField, "ID2",
-                        aggName, 28.99,
-                        aggName2, 222.33
-                        ),
-                asMap(
-                        targetField, "ID3",
-                        aggName, 12.55,
-                        aggName2, null
-                        )
-                );
-        Map<String, String> fieldTypeMap = asStringMap(
-            targetField, "keyword",
-            aggName, "double",
-            aggName2, "double"
+        GroupConfig groupBy = parseGroupConfig(
+            "{\"" + targetField + "\" : {" + "\"terms\" : {" + "   \"field\" : \"doesn't_matter_for_this_test\"" + "} } }"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 200);
-    }
-
-    public void testExtractCompositeAggregationResultsMultiAggregationsAndTypes() throws IOException {
-        String targetField = randomAlphaOfLengthBetween(5, 10);
-        String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
-
-        GroupConfig groupBy = parseGroupConfig("{"
-            + "\"" + targetField + "\" : {"
-            + "  \"terms\" : {"
-            + "     \"field\" : \"doesn't_matter_for_this_test\""
-            + "  } },"
-            + "\"" + targetField2 + "\" : {"
-            + "  \"terms\" : {"
-            + "     \"field\" : \"doesn't_matter_for_this_test\""
-            + "  } }"
-            + "}");
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -354,82 +210,137 @@ public class AggregationResultUtilsTests extends ESTestCase {
             "buckets",
             asList(
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID1",
-                        targetField2, "ID1_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", 42.33),
-                    aggTypedName2, asMap(
-                        "value", 9.9,
-                        "value_as_string", "9.9F"),
-                    DOC_COUNT, 1),
+                    KEY,
+                    asMap(targetField, "ID1"),
+                    aggTypedName,
+                    asMap("value", 42.33),
+                    aggTypedName2,
+                    asMap("value", 9.9),
+                    DOC_COUNT,
+                    111
+                ),
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID1",
-                        targetField2, "ID2_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", 8.4),
-                    aggTypedName2, asMap(
-                        "value", 222.33,
-                        "value_as_string", "222.33F"),
-                    DOC_COUNT, 2),
+                    KEY,
+                    asMap(targetField, "ID2"),
+                    aggTypedName,
+                    asMap("value", 28.99),
+                    aggTypedName2,
+                    asMap("value", 222.33),
+                    DOC_COUNT,
+                    88
+                ),
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID2",
-                        targetField2, "ID1_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", 28.99),
-                    aggTypedName2, asMap(
-                        "value", -2.44,
-                        "value_as_string", "-2.44F"),
-                    DOC_COUNT, 3),
-                asMap(
-                    KEY, asMap(
-                        targetField, "ID3",
-                        targetField2, "ID2_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", 12.55),
-                    aggTypedName2, asMap(
-                        "value", Double.NaN,
-                        "value_as_string", "NaN"),
-                    DOC_COUNT, 4)
-            ));
-
-        List<Map<String, Object>> expected = asList(
-            asMap(
-                targetField, "ID1",
-                targetField2, "ID1_2",
-                aggName, 42.33,
-                aggName2, "9.9F"
-            ),
-            asMap(
-                targetField, "ID1",
-                targetField2, "ID2_2",
-                aggName, 8.4,
-                aggName2, "222.33F"
-            ),
-            asMap(
-                targetField, "ID2",
-                targetField2, "ID1_2",
-                aggName, 28.99,
-                aggName2, "-2.44F"
-            ),
-            asMap(
-                targetField, "ID3",
-                targetField2, "ID2_2",
-                aggName, 12.55,
-                aggName2, null
+                    KEY,
+                    asMap(targetField, "ID3"),
+                    aggTypedName,
+                    asMap("value", 12.55),
+                    aggTypedName2,
+                    asMap("value", Double.NaN),
+                    DOC_COUNT,
+                    1
+                )
             )
         );
+
+        List<Map<String, Object>> expected = asList(
+            asMap(targetField, "ID1", aggName, 42.33, aggName2, 9.9),
+            asMap(targetField, "ID2", aggName, 28.99, aggName2, 222.33),
+            asMap(targetField, "ID3", aggName, 12.55, aggName2, null)
+        );
+        Map<String, String> fieldTypeMap = asStringMap(targetField, "keyword", aggName, "double", aggName2, "double");
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 200);
+    }
+
+    public void testExtractCompositeAggregationResultsMultiAggregationsAndTypes() throws IOException {
+        String targetField = randomAlphaOfLengthBetween(5, 10);
+        String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
+
+        GroupConfig groupBy = parseGroupConfig(
+            "{"
+                + "\""
+                + targetField
+                + "\" : {"
+                + "  \"terms\" : {"
+                + "     \"field\" : \"doesn't_matter_for_this_test\""
+                + "  } },"
+                + "\""
+                + targetField2
+                + "\" : {"
+                + "  \"terms\" : {"
+                + "     \"field\" : \"doesn't_matter_for_this_test\""
+                + "  } }"
+                + "}"
+        );
+
+        String aggName = randomAlphaOfLengthBetween(5, 10);
+        String aggTypedName = "avg#" + aggName;
+
+        String aggName2 = randomAlphaOfLengthBetween(5, 10) + "_2";
+        String aggTypedName2 = "max#" + aggName2;
+
+        Collection<AggregationBuilder> aggregationBuilders = asList(AggregationBuilders.avg(aggName), AggregationBuilders.max(aggName2));
+
+        Map<String, Object> input = asMap(
+            "buckets",
+            asList(
+                asMap(
+                    KEY,
+                    asMap(targetField, "ID1", targetField2, "ID1_2"),
+                    aggTypedName,
+                    asMap("value", 42.33),
+                    aggTypedName2,
+                    asMap("value", 9.9, "value_as_string", "9.9F"),
+                    DOC_COUNT,
+                    1
+                ),
+                asMap(
+                    KEY,
+                    asMap(targetField, "ID1", targetField2, "ID2_2"),
+                    aggTypedName,
+                    asMap("value", 8.4),
+                    aggTypedName2,
+                    asMap("value", 222.33, "value_as_string", "222.33F"),
+                    DOC_COUNT,
+                    2
+                ),
+                asMap(
+                    KEY,
+                    asMap(targetField, "ID2", targetField2, "ID1_2"),
+                    aggTypedName,
+                    asMap("value", 28.99),
+                    aggTypedName2,
+                    asMap("value", -2.44, "value_as_string", "-2.44F"),
+                    DOC_COUNT,
+                    3
+                ),
+                asMap(
+                    KEY,
+                    asMap(targetField, "ID3", targetField2, "ID2_2"),
+                    aggTypedName,
+                    asMap("value", 12.55),
+                    aggTypedName2,
+                    asMap("value", Double.NaN, "value_as_string", "NaN"),
+                    DOC_COUNT,
+                    4
+                )
+            )
+        );
+
+        List<Map<String, Object>> expected = asList(
+            asMap(targetField, "ID1", targetField2, "ID1_2", aggName, 42.33, aggName2, "9.9F"),
+            asMap(targetField, "ID1", targetField2, "ID2_2", aggName, 8.4, aggName2, "222.33F"),
+            asMap(targetField, "ID2", targetField2, "ID1_2", aggName, 28.99, aggName2, "-2.44F"),
+            asMap(targetField, "ID3", targetField2, "ID2_2", aggName, 12.55, aggName2, null)
+        );
         Map<String, String> fieldTypeMap = asStringMap(
-            aggName, "double",
-            aggName2, "keyword", // If the second aggregation was some non-numeric mapped field
-            targetField, "keyword",
-            targetField2, "keyword"
+            aggName,
+            "double",
+            aggName2,
+            "keyword", // If the second aggregation was some non-numeric mapped field
+            targetField,
+            "keyword",
+            targetField2,
+            "keyword"
         );
         executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 10);
     }
@@ -438,16 +349,22 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig("{"
-            + "\"" + targetField + "\" : {"
-            + "  \"terms\" : {"
-            + "     \"field\" : \"doesn't_matter_for_this_test\""
-            + "  } },"
-            + "\"" + targetField2 + "\" : {"
-            + "  \"terms\" : {"
-            + "     \"field\" : \"doesn't_matter_for_this_test\""
-            + "  } }"
-            + "}");
+        GroupConfig groupBy = parseGroupConfig(
+            "{"
+                + "\""
+                + targetField
+                + "\" : {"
+                + "  \"terms\" : {"
+                + "     \"field\" : \"doesn't_matter_for_this_test\""
+                + "  } },"
+                + "\""
+                + targetField2
+                + "\" : {"
+                + "  \"terms\" : {"
+                + "     \"field\" : \"doesn't_matter_for_this_test\""
+                + "  } }"
+                + "}"
+        );
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "scripted_metric#" + aggName;
@@ -458,65 +375,40 @@ public class AggregationResultUtilsTests extends ESTestCase {
             "buckets",
             asList(
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID1",
-                        targetField2, "ID1_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", asMap("field", 123.0)),
-                    DOC_COUNT, 1),
+                    KEY,
+                    asMap(targetField, "ID1", targetField2, "ID1_2"),
+                    aggTypedName,
+                    asMap("value", asMap("field", 123.0)),
+                    DOC_COUNT,
+                    1
+                ),
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID1",
-                        targetField2, "ID2_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", asMap("field", 1.0)),
-                    DOC_COUNT, 2),
+                    KEY,
+                    asMap(targetField, "ID1", targetField2, "ID2_2"),
+                    aggTypedName,
+                    asMap("value", asMap("field", 1.0)),
+                    DOC_COUNT,
+                    2
+                ),
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID2",
-                        targetField2, "ID1_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", asMap("field", 2.13)),
-                    DOC_COUNT, 3),
-                asMap(
-                    KEY, asMap(
-                        targetField, "ID3",
-                        targetField2, "ID2_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", null),
-                    DOC_COUNT, 0)
-            ));
-
-        List<Map<String, Object>> expected = asList(
-            asMap(
-                targetField, "ID1",
-                targetField2, "ID1_2",
-                aggName,  asMap("field", 123.0)
-            ),
-            asMap(
-                targetField, "ID1",
-                targetField2, "ID2_2",
-                aggName, asMap("field", 1.0)
-            ),
-            asMap(
-                targetField, "ID2",
-                targetField2, "ID1_2",
-                aggName, asMap("field", 2.13)
-            ),
-            asMap(
-                targetField, "ID3",
-                targetField2, "ID2_2",
-                aggName, null
+                    KEY,
+                    asMap(targetField, "ID2", targetField2, "ID1_2"),
+                    aggTypedName,
+                    asMap("value", asMap("field", 2.13)),
+                    DOC_COUNT,
+                    3
+                ),
+                asMap(KEY, asMap(targetField, "ID3", targetField2, "ID2_2"), aggTypedName, asMap("value", null), DOC_COUNT, 0)
             )
         );
-        Map<String, String> fieldTypeMap = asStringMap(
-            targetField, "keyword",
-            targetField2, "keyword"
+
+        List<Map<String, Object>> expected = asList(
+            asMap(targetField, "ID1", targetField2, "ID1_2", aggName, asMap("field", 123.0)),
+            asMap(targetField, "ID1", targetField2, "ID2_2", aggName, asMap("field", 1.0)),
+            asMap(targetField, "ID2", targetField2, "ID1_2", aggName, asMap("field", 2.13)),
+            asMap(targetField, "ID3", targetField2, "ID2_2", aggName, null)
         );
+        Map<String, String> fieldTypeMap = asStringMap(targetField, "keyword", targetField2, "keyword");
         executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 6);
     }
 
@@ -524,16 +416,22 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig("{"
-            + "\"" + targetField + "\" : {"
-            + "  \"terms\" : {"
-            + "     \"field\" : \"doesn't_matter_for_this_test\""
-            + "  } },"
-            + "\"" + targetField2 + "\" : {"
-            + "  \"terms\" : {"
-            + "     \"field\" : \"doesn't_matter_for_this_test\""
-            + "  } }"
-            + "}");
+        GroupConfig groupBy = parseGroupConfig(
+            "{"
+                + "\""
+                + targetField
+                + "\" : {"
+                + "  \"terms\" : {"
+                + "     \"field\" : \"doesn't_matter_for_this_test\""
+                + "  } },"
+                + "\""
+                + targetField2
+                + "\" : {"
+                + "  \"terms\" : {"
+                + "     \"field\" : \"doesn't_matter_for_this_test\""
+                + "  } }"
+                + "}"
+        );
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -541,87 +439,67 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String pipelineAggTypedName = "bucket_script#" + pipelineAggName;
 
         Collection<AggregationBuilder> aggregationBuilders = asList(AggregationBuilders.scriptedMetric(aggName));
-        Collection<PipelineAggregationBuilder> pipelineAggregationBuilders =
-            asList(PipelineAggregatorBuilders.bucketScript(pipelineAggName,
+        Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = asList(
+            PipelineAggregatorBuilders.bucketScript(
+                pipelineAggName,
                 Collections.singletonMap("param_1", aggName),
-                new Script("return params.param_1")));
+                new Script("return params.param_1")
+            )
+        );
 
         Map<String, Object> input = asMap(
             "buckets",
             asList(
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID1",
-                        targetField2, "ID1_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", 123.0),
-                    pipelineAggTypedName, asMap(
-                        "value", 123.0),
-                    DOC_COUNT, 1),
+                    KEY,
+                    asMap(targetField, "ID1", targetField2, "ID1_2"),
+                    aggTypedName,
+                    asMap("value", 123.0),
+                    pipelineAggTypedName,
+                    asMap("value", 123.0),
+                    DOC_COUNT,
+                    1
+                ),
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID1",
-                        targetField2, "ID2_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value",  1.0),
-                    pipelineAggTypedName, asMap(
-                        "value", 1.0),
-                    DOC_COUNT, 2),
+                    KEY,
+                    asMap(targetField, "ID1", targetField2, "ID2_2"),
+                    aggTypedName,
+                    asMap("value", 1.0),
+                    pipelineAggTypedName,
+                    asMap("value", 1.0),
+                    DOC_COUNT,
+                    2
+                ),
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID2",
-                        targetField2, "ID1_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", 2.13),
-                    pipelineAggTypedName, asMap(
-                        "value", 2.13),
-                    DOC_COUNT, 3),
+                    KEY,
+                    asMap(targetField, "ID2", targetField2, "ID1_2"),
+                    aggTypedName,
+                    asMap("value", 2.13),
+                    pipelineAggTypedName,
+                    asMap("value", 2.13),
+                    DOC_COUNT,
+                    3
+                ),
                 asMap(
-                    KEY, asMap(
-                        targetField, "ID3",
-                        targetField2, "ID2_2"
-                    ),
-                    aggTypedName, asMap(
-                        "value", 12.0),
-                    pipelineAggTypedName, asMap(
-                        "value", Double.NaN),
-                    DOC_COUNT, 4)
-            ));
-
-        List<Map<String, Object>> expected = asList(
-            asMap(
-                targetField, "ID1",
-                targetField2, "ID1_2",
-                aggName, 123.0,
-                pipelineAggName, 123.0
-            ),
-            asMap(
-                targetField, "ID1",
-                targetField2, "ID2_2",
-                aggName, 1.0,
-                pipelineAggName, 1.0
-            ),
-            asMap(
-                targetField, "ID2",
-                targetField2, "ID1_2",
-                aggName, 2.13,
-                pipelineAggName, 2.13
-            ),
-            asMap(
-                targetField, "ID3",
-                targetField2, "ID2_2",
-                aggName, 12.0,
-                pipelineAggName, null
+                    KEY,
+                    asMap(targetField, "ID3", targetField2, "ID2_2"),
+                    aggTypedName,
+                    asMap("value", 12.0),
+                    pipelineAggTypedName,
+                    asMap("value", Double.NaN),
+                    DOC_COUNT,
+                    4
+                )
             )
         );
-        Map<String, String> fieldTypeMap = asStringMap(
-            targetField, "keyword",
-            targetField2, "keyword",
-            aggName, "double"
+
+        List<Map<String, Object>> expected = asList(
+            asMap(targetField, "ID1", targetField2, "ID1_2", aggName, 123.0, pipelineAggName, 123.0),
+            asMap(targetField, "ID1", targetField2, "ID2_2", aggName, 1.0, pipelineAggName, 1.0),
+            asMap(targetField, "ID2", targetField2, "ID1_2", aggName, 2.13, pipelineAggName, 2.13),
+            asMap(targetField, "ID3", targetField2, "ID2_2", aggName, 12.0, pipelineAggName, null)
         );
+        Map<String, String> fieldTypeMap = asStringMap(targetField, "keyword", targetField2, "keyword", aggName, "double");
         executeTest(groupBy, aggregationBuilders, pipelineAggregationBuilders, input, fieldTypeMap, expected, 10);
     }
 
@@ -629,120 +507,76 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig("{"
-                + "\"" + targetField + "\" : {"
+        GroupConfig groupBy = parseGroupConfig(
+            "{"
+                + "\""
+                + targetField
+                + "\" : {"
                 + "  \"terms\" : {"
                 + "     \"field\" : \"doesn't_matter_for_this_test\""
                 + "  } },"
-                + "\"" + targetField2 + "\" : {"
+                + "\""
+                + targetField2
+                + "\" : {"
                 + "  \"terms\" : {"
                 + "     \"field\" : \"doesn't_matter_for_this_test\""
                 + "  } }"
-                + "}");
+                + "}"
+        );
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
         Collection<AggregationBuilder> aggregationBuilders = Collections.singletonList(AggregationBuilders.avg(aggName));
 
         Map<String, Object> inputFirstRun = asMap(
-                "buckets",
-                    asList(
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID1",
-                                          targetField2, "ID1_2"
-                                          ),
-                                  aggTypedName, asMap(
-                                          "value", 42.33),
-                                  DOC_COUNT, 1),
-                            asMap(
-                                    KEY, asMap(
-                                            targetField, "ID1",
-                                            targetField2, "ID2_2"
-                                            ),
-                                    aggTypedName, asMap(
-                                            "value", 8.4),
-                                    DOC_COUNT, 2),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID2",
-                                          targetField2, "ID1_2"
-                                          ),
-                                  aggTypedName, asMap(
-                                          "value", 28.99),
-                                  DOC_COUNT, 3),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID3",
-                                          targetField2, "ID2_2"
-                                          ),
-                                  aggTypedName, asMap(
-                                          "value", 12.55),
-                                  DOC_COUNT, 4)
-                    ));
+            "buckets",
+            asList(
+                asMap(KEY, asMap(targetField, "ID1", targetField2, "ID1_2"), aggTypedName, asMap("value", 42.33), DOC_COUNT, 1),
+                asMap(KEY, asMap(targetField, "ID1", targetField2, "ID2_2"), aggTypedName, asMap("value", 8.4), DOC_COUNT, 2),
+                asMap(KEY, asMap(targetField, "ID2", targetField2, "ID1_2"), aggTypedName, asMap("value", 28.99), DOC_COUNT, 3),
+                asMap(KEY, asMap(targetField, "ID3", targetField2, "ID2_2"), aggTypedName, asMap("value", 12.55), DOC_COUNT, 4)
+            )
+        );
 
         Map<String, Object> inputSecondRun = asMap(
-                "buckets",
-                    asList(
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID1",
-                                          targetField2, "ID1_2"
-                                          ),
-                                  aggTypedName, asMap(
-                                          "value", 433.33),
-                                  DOC_COUNT, 12),
-                            asMap(
-                                    KEY, asMap(
-                                            targetField, "ID1",
-                                            targetField2, "ID2_2"
-                                            ),
-                                    aggTypedName, asMap(
-                                            "value", 83.4),
-                                    DOC_COUNT, 32),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID2",
-                                          targetField2, "ID1_2"
-                                          ),
-                                  aggTypedName, asMap(
-                                          "value", 21.99),
-                                  DOC_COUNT, 2),
-                            asMap(
-                                  KEY, asMap(
-                                          targetField, "ID3",
-                                          targetField2, "ID2_2"
-                                          ),
-                                  aggTypedName, asMap(
-                                          "value", 122.55),
-                                  DOC_COUNT, 44)
-                    ));
+            "buckets",
+            asList(
+                asMap(KEY, asMap(targetField, "ID1", targetField2, "ID1_2"), aggTypedName, asMap("value", 433.33), DOC_COUNT, 12),
+                asMap(KEY, asMap(targetField, "ID1", targetField2, "ID2_2"), aggTypedName, asMap("value", 83.4), DOC_COUNT, 32),
+                asMap(KEY, asMap(targetField, "ID2", targetField2, "ID1_2"), aggTypedName, asMap("value", 21.99), DOC_COUNT, 2),
+                asMap(KEY, asMap(targetField, "ID3", targetField2, "ID2_2"), aggTypedName, asMap("value", 122.55), DOC_COUNT, 44)
+            )
+        );
         TransformIndexerStats stats = new TransformIndexerStats();
 
-        Map<String, String> fieldTypeMap = asStringMap(
-                aggName, "double",
-                targetField, "keyword",
-                targetField2, "keyword"
-            );
+        Map<String, String> fieldTypeMap = asStringMap(aggName, "double", targetField, "keyword", targetField2, "keyword");
 
-        List<Map<String, Object>> resultFirstRun =
-            runExtraction(groupBy, aggregationBuilders, Collections.emptyList(), inputFirstRun, fieldTypeMap, stats);
-        List<Map<String, Object>> resultSecondRun =
-            runExtraction(groupBy, aggregationBuilders, Collections.emptyList(), inputSecondRun, fieldTypeMap, stats);
+        List<Map<String, Object>> resultFirstRun = runExtraction(
+            groupBy,
+            aggregationBuilders,
+            Collections.emptyList(),
+            inputFirstRun,
+            fieldTypeMap,
+            stats
+        );
+        List<Map<String, Object>> resultSecondRun = runExtraction(
+            groupBy,
+            aggregationBuilders,
+            Collections.emptyList(),
+            inputSecondRun,
+            fieldTypeMap,
+            stats
+        );
 
         assertNotEquals(resultFirstRun, resultSecondRun);
 
         Set<String> documentIdsFirstRun = new HashSet<>();
-        resultFirstRun.forEach(m -> {
-            documentIdsFirstRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD));
-        });
+        resultFirstRun.forEach(m -> { documentIdsFirstRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD)); });
 
         assertEquals(4, documentIdsFirstRun.size());
 
         Set<String> documentIdsSecondRun = new HashSet<>();
-        resultSecondRun.forEach(m -> {
-            documentIdsSecondRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD));
-        });
+        resultSecondRun.forEach(m -> { documentIdsSecondRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD)); });
 
         assertEquals(4, documentIdsSecondRun.size());
         assertEquals(documentIdsFirstRun, documentIdsSecondRun);
@@ -759,12 +593,12 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         assertThat(document.get("metric"), equalTo(10L));
 
-        Map<String, Object> bar = (Map<String, Object>)document.get("bar");
+        Map<String, Object> bar = (Map<String, Object>) document.get("bar");
 
         assertThat(bar.get("field1"), equalTo(1L));
 
-        Map<String, Object> foo = (Map<String, Object>)document.get("foo");
-        Map<String, Object> foobar = (Map<String, Object>)foo.get("bar");
+        Map<String, Object> foo = (Map<String, Object>) document.get("foo");
+        Map<String, Object> foobar = (Map<String, Object>) foo.get("bar");
 
         assertThat(foobar.get("baz"), equalTo(1000L));
         assertThat(foobar.get("baz2"), equalTo(2000L));
@@ -774,22 +608,28 @@ public class AggregationResultUtilsTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
 
         AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
-        AggregationResultUtils.AggregationExtractionException exception =
-            expectThrows(AggregationResultUtils.AggregationExtractionException.class,
-                () -> AggregationResultUtils.updateDocument(document, "foo.bar.baz", 2000L));
-        assertThat(exception.getMessage(),
-            equalTo("duplicate key value pairs key [foo.bar.baz] old value [1000] duplicate value [2000]"));
+        AggregationResultUtils.AggregationExtractionException exception = expectThrows(
+            AggregationResultUtils.AggregationExtractionException.class,
+            () -> AggregationResultUtils.updateDocument(document, "foo.bar.baz", 2000L)
+        );
+        assertThat(exception.getMessage(), equalTo("duplicate key value pairs key [foo.bar.baz] old value [1000] duplicate value [2000]"));
     }
 
     public void testUpdateDocumentWithObjectAndNotObject() {
         Map<String, Object> document = new HashMap<>();
 
         AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
-        AggregationResultUtils.AggregationExtractionException exception =
-            expectThrows(AggregationResultUtils.AggregationExtractionException.class,
-                () -> AggregationResultUtils.updateDocument(document, "foo.bar", 2000L));
-        assertThat(exception.getMessage(),
-            equalTo("mixed object types of nested and non-nested fields [foo.bar]"));
+        AggregationResultUtils.AggregationExtractionException exception = expectThrows(
+            AggregationResultUtils.AggregationExtractionException.class,
+            () -> AggregationResultUtils.updateDocument(document, "foo.bar", 2000L)
+        );
+        assertThat(exception.getMessage(), equalTo("mixed object types of nested and non-nested fields [foo.bar]"));
+    }
+
+    private NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, Double value, String valueAsString) {
+        NumericMetricsAggregation.SingleValue agg = createSingleMetricAgg(value, valueAsString);
+        when(agg.getName()).thenReturn(name);
+        return agg;
     }
 
     private NumericMetricsAggregation.SingleValue createSingleMetricAgg(Double value, String valueAsString) {
@@ -801,19 +641,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     public void testSingleValueAggExtractor() {
         Aggregation agg = createSingleMetricAgg(Double.NaN, "NaN");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double"), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap()), is(nullValue()));
 
         agg = createSingleMetricAgg(Double.POSITIVE_INFINITY, "NaN");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double"), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap()), is(nullValue()));
 
         agg = createSingleMetricAgg(100.0, "100.0");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double"), equalTo(100.0));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap()), equalTo(100.0));
 
         agg = createSingleMetricAgg(100.0, "one_hundred");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double"), equalTo(100.0));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap()), equalTo(100.0));
 
         agg = createSingleMetricAgg(100.0, "one_hundred");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "string"), equalTo("one_hundred"));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "string", Collections.emptyMap()), equalTo("one_hundred"));
     }
 
     private ScriptedMetric createScriptedMetric(Object returnValue) {
@@ -825,15 +665,15 @@ public class AggregationResultUtilsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testScriptedMetricAggExtractor() {
         Aggregation agg = createScriptedMetric(null);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "object"), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()), is(nullValue()));
 
         agg = createScriptedMetric(Collections.singletonList("values"));
-        Object val = AggregationResultUtils.getExtractor(agg).value(agg, "object");
-        assertThat((List<String>)val, hasItem("values"));
+        Object val = AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap());
+        assertThat((List<String>) val, hasItem("values"));
 
         agg = createScriptedMetric(Collections.singletonMap("key", 100));
-        val = AggregationResultUtils.getExtractor(agg).value(agg, "object");
-        assertThat(((Map<String, Object>)val).get("key"), equalTo(100));
+        val = AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap());
+        assertThat(((Map<String, Object>) val).get("key"), equalTo(100));
     }
 
     private GeoCentroid createGeoCentroid(GeoPoint point, long count) {
@@ -845,13 +685,13 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     public void testGeoCentroidAggExtractor() {
         Aggregation agg = createGeoCentroid(null, 0);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point"), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point", Collections.emptyMap()), is(nullValue()));
 
         agg = createGeoCentroid(new GeoPoint(100.0, 101.0), 0);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point"), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point", Collections.emptyMap()), is(nullValue()));
 
         agg = createGeoCentroid(new GeoPoint(100.0, 101.0), randomIntBetween(1, 100));
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point"), equalTo("100.0, 101.0"));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point", Collections.emptyMap()), equalTo("100.0, 101.0"));
     }
 
     private GeoBounds createGeoBounds(GeoPoint tl, GeoPoint br) {
@@ -865,10 +705,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testGeoBoundsAggExtractor() {
         final int numberOfRuns = 25;
         Aggregation agg = createGeoBounds(null, new GeoPoint(100.0, 101.0));
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape"), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap()), is(nullValue()));
 
         agg = createGeoBounds(new GeoPoint(100.0, 101.0), null);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape"), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap()), is(nullValue()));
 
         String type = "point";
         for (int i = 0; i < numberOfRuns; i++) {
@@ -878,7 +718,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             double lon = randomDoubleBetween(-180.0, 180.0, false);
             expectedObject.put("coordinates", Arrays.asList(lon, lat));
             agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat, lon));
-            assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape"), equalTo(expectedObject));
+            assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap()), equalTo(expectedObject));
         }
 
         type = "linestring";
@@ -893,11 +733,11 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 lon2 = randomDoubleBetween(-180.0, 180.0, false);
             }
             agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat2, lon2));
-            Object val = AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape");
-            Map<String, Object> geoJson = (Map<String, Object>)val;
+            Object val = AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap());
+            Map<String, Object> geoJson = (Map<String, Object>) val;
             assertThat(geoJson.get("type"), equalTo(type));
-            List<Double[]> coordinates = (List<Double[]>)geoJson.get("coordinates");
-            for(Double[] coor : coordinates) {
+            List<Double[]> coordinates = (List<Double[]>) geoJson.get("coordinates");
+            for (Double[] coor : coordinates) {
                 assertThat(coor.length, equalTo(2));
             }
             assertThat(coordinates.get(0)[0], equalTo(lon));
@@ -917,10 +757,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 lon2 = randomDoubleBetween(-180.0, 180.0, false);
             }
             agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat2, lon2));
-            Object val = AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape");
-            Map<String, Object> geoJson = (Map<String, Object>)val;
+            Object val = AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap());
+            Map<String, Object> geoJson = (Map<String, Object>) val;
             assertThat(geoJson.get("type"), equalTo(type));
-            List<List<Double[]>> coordinates = (List<List<Double[]>>)geoJson.get("coordinates");
+            List<List<Double[]>> coordinates = (List<List<Double[]>>) geoJson.get("coordinates");
             assertThat(coordinates.size(), equalTo(1));
             assertThat(coordinates.get(0).size(), equalTo(5));
             List<List<Double>> expected = Arrays.asList(
@@ -928,8 +768,9 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 Arrays.asList(lon2, lat),
                 Arrays.asList(lon2, lat2),
                 Arrays.asList(lon, lat2),
-                Arrays.asList(lon, lat));
-            for(int j = 0; j < 5; j++) {
+                Arrays.asList(lon, lat)
+            );
+            for (int j = 0; j < 5; j++) {
                 Double[] coordinate = coordinates.get(0).get(j);
                 assertThat(coordinate.length, equalTo(2));
                 assertThat(coordinate[0], equalTo(expected.get(j).get(0)));
@@ -938,29 +779,32 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
     }
 
-    private void executeTest(GroupConfig groups,
-                             Collection<AggregationBuilder> aggregationBuilders,
-                             Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
-                             Map<String, Object> input,
-                             Map<String, String> fieldTypeMap,
-                             List<Map<String, Object>> expected,
-                             long expectedDocCounts) throws IOException {
+
+    private void executeTest(
+        GroupConfig groups,
+        Collection<AggregationBuilder> aggregationBuilders,
+        Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
+        Map<String, Object> input,
+        Map<String, String> fieldTypeMap,
+        List<Map<String, Object>> expected,
+        long expectedDocCounts
+    ) throws IOException {
         TransformIndexerStats stats = new TransformIndexerStats();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
-        List<Map<String, Object>> result = runExtraction(groups,
+        List<Map<String, Object>> result = runExtraction(
+            groups,
             aggregationBuilders,
             pipelineAggregationBuilders,
             input,
             fieldTypeMap,
-            stats);
+            stats
+        );
 
         // remove the document ids and test uniqueness
         Set<String> documentIds = new HashSet<>();
-        result.forEach(m -> {
-            documentIds.add((String) m.remove(TransformField.DOCUMENT_ID_FIELD));
-        });
+        result.forEach(m -> { documentIds.add((String) m.remove(TransformField.DOCUMENT_ID_FIELD)); });
 
         assertEquals(result.size(), documentIds.size());
         assertEquals(expected, result);
@@ -968,30 +812,34 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     }
 
-    private List<Map<String, Object>> runExtraction(GroupConfig groups,
-                                                    Collection<AggregationBuilder> aggregationBuilders,
-                                                    Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
-                                                    Map<String, Object> input,
-                                                    Map<String, String> fieldTypeMap,
-                                                    TransformIndexerStats stats) throws IOException {
+    private List<Map<String, Object>> runExtraction(
+        GroupConfig groups,
+        Collection<AggregationBuilder> aggregationBuilders,
+        Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
+        Map<String, Object> input,
+        Map<String, String> fieldTypeMap,
+        TransformIndexerStats stats
+    ) throws IOException {
 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
         try (XContentParser parser = createParser(builder)) {
             CompositeAggregation agg = ParsedComposite.fromXContent(parser, "my_feature");
-            return AggregationResultUtils.extractCompositeAggregationResults(agg,
+            return AggregationResultUtils.extractCompositeAggregationResults(
+                agg,
                 groups,
                 aggregationBuilders,
                 pipelineAggregationBuilders,
                 fieldTypeMap,
-                stats).collect(Collectors.toList());
+                stats
+            ).collect(Collectors.toList());
         }
     }
 
     private GroupConfig parseGroupConfig(String json) throws IOException {
-        final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        final XContentParser parser = XContentType.JSON.xContent()
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         return GroupConfig.fromXContent(parser, false);
     }
 

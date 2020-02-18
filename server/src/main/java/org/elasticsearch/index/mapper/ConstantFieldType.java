@@ -20,11 +20,16 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryShardContext;
 
 /**
  * A {@link MappedFieldType} that has the same value for all documents.
+ * Factory methods for queries are called at rewrite time so they should be
+ * cheap. In particular they should not read data from disk or perform a
+ * network call. Furthermore they may only return a {@link MatchAllDocsQuery}
+ * or a {@link MatchNoDocsQuery}.
  */
 public abstract class ConstantFieldType extends MappedFieldType {
 

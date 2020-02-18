@@ -197,6 +197,8 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                     return new MatchAllQueryBuilder().queryName(queryName).boost(boost);
                 } else if (query instanceof MatchNoDocsQuery) {
                     return new MatchNoneQueryBuilder();
+                } else {
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
                 }
             }
         }

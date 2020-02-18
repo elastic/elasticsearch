@@ -146,6 +146,8 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                     return new MatchAllQueryBuilder().queryName(queryName).boost(boost);
                 } else if (query instanceof MatchNoDocsQuery) {
                     return new MatchNoneQueryBuilder();
+                } else {
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
                 }
             }
         }

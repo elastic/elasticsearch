@@ -497,11 +497,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         return qb.toQuery(context);
     }
 
-    static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder queryBuilder) throws IOException {
-
-        return queryBuilder.toQuery(context);
-    }
-
     private static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {
         try {
             return parseInnerQueryBuilder(parser);

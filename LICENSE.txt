@@ -8,3 +8,6 @@ The build produces two sets of binaries - one set that falls under the Elastic
 License and another set that falls under Apache License 2.0. The binaries that
 contain `-oss` in the artifact name are licensed under Apache License 2.0 and
 these binaries do not package any code from the x-pack directory.
+
+
+// un texte qu'on a ajouté pour la video demo afin de voir les changement au niveau de la branche

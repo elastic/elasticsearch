@@ -22,16 +22,17 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
 public class RestGetReindexTaskAction extends BaseRestHandler {
 
-    public RestGetReindexTaskAction(final RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_reindex/{task_id}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(RestRequest.Method.GET, "/_reindex/{id}"));
     }
 
     @Override
@@ -41,7 +42,7 @@ public class RestGetReindexTaskAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String taskId = restRequest.param("task_id");
+        String taskId = restRequest.param("id");
         GetReindexTaskAction.Request request = new GetReindexTaskAction.Request(taskId);
         return channel -> client.execute(GetReindexTaskAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

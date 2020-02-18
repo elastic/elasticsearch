@@ -90,6 +90,9 @@ public class TransformRobustnessIT extends TransformRestTestCase {
 
         // the task is gone
         assertEquals(0, getNumberOfTransformTasks());
+
+        // delete the transform because the task might have written a state doc, cleanup fails if the index isn't empty
+        deleteTransform(transformId);
     }
 
     @SuppressWarnings("unchecked")

@@ -320,10 +320,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         void runRandomly() {
-            runRandomly(true);
+            runRandomly(true, true, EXTREME_DELAY_VARIABILITY);
         }
 
-        void runRandomly(boolean allowReboots) {
+        /**
+         * @param allowReboots whether to randomly reboot the nodes during the process, losing all transient state. Usually true.
+         * @param coolDown whether to set the delay variability back to {@link Cluster#DEFAULT_DELAY_VARIABILITY} and drain all
+         *                 disrupted events from the queue before returning. Usually true.
+         * @param delayVariability the delay variability to use while running randomly. Usually {@link Cluster#EXTREME_DELAY_VARIABILITY}.
+         */
+        void runRandomly(boolean allowReboots, boolean coolDown, long delayVariability) {
 
             // TODO supporting (preserving?) existing disruptions needs implementing if needed, for now we just forbid it
             assertThat("may reconnect disconnected nodes, probably unexpected", disconnectedNodes, empty());
@@ -336,9 +342,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             final int randomSteps = scaledRandomIntBetween(10, 10000);
             final int keyRange = randomSteps / 50; // for randomized writes and reads
-            logger.info("--> start of safety phase of at least [{}] steps", randomSteps);
+            logger.info("--> start of safety phase of at least [{}] steps with delay variability of [{}ms]", randomSteps, delayVariability);
 
-            deterministicTaskQueue.setExecutionDelayVariabilityMillis(EXTREME_DELAY_VARIABILITY);
+            deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariability);
             disruptStorage = true;
             int step = 0;
             long finishTime = -1;
@@ -349,8 +355,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
                 if (randomSteps <= step && finishTime == -1) {
                     finishTime = deterministicTaskQueue.getLatestDeferredExecutionTime();
-                    deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
-                    logger.debug("----> [runRandomly {}] reducing delay variability and running until [{}ms]", step, finishTime);
+                    if (coolDown) {
+                        deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
+                        logger.debug("----> [runRandomly {}] reducing delay variability and running until [{}ms]", step, finishTime);
+                    } else {
+                        logger.debug("----> [runRandomly {}] running until [{}ms] with delay variability of [{}ms]", step, finishTime,
+                            deterministicTaskQueue.getExecutionDelayVariabilityMillis());
+                    }
                 }
 
                 try {

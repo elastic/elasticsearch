@@ -22,11 +22,11 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -35,11 +35,16 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 public class RestRethrottleAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestRethrottleAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
+    public RestRethrottleAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
-        controller.registerHandler(POST, "/_update_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_delete_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_reindex/{taskId}/_rethrottle", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_update_by_query/{taskId}/_rethrottle"),
+            new Route(POST, "/_delete_by_query/{taskId}/_rethrottle"),
+            new Route(POST, "/_reindex/{taskId}/_rethrottle"));
     }
 
     @Override

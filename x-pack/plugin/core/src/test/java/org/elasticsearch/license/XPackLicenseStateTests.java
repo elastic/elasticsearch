@@ -41,7 +41,7 @@ public class XPackLicenseStateTests extends ESTestCase {
      * Checks the ack message going from the  {@code from} license type to {@code to} license type.
      * TODO: check the actual messages, not just the number of them! This was copied from previous license tests...
      */
-    void assertAckMesssages(String feature, OperationMode from, OperationMode to, int expectedMessages) {
+    void assertAckMessages(String feature, OperationMode from, OperationMode to, int expectedMessages) {
         String[] gotMessages = XPackLicenseState.ACKNOWLEDGMENT_MESSAGES.get(feature).apply(from, to);
         assertEquals(expectedMessages, gotMessages.length);
     }
@@ -276,42 +276,42 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityAckBasicToNotGoldOrStandard() {
         OperationMode toMode = randomFrom(OperationMode.values(), mode -> mode != GOLD && mode != STANDARD);
-        assertAckMesssages(XPackField.SECURITY, BASIC, toMode, 0);
+        assertAckMessages(XPackField.SECURITY, BASIC, toMode, 0);
     }
 
     public void testSecurityAckAnyToTrialOrPlatinum() {
-        assertAckMesssages(XPackField.SECURITY, randomMode(), randomTrialOrPlatinumMode(), 0);
+        assertAckMessages(XPackField.SECURITY, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
 
     public void testSecurityAckTrialGoldOrPlatinumToBasic() {
-        assertAckMesssages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 7);
+        assertAckMessages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 7);
     }
 
     public void testSecurityAckStandardToBasic() {
-        assertAckMesssages(XPackField.SECURITY, STANDARD, BASIC, 1);
+        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 1);
     }
 
     public void testSecurityAckAnyToStandard() {
         OperationMode from = randomFrom(BASIC, GOLD, PLATINUM, TRIAL);
-        assertAckMesssages(XPackField.SECURITY, from, STANDARD, 5);
+        assertAckMessages(XPackField.SECURITY, from, STANDARD, 5);
     }
 
     public void testSecurityAckBasicStandardTrialOrPlatinumToGold() {
         OperationMode from = randomFrom(BASIC, PLATINUM, TRIAL, STANDARD);
-        assertAckMesssages(XPackField.SECURITY, from, GOLD, 3);
+        assertAckMessages(XPackField.SECURITY, from, GOLD, 3);
     }
 
     public void testMonitoringAckBasicToAny() {
-        assertAckMesssages(XPackField.MONITORING, BASIC, randomMode(), 0);
+        assertAckMessages(XPackField.MONITORING, BASIC, randomMode(), 0);
     }
 
     public void testMonitoringAckAnyToTrialGoldOrPlatinum() {
-        assertAckMesssages(XPackField.MONITORING, randomMode(), randomTrialStandardGoldOrPlatinumMode(), 0);
+        assertAckMessages(XPackField.MONITORING, randomMode(), randomTrialStandardGoldOrPlatinumMode(), 0);
     }
 
     public void testMonitoringAckNotBasicToBasic() {
         OperationMode from = randomFrom(STANDARD, GOLD, PLATINUM, TRIAL);
-        assertAckMesssages(XPackField.MONITORING, from, BASIC, 2);
+        assertAckMessages(XPackField.MONITORING, from, BASIC, 2);
     }
 
     public void testMonitoringAllowed() {
@@ -484,11 +484,11 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSqlAckAnyToTrialOrPlatinum() {
-        assertAckMesssages(XPackField.SQL, randomMode(), randomTrialOrPlatinumMode(), 0);
+        assertAckMessages(XPackField.SQL, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
 
     public void testSqlAckTrialOrPlatinumToNotTrialOrPlatinum() {
-        assertAckMesssages(XPackField.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
+        assertAckMessages(XPackField.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
     }
 
     public void testTransformBasic() throws Exception {

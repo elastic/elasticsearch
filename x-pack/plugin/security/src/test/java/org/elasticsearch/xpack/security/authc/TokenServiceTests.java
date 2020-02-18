@@ -46,6 +46,7 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -103,6 +104,7 @@ public class TokenServiceTests extends ESTestCase {
     private Settings tokenServiceEnabledSettings = Settings.builder()
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
     private XPackLicenseState licenseState;
+    private SecurityContext securityContext;
 
     @Before
     public void setupClient() {
@@ -126,6 +128,7 @@ public class TokenServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
 
+        this.securityContext = new SecurityContext(settings, threadPool.getThreadContext());
         // setup lifecycle service
         this.securityMainIndex = SecurityMocks.mockSecurityIndexManager();
         this.securityTokensIndex = SecurityMocks.mockSecurityIndexManager();
@@ -152,7 +155,8 @@ public class TokenServiceTests extends ESTestCase {
     @BeforeClass
     public static void startThreadPool() throws IOException {
         threadPool = new ThreadPool(settings,
-                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool"));
+                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool",
+                    false));
         new Authentication(new User("foo"), new RealmRef("realm", "type", "node"), null).writeToContext(threadPool.getThreadContext());
     }
 
@@ -555,7 +559,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = new TokenService(Settings.builder()
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), false)
                 .build(),
-            Clock.systemUTC(), client, licenseState, securityMainIndex, securityTokensIndex, clusterService);
+            Clock.systemUTC(), client, licenseState, securityContext, securityMainIndex, securityTokensIndex, clusterService);
         IllegalStateException e = expectThrows(IllegalStateException.class,
             () -> tokenService.createOAuth2Tokens(null, null, null, true, null));
         assertEquals("security tokens are not enabled", e.getMessage());
@@ -761,7 +765,8 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     private TokenService createTokenService(Settings settings, Clock clock) throws GeneralSecurityException {
-        return new TokenService(settings, clock, client, licenseState, securityMainIndex, securityTokensIndex, clusterService);
+        return new TokenService(settings, clock, client, licenseState, securityContext, securityMainIndex, securityTokensIndex,
+            clusterService);
     }
 
     private void mockGetTokenFromId(TokenService tokenService, String accessToken, Authentication authentication, boolean isExpired) {

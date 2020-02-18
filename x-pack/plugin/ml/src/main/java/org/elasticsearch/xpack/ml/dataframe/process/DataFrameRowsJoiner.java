@@ -9,17 +9,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,16 +35,17 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private static final int RESULTS_BATCH_SIZE = 1000;
 
     private final String analyticsId;
-    private final Client client;
     private final DataFrameDataExtractor dataExtractor;
+    private final ResultsPersisterService resultsPersisterService;
     private final Iterator<DataFrameDataExtractor.Row> dataFrameRowsIterator;
     private LinkedList<RowResults> currentResults;
     private volatile String failure;
 
-    DataFrameRowsJoiner(String analyticsId, Client client, DataFrameDataExtractor dataExtractor) {
+    DataFrameRowsJoiner(String analyticsId, DataFrameDataExtractor dataExtractor,
+                        ResultsPersisterService resultsPersisterService) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
-        this.client = Objects.requireNonNull(client);
         this.dataExtractor = Objects.requireNonNull(dataExtractor);
+        this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.dataFrameRowsIterator = new ResultMatchingDataFrameRows();
         this.currentResults = new LinkedList<>();
     }
@@ -88,7 +86,8 @@ class DataFrameRowsJoiner implements AutoCloseable {
             bulkRequest.add(createIndexRequest(result, row.getHit()));
         }
         if (bulkRequest.numberOfActions() > 0) {
-            executeBulkRequest(bulkRequest);
+            resultsPersisterService.bulkIndexWithHeadersWithRetry(
+                dataExtractor.getHeaders(), bulkRequest, analyticsId, () -> true, errorMsg -> {});
         }
         currentResults = new LinkedList<>();
     }
@@ -111,14 +110,6 @@ class DataFrameRowsJoiner implements AutoCloseable {
         indexRequest.source(source);
         indexRequest.opType(DocWriteRequest.OpType.INDEX);
         return indexRequest;
-    }
-
-    private void executeBulkRequest(BulkRequest bulkRequest) {
-        BulkResponse bulkResponse = ClientHelper.executeWithHeaders(dataExtractor.getHeaders(), ClientHelper.ML_ORIGIN, client,
-                () -> client.execute(BulkAction.INSTANCE, bulkRequest).actionGet());
-        if (bulkResponse.hasFailures()) {
-            throw ExceptionsHelper.serverError("failures while writing results [" + bulkResponse.buildFailureMessage() + "]");
-        }
     }
 
     @Override

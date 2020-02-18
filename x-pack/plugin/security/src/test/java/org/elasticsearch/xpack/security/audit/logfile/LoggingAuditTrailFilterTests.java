@@ -113,11 +113,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         // user field matches
         assertTrue("Matches the user filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(
                 new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.empty(), Optional.empty(), Optional.empty())));
-        final User unfilteredUser;
+        final User unfilteredUser = mock(User.class);
         if (randomBoolean()) {
-            unfilteredUser = new User(null);
-        } else {
-            unfilteredUser = new User(new User(null), new User(randomFrom(filteredUsers).principal()));
+            when(unfilteredUser.authenticatedUser()).thenReturn(new User(randomFrom(filteredUsernames)));
         }
         // null user field does NOT match
         assertFalse("Does not match the user filter predicate because of null username.",

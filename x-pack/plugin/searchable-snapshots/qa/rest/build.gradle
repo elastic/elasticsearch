@@ -2,7 +2,17 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
+dependencies {
+  testCompile project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+}
+
+final File repoDir = file("$buildDir/testclusters/repo")
+
+integTest.runner {
+  systemProperty 'tests.path.repo', repoDir
+}
+
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'path.repo', repoDir.absolutePath
 }

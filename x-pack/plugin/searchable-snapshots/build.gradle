@@ -27,3 +27,16 @@ gradle.projectsEvaluated {
     .findAll { it.path.startsWith(project.path + ":qa") }
     .each { check.dependsOn it.check }
 }
+
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
+
+task testJar(type: Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}

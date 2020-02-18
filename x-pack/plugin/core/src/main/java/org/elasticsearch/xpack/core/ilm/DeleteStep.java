@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -23,9 +24,8 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     @Override
     public void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         getClient().admin().indices()
-            .prepareDelete(indexMetaData.getIndex().getName())
-            .setMasterNodeTimeout(getMasterTimeout(currentState))
-            .execute(ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+            .delete(new DeleteIndexRequest(indexMetaData.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
+                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 
     @Override

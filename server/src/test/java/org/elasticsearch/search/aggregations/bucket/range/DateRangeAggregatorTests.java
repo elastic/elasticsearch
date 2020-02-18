@@ -263,7 +263,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     private void testBothResolutions(Query query,
                                      CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                                      Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify)
-        throws IOException {
+                                     throws IOException {
         testCase(query, buildIndex, verify, DateFieldMapper.Resolution.MILLISECONDS);
         testCase(query, buildIndex, verify, DateFieldMapper.Resolution.NANOSECONDS);
     }

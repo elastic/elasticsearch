@@ -22,8 +22,6 @@ available under the current license and some usage statistics.
 [[usage-api-query-parms]]
 === {api-query-parms-title}
 
-`master_timeout`::
-(Optional, <<time-units, time units>>)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [discrete]

@@ -58,14 +58,14 @@ public class XShapeTestUtil {
     private static XYPolygon trianglePolygon(XYRectangle box) {
         final float[] polyX = new float[4];
         final float[] polyY = new float[4];
-        polyX[0] = (float)box.minX;
-        polyY[0] = (float)box.minY;
-        polyX[1] = (float)box.minX;
-        polyY[1] = (float)box.minY;
-        polyX[2] = (float)box.minX;
-        polyY[2] = (float)box.minY;
-        polyX[3] = (float)box.minX;
-        polyY[3] = (float)box.minY;
+        polyX[0] = box.minX;
+        polyY[0] = box.minY;
+        polyX[1] = box.minX;
+        polyY[1] = box.minY;
+        polyX[2] = box.minX;
+        polyY[2] = box.minY;
+        polyX[3] = box.minX;
+        polyY[3] = box.minY;
         return new XYPolygon(polyX, polyY);
     }
 
@@ -105,16 +105,16 @@ public class XShapeTestUtil {
     private static XYPolygon boxPolygon(XYRectangle box) {
         final float[] polyX = new float[5];
         final float[] polyY = new float[5];
-        polyX[0] = (float)box.minX;
-        polyY[0] = (float)box.minY;
-        polyX[1] = (float)box.minX;
-        polyY[1] = (float)box.minY;
-        polyX[2] = (float)box.minX;
-        polyY[2] = (float)box.minY;
-        polyX[3] = (float)box.minX;
-        polyY[3] = (float)box.minY;
-        polyX[4] = (float)box.minX;
-        polyY[4] = (float)box.minY;
+        polyX[0] = box.minX;
+        polyY[0] = box.minY;
+        polyX[1] = box.minX;
+        polyY[1] = box.minY;
+        polyX[2] = box.minX;
+        polyY[2] = box.minY;
+        polyX[3] = box.minX;
+        polyY[3] = box.minY;
+        polyX[4] = box.minX;
+        polyY[4] = box.minY;
         return new XYPolygon(polyX, polyY);
     }
 

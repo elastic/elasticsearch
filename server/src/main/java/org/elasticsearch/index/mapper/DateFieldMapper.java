@@ -73,6 +73,7 @@ import static org.elasticsearch.common.time.DateUtils.toLong;
 public final class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
+    public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
 
     public static class Defaults {
@@ -96,7 +97,7 @@ public final class DateFieldMapper extends FieldMapper {
                 return instant;
             }
         },
-        NANOSECONDS("date_nanos", NumericType.DATE_NANOSECONDS) {
+        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
             @Override
             public long convert(Instant instant) {
                 return toLong(instant);

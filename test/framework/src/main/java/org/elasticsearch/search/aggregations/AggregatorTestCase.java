@@ -672,7 +672,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.NUMERIC)) {
             // TODO note: once VS refactor adds DATE/BOOLEAN, this conditional will go away
-            if (fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)) {
+            if (fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)
+                || fieldType.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
                 iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomNonNegativeLong())));
             } else if (fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)) {
                 iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomBoolean() ? 0 : 1)));

@@ -31,8 +31,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -40,11 +38,11 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_search_shards"),
             new Route(POST, "/_search_shards"),
             new Route(GET, "/{index}/_search_shards"),
-            new Route(POST, "/{index}/_search_shards")));
+            new Route(POST, "/{index}/_search_shards"));
     }
 
     @Override

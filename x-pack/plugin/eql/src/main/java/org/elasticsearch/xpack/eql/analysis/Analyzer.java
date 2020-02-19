@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.xpack.eql.common.Failure;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;

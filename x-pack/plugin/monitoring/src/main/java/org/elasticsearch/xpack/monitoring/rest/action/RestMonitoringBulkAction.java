@@ -26,7 +26,6 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -49,9 +48,9 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_monitoring/bulk"),
-            new Route(PUT, "/_monitoring/bulk")));
+            new Route(PUT, "/_monitoring/bulk"));
     }
 
     @Override

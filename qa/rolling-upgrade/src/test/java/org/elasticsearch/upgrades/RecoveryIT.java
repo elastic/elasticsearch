@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matchers;
 
@@ -339,9 +338,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             }
         }
         ensureGreen(index);
-        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            assertBusy(() -> RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index));
-        }
+        ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
     }
 
     public void testRetentionLeasesEstablishedWhenRelocatingPrimary() throws Exception {
@@ -384,16 +381,14 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     final Request putSettingsRequest = new Request("PUT", "/" + index + "/_settings");
                     putSettingsRequest.setJsonEntity("{\"index.routing.allocation.exclude._name\":\"" + oldNodeName + "\"}");
                     assertOK(client().performRequest(putSettingsRequest));
-                    ensureGreen(index);
-                    assertBusy(() -> RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index));
-                } else {
-                    ensureGreen(index);
                 }
+                ensureGreen(index);
+                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
                 break;
 
             case UPGRADED:
                 ensureGreen(index);
-                assertBusy(() -> RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index));
+                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
                 break;
         }
     }

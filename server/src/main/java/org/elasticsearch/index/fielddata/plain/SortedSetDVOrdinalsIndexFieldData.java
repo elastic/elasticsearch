@@ -30,6 +30,7 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -40,7 +41,10 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -79,6 +83,12 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
         sortField.setMissingValue(source.sortMissingLast(missingValue) ^ reverse ?
             SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST);
         return sortField;
+    }
+
+    @Override
+    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format) {
+        throw new IllegalArgumentException("only supported on numeric fields");
     }
 
     @Override

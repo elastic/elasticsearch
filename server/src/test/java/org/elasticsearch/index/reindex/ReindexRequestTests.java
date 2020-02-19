@@ -324,4 +324,44 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
         return ReindexRequest.buildRemoteInfo(source);
     }
+
+    public void testCommaSeparatedSourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("a,b");
+        assertArrayEquals(new String[]{"a", "b"}, r.getSearchRequest().indices());
+    }
+
+    public void testArraySourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices(new String[]{"a", "b"});
+        assertArrayEquals(new String[]{"a", "b"}, r.getSearchRequest().indices());
+    }
+
+    public void testEmptyStringSourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("");
+        assertArrayEquals(new String[0], r.getSearchRequest().indices());
+        ActionRequestValidationException validationException = r.validate();
+        assertNotNull(validationException);
+        assertEquals(Collections.singletonList("use _all if you really want to copy from all existing indexes"),
+            validationException.validationErrors());
+    }
+
+    private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject(); {
+                b.startObject("source"); {
+                    b.field("index", sourceIndices);
+                }
+                b.endObject();
+                b.startObject("dest"); {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            return ReindexRequest.fromXContent(p);
+        }
+    }
 }

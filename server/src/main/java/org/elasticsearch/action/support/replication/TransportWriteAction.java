@@ -66,8 +66,8 @@ public abstract class TransportWriteAction<
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */
-    protected static Location syncOperationResultOrThrow(final Engine.Result operationResult,
-                                                         final Location currentLocation) throws Exception {
+    public static Location syncOperationResultOrThrow(final Engine.Result operationResult,
+                                                      final Location currentLocation) throws Exception {
         final Location location;
         if (operationResult.getFailure() != null) {
             // check if any transient write operation failures should be bubbled up

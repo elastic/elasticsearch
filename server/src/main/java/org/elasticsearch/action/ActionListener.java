@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * A listener for action responses or failures.
@@ -222,6 +223,27 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Notifies every given listener with the response passed to {@link #onResponse(Object)}. If a listener itself throws an exception
+     * the exception is forwarded to {@link #onFailure(Exception)}. If in turn {@link #onFailure(Exception)} fails all remaining
+     * listeners will be processed and the caught exception will be re-thrown.
+     */
+    static <Response> void onResponse(Stream<ActionListener<Response>> listeners, Response response) {
+        List<Exception> exceptionList = new ArrayList<>();
+        listeners.forEach(listener -> {
+            try {
+                listener.onResponse(response);
+            } catch (Exception ex) {
+                try {
+                    listener.onFailure(ex);
+                } catch (Exception ex1) {
+                    exceptionList.add(ex1);
+                }
+            }
+        });
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
+    }
+
+    /**
      * Notifies every given listener with the failure passed to {@link #onFailure(Exception)}. If a listener itself throws an exception
      * all remaining listeners will be processed and the caught exception will be re-thrown.
      */
@@ -234,6 +256,22 @@ public interface ActionListener<Response> {
                 exceptionList.add(ex);
             }
         }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
+    }
+
+    /**
+     * Notifies every given listener with the failure passed to {@link #onFailure(Exception)}. If a listener itself throws an exception
+     * all remaining listeners will be processed and the caught exception will be re-thrown.
+     */
+    static <Response> void onFailure(Stream<ActionListener<Response>> listeners, Exception failure) {
+        List<Exception> exceptionList = new ArrayList<>();
+        listeners.forEach(listener -> {
+            try {
+                listener.onFailure(failure);
+            } catch (Exception ex) {
+                exceptionList.add(ex);
+            }
+        });
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
     }
 

@@ -118,24 +118,27 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 assert update != null;
                 assert shardId != null;
                 mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
-            },
-            mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    mappingUpdateListener.onResponse(null);
-                }
-
-                @Override
-                public void onClusterServiceClose() {
-                    mappingUpdateListener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
-                }
-            }), listener, threadPool
+            }, waitForMappingUpdate(observer, clusterService), listener, threadPool
         );
+    }
+
+    public static Consumer<ActionListener<Void>> waitForMappingUpdate(ClusterStateObserver observer, ClusterService clusterService) {
+        return mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                mappingUpdateListener.onResponse(null);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                mappingUpdateListener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
+            }
+        });
     }
 
     public static void performOnPrimary(
@@ -152,20 +155,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             private final Executor executor = threadPool.executor(ThreadPool.Names.WRITE);
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
+            private final Runnable rescheduler = () -> executor.execute(this);
 
             @Override
             protected void doRun() throws Exception {
-                while (context.hasMoreOperationsToExecute()) {
-                    if (executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)) == false) {
-                        // We are waiting for a mapping update on another thread, that will invoke this action again once its done
-                        // so we just break out here.
-                        return;
-                    }
-                    assert context.isInitial(); // either completed and moved to next or reset
+                if (executeBulkItemRequests(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
+                    rescheduler)) {
+                    // We're done, there's no more operations to execute so we resolve the wrapped listener
+                    finishRequest();
                 }
-                // We're done, there's no more operations to execute so we resolve the wrapped listener
-                finishRequest();
             }
 
             @Override
@@ -206,12 +204,32 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     /**
      * Executes bulk item requests and handles request execution exceptions.
+     * @return {@code true} if all the requests completed on this thread and the listener was invoked, {@code false} if a requests triggered
+     *                      a mapping update that will finish and invoke the rescheduler on a different thread
+     */
+    static boolean executeBulkItemRequests(BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
+                                           MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
+                                           Runnable rescheduler) throws Exception {
+        while (context.hasMoreOperationsToExecute()) {
+            if (executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
+                rescheduler) == false) {
+                // We are waiting for a mapping update on another thread. Return false to indicate that not
+                // all requests were completed.
+                return false;
+            }
+            assert context.isInitial(); // either completed and moved to next or reset
+        }
+        return true;
+    }
+
+    /**
+     * Executes bulk item request and handles request execution exceptions.
      * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered
-     *                      a mapping update that will finish and invoke the listener on a different thread
+     *                      a mapping update that will finish and invoke the rescheduler on a different thread
      */
     static boolean executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
-                                       MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
-                                       ActionListener<Void> itemDoneListener) throws Exception {
+                                          MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
+                                          Runnable rescheduler) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
         final UpdateHelper.Result updateResult;
@@ -299,7 +317,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                 public void onFailure(Exception e) {
                                     context.failOnMappingUpdate(e);
                                 }
-                            }, () -> itemDoneListener.onResponse(null))
+                            }, rescheduler)
                         );
                     }
 
@@ -308,7 +326,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
                         // Requesting mapping update failed, so we don't have to wait for a cluster state update
                         assert context.isInitial();
-                        itemDoneListener.onResponse(null);
+                        rescheduler.run();
                     }
                 });
             return false;

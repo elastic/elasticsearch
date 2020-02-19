@@ -8,6 +8,7 @@ package org.elasticsearch.repositories.encrypted;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
@@ -259,26 +260,26 @@ public final class EncryptedRepository extends BlobStoreRepository {
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                                 boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+                                 Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
         validateRepositoryPasswordHash(userMetadata, listener::onFailure);
         if (userMetadata != null && userMetadata.containsKey(PASSWORD_HASH_RESERVED_USER_METADATA_KEY)) {
             userMetadata.remove(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
         }
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-                includeGlobalState, clusterMetaData, userMetadata, writeShardGens, listener);
+                includeGlobalState, clusterMetaData, userMetadata, repositoryMetaVersion, listener);
     }
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
                               Map<String, Object> userMetadata, ActionListener<String> listener) {
         validateRepositoryPasswordHash(userMetadata, listener::onFailure);
-        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, userMetadata,
-                listener);
+        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, repositoryMetaVersion,
+                userMetadata, listener);
     }
 
     @Override
-    public void cleanup(long repositoryStateId, boolean writeShardGens, ActionListener<RepositoryCleanupResult> listener) {
+    public void cleanup(long repositoryStateId, Version repositoryMetaVersion, ActionListener<RepositoryCleanupResult> listener) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository"));
             return;
@@ -286,7 +287,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
         final StepListener<RepositoryCleanupResult> baseCleanupStep = new StepListener<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
-        super.cleanup(repositoryStateId, writeShardGens, baseCleanupStep);
+        super.cleanup(repositoryStateId, repositoryMetaVersion, baseCleanupStep);
 
         baseCleanupStep.whenComplete(baseCleanupResult -> {
             final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {

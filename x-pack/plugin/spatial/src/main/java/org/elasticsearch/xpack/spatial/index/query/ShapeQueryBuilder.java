@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -104,7 +106,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     @Override
     @SuppressWarnings({ "rawtypes" })
     protected List<String> validContentTypes(){
-        return Arrays.asList(GeoShapeFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.CONTENT_TYPE);
+        return Arrays.asList(ShapeFieldMapper.CONTENT_TYPE);
     }
 
     @Override

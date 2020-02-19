@@ -46,7 +46,6 @@ public class CentroidCalculator {
     CompensatedSum compSumX;
     CompensatedSum compSumY;
     CompensatedSum compSumWeight;
-
     private CentroidCalculatorVisitor visitor;
     private DimensionalShapeType dimensionalShapeType;
 
@@ -58,18 +57,6 @@ public class CentroidCalculator {
         this.visitor = new CentroidCalculatorVisitor(this);
         geometry.visit(visitor);
         this.dimensionalShapeType = visitor.calculator.dimensionalShapeType;
-    }
-
-    private CompensatedSum getCompSumX() {
-        return compSumX;
-    }
-
-    private CompensatedSum getCompSumY() {
-        return compSumY;
-    }
-
-    private CompensatedSum getCompSumWeight() {
-        return compSumWeight;
     }
 
     /**
@@ -111,9 +98,9 @@ public class CentroidCalculator {
             this.compSumWeight = otherCalculator.compSumWeight;
 
         } else if (compared == 0) {
-            this.compSumX.add(otherCalculator.getCompSumX().value());
-            this.compSumY.add(otherCalculator.getCompSumY().value());
-            this.compSumWeight.add(otherCalculator.getCompSumWeight().value());
+            this.compSumX.add(otherCalculator.compSumX.value());
+            this.compSumY.add(otherCalculator.compSumY.value());
+            this.compSumWeight.add(otherCalculator.compSumWeight.value());
         } // else (compared > 0) do not modify centroid calculation since otherCalculator is of lower dimension than this calculator
     }
 
@@ -122,7 +109,7 @@ public class CentroidCalculator {
      */
     public double getX() {
         // normalization required due to floating point precision errors
-        return GeoUtils.normalizeLon(getCompSumX().value() / getCompSumWeight().value());
+        return GeoUtils.normalizeLon(compSumX.value() / compSumWeight.value());
     }
 
     /**
@@ -130,14 +117,14 @@ public class CentroidCalculator {
      */
     public double getY() {
         // normalization required due to floating point precision errors
-        return GeoUtils.normalizeLat(getCompSumY().value() / getCompSumWeight().value());
+        return GeoUtils.normalizeLat(compSumY.value() / compSumWeight.value());
     }
 
     /**
      * @return the sum of all the weighted coordinates summed in the calculator
      */
     public double sumWeight() {
-        return getCompSumWeight().value();
+        return compSumWeight.value();
     }
 
     /**

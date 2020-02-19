@@ -17,14 +17,13 @@ import org.elasticsearch.xpack.core.ilm.action.RetryAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRetryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/{index}/_ilm/retry"));
+        return List.of(new Route(POST, "/{index}/_ilm/retry"));
     }
 
     @Override

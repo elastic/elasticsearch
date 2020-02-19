@@ -15,14 +15,13 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestEvaluateDataFrameAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, MachineLearning.BASE_PATH + "data_frame/_evaluate"));
+        return List.of(new Route(POST, MachineLearning.BASE_PATH + "data_frame/_evaluate"));
     }
 
     @Override

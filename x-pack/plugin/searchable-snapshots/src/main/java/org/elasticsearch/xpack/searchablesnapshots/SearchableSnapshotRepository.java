@@ -10,6 +10,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Setting;
@@ -114,7 +115,7 @@ public class SearchableSnapshotRepository extends FilterRepository {
         return builder.build();
     }
 
-    public static Settings getIndexSettings(Repository repository, SnapshotId snapshotId, IndexId indexId) {
+    private static Settings getIndexSettings(Repository repository, SnapshotId snapshotId, IndexId indexId) {
         return Settings.builder()
             .put(SNAPSHOT_REPOSITORY_SETTING.getKey(), repository.getMetadata().name())
             .put(SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(), snapshotId.getName())
@@ -122,6 +123,7 @@ public class SearchableSnapshotRepository extends FilterRepository {
             .put(SNAPSHOT_INDEX_ID_SETTING.getKey(), indexId.getId())
             .put(INDEX_STORE_TYPE_SETTING.getKey(), SNAPSHOT_DIRECTORY_FACTORY_KEY)
             .put(IndexMetaData.SETTING_BLOCKS_WRITE, true)
+            .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), SearchableSnapshotAllocator.ALLOCATOR_NAME)
             .build();
     }
 

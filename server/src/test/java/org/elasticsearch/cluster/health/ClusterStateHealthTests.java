@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -142,7 +143,8 @@ public class ClusterStateHealthTests extends ESTestCase {
         listenerCalled.await();
 
         TransportClusterHealthAction action = new TransportClusterHealthAction(transportService,
-            clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver, new TestGatewayAllocator());
+            clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver,
+            new AllocationService(null, new TestGatewayAllocator(), null, null));
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(action, null, new ClusterHealthRequest().waitForGreenStatus(), listener);
 

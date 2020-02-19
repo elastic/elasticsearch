@@ -57,6 +57,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -83,6 +84,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Configures classes and services that affect the entire cluster.
@@ -251,4 +254,14 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationDeciders.class).toInstance(allocationDeciders);
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
+
+    public void setGatewayAllocators(Injector injector, List<ClusterPlugin> clusterPlugins) {
+        final Settings settings = clusterService.getSettings();
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        allocationService.setExistingShardsAllocators(Stream.concat(clusterPlugins.stream()
+            .flatMap(clusterPlugin -> clusterPlugin.getExistingShardsAllocators(settings, clusterSettings).stream()),
+            Stream.of(injector.getInstance(GatewayAllocator.class))) // GatewayAllocator runs last
+            .collect(Collectors.toList()));
+    }
+
 }

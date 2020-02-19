@@ -30,12 +30,14 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -130,18 +132,20 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Is the allocator responsible for allocating the given {@link ShardRouting}?
      */
-    private static boolean isResponsibleFor(final ShardRouting shard) {
+    private static boolean isResponsibleFor(final ShardRouting shard, final Settings settings) {
         return shard.primary() == false // must be a replica
                    && shard.unassigned() // must be unassigned
                    // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                   && shard.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED;
+                   && shard.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED
+                   // this shard is not the responsibility of a different allocator
+                   && ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals(GatewayAllocator.ALLOCATOR_NAME);
     }
 
     @Override
     public AllocateUnassignedDecision makeAllocationDecision(final ShardRouting unassignedShard,
                                                              final RoutingAllocation allocation,
                                                              final Logger logger) {
-        if (isResponsibleFor(unassignedShard) == false) {
+        if (isResponsibleFor(unassignedShard, allocation.metaData().getIndexSafe(unassignedShard.index()).getSettings()) == false) {
             // this allocator is not responsible for deciding on this shard
             return AllocateUnassignedDecision.NOT_TAKEN;
         }

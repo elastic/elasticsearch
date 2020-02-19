@@ -92,7 +92,6 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
-import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
@@ -602,7 +601,7 @@ public class Node implements Closeable {
             injector = modules.createInjector();
 
             // TODO hack around circular dependencies problems in AllocationService
-            clusterModule.getAllocationService().setGatewayAllocator(injector.getInstance(GatewayAllocator.class));
+            clusterModule.setGatewayAllocators(injector, pluginsService.filterPlugins(ClusterPlugin.class));
 
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)

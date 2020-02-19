@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -56,7 +58,7 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 /**
  * Plugin for Searchable Snapshots feature
  */
-public class SearchableSnapshots extends Plugin implements IndexStorePlugin, RepositoryPlugin, EnginePlugin, ActionPlugin {
+public class SearchableSnapshots extends Plugin implements IndexStorePlugin, RepositoryPlugin, EnginePlugin, ActionPlugin, ClusterPlugin {
 
     private final SetOnce<RepositoriesService> repositoriesService;
     private final SetOnce<CacheService> cacheService;
@@ -132,6 +134,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return List.of(new RestSearchableSnapshotsStatsAction());
+    }
+
+    @Override
+    public Collection<ExistingShardsAllocator> getExistingShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
+        return List.of(new SearchableSnapshotAllocator());
     }
 }
 

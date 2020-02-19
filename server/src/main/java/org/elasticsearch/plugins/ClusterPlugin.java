@@ -19,15 +19,16 @@
 
 package org.elasticsearch.plugins;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.function.Supplier;
-
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * An extension point for {@link Plugin} implementations to customer behavior of cluster management.
@@ -57,6 +58,14 @@ public interface ClusterPlugin {
      */
     default Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
         return Collections.emptyMap();
+    }
+
+    /**
+     * Return {@link ExistingShardsAllocator} implementations added by this plugin, which will run before the default
+     * {@link org.elasticsearch.gateway.GatewayAllocator}.
+     */
+    default Collection<ExistingShardsAllocator> getExistingShardsAllocators(Settings settings, ClusterSettings clusterSettings){
+        return Collections.emptyList();
     }
 
     /**

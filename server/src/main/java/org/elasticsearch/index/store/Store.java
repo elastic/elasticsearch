@@ -446,13 +446,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try (ShardLock lock = shardLocker.lock(shardId, "open index", TimeUnit.SECONDS.toMillis(5));
              Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir);
-            // Previously we called Lucene#readSegmentInfos which verifies that some Lucene metadata is readable and makes sense, but if it
-            // weren't then we would mark this shard as corrupt when allocated, so it seems that this is unnecessary (and it breaks when
-            // the shard's directory is virtual since we use SimpleFSDirectory above.
-            // TODO NORELEASE is this ok? Need to check that we definitely add a corruption marker if the metadata is corrupt.
-//            SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
-//            logger.trace("{} loaded segment info [{}]", shardId, segInfo);
-            logger.trace("{} tryOpenIndex succeeded", shardId);
+            SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
+            logger.trace("{} loaded segment info [{}]", shardId, segInfo);
         }
     }
 

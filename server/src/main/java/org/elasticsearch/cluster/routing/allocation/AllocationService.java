@@ -41,7 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,26 +70,32 @@ public class AllocationService {
     private static final Logger logger = LogManager.getLogger(AllocationService.class);
 
     private final AllocationDeciders allocationDeciders;
-    private GatewayAllocator gatewayAllocator;
+    private final List<ExistingShardsAllocator> existingShardsAllocators = new ArrayList<>();
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
 
-    public AllocationService(AllocationDeciders allocationDeciders,
-                             GatewayAllocator gatewayAllocator,
+    // only for tests that use a single ExistingShardsAllocator
+    public AllocationService(AllocationDeciders allocationDeciders, ExistingShardsAllocator existingShardsAllocator,
                              ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
         this(allocationDeciders, shardsAllocator, clusterInfoService);
-        setGatewayAllocator(gatewayAllocator);
+        setExistingShardsAllocators(Collections.singletonList(existingShardsAllocator));
     }
 
-    public AllocationService(AllocationDeciders allocationDeciders,
-                             ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
+    public AllocationService(AllocationDeciders allocationDeciders, ShardsAllocator shardsAllocator,
+                             ClusterInfoService clusterInfoService) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
     }
 
-    public void setGatewayAllocator(GatewayAllocator gatewayAllocator) {
-        this.gatewayAllocator = gatewayAllocator;
+    /**
+     * Inject the list of {@link ExistingShardsAllocator}s to use. May only be called once.
+     */
+    public void setExistingShardsAllocators(List<ExistingShardsAllocator> existingShardsAllocators) {
+        assert this.existingShardsAllocators.isEmpty()
+            : "cannot add allocators " + existingShardsAllocators + " to " + this.existingShardsAllocators;
+        assert existingShardsAllocators.isEmpty() == false : "must add at least one ExistingShardsAllocator";
+        this.existingShardsAllocators.addAll(existingShardsAllocators);
     }
 
     /**
@@ -99,6 +105,7 @@ public class AllocationService {
      * If the same instance of the {@link ClusterState} is returned, then no change has been made.</p>
      */
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
+        assert existingShardsAllocators.isEmpty() == false : "must have at least one ExistingShardsAllocator";
         if (startedShards.isEmpty()) {
             return clusterState;
         }
@@ -108,13 +115,13 @@ public class AllocationService {
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
             clusterInfoService.getClusterInfo(), currentNanoTime());
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
-        startedShards = new ArrayList<>(startedShards);
-        Collections.sort(startedShards, Comparator.comparing(ShardRouting::primary));
-        applyStartedShards(allocation, startedShards);
-        gatewayAllocator.applyStartedShards(allocation, startedShards);
+        final List<ShardRouting> sortedStartedShards = new ArrayList<>(startedShards);
+        Collections.sort(sortedStartedShards, Comparator.comparing(ShardRouting::primary));
+        applyStartedShards(allocation, sortedStartedShards);
+        existingShardsAllocators.forEach(allocator -> allocator.applyStartedShards(allocation, sortedStartedShards));
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
         String startedShardsAsString
-            = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString(), logger.isDebugEnabled());
+            = firstListElementsToCommaDelimitedString(sortedStartedShards, s -> s.shardId().toString(), logger.isDebugEnabled());
         return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
@@ -172,6 +179,7 @@ public class AllocationService {
      */
     public ClusterState applyFailedShards(final ClusterState clusterState, final List<FailedShard> failedShards,
                                           final List<StaleShard> staleShards) {
+        assert existingShardsAllocators.isEmpty() == false : "must have at least one ExistingShardsAllocator";
         if (staleShards.isEmpty() && failedShards.isEmpty()) {
             return clusterState;
         }
@@ -217,7 +225,7 @@ public class AllocationService {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
             }
         }
-        gatewayAllocator.applyFailedShards(allocation, failedShards);
+        existingShardsAllocators.forEach(existingShardsAllocator -> existingShardsAllocator.applyFailedShards(allocation, failedShards));
 
         reroute(allocation);
         String failedShardsAsString
@@ -413,10 +421,18 @@ public class AllocationService {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metaData(), allocation).isEmpty() :
             "auto-expand replicas out of sync with number of nodes in the cluster";
+        assert existingShardsAllocators.isEmpty() == false : "must have at least one ExistingShardsAllocator";
 
         removeDelayMarkers(allocation);
+
+        allocation.routingNodes().unassigned().sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
+
         // try to allocate existing shard copies first
-        gatewayAllocator.allocateUnassigned(allocation);
+        // TODO TBD the order in which allocators run depends on the order of plugins so is not properly defined. Does this matter?
+        // TODO TBD this means earlier allocators allocate shards before the later allocators can allocate possibly-higher-priority ones
+        for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators) {
+            existingShardsAllocator.allocateUnassigned(allocation);
+        }
 
         shardsAllocator.allocate(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
@@ -470,7 +486,39 @@ public class AllocationService {
     }
 
     public void cleanCaches() {
-        gatewayAllocator.cleanCaches();
+        assert existingShardsAllocators.isEmpty() == false : "must have at least one ExistingShardsAllocator";
+        existingShardsAllocators.forEach(ExistingShardsAllocator::cleanCaches);
+    }
+
+    public int getNumberOfInFlightFetches() {
+        assert existingShardsAllocators.isEmpty() == false : "must have at least one ExistingShardsAllocator";
+        return existingShardsAllocators.stream().mapToInt(ExistingShardsAllocator::getNumberOfInFlightFetches).sum();
+    }
+
+    public ShardAllocationDecision explainShardAllocation(ShardRouting shardRouting, RoutingAllocation allocation) {
+        assert allocation.debugDecision();
+        assert existingShardsAllocators.isEmpty() == false : "must have at least one ExistingShardsAllocator";
+        AllocateUnassignedDecision allocateDecision
+            = shardRouting.unassigned() ? explainUnassignedShardAllocation(shardRouting, allocation) : AllocateUnassignedDecision.NOT_TAKEN;
+        if (allocateDecision.isDecisionTaken()) {
+            return new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
+        } else {
+            return shardsAllocator.decideShardAllocation(shardRouting, allocation);
+        }
+    }
+
+    private AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
+        assert shardRouting.unassigned();
+        assert routingAllocation.debugDecision();
+        assert existingShardsAllocators.isEmpty() == false : "must have at least one ExistingShardsAllocator";
+        for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators) {
+            final AllocateUnassignedDecision decision
+                = existingShardsAllocator.explainUnassignedShardAllocation(shardRouting, routingAllocation);
+            if (decision.isDecisionTaken()) {
+                return decision;
+            }
+        }
+        return AllocateUnassignedDecision.NOT_TAKEN;
     }
 
     /**

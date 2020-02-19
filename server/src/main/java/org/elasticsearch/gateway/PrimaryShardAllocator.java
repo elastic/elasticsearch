@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -73,6 +74,21 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                     || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
+    private static AllocateUnassignedDecision allocatorNotFound(final RoutingAllocation allocation, final String allocatorName) {
+        if (allocation.debugDecision()) {
+            final List<NodeAllocationResult> nodeAllocationResults = new ArrayList<>(allocation.nodes().getSize());
+            for (DiscoveryNode discoveryNode : allocation.nodes()) {
+                nodeAllocationResults.add(new NodeAllocationResult(discoveryNode, null, allocation.decision(Decision.NO, "allocator_plugin",
+                    "finding the valid shard copies for this shard requires an allocator called [%s] but that allocator was not found; " +
+                        "perhaps the corresponding plugin is not installed",
+                    allocatorName)));
+            }
+            return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, nodeAllocationResults);
+        } else {
+            return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, null);
+        }
+    }
+
     @Override
     public AllocateUnassignedDecision makeAllocationDecision(final ShardRouting unassignedShard,
                                                              final RoutingAllocation allocation,
@@ -80,6 +96,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         if (isResponsibleFor(unassignedShard) == false) {
             // this allocator is not responsible for allocating this shard
             return AllocateUnassignedDecision.NOT_TAKEN;
+        }
+
+        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(unassignedShard.index());
+        final String existingShardsAllocator = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(indexMetaData.getSettings());
+        if (unassignedShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE
+            && existingShardsAllocator.equals(GatewayAllocator.ALLOCATOR_NAME) == false) {
+            // another allocator was supposed to handle this shard first but has failed to do so; the corresponding plugin is likely missing
+            return allocatorNotFound(allocation, existingShardsAllocator);
         }
 
         final boolean explain = allocation.debugDecision();
@@ -93,9 +117,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
 
-        // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
-        // on cluster restart if we allocate a boat load of shards
-        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(unassignedShard.index());
         final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 

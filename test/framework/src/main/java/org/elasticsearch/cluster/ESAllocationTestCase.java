@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -80,10 +81,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService);
     }
 
-    public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
+    public static MockAllocationService createAllocationService(Settings settings, ExistingShardsAllocator existingShardsAllocator) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-                gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
+                existingShardsAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {
@@ -235,9 +236,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         private volatile long nanoTimeOverride = -1L;
 
-        public MockAllocationService(AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
+        public MockAllocationService(AllocationDeciders allocationDeciders, ExistingShardsAllocator existingShardsAllocator,
                                      ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService);
+            super(allocationDeciders, existingShardsAllocator, shardsAllocator, clusterInfoService);
         }
 
         public void setNanoTimeOverride(long nanoTime) {

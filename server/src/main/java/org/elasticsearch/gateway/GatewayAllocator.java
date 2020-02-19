@@ -31,9 +31,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
@@ -54,7 +54,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class GatewayAllocator {
+public class GatewayAllocator implements ExistingShardsAllocator {
+
+    public static final String ALLOCATOR_NAME = "gateway_allocator";
 
     private static final Logger logger = LogManager.getLogger(GatewayAllocator.class);
 
@@ -76,6 +78,7 @@ public class GatewayAllocator {
         this.replicaShardAllocator = new InternalReplicaShardAllocator(client);
     }
 
+    @Override
     public void cleanCaches() {
         Releasables.close(asyncFetchStarted.values());
         asyncFetchStarted.clear();
@@ -90,7 +93,8 @@ public class GatewayAllocator {
         this.replicaShardAllocator = null;
     }
 
-    public int getNumberOfInFlightFetch() {
+    @Override
+    public int getNumberOfInFlightFetches() {
         int count = 0;
         for (AsyncShardFetch<NodeGatewayStartedShards> fetch : asyncFetchStarted.values()) {
             count += fetch.getNumberOfInFlightFetches();
@@ -101,6 +105,7 @@ public class GatewayAllocator {
         return count;
     }
 
+    @Override
     public void applyStartedShards(final RoutingAllocation allocation, final List<ShardRouting> startedShards) {
         for (ShardRouting startedShard : startedShards) {
             Releasables.close(asyncFetchStarted.remove(startedShard.shardId()));
@@ -108,6 +113,7 @@ public class GatewayAllocator {
         }
     }
 
+    @Override
     public void applyFailedShards(final RoutingAllocation allocation, final List<FailedShard> failedShards) {
         for (FailedShard failedShard : failedShards) {
             Releasables.close(asyncFetchStarted.remove(failedShard.getRoutingEntry().shardId()));
@@ -115,6 +121,7 @@ public class GatewayAllocator {
         }
     }
 
+    @Override
     public void allocateUnassigned(final RoutingAllocation allocation) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
@@ -126,9 +133,6 @@ public class GatewayAllocator {
     protected static void innerAllocatedUnassigned(RoutingAllocation allocation,
                                                    PrimaryShardAllocator primaryShardAllocator,
                                                    ReplicaShardAllocator replicaShardAllocator) {
-        RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-        unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
-
         primaryShardAllocator.allocateUnassigned(allocation);
         if (allocation.routingNodes().hasInactiveShards()) {
             // cancel existing recoveries if we have a better match
@@ -137,11 +141,10 @@ public class GatewayAllocator {
         replicaShardAllocator.allocateUnassigned(allocation);
     }
 
-    /**
-     * Computes and returns the design for allocating a single unassigned shard.  If called on an assigned shard,
-     * {@link AllocateUnassignedDecision#NOT_TAKEN} is returned.
-     */
-    public AllocateUnassignedDecision decideUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
+    @Override
+    public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
+        assert unassignedShard.unassigned();
+        assert routingAllocation.debugDecision();
         if (unassignedShard.primary()) {
             assert primaryShardAllocator != null;
             return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);

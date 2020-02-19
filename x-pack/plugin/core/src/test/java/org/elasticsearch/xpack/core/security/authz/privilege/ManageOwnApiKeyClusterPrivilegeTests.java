@@ -104,11 +104,10 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             "user_a", "realm_a", "realm_a_type",
             "user_b", "realm_b", "realm_b_type");
 
-        final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("realm_b", "user_b");
-        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName("realm_b", "user_b");
-
-        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
-        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get",
+            GetApiKeyRequest.usingRealmAndUserName("realm_b", "user_b"), authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate",
+            InvalidateApiKeyRequest.usingRealmAndUserName("realm_b", "user_b"), authentication));
     }
 
     private Authentication createMockAuthentication(String username, String realmName, String realmType, Map<String, Object> metadata) {

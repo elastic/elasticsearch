@@ -1,0 +1,22 @@
+on:
+  issues:
+    types: [labeled, unlabeled]
+
+jobs:
+  assign_to_project:
+    runs-on: ubuntu-latest
+    name: Assign an issue to project based on label
+    steps:
+      - name: Assign to project
+  uses: elastic/github-actions/project-assigner@v1.0.3
+  id: project_assigner
+  with:
+    issue-mappings: |
+      [
+        {
+          "label": ":Core/Infra/Build",
+          "projectName": "Elasticsearch Build Engineering",
+          "columnId": 8061652
+        }
+      ]
+    ghToken: ${{ secrets.GITHUB_TOKEN }}

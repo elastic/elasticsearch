@@ -126,7 +126,6 @@ public class ScriptServiceTests extends ESTestCase {
     public void testMaxCompilationRateSetting() throws Exception {
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/60s"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
-        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("unlimited"), is(Tuple.tuple(0, TimeValue.ZERO)));
         assertException("10/m", IllegalArgumentException.class, "failed to parse [m]");
         assertException("6/1.6m", IllegalArgumentException.class, "failed to parse [1.6m], fractional time values are not supported");
         assertException("foo/bar", IllegalArgumentException.class, "could not parse [foo] as integer in value [foo/bar]");

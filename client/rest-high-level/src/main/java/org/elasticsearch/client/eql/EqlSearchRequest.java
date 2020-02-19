@@ -34,8 +34,7 @@ import java.util.Objects;
 public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false,
-        false, true, false);
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
     private QueryBuilder query = null;
     private String timestampField = "@timestamp";
@@ -135,7 +134,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     public EqlSearchRequest fetchSize(int size) {
         this.fetchSize = size;
         if (fetchSize <= 0) {
-            throw new IllegalArgumentException("size must be more than 0");
+            throw new IllegalArgumentException("size must be greater than 0");
         }
         return this;
     }

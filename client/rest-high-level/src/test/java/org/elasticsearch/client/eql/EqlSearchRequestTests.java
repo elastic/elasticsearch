@@ -35,10 +35,9 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
 
     @Override
     protected EqlSearchRequest createClientTestInstance() {
-        EqlSearchRequest EqlSearchRequest =
-            new EqlSearchRequest("testindex", randomAlphaOfLength(40));
+        EqlSearchRequest EqlSearchRequest = new EqlSearchRequest("testindex", randomAlphaOfLength(40));
         if (randomBoolean()) {
-            EqlSearchRequest.fetchSize(randomIntBetween(0, Integer.MAX_VALUE));
+            EqlSearchRequest.fetchSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             EqlSearchRequest.implicitJoinKeyField(randomAlphaOfLength(10));
@@ -81,6 +80,7 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
         assertThat(serverInstance.searchAfter(), equalTo(clientTestInstance.searchAfter()));
         assertThat(serverInstance.indicesOptions(), equalTo(clientTestInstance.indicesOptions()));
         assertThat(serverInstance.indices(), equalTo(clientTestInstance.indices()));
+        assertThat(serverInstance.fetchSize(), equalTo(clientTestInstance.fetchSize()));
     }
 
     @Override

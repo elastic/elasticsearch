@@ -47,9 +47,9 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
             }
         }
         if (randomBoolean()) {
-            return hits;
+            return null;
         }
-        return null;
+        return hits;
     }
 
     public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomEventsResponse(TotalHits totalHits) {

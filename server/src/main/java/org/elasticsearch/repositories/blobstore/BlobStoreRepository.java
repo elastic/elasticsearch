@@ -64,9 +64,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -77,6 +79,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -511,10 +514,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param rootBlobs         Blobs at the repository root
      * @return RepositoryData
      */
-    private RepositoryData safeRepositoryData(long repositoryStateId, Map<String, BlobMetaData> rootBlobs) {
+    private RepositoryData safeRepositoryData(long repositoryStateId, Map<String, BlobMetaData> rootBlobs) throws IOException {
         final long generation = latestGeneration(rootBlobs.keySet());
         final long genToLoad;
-        final RepositoryData cached;
+        final Tuple<Long, BytesReference> cached;
         if (bestEffortConsistency) {
             genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, repositoryStateId));
             cached = null;
@@ -533,8 +536,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
                 repositoryStateId + "], actual current generation [" + genToLoad + "]");
         }
-        if (cached != null && cached.getGenId() == genToLoad) {
-            return cached;
+        if (cached != null && cached.v1() == genToLoad && cached.v2() != null) {
+            return repositoryDataFromCachedEntry(cached);
         }
         return getRepositoryData(genToLoad);
     }
@@ -1064,8 +1067,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // and concurrent modifications.
     private final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.UNKNOWN_REPO_GEN);
 
-    // Best effort cache of the latest known repository data
-    private AtomicReference<RepositoryData> latestKnownRepositoryData = new AtomicReference<>(RepositoryData.EMPTY);
+    // Best effort cache of the latest known repository data and its generation, cached serialized as compressed json
+    private final AtomicReference<Tuple<Long, BytesReference>> latestKnownRepositoryData =
+        new AtomicReference<>(new Tuple<>(RepositoryData.EMPTY_REPO_GEN, null));
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
@@ -1100,11 +1104,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 genToLoad = latestKnownRepoGen.get();
             }
             try {
-                final RepositoryData latestCached = latestKnownRepositoryData.get();
+                final Tuple<Long, BytesReference> cached = latestKnownRepositoryData.get();
                 final RepositoryData loaded;
                 // Caching is not used with #bestEffortConsistency see docs on #cacheRepositoryData for details
-                if (bestEffortConsistency == false && latestCached.getGenId() == genToLoad) {
-                    loaded = latestCached;
+                if (bestEffortConsistency == false && cached.v1() == genToLoad) {
+                    loaded = repositoryDataFromCachedEntry(cached);
                 } else {
                     loaded = getRepositoryData(genToLoad);
                     cacheRepositoryData(loaded);
@@ -1146,9 +1150,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private void cacheRepositoryData(RepositoryData updated) {
         if (bestEffortConsistency == false) {
+            final BytesReference serialized;
+            BytesStreamOutput out = new BytesStreamOutput();
             try {
-                final int len =
-                    BytesReference.bytes(updated.snapshotsToXContent(XContentFactory.jsonBuilder(), true)).length();
+                try (StreamOutput tmp = CompressorFactory.COMPRESSOR.streamOutput(out);
+                     XContentBuilder builder = XContentFactory.jsonBuilder(tmp)) {
+                    updated.snapshotsToXContent(builder, true);
+                }
+                serialized = out.bytes();
+                final int len = serialized.length();
                 if (len > ByteSizeUnit.KB.toBytes(500)) {
                     logger.debug("Not caching repository data of size [{}] for repository [{}] because it is larger than 500KB in" +
                         " serialized size", len, metadata.name());
@@ -1158,19 +1168,31 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             " repository behavior going forward.", metadata.name());
                     }
                     // Set empty repository data to not waste heap for an outdated cached value
-                    latestKnownRepositoryData.set(RepositoryData.EMPTY);
+                    latestKnownRepositoryData.set(new Tuple<>(RepositoryData.EMPTY_REPO_GEN, null));
                     return;
                 }
             } catch (IOException e) {
-                throw new AssertionError("Impossible, no IO happens here", e);
+                assert false : new AssertionError("Impossible, no IO happens here", e);
+                logger.warn("Failed to serialize repository data", e);
+                return;
             }
             latestKnownRepositoryData.updateAndGet(known -> {
-                if (known.getGenId() > updated.getGenId()) {
+                if (known.v1() > updated.getGenId()) {
                     return known;
                 }
-                return updated;
+                return new Tuple<>(updated.getGenId(), serialized);
             });
         }
+    }
+
+    private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
+        if (cacheEntry.v1() == RepositoryData.EMPTY_REPO_GEN) {
+            return RepositoryData.EMPTY;
+        }
+        return RepositoryData.snapshotsFromXContent(
+            XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                CompressorFactory.COMPRESSOR.streamInput(cacheEntry.v2().streamInput())), cacheEntry.v1());
     }
 
     private RepositoryException corruptedStateException(@Nullable Exception cause) {

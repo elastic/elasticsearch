@@ -49,8 +49,8 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
      * @param uuid   snapshot uuid
      */
     public SnapshotId(final String name, final String uuid) {
-        this.name = Objects.requireNonNull(name).intern();
-        this.uuid = Objects.requireNonNull(uuid).intern();
+        this.name = Objects.requireNonNull(name);
+        this.uuid = Objects.requireNonNull(uuid);
         this.hashCode = computeHashCode();
     }
 
@@ -60,7 +60,9 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
      * @param in  input stream
      */
     public SnapshotId(final StreamInput in) throws IOException {
-        this(in.readString(), in.readString());
+        name = in.readString();
+        uuid = in.readString();
+        hashCode = computeHashCode();
     }
 
     /**

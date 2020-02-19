@@ -186,7 +186,7 @@ The connection configuration can further be tweaked by the following parameters.
 
 * Request timeout (s)
 +
-The maximum number of seconds a request to the server can take. The value 0 disables disables the timeout.
+The maximum number of seconds for a request to the server. The value 0 disables the timeout.
 This corresponds to the `Timeout` setting in <<odbc-cfg-dsnparams>>.
 +
 * Max page size (rows)

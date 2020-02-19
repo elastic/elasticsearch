@@ -53,8 +53,6 @@ import org.locationtech.spatial4j.shape.Rectangle;
 import java.io.IOException;
 import java.util.Locale;
 
-import static org.apache.lucene.util.LuceneTestCase.expectThrows;
-import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
@@ -65,7 +63,6 @@ import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomPoint;
 import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomRectangle;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -110,10 +107,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         xcb = xcb.endObject().endObject().endObject();
 
         return xcb;
-    }
-
-    public void testIndexPointsFilterRectangle() throws Exception {
-        super.testIndexPointsFilterRectangle(Strings.toString(createRandomMapping()));
     }
 
     public void testShapeFetchingPath() throws Exception {
@@ -461,7 +454,10 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         gcb.shape(pb);
 
         // don't use random as permits quadtree
-        String mapping = Strings.toString(randomBoolean() ? createDefaultMapping() : createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE));
+        String mapping = Strings.toString(
+            randomBoolean() ?
+                createDefaultMapping() :
+                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE));
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 

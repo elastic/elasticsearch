@@ -6,7 +6,7 @@
 
 Filter documents indexed using the `geo_shape` type.
 
-Requires the <<geo-shape,`geo_shape` Mapping>>.
+Requires either the <<geo-shape,`geo_shape`>> or  <<geo-point,`geo_shape`>> <<Mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
 `geo_shape` mapping to find documents that have a shape that intersects
@@ -41,7 +41,7 @@ PUT /example
 POST /example/_doc?refresh
 {
     "name": "Wind & Wetter, Berlin, Germany",
-    "location": {
+    "location: {
         "type": "point",
         "coordinates": [13.400544, 52.530286]
     }
@@ -102,7 +102,7 @@ PUT /shapes
 {
     "mappings": {
         "properties": {
-            "location": {
+            "geo": {
                 "type": "geo_shape"
             }
         }
@@ -111,7 +111,7 @@ PUT /shapes
 
 PUT /shapes/_doc/deu
 {
-    "location": {
+    "geo": {
         "type": "envelope",
         "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
     }
@@ -119,21 +119,17 @@ PUT /shapes/_doc/deu
 
 GET /example/_search
 {
-    "query": {
-        "bool": {
-            "filter": {
-                "geo_shape": {
-                    "location": {
-                        "indexed_shape": {
-                            "index": "shapes",
-                            "id": "deu",
-                            "path": "location"
-                        }
-                    }
-                }
-            }
+  "query": {
+    "geo_shape": {
+      "geo": {
+        "indexed_shape": {
+          "index": "shapes",
+          "id": "deu",
+          "path": "geo"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -142,7 +138,8 @@ GET /example/_search
 The <<spatial-strategy, geo_shape strategy>> mapping parameter determines
 which spatial relation operators may be used at search time.
 
-The following is a complete list of spatial relation operators available:
+The following is a complete list of spatial relation operators available
+when the `geo_shape` query is applied to a field mapped with type `geo_shape`:
 
 * `INTERSECTS` - (default) Return all documents whose `geo_shape` field
 intersects the query geometry.
@@ -153,6 +150,12 @@ is within the query geometry.
 * `CONTAINS` - Return all documents whose `geo_shape` field
 contains the query geometry.
 
+When the `geo_shape` query is applied to a field mapped with type `geo_point`
+the only supported operator is:
+
+* `INTERSECTS` - (default) Return all documents whose `geo_point` field
+intersects the query geometry.
+
 [float]
 ==== Ignore Unmapped
 
@@ -162,6 +165,52 @@ querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the field
 is not mapped.
 
+==== Supported Shape Types for `geo_shape` query against `geo_point`
+
+Currently, when searching against the `geo_point` field mapping, the `geo_shape`
+query support is limited to the following shape types:
+
+* `Circle`
+* `Polygon`
+* `Multipolygon`
+* `Rectangle`
+
+The following is an example of using the `geo_shape` query to search
+for a document whose `geo_point` field matches:
+
+[source,console]
+--------------------------------------------------
+PUT /points
+{
+    "mappings": {
+        "properties": {
+            "geo": {
+                "type": "geo_point"
+            }
+        }
+    }
+}
+
+PUT /points/_doc/deu_deu
+{
+    "geo": "POINT(10 10)"
+}
+
+GET /points/_search
+{
+    "query": {
+        "geo_shape": {
+            "geo": {
+                "shape": {
+                     "type": "circle",
+                      "coordinates": [10, 10],
+                      "radius": "100m"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
 ==== Notes
 Geo-shape queries on geo-shapes implemented with <<prefix-trees, `PrefixTrees`>> will not be executed if
 <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set to false.

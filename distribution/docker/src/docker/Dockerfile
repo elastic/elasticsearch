@@ -20,13 +20,10 @@ RUN addgroup -g 1000 elasticsearch && \
 
 WORKDIR /usr/share/elasticsearch
 
-# This step may use `curl`, if we're not packaging the locally built artifacts. For that reason,
-# this step in the builder doesn't use the `elasticsearch/centos-base` iamge - yet.
 ${source_elasticsearch}
 
 RUN tar zxf /opt/${elasticsearch} --strip-components=1
-RUN grep ES_DISTRIBUTION_TYPE=tar /usr/share/elasticsearch/bin/elasticsearch-env \
-    && sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
+RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config config/jvm.options.d data logs
 RUN chmod 0775 config config/jvm.options.d data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
@@ -92,8 +89,8 @@ LABEL org.label-schema.build-date="${build_date}" \
 
 USER elasticsearch:root
 
-# Our actual entrypoint is `tini`, a minimal but functional init program. It calls our actual entrypoint for us,
-# and correctly forwards signals.
+# Our actual entrypoint is `tini`, a minimal but functional init program. It
+# calls the actual entrypoint for us, and correctly forwards signals.
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 
 # Dummy overridable parameter parsed by entrypoint

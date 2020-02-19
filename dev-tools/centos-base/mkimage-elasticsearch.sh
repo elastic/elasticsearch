@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Create a very basic CentOS Docker image for running Elasticsearch.
+# Create a very basic Docker image for running Elasticsearch, using files from CentOS
 #
 # Originally from:
 # 
@@ -90,15 +90,17 @@ yum -c "$yum_config" --installroot="$target" --releasever=/ --setopt=tsflags=nod
     bash zip pigz \
     https://github.com/krallin/tini/releases/download/v0.18.0/tini_0.18.0-amd64.rpm
 
-# Use busybox instead of installing more RPMs, which can pulls in all kinds of
-# stuff we don't want. Unforunately, there's no RPM available for CentOS.
-wget -O "$target"/bin/busybox https://busybox.net/downloads/binaries/1.31.0-i686-uclibc/busybox
+# Use busybox instead of installing more RPMs, which can pull in all kinds of
+# stuff we don't want. Unforunately, there's no RPM for busybox available for CentOS.
+curl -o "$target"/bin/busybox https://busybox.net/downloads/binaries/1.31.0-i686-uclibc/busybox
 chmod +x "$target"/bin/busybox
 
+set +x
 # Add links for all the utilities (except sh, as we have bash)
 for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh ); do
   ln "$target"/bin/busybox "$target"/$path
 done
+set -x
 
 # This comes from ca-certificates, but this is the only file we want
 CA_CERTS=/etc/pki/ca-trust/extracted/java/cacerts
@@ -157,9 +159,6 @@ fi
 
 # Import the base filesystem into Docker
 tar --numeric-owner -c -C "$target" . | docker import - $name:$version
-
-# Check that the image can be run in a basic fashion
-docker run -i -t --rm $name:$version /bin/bash -c 'echo success'
 
 # Remove the temp dir
 rm -rf "$target"

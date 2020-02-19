@@ -170,6 +170,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,
         MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
+	IndexSettings.ON_HEAP_ID_TERMS_INDEX,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

@@ -408,6 +408,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         nonReplicatedSettings.add(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING);
         nonReplicatedSettings.add(IndexSettings.INDEX_GC_DELETES_SETTING);
         nonReplicatedSettings.add(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD);
+        nonReplicatedSettings.add(IndexSettings.ON_HEAP_ID_TERMS_INDEX);
 
         nonReplicatedSettings.add(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         nonReplicatedSettings.add(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);

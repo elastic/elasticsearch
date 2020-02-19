@@ -34,10 +34,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -217,7 +219,15 @@ public final class DateFieldMapper extends FieldMapper {
 
             boolean hasPatternChanged = Strings.hasLength(pattern) && Objects.equals(pattern, dateTimeFormatter.pattern()) == false;
             if (hasPatternChanged || Objects.equals(builder.locale, dateTimeFormatter.locale()) == false) {
-                fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
+                DateFormatter formatter = null;
+                if (context.indexCreatedVersion().before(Version.V_7_0_0)
+                    && context.indexCreatedVersion().after(Version.V_6_0_0)
+                    && pattern.startsWith("8") == false) {
+                    formatter = Joda.forPattern(pattern).withLocale(locale);
+                } else {
+                    formatter = DateFormatter.forPattern(pattern).withLocale(locale);
+                }
+                fieldType().setDateTimeFormatter(formatter);
             }
 
             fieldType().setResolution(resolution);

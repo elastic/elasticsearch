@@ -41,10 +41,13 @@ include::metrics/sum-aggregation.asciidoc[]
 
 include::metrics/tophits-aggregation.asciidoc[]
 
+include::metrics/top-metrics-aggregation.asciidoc[]
+
 include::metrics/valuecount-aggregation.asciidoc[]
 
 include::metrics/median-absolute-deviation-aggregation.asciidoc[]
 
+include::metrics/boxplot-aggregation.asciidoc[]
 
 
 

@@ -4207,7 +4207,6 @@ public class InternalEngineTests extends EngineTestCase {
             final EngineConfig engineConfig;
             final SeqNoStats prevSeqNoStats;
             final List<DocIdSeqNoAndSource> prevDocs;
-            final List<Translog.Operation> existingTranslog;
             try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
                 engineConfig = engine.config();
                 for (final long seqNo : seqNos) {
@@ -4226,24 +4225,17 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.syncTranslog();
                 prevSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 prevDocs = getDocIds(engine, true);
-                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                    existingTranslog = TestTranslog.drainSnapshot(snapshot, false);
-                }
             }
             try (InternalEngine engine = new InternalEngine(engineConfig)) {
-                final Translog.TranslogGeneration currrentTranslogGeneration = new Translog.TranslogGeneration(
-                    engine.getTranslog().getTranslogUUID(), engine.getTranslog().currentFileGeneration());
+                final long currentTranslogGeneration = engine.getTranslog().currentFileGeneration();
                 engine.recoverFromTranslog(translogHandler, globalCheckpoint.get());
                 engine.restoreLocalHistoryFromTranslog(translogHandler);
                 assertThat(getDocIds(engine, true), equalTo(prevDocs));
                 SeqNoStats seqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 assertThat(seqNoStats.getLocalCheckpoint(), equalTo(prevSeqNoStats.getLocalCheckpoint()));
                 assertThat(seqNoStats.getMaxSeqNo(), equalTo(prevSeqNoStats.getMaxSeqNo()));
-                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                    assertThat("restore from local translog must not add operations to translog",
-                        snapshot.totalOperations(), equalTo(existingTranslog.size()));
-                    assertThat(TestTranslog.drainSnapshot(snapshot, false), equalTo(existingTranslog));
-                }
+                assertThat("restore from local translog must not add operations to translog",
+                    engine.getTranslog().totalOperationsByMinGen(currentTranslogGeneration), equalTo(0));
             }
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService());
         }
@@ -4753,6 +4745,9 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testShouldPeriodicallyFlushAfterMerge() throws Exception {
+        engine.close();
+        // Do not use MockRandomMergePolicy as it can cause a force merge performing two merges.
+        engine = createEngine(copy(engine.config(), newMergePolicy(random(), false)));
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         ParsedDocument doc =
             testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);

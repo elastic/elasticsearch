@@ -31,8 +31,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -47,11 +45,11 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_search/scroll"),
             new Route(POST, "/_search/scroll"),
             new Route(GET, "/_search/scroll/{scroll_id}"),
-            new Route(POST, "/_search/scroll/{scroll_id}")));
+            new Route(POST, "/_search/scroll/{scroll_id}"));
     }
 
     @Override

@@ -120,7 +120,7 @@ GET _cat/health?v
 
 Wait for the `status` column to switch from `yellow` to `green`. Once the
 node is `green`, all primary and replica shards have been allocated.
-(If the node you removed contained any shards for which there are no
+(If the newly-upgraded node contained any shards for which there are no
 replicas in the cluster, the status will start as `red` rather than `yellow`.)
 
 [IMPORTANT]

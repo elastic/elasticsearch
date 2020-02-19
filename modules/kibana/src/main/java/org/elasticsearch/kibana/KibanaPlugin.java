@@ -55,6 +55,7 @@ import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -141,8 +142,9 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         }
 
         @Override
-        public <Request extends ActionRequest, Response extends ActionResponse>
-        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(ActionType<Response> action,
+                                                                                                    Request request,
+                                                                                                    ActionListener<Response> listener) {
             final String[] indices;
             if (request instanceof BulkRequest) {
                 indices = ((BulkRequest) request).requests().stream()
@@ -157,8 +159,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             } else if (request instanceof IndicesRequest) {
                 indices = ((IndicesRequest) request).indices();
             } else {
-                listener.onFailure(new IllegalArgumentException("This client cannot be used to make a non indices request"));
-                return;
+                throw new IllegalArgumentException("This client cannot be used to make a non indices request");
             }
 
             if (indices == null || indices.length == 0 ||
@@ -167,9 +168,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
                     // just replace this with the allowed system index patterns
                     ((IndicesRequest.Replaceable) request).indices(allowedIndexPatterns);
                 } else {
-                    listener.onFailure(new IllegalStateException("Unable to replace indices on request " +
-                        request.getClass().getSimpleName()));
-                    return;
+                    throw new IllegalStateException("Unable to replace indices on request " +
+                        request.getClass().getSimpleName());
                 }
             } else {
                 for (String index : indices) {
@@ -177,14 +177,18 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
                     if (automaton.run(index) == false) {
                         if (index.contains("*") == false ||
                             Operations.subsetOf(Regex.simpleMatchToAutomaton(index), allowedIndexAutomaton) == false) {
-                            listener.onFailure(new IllegalArgumentException("Index [" + index + "] does not fall within the set "
-                                + Arrays.toString(allowedIndexPatterns) + " allowed by this API"));
-                            return;
+                            throw new IllegalArgumentException("Index [" + index + "] does not fall within the set "
+                                + Arrays.toString(allowedIndexPatterns) + " allowed by this API");
                         }
                     }
                 }
             }
-            nodeClient.doExecute(action, request, listener);
+            return nodeClient.executeLocally(action, request, listener);
+        }
+
+        @Override
+        public String getLocalNodeId() {
+            return nodeClient.getLocalNodeId();
         }
     }
 }

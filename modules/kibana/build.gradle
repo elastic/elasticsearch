@@ -25,3 +25,7 @@ esplugin {
 dependencies {
   compile project(path: ':modules:reindex', configuration: 'runtime')
 }
+
+testClusters.integTest {
+  module file(project(':modules:reindex').tasks.bundlePlugin.archiveFile)
+}

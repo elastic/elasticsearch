@@ -79,7 +79,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
     public void tearDownData() {
         cleanUp();
         client().admin().indices().prepareDelete(DATA_INDEX).get();
-        client().admin().indices().prepareRefresh("*").get();
+        client().admin().indices().prepareRefresh("*", ".ml-*").get();
     }
 
     public void testBasicCategorization() throws Exception {

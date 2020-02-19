@@ -161,7 +161,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Refresh to ensure the snapshot timestamp updates are visible
-        client().admin().indices().prepareRefresh("*").get();
+        client().admin().indices().prepareRefresh("*", ".ml-*").get();
 
         // We need to wait a second to ensure the second time around model snapshots will have a different ID (it depends on epoch seconds)
         // FIXME it would be better to wait for something concrete instead of wait for time to elapse
@@ -292,6 +292,6 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             client().execute(UpdateModelSnapshotAction.INSTANCE, request).get();
         }
         // We need to refresh to ensure the updates are visible
-        client().admin().indices().prepareRefresh("*").get();
+        client().admin().indices().prepareRefresh("*", ".ml-*").get();
     }
 }

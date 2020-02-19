@@ -148,7 +148,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             new DeleteExpiredDataAction.Request()).get();
 
         // We need to refresh to ensure the deletion is visible
-        client().admin().indices().prepareRefresh("*").get();
+        client().admin().indices().prepareRefresh("*", ".ml-*").get();
 
         return response;
     }

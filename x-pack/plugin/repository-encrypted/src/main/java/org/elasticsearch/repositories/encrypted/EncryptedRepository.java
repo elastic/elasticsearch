@@ -279,6 +279,10 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     public void cleanup(long repositoryStateId, boolean writeShardGens, ActionListener<RepositoryCleanupResult> listener) {
+        if (isReadOnly()) {
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository"));
+            return;
+        }
         final StepListener<RepositoryCleanupResult> baseCleanupStep = new StepListener<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 

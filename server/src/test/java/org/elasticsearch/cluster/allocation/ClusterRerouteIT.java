@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.allocation;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -57,7 +58,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -75,6 +75,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+// testDelayWithALargeAmountOfShards does a lot of cluster state updates, and WindowsFS slows it down too much (#52000)
+@LuceneTestCase.SuppressFileSystems(value = "WindowsFS")
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterRerouteIT extends ESIntegTestCase {
     private final Logger logger = LogManager.getLogger(ClusterRerouteIT.class);
@@ -188,8 +190,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         rerouteWithAllocateLocalGateway(commonSettings);
     }
 
-    @TestLogging(reason = "https://github.com/elastic/elasticsearch/issues/52000",
-        value = "org.elasticsearch.gateway.PersistedClusterStateService:DEBUG,org.elasticsearch.cluster.service.MasterService:DEBUG")
     public void testDelayWithALargeAmountOfShards() throws Exception {
         Settings commonSettings = Settings.builder()
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)

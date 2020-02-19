@@ -302,7 +302,8 @@ cluster receives and parses the request.
 image:images/ccs/ccs-min-roundtrip-client-request.svg[]
 
 . The coordinating node sends a single search request to each cluster, including
-its own. Each cluster performs the search request independently.
+the local cluster. Each cluster performs the search request independently,
+applying its own cluster-level settings to the request.
 +
 image:images/ccs/ccs-min-roundtrip-cluster-search.svg[]
 
@@ -339,6 +340,15 @@ image:images/ccs/ccs-min-roundtrip-cluster-results.svg[]
 
 . The coordinating node sends a search request to each shard, including those in
 its own cluster. Each shard performs the search request independently.
++
+[WARNING]
+====
+When network roundtrips aren't minimized, the search is executed as if all data
+were in the coordinating node's cluster. We recommend updating cluster-level
+settings that limit searches, such as `action.search.shard_count.limit`,
+`pre_filter_shard_size`, and `max_concurrent_shard_requests`, to account for
+this. If these limits are too low, the search may be rejected.
+====
 +
 image:images/ccs/ccs-dont-min-roundtrip-shard-search.svg[]
 

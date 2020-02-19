@@ -61,7 +61,6 @@ public class ScriptServiceTests extends ESTestCase {
     public void setup() throws IOException {
         baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "10000/1m")
                 .build();
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
         for (int i = 0; i < 20; ++i) {
@@ -102,31 +101,32 @@ public class ScriptServiceTests extends ESTestCase {
     // simply by multiplying by five, so even setting it to one, requires five compilations to break
     public void testCompilationCircuitBreaking() throws Exception {
         buildScriptService(Settings.EMPTY);
-        scriptService.setMaxCompilationRate(Tuple.tuple(1, TimeValue.timeValueMinutes(1)));
-        scriptService.checkCompilationLimit(); // should pass
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationRate(Tuple.tuple(2, TimeValue.timeValueMinutes(1)));
-        scriptService.checkCompilationLimit(); // should pass
-        scriptService.checkCompilationLimit(); // should pass
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
+        scriptService.compiler.setMaxCompilationRate(Tuple.tuple(1, TimeValue.timeValueMinutes(1)));
+        scriptService.compiler.checkCompilationLimit(); // should pass
+        expectThrows(CircuitBreakingException.class, () -> scriptService.compiler.checkCompilationLimit());
+        scriptService.compiler.setMaxCompilationRate(Tuple.tuple(2, TimeValue.timeValueMinutes(1)));
+        scriptService.compiler.checkCompilationLimit(); // should pass
+        scriptService.compiler.checkCompilationLimit(); // should pass
+        expectThrows(CircuitBreakingException.class, () -> scriptService.compiler.checkCompilationLimit());
         int count = randomIntBetween(5, 50);
-        scriptService.setMaxCompilationRate(Tuple.tuple(count, TimeValue.timeValueMinutes(1)));
+        scriptService.compiler.setMaxCompilationRate(Tuple.tuple(count, TimeValue.timeValueMinutes(1)));
         for (int i = 0; i < count; i++) {
-            scriptService.checkCompilationLimit(); // should pass
+            scriptService.compiler.checkCompilationLimit(); // should pass
         }
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationRate(Tuple.tuple(0, TimeValue.timeValueMinutes(1)));
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationRate(Tuple.tuple(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)));
+        expectThrows(CircuitBreakingException.class, () -> scriptService.compiler.checkCompilationLimit());
+        scriptService.compiler.setMaxCompilationRate(Tuple.tuple(0, TimeValue.timeValueMinutes(1)));
+        expectThrows(CircuitBreakingException.class, () -> scriptService.compiler.checkCompilationLimit());
+        scriptService.compiler.setMaxCompilationRate(Tuple.tuple(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)));
         int largeLimit = randomIntBetween(1000, 10000);
         for (int i = 0; i < largeLimit; i++) {
-            scriptService.checkCompilationLimit();
+            scriptService.compiler.checkCompilationLimit();
         }
     }
 
     public void testMaxCompilationRateSetting() throws Exception {
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/60s"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
+        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("unlimited"), is(Tuple.tuple(0, TimeValue.ZERO)));
         assertException("10/m", IllegalArgumentException.class, "failed to parse [m]");
         assertException("6/1.6m", IllegalArgumentException.class, "failed to parse [1.6m], fractional time values are not supported");
         assertException("foo/bar", IllegalArgumentException.class, "could not parse [foo] as integer in value [foo/bar]");

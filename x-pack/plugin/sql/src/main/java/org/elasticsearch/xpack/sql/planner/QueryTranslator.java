@@ -38,7 +38,25 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.MultiMatchQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.querydsl.query.QueryStringQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.RegexQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -79,28 +97,16 @@ import org.elasticsearch.xpack.sql.querydsl.agg.PercentilesAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.StatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.SumAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.TopHitsAgg;
-import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.MultiMatchQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.querydsl.query.QueryStringQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.RegexQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.util.Check;
 
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -584,9 +590,17 @@ final class QueryTranslator {
             else {
                 Query q = null;
                 if (in.value() instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) in.value();
                     // equality should always be against an exact match (which is important for strings)
-                    q = new TermsQuery(in.source(), fa.exactAttribute().name(), in.list());
+                    FieldAttribute fa = (FieldAttribute) in.value();
+                    List<Expression> list = in.list();
+                    // TODO: this needs to be handled inside the optimizer
+                    list.removeIf(e -> DataTypes.isNull(e.dataType()));
+                    DataType dt = list.get(0).dataType();
+                    Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(list.size()));
+                    for (Expression e : list) {
+                        set.add(SqlDataTypeConverter.convert(e.fold(), dt));
+                    }
+                    q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
                 } else {
                     q = new ScriptQuery(in.source(), in.asScript());
                 }

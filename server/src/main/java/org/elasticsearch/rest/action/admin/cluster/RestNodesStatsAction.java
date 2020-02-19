@@ -25,34 +25,35 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Map.entry;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
 
-    public RestNodesStatsAction(RestController controller) {
-        controller.registerHandler(GET, "/_nodes/stats", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
-
-        controller.registerHandler(GET, "/_nodes/stats/{metric}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
-
-        controller.registerHandler(GET, "/_nodes/stats/{metric}/{index_metric}", this);
-
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_nodes/stats"),
+            new Route(GET, "/_nodes/{nodeId}/stats"),
+            new Route(GET, "/_nodes/stats/{metric}"),
+            new Route(GET, "/_nodes/{nodeId}/stats/{metric}"),
+            new Route(GET, "/_nodes/stats/{metric}/{index_metric}"),
+            new Route(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}")));
     }
 
     static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(

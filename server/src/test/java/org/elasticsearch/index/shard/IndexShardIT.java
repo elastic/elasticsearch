@@ -333,7 +333,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(190 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+                new ByteSizeValue(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test").setId("0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
@@ -415,8 +415,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final boolean flush = randomBoolean();
         final Settings settings;
         if (flush) {
-            // size of the operation plus two generations of overhead.
-            settings = Settings.builder().put("index.translog.flush_threshold_size", "180b").build();
+            // size of the operation plus the overhead of one generation.
+            settings = Settings.builder().put("index.translog.flush_threshold_size", "125b").build();
         } else {
             // size of the operation plus header and footer
             settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").build();

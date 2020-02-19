@@ -1146,6 +1146,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private void cacheRepositoryData(RepositoryData updated) {
         if (bestEffortConsistency == false) {
+            try {
+                final int len =
+                    BytesReference.bytes(updated.snapshotsToXContent(XContentFactory.jsonBuilder(), true)).length();
+                if (len > ByteSizeUnit.KB.toBytes(500)) {
+                    logger.debug("Not caching repository data of size [{}] for repository [{}] because it is larger than 500KB in" +
+                        " serialized size", len, metadata.name());
+                    if (len > ByteSizeUnit.MB.toBytes(5)) {
+                        logger.warn("Your repository metadata blob for repository [{}] is larger than 5MB. Consider moving to a fresh" +
+                            " repository for new snapshots or deleting unneeded snapshots from your repository to ensure stable" +
+                            " repository behavior going forward.", metadata.name());
+                    }
+                    // Set empty repository data to not waste heap for an outdated cached value
+                    latestKnownRepositoryData.set(RepositoryData.EMPTY);
+                    return;
+                }
+            } catch (IOException e) {
+                throw new AssertionError("Impossible, no IO happens here", e);
+            }
             latestKnownRepositoryData.updateAndGet(known -> {
                 if (known.getGenId() > updated.getGenId()) {
                     return known;

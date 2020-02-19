@@ -42,16 +42,14 @@ public final class IndexId implements Writeable, ToXContentObject {
     private final int hashCode;
 
     public IndexId(final String name, final String id) {
-        this.name = name;
-        this.id = id;
+        this.name = name.intern();
+        this.id = id.intern();
         this.hashCode = computeHashCode();
 
     }
 
     public IndexId(final StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.id = in.readString();
-        this.hashCode = computeHashCode();
+        this(in.readString(), in.readString());
     }
 
     /**

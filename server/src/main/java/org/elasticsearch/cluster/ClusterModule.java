@@ -255,7 +255,7 @@ public class ClusterModule extends AbstractModule {
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
 
-    public void setGatewayAllocators(Injector injector, List<ClusterPlugin> clusterPlugins) {
+    public void setExistingShardsAllocators(Injector injector, List<ClusterPlugin> clusterPlugins) {
         final Settings settings = clusterService.getSettings();
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         allocationService.setExistingShardsAllocators(Stream.concat(clusterPlugins.stream()

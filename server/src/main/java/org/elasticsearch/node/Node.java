@@ -601,7 +601,7 @@ public class Node implements Closeable {
             injector = modules.createInjector();
 
             // TODO hack around circular dependencies problems in AllocationService
-            clusterModule.setGatewayAllocators(injector, pluginsService.filterPlugins(ClusterPlugin.class));
+            clusterModule.setExistingShardsAllocators(injector, pluginsService.filterPlugins(ClusterPlugin.class));
 
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)

@@ -72,7 +72,9 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
     private InputStream openStream() throws IOException {
         try {
             final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(() -> client.reader(blobId));
-            readChannel.seek(currentOffset);
+            if (currentOffset > 0L) {
+                readChannel.seek(currentOffset);
+            }
             return Channels.newInputStream(new ReadableByteChannel() {
                 @SuppressForbidden(reason = "Channel is based of a socket not a file")
                 @Override

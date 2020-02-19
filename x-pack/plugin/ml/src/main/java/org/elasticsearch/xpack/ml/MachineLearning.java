@@ -250,6 +250,7 @@ import org.elasticsearch.xpack.ml.rest.calendar.RestGetCalendarsAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPostCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarJobAction;
+import org.elasticsearch.xpack.ml.rest.cat.RestCatDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatDatafeedsAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatJobsAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatTrainedModelsAction;
@@ -770,7 +771,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
-            new RestCatDatafeedsAction()
+            new RestCatDatafeedsAction(),
+            new RestCatDataFrameAnalyticsAction()
         );
     }
 
@@ -883,10 +885,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
-        return templates -> {
-
-            return templates;
-        };
+        return UnaryOperator.identity();
     }
 
     public static boolean allTemplatesInstalled(ClusterState clusterState) {
@@ -939,7 +938,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return List.of(
             new SystemIndexDescriptor(MlMetaIndex.INDEX_NAME, "Contains scheduling and anomaly tracking metadata"),
-            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.STATE_INDEX_PATTERN, "Contains ML model state"),
             new SystemIndexDescriptor(AnomalyDetectorsIndexFields.CONFIG_INDEX, "Contains ML configuration data"),
             new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
         );

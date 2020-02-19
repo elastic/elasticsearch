@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -51,6 +52,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -254,6 +256,20 @@ public class MinAggregatorTests extends AggregatorTestCase {
             assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
         });
+    }
+
+    public void testIpField() throws IOException {
+        final String fieldName = "IP_field";
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field(fieldName);
+
+        MappedFieldType fieldType = new IpFieldMapper.IpFieldType();
+        fieldType.setName(fieldName);
+
+        boolean v4 = randomBoolean();
+        expectThrows(IllegalArgumentException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+        }, min -> fail("expected an exception"), fieldType));
     }
 
     public void testUnmappedWithMissingField() throws IOException {

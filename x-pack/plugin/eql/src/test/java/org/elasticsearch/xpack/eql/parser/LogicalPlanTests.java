@@ -28,6 +28,13 @@ public class LogicalPlanTests extends ESTestCase {
         assertEquals(fullQuery, new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression));
     }
 
+    public void testAnyEventQuery() {
+        LogicalPlan fullQuery = parser.createStatement("any where process_name == 'net.exe'");
+        Expression fullExpression = expr("process_name == 'net.exe'");
+
+        assertEquals(fullQuery, new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression));
+    }
+
     public void testParameterizedEventQuery() {
         ParserParams params = new ParserParams().fieldEventType("myCustomEvent");
         LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'", params);
@@ -35,5 +42,4 @@ public class LogicalPlanTests extends ESTestCase {
 
         assertEquals(fullQuery, new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression));
     }
-
 }

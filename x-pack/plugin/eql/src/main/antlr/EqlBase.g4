@@ -63,7 +63,7 @@ subquery
     ;
 
 eventQuery
-    : event=identifier WHERE expression
+    : (ANY | event=identifier) WHERE expression
     ;
 
 expression
@@ -143,6 +143,7 @@ string
     ;
 
 AND: 'and';
+ANY: 'any';
 BY: 'by';
 FALSE: 'false';
 FORK: 'fork';

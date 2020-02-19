@@ -443,10 +443,10 @@ public final class RepositoryData {
                             }
                             final SnapshotId snapshotId = new SnapshotId(name, uuid);
                             if (state != null) {
-                                snapshotStates.put(uuid, state);
+                                snapshotStates.put(snapshotId.getUUID(), state);
                             }
                             if (version != null) {
-                                snapshotVersions.put(uuid, version);
+                                snapshotVersions.put(snapshotId.getUUID(), version);
                             }
                             snapshots.put(snapshotId.getUUID(), snapshotId);
                         }

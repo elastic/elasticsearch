@@ -74,7 +74,8 @@ public class ShapeTestUtils {
                 XYPolygon poly = luceneHoles[i];
                 holes.add(linearRing(floatsToDoubles(poly.getPolyX()), floatsToDoubles(poly.getPolyY()), hasAlt));
             }
-            return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt), holes);
+            return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt), 
+                    holes);
         }
         return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt));
     }

@@ -98,17 +98,11 @@ GET /_xpack/usage
       "_all" : {
         "count" : 0,
         "detectors" : {
-          "total" : 0.0,
-          "min" : 0.0,
-          "avg" : 0.0,
-          "max" : 0.0
+          ...
         },
         "created_by" : { },
         "model_size" : {
-          "total" : 0.0,
-          "min" : 0.0,
-          "avg" : 0.0,
-          "max" : 0.0
+          ...
         },
         "forecasts" : {
           "total" : 0,
@@ -279,7 +273,21 @@ GET /_xpack/usage
   }
 }
 ------------------------------------------------------------
-// TESTRESPONSE[s/"policy_count" : 3,/"policy_count" : $body.ilm.policy_count,/]
-// TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
+// TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
+// TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
-// eql is disabled by default on release builds and enabled everywhere else during the initial implementation phase until its release
+// TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
+// TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
+// TESTRESPONSE[s/ : true/ : $body.$_path/]
+// TESTRESPONSE[s/ : false/ : $body.$_path/]
+// TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
+// These replacements do a few things:
+// 1. Ignore the contents of the `policy_stats` object because we don't know all
+//    of the policies that will be in it. And because we figure folks don't need
+//    to see an exhaustive list anyway.
+// 2. Handling eql, which is disabled by default on release builds and enabled
+//    everywhere else during the initial implementation phase until its release
+// 3. Ignore the contents of the `slm` object because it might contain policies
+// 4. All of the numbers and strings on the right hand side of *every* field in
+//    the response are ignored. So we're really only asserting things about the
+//    the shape of this response, not the values in it.

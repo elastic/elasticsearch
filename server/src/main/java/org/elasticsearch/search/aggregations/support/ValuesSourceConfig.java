@@ -27,25 +27,13 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.function.LongSupplier;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
  * in order to run a specific aggregation.
  */
 public class ValuesSourceConfig {
-
-    /**
-     * Resolve a {@link ValuesSourceConfig} given configuration parameters.
-     */
-    public static  ValuesSourceConfig resolve(
-        QueryShardContext context,
-        ValueType valueType,
-        String field, Script script,
-        Object missing,
-        ZoneId timeZone,
-        String format, String aggregationName) {
-        return resolve(context, valueType, field, script, missing, timeZone, format, CoreValuesSourceType.BYTES, aggregationName);
-    }
 
     /**
      * Given the query context and other information, decide on the input {@link ValuesSource} for this aggretation run, and construct a new
@@ -190,7 +178,7 @@ public class ValuesSourceConfig {
         return this;
     }
 
-    public ValuesSourceConfig script(AggregationScript.LeafFactory script) {
+    private ValuesSourceConfig script(AggregationScript.LeafFactory script) {
         this.script = script;
         return this;
     }
@@ -238,12 +226,11 @@ public class ValuesSourceConfig {
 
     /**
      * Transform the {@link ValuesSourceType} we selected in resolve into the specific {@link ValuesSource} instance to use for this shard
-     * @param context - Literally just used to get the current time
+     * @param now - Should provide the current time in milliseconds.  Used for parsing some missing values.
      * @return - A {@link ValuesSource} ready to be read from by an aggregator
      */
     @Nullable
-    // TODO: Replace QueryShardContext with a LongProvider
-    public ValuesSource toValuesSource(QueryShardContext context) {
+    public ValuesSource toValuesSource(LongSupplier now) {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
@@ -271,6 +258,6 @@ public class ValuesSourceConfig {
         if (missing() == null) {
             return vs;
         }
-        return valueSourceType().replaceMissing(vs, missing, format, context::nowInMillis);
+        return valueSourceType().replaceMissing(vs, missing, format, now);
     }
 }

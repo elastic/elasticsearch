@@ -44,7 +44,7 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        ValuesSource vs = config.toValuesSource(queryShardContext);
+        ValuesSource vs = config.toValuesSource(queryShardContext::nowInMillis);
         if (vs == null) {
             return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
         }

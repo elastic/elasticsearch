@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -277,7 +278,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
         ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext,
-            valueType, field, script, null, timeZone(), format, name());
+            valueType, field, script, null, timeZone(), format, CoreValuesSourceType.BYTES, name());
         return innerBuild(queryShardContext, config);
     }
 

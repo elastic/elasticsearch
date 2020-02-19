@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -65,7 +66,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     // this allows you to easily define rates
     static final Function<String, Tuple<Integer, TimeValue>> MAX_COMPILATION_RATE_FUNCTION =
             (String value) -> {
-                if (value.toLowerCase() == "unlimited") {
+                if (value.toLowerCase(Locale.ROOT) == "unlimited") {
                     return Tuple.tuple(0, TimeValue.ZERO);
                 }
                 if (value.contains("/") == false || value.startsWith("/") || value.endsWith("/")) {
@@ -203,8 +204,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             }
         }
 
-    this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
-    compiler = new ContextCompiler(
+        this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
+        compiler = new ContextCompiler(
                     SCRIPT_CACHE_SIZE_SETTING.get(settings),
                     SCRIPT_CACHE_EXPIRE_SETTING.get(settings),
                     compilationLimitsEnabled() ?

@@ -132,10 +132,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.BYTES,
-            CoreValuesSourceType.IP,
-            CoreValuesSourceType.DATE);
+            CoreValuesSourceType.BYTES);
     }
 
     public void testGlobalOrdinalsExecutionHint() throws Exception {

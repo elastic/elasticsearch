@@ -53,9 +53,9 @@ public enum DimensionalShapeType {
     GEOMETRYCOLLECTION_LINES,      // highest-dimensional shapes are Lines
     GEOMETRYCOLLECTION_POLYGONS;   // highest-dimensional shapes are Polygons
 
-    private static DimensionalShapeType[] values = values();
+    public static Comparator<DimensionalShapeType> COMPARATOR = Comparator.comparingInt(DimensionalShapeType::centroidDimension);
 
-    private static Comparator<DimensionalShapeType> COMPARATOR = Comparator.comparingInt(DimensionalShapeType::centroidDimension);
+    private static DimensionalShapeType[] values = values();
 
     public static DimensionalShapeType max(DimensionalShapeType s1, DimensionalShapeType s2) {
         if (s1 == null) {
@@ -66,12 +66,16 @@ public enum DimensionalShapeType {
         return COMPARATOR.compare(s1, s2) >= 0 ? s1 : s2;
     }
 
+    public static DimensionalShapeType fromOrdinalByte(byte ordinal) {
+        return values[Byte.toUnsignedInt(ordinal)];
+    }
+
     public void writeTo(ByteBuffersDataOutput out) {
         out.writeByte((byte) ordinal());
     }
 
     public static DimensionalShapeType readFrom(ByteArrayDataInput in) {
-        return values[Byte.toUnsignedInt(in.readByte())];
+        return fromOrdinalByte(in.readByte());
     }
 
     public static DimensionalShapeType forGeometry(Geometry geometry) {
@@ -80,8 +84,7 @@ public enum DimensionalShapeType {
 
             @Override
             public DimensionalShapeType visit(Circle circle) {
-                st = DimensionalShapeType.max(st, DimensionalShapeType.POLYGON);
-                return st;
+                throw new IllegalArgumentException("invalid shape type found [Circle] while computing dimensional shape type");
             }
 
             @Override

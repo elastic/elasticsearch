@@ -22,8 +22,13 @@ experimental[]
 [[ml-delete-inference-prereq]]
 ==== {api-prereq-title}
 
-* You must have `machine_learning_admin` built-in role to use this API. For more 
-information, see <<security-privileges>> and <<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles or equivalent privileges:
+
+* `machine_learning_admin`
+* `kibana_user` (UI only)
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-delete-inference-path-params]]
@@ -63,5 +68,4 @@ The API returns the following result:
   "acknowledged" : true
 }
 ----
-
 

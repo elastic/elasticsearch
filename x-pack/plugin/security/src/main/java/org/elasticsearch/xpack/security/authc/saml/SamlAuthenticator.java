@@ -68,7 +68,8 @@ class SamlAuthenticator extends SamlRequestHandler {
             try {
                 return authenticateResponse(root, token.getAllowedSamlRequestIds());
             } catch (ElasticsearchSecurityException e) {
-                logger.trace("Rejecting SAML response {} because {}", SamlUtils.toString(root), e.getMessage());
+                logger.trace("Rejecting SAML response [{}...] because {}", Strings.cleanTruncate(SamlUtils.toString(root), 512),
+                    e.getMessage());
                 throw e;
             }
         } else {

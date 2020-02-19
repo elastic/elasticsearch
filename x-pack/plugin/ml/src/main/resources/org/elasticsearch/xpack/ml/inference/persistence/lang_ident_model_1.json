@@ -1,6 +1,6 @@
 {
   "model_id" : "lang_ident_model_1",
-  "created_by" : "ml_admin",
+  "created_by" : "_xpack",
   "version" : "7.6.0",
   "description" : "Model used for identifying language from arbitrary input text.",
   "create_time" : 1575548914594,

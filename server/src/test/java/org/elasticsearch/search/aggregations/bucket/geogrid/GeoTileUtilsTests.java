@@ -222,8 +222,8 @@ public class GeoTileUtilsTests extends ESTestCase {
      * so ensure they are clipped correctly.
      */
     public void testSingularityAtPoles() {
-        double minLat = -85.05112878;
-        double maxLat = 85.05112878;
+        double minLat = -GeoTileUtils.LATITUDE_MASK;
+        double maxLat = GeoTileUtils.LATITUDE_MASK;
         double lon = randomIntBetween(-180, 180);
         double lat = randomBoolean()
             ? randomDoubleBetween(-90, minLat, true)

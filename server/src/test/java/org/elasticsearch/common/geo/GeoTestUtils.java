@@ -19,14 +19,19 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -42,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoTestUtils {
 
     public static void assertRelation(GeoRelation expectedRelation, TriangleTreeReader reader, Extent extent) throws IOException {
-        GeoRelation actualRelation = reader.relate(extent.minX(), extent.minY(), extent.maxX(), extent.maxY());
+        GeoRelation actualRelation = reader.relateTile(extent.minX(), extent.minY(), extent.maxX(), extent.maxY());
         assertThat(actualRelation, equalTo(expectedRelation));
     }
 
@@ -71,9 +76,25 @@ public class GeoTestUtils {
         return reader;
     }
 
+    public static double encodeDecodeLat(double lat) {
+        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+    }
+
+    public static double encodeDecodeLon(double lon) {
+        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
+    }
+
     public static String toGeoJsonString(Geometry geometry) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);
         return XContentHelper.convertToJson(BytesReference.bytes(builder), true, false, XContentType.JSON);
+    }
+
+    public static Geometry fromGeoJsonString(String geoJson) throws Exception {
+        XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            new BytesArray(geoJson), XContentType.JSON);
+        parser.nextToken();
+        Geometry geometry = new GeometryParser(true, true, true).parse(parser);
+        return new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometry);
     }
 }

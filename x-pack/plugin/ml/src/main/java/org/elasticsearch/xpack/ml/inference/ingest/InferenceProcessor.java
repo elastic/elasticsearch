@@ -275,12 +275,12 @@ public class InferenceProcessor extends AbstractProcessor {
             @SuppressWarnings("unchecked")
             Map<String, Object> valueMap = (Map<String, Object>)value;
 
-            if (inferenceConfig.containsKey(ClassificationConfig.NAME)) {
+            if (inferenceConfig.containsKey(ClassificationConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 ClassificationConfig config = ClassificationConfig.fromMap(valueMap);
                 checkFieldUniqueness(config.getResultsField(), config.getTopClassesResultsField());
                 return config;
-            } else if (inferenceConfig.containsKey(RegressionConfig.NAME)) {
+            } else if (inferenceConfig.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 RegressionConfig config = RegressionConfig.fromMap(valueMap);
                 checkFieldUniqueness(config.getResultsField());
@@ -288,7 +288,7 @@ public class InferenceProcessor extends AbstractProcessor {
             } else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
                     inferenceConfig.keySet(),
-                    Arrays.asList(ClassificationConfig.NAME, RegressionConfig.NAME));
+                    Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
             }
         }
 

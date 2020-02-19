@@ -28,6 +28,7 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -54,12 +55,21 @@ public class TriangleTreeTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDimensionalShapeType() throws IOException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         assertDimensionalShapeType(randomPoint(false), DimensionalShapeType.POINT);
         assertDimensionalShapeType(randomMultiPoint(false), DimensionalShapeType.MULTIPOINT);
         assertDimensionalShapeType(randomLine(false), DimensionalShapeType.LINESTRING);
         assertDimensionalShapeType(randomMultiLine(false), DimensionalShapeType.MULTILINESTRING);
-        assertDimensionalShapeType(randomPolygon(false), DimensionalShapeType.POLYGON);
-        assertDimensionalShapeType(randomMultiPolygon(false), DimensionalShapeType.MULTIPOLYGON);
+        Geometry randoPoly = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
+            try {
+                Geometry newGeo = indexer.prepareForIndexing(g);
+                return newGeo.type() != ShapeType.POLYGON;
+            } catch (Exception e) {
+                return true;
+            }
+        }, () -> randomPolygon(false)));
+        assertDimensionalShapeType(randoPoly, DimensionalShapeType.POLYGON);
+        assertDimensionalShapeType(indexer.prepareForIndexing(randomMultiPolygon(false)), DimensionalShapeType.MULTIPOLYGON);
         assertDimensionalShapeType(randomRectangle(), DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(randomFrom(
             new GeometryCollection<>(List.of(randomPoint(false))),
@@ -74,10 +84,12 @@ public class TriangleTreeTests extends ESTestCase {
                 new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))))
             , DimensionalShapeType.GEOMETRYCOLLECTION_LINES);
         assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false), randomPolygon(false))),
-            new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiPolygon(false))),
+            new GeometryCollection<>(List.of(randomPoint(false), indexer.prepareForIndexing(randomLine(false)),
+                indexer.prepareForIndexing(randomPolygon(false)))),
+            new GeometryCollection<>(List.of(randomMultiPoint(false), indexer.prepareForIndexing(randomMultiPolygon(false)))),
             new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomLine(false), randomPolygon(false))))))
+                new GeometryCollection<>(List.of(indexer.prepareForIndexing(randomLine(false)),
+                    indexer.prepareForIndexing(randomPolygon(false)))))))
             , DimensionalShapeType.GEOMETRYCOLLECTION_POLYGONS);
     }
 
@@ -88,10 +100,7 @@ public class TriangleTreeTests extends ESTestCase {
             int maxX = randomIntBetween(1, 40);
             int minY = randomIntBetween(-40, -1);
             int maxY = randomIntBetween(1, 40);
-            double[] x = new double[]{minX, maxX, maxX, minX, minX};
-            double[] y = new double[]{minY, minY, maxY, maxY, minY};
-            Geometry rectangle = randomBoolean() ?
-                new Polygon(new LinearRing(x, y), Collections.emptyList()) : new Rectangle(minX, maxX, maxY, minY);
+            Geometry rectangle = new Rectangle(minX, maxX, maxY, minY);
             TriangleTreeReader reader = triangleTreeReader(rectangle, GeoShapeCoordinateEncoder.INSTANCE);
 
             Extent expectedExtent  = getExtentFromBox(minX, minY, maxX, maxY);
@@ -99,21 +108,22 @@ public class TriangleTreeTests extends ESTestCase {
             // centroid is calculated using original double values but then loses precision as it is serialized as an integer
             int encodedCentroidX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(((double) minX + maxX) / 2);
             int encodedCentroidY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(((double) minY + maxY) / 2);
-            assertThat(reader.getCentroidX(), equalTo(GeoShapeCoordinateEncoder.INSTANCE.decodeX(encodedCentroidX)));
-            assertThat(reader.getCentroidY(), equalTo(GeoShapeCoordinateEncoder.INSTANCE.decodeY(encodedCentroidY)));
+            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeX(encodedCentroidX), reader.getCentroidX(), 0.0000001);
+            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeY(encodedCentroidY), reader.getCentroidY(), 0.0000001);
 
             // box-query touches bottom-left corner
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX),
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX),
                 minY - randomIntBetween(1, 90 + minY), minX, minY));
             // box-query touches bottom-right corner
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(maxX, minY - randomIntBetween(1, 90 + minY),
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(maxX, minY - randomIntBetween(1, 90 + minY),
                 maxX + randomIntBetween(1, 180 - maxX), minY));
             // box-query touches top-right corner
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(maxX, maxY, maxX + randomIntBetween(1, 180 - maxX),
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(maxX, maxY, maxX + randomIntBetween(1, 180 - maxX),
                 maxY + randomIntBetween(1, 90 - maxY)));
             // box-query touches top-left corner
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX), maxY, minX,
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX), maxY, minX,
                 maxY + randomIntBetween(1, 90 - maxY)));
+
             // box-query fully-enclosed inside rectangle
             assertRelation(GeoRelation.QUERY_INSIDE, reader, getExtentFromBox(3 * (minX + maxX) / 4, 3 * (minY + maxY) / 4,
                 3 * (maxX + minX) / 4, 3 * (maxY + minY) / 4));
@@ -153,11 +163,11 @@ public class TriangleTreeTests extends ESTestCase {
     public void testPacManPolygon() throws Exception {
         // pacman
         double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
-        double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
+        double[] py = {0, -5, -9, -10, -9, 0, 9, 10, 9, 5, 0};
 
         // test cell crossing poly
-        TriangleTreeReader reader = triangleTreeReader(new Polygon(new LinearRing(py, px), Collections.emptyList()),
-            TestCoordinateEncoder.INSTANCE);
+        Polygon pacMan = new Polygon(new LinearRing(py, px), Collections.emptyList());
+        TriangleTreeReader reader = triangleTreeReader(pacMan, TestCoordinateEncoder.INSTANCE);
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(2, -1, 11, 1));
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-12, -12, 12, 12));
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-2, -1, 2, 0));
@@ -247,12 +257,12 @@ public class TriangleTreeTests extends ESTestCase {
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(xMin, yMin, xMax, yMax));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
     public void testRandomMultiLineIntersections() throws IOException {
         double extentSize = randomDoubleBetween(0.01, 10, true);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         MultiLine geometry = randomMultiLine(false);
         geometry = (MultiLine) indexer.prepareForIndexing(geometry);
-
         TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         Extent readerExtent = reader.getExtent();
 
@@ -260,12 +270,13 @@ public class TriangleTreeTests extends ESTestCase {
             // extent that intersects edges
             assertRelation(GeoRelation.QUERY_CROSSES, reader, bufferedExtentFromGeoPoint(line.getX(0), line.getY(0), extentSize));
 
+            // TODO(talevy): resolve definition. when line is on a specific edge it is not considered crossing due to latest changes
             // extent that fully encloses a line in the MultiLine
             Extent lineExtent = triangleTreeReader(line, GeoShapeCoordinateEncoder.INSTANCE).getExtent();
             assertRelation(GeoRelation.QUERY_CROSSES, reader, lineExtent);
 
             if (lineExtent.minX() != Integer.MIN_VALUE && lineExtent.maxX() != Integer.MAX_VALUE
-                && lineExtent.minY() != Integer.MIN_VALUE && lineExtent.maxY() != Integer.MAX_VALUE) {
+                    && lineExtent.minY() != Integer.MIN_VALUE && lineExtent.maxY() != Integer.MAX_VALUE) {
                 assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(lineExtent.minX() - 1, lineExtent.minY() - 1,
                     lineExtent.maxX() + 1, lineExtent.maxY() + 1));
             }
@@ -281,6 +292,7 @@ public class TriangleTreeTests extends ESTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
     public void testRandomGeometryIntersection() throws IOException {
         int testPointCount = randomIntBetween(100, 200);
         Point[] testPoints = new Point[testPointCount];
@@ -324,7 +336,7 @@ public class TriangleTreeTests extends ESTestCase {
 
         Extent bufferBounds = bufferedExtentFromGeoPoint(p.getX(), p.getY(), extentSize);
         GeoRelation relation = triangleTreeReader(g, GeoShapeCoordinateEncoder.INSTANCE)
-            .relate(bufferBounds.minX(), bufferBounds.minY(), bufferBounds.maxX(), bufferBounds.maxY());
+            .relateTile(bufferBounds.minX(), bufferBounds.minY(), bufferBounds.maxX(), bufferBounds.maxY());
         return relation == GeoRelation.QUERY_CROSSES || relation == GeoRelation.QUERY_INSIDE;
     }
 

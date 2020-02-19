@@ -19,28 +19,21 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.UnboundCallNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents a user-defined call.
@@ -65,14 +58,7 @@ public final class ECallLocal extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         localFunction = scriptRoot.getFunctionTable().getFunction(name, arguments.size());
 
         // user cannot call internal functions, reset to null if an internal function is found
@@ -156,77 +142,31 @@ public final class ECallLocal extends AExpression {
 
             expression.expected = typeParameters.get(argument + classBindingOffset);
             expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            expression.analyze(scriptRoot, scope);
+            arguments.set(argument, expression.cast(scriptRoot, scope));
         }
 
         statement = true;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    UnboundCallNode write(ClassNode classNode) {
+        UnboundCallNode unboundCallNode = new UnboundCallNode();
 
-        if (localFunction != null) {
-            for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeStatic(CLASS_TYPE, localFunction.getAsmMethod());
-        } else if (importedMethod != null) {
-            for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeStatic(Type.getType(importedMethod.targetClass),
-                    new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString()));
-        } else if (classBinding != null) {
-            Type type = Type.getType(classBinding.javaConstructor.getDeclaringClass());
-            int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount() - classBindingOffset;
-
-            Label nonNull = new Label();
-
-            methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, bindingName, type);
-            methodWriter.ifNonNull(nonNull);
-            methodWriter.loadThis();
-            methodWriter.newInstance(type);
-            methodWriter.dup();
-
-            if (classBindingOffset == 1) {
-                methodWriter.loadThis();
-            }
-
-            for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
-                arguments.get(argument).write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
-            methodWriter.putField(CLASS_TYPE, bindingName, type);
-
-            methodWriter.mark(nonNull);
-            methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, bindingName, type);
-
-            for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
-        } else if (instanceBinding != null) {
-            Type type = Type.getType(instanceBinding.targetInstance.getClass());
-
-            methodWriter.loadThis();
-            methodWriter.getStatic(CLASS_TYPE, bindingName, type);
-
-            for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument).write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));
-        } else {
-            throw new IllegalStateException("Illegal tree structure.");
+        for (AExpression argument : arguments) {
+            unboundCallNode.addArgumentNode(argument.write(classNode));
         }
+
+        unboundCallNode.setLocation(location);
+        unboundCallNode.setExpressionType(actual);
+        unboundCallNode.setLocalFunction(localFunction);
+        unboundCallNode.setImportedMethod(importedMethod);
+        unboundCallNode.setClassBinding(classBinding);
+        unboundCallNode.setClassBindingOffset(classBindingOffset);
+        unboundCallNode.setBindingName(bindingName);
+        unboundCallNode.setInstanceBinding(instanceBinding);
+
+        return unboundCallNode;
     }
 
     @Override

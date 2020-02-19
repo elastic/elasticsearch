@@ -20,15 +20,13 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
-import java.io.IOException;
 
 /**
  * Wrapper class to help convert {@link MultiGeoValues}
@@ -38,11 +36,13 @@ public class CellIdSource extends ValuesSource.Numeric {
     private final ValuesSource.Geo valuesSource;
     private final int precision;
     private final GeoGridTiler encoder;
+    private final GeoBoundingBox geoBoundingBox;
 
-    public CellIdSource(Geo valuesSource, int precision, GeoGridTiler encoder) {
+    public CellIdSource(ValuesSource.Geo valuesSource, int precision, GeoBoundingBox geoBoundingBox, GeoGridTiler encoder) {
         this.valuesSource = valuesSource;
         //different GeoPoints could map to the same or different hashing cells.
         this.precision = precision;
+        this.geoBoundingBox = geoBoundingBox;
         this.encoder = encoder;
     }
 
@@ -65,10 +65,19 @@ public class CellIdSource extends ValuesSource.Numeric {
         ValuesSourceType vs = geoValues.valuesSourceType();
         if (CoreValuesSourceType.GEOPOINT == vs) {
             // docValues are geo points
-            return new GeoPointCellValues(geoValues, precision, encoder);
+            if (geoBoundingBox.isUnbounded()) {
+                return new UnboundedGeoPointCellValues(geoValues, precision, encoder);
+            } else {
+                return new BoundedGeoPointCellValues(geoValues, precision, encoder, geoBoundingBox);
+            }
         } else if (CoreValuesSourceType.GEOSHAPE == vs || CoreValuesSourceType.GEO == vs) {
             // docValues are geo shapes
-            return new GeoShapeCellValues(geoValues, precision, encoder);
+            if (geoBoundingBox.isUnbounded()) {
+                return new GeoShapeCellValues(geoValues, precision, encoder);
+            } else {
+                // TODO(talevy): support unbounded
+                throw new IllegalArgumentException("bounded geogrid is not supported on geo_shape fields");
+            }
         } else {
             throw new IllegalArgumentException("unsupported geo type");
         }
@@ -82,101 +91,5 @@ public class CellIdSource extends ValuesSource.Numeric {
     @Override
     public SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
         throw new UnsupportedOperationException();
-    }
-
-    /** Sorted numeric doc values for geo shapes */
-    protected static class GeoShapeCellValues extends AbstractSortingNumericDocValues {
-        private MultiGeoValues geoValues;
-        private int precision;
-        private GeoGridTiler tiler;
-
-        protected GeoShapeCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
-            this.geoValues = geoValues;
-            this.precision = precision;
-            this.tiler = tiler;
-        }
-
-        protected void resizeCell(int newSize) {
-            resize(newSize);
-        }
-
-        protected void add(int idx, long value) {
-           values[idx] = value;
-        }
-
-        // for testing
-        protected long[] getValues() {
-            return values;
-        }
-
-        @Override
-        public boolean advanceExact(int docId) throws IOException {
-            if (geoValues.advanceExact(docId)) {
-                ValuesSourceType vs = geoValues.valuesSourceType();
-                MultiGeoValues.GeoValue target = geoValues.nextValue();
-                // TODO(talevy): determine reasonable circuit-breaker here
-                resize(0);
-                tiler.setValues(this, target, precision);
-                sort();
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
-
-    /** Sorted numeric doc values for geo points */
-    protected static class GeoPointCellValues extends AbstractSortingNumericDocValues {
-        private MultiGeoValues geoValues;
-        private int precision;
-        private GeoGridTiler tiler;
-
-        protected GeoPointCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
-            this.geoValues = geoValues;
-            this.precision = precision;
-            this.tiler = tiler;
-        }
-
-        // for testing
-        protected long[] getValues() {
-            return values;
-        }
-
-        @Override
-        public boolean advanceExact(int docId) throws IOException {
-            if (geoValues.advanceExact(docId)) {
-                resize(geoValues.docValueCount());
-                for (int i = 0; i < docValueCount(); ++i) {
-                    MultiGeoValues.GeoValue target = geoValues.nextValue();
-                    values[i] = tiler.encode(target.lon(), target.lat(), precision);
-                }
-                sort();
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
-
-    /** Sorted numeric doc values for precision 0 */
-    protected static class AllCellValues extends AbstractSortingNumericDocValues {
-        private MultiGeoValues geoValues;
-
-        protected AllCellValues(MultiGeoValues geoValues, GeoGridTiler tiler) {
-            this.geoValues = geoValues;
-            resize(1);
-            values[0] = tiler.encode(0, 0, 0);
-        }
-
-        // for testing
-        protected long[] getValues() {
-            return values;
-        }
-
-        @Override
-        public boolean advanceExact(int docId) throws IOException {
-            resize(1);
-            return geoValues.advanceExact(docId);
-        }
     }
 }

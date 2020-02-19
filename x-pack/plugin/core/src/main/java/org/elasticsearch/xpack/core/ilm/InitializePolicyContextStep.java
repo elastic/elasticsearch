@@ -67,4 +67,9 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
         );
         return newClusterStateBuilder.build();
     }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
 }

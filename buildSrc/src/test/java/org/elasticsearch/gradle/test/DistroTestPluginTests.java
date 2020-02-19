@@ -11,23 +11,22 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class DistroTestPluginTests extends GradleIntegrationTestCase {
 
     public void testParseOsReleaseOnOracle() {
-        final List<String> lines = List
-            .of(
-                "NAME=\"Oracle Linux Server\"",
-                "VERSION=\"6.10\"",
-                "ID=\"ol\"",
-                "VERSION_ID=\"6.10\"",
-                "PRETTY_NAME=\"Oracle Linux Server 6.10\"",
-                "ANSI_COLOR=\"0;31\"",
-                "CPE_NAME=\"cpe:/o:oracle:linux:6:10:server\"",
-                "HOME_URL" + "=\"https://linux.oracle.com/\"",
-                "BUG_REPORT_URL=\"https://bugzilla.oracle.com/\"",
-                "",
-                "ORACLE_BUGZILLA_PRODUCT" + "=\"Oracle Linux 6\"",
-                "ORACLE_BUGZILLA_PRODUCT_VERSION=6.10",
-                "ORACLE_SUPPORT_PRODUCT=\"Oracle Linux\"",
-                "ORACLE_SUPPORT_PRODUCT_VERSION=6.10"
-            );
+        final List<String> lines = List.of(
+            "NAME=\"Oracle Linux Server\"",
+            "VERSION=\"6.10\"",
+            "ID=\"ol\"",
+            "VERSION_ID=\"6.10\"",
+            "PRETTY_NAME=\"Oracle Linux Server 6.10\"",
+            "ANSI_COLOR=\"0;31\"",
+            "CPE_NAME=\"cpe:/o:oracle:linux:6:10:server\"",
+            "HOME_URL" + "=\"https://linux.oracle.com/\"",
+            "BUG_REPORT_URL=\"https://bugzilla.oracle.com/\"",
+            "",
+            "ORACLE_BUGZILLA_PRODUCT" + "=\"Oracle Linux 6\"",
+            "ORACLE_BUGZILLA_PRODUCT_VERSION=6.10",
+            "ORACLE_SUPPORT_PRODUCT=\"Oracle Linux\"",
+            "ORACLE_SUPPORT_PRODUCT_VERSION=6.10"
+        );
 
         final Map<String, String> results = parseOsRelease(lines);
 

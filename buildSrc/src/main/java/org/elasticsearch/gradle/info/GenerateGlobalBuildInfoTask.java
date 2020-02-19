@@ -28,6 +28,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -115,8 +116,14 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     public void generate() {
         String javaVendorVersion = System.getProperty("java.vendor.version", System.getProperty("java.vendor"));
         String gradleJavaVersion = System.getProperty("java.version");
-        String gradleJavaVersionDetails = javaVendorVersion + " " + gradleJavaVersion + " [" + System.getProperty("java.vm.name")
-            + " " + System.getProperty("java.vm.version") + "]";
+        String gradleJavaVersionDetails = javaVendorVersion
+            + " "
+            + gradleJavaVersion
+            + " ["
+            + System.getProperty("java.vm.name")
+            + " "
+            + System.getProperty("java.vm.version")
+            + "]";
 
         String compilerJavaVersionDetails = gradleJavaVersionDetails;
         JavaVersion compilerJavaVersionEnum = JavaVersion.current();
@@ -147,21 +154,24 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         }
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile.getAsFile().get()))) {
+            final String osName = System.getProperty("os.name");
+            final String osVersion = System.getProperty("os.version");
+            final String osArch = System.getProperty("os.arch");
+            final JavaVersion parsedVersion = JavaVersion.toVersion(gradleJavaVersion);
+
             writer.write("  Gradle Version        : " + getProject().getGradle().getGradleVersion() + "\n");
-            writer.write("  OS Info               : " + System.getProperty("os.name") + " " + System.getProperty("os.version")
-                + " (" + System.getProperty("os.arch") + ")\n");
+            writer.write("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")\n");
+
             if (gradleJavaVersionDetails.equals(compilerJavaVersionDetails) == false
                 || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
                 writer.write("  Compiler JDK Version  : " + compilerJavaVersionEnum + " (" + compilerJavaVersionDetails + ")\n");
                 writer.write("  Compiler java.home    : " + compilerJavaHome + "\n");
                 writer.write("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" + runtimeJavaVersionDetails + ")\n");
                 writer.write("  Runtime java.home     : " + runtimeJavaHome + "\n");
-                writer.write("  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion)
-                    + " (" + gradleJavaVersionDetails + ")\n");
+                writer.write("  Gradle JDK Version    : " + parsedVersion + " (" + gradleJavaVersionDetails + ")\n");
                 writer.write("  Gradle java.home      : " + gradleJavaHome);
             } else {
-                writer.write("  JDK Version           : " + JavaVersion.toVersion(gradleJavaVersion)
-                    + " (" + gradleJavaVersionDetails + ")\n");
+                writer.write("  JDK Version           : " + parsedVersion + " (" + gradleJavaVersionDetails + ")\n");
                 writer.write("  JAVA_HOME             : " + gradleJavaHome);
             }
         } catch (IOException e) {
@@ -170,14 +180,24 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
         // enforce Java version
         if (compilerJavaVersionEnum.compareTo(minimumCompilerVersion) < 0) {
-            String message = "The compiler java.home must be set to a JDK installation directory for Java " + minimumCompilerVersion +
-                " but is [" + compilerJavaHome + "] corresponding to [" + compilerJavaVersionEnum + "]";
+            String message = String.format(
+                Locale.ROOT,
+                "The compiler java.home must be set to a JDK installation directory for Java %s but is [%s] " + "corresponding to [%s]",
+                minimumCompilerVersion,
+                compilerJavaHome,
+                compilerJavaVersionEnum
+            );
             throw new GradleException(message);
         }
 
         if (runtimeJavaVersionEnum.compareTo(minimumRuntimeVersion) < 0) {
-            String message = "The runtime java.home must be set to a JDK installation directory for Java " + minimumRuntimeVersion +
-                " but is [" + runtimeJavaHome + "] corresponding to [" + runtimeJavaVersionEnum + "]";
+            String message = String.format(
+                Locale.ROOT,
+                "The runtime java.home must be set to a JDK installation directory for Java %s but is [%s] " + "corresponding to [%s]",
+                minimumRuntimeVersion,
+                runtimeJavaHome,
+                runtimeJavaVersionEnum
+            );
             throw new GradleException(message);
         }
 
@@ -195,8 +215,15 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                 expectedJavaVersionEnum = JavaVersion.toVersion(Integer.toString(version));
             }
             if (javaVersionEnum != expectedJavaVersionEnum) {
-                String message = "The environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java " +
-                    expectedJavaVersionEnum + " but is [" + javaHome + "] corresponding to [" + javaVersionEnum + "]";
+                String message = String.format(
+                    Locale.ROOT,
+                    "The environment variable JAVA%d_HOME must be set to a JDK installation directory for Java"
+                        + " %s but is [%s] corresponding to [%s]",
+                    version,
+                    expectedJavaVersionEnum,
+                    javaHome,
+                    javaVersionEnum
+                );
                 throw new GradleException(message);
             }
         }
@@ -217,11 +244,11 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
      * Finds printable java version of the given JAVA_HOME
      */
     private String findJavaVersionDetails(File javaHome) {
-        String versionInfoScript = "print(" +
-            "java.lang.System.getProperty(\"java.vendor.version\", java.lang.System.getProperty(\"java.vendor\")) + \" \" + " +
-            "java.lang.System.getProperty(\"java.version\") + \" [\" + " +
-            "java.lang.System.getProperty(\"java.vm.name\") + \" \" + " +
-            "java.lang.System.getProperty(\"java.vm.version\") + \"]\");";
+        String versionInfoScript = "print("
+            + "java.lang.System.getProperty(\"java.vendor.version\", java.lang.System.getProperty(\"java.vendor\")) + \" \" + "
+            + "java.lang.System.getProperty(\"java.version\") + \" [\" + "
+            + "java.lang.System.getProperty(\"java.vm.name\") + \" \" + "
+            + "java.lang.System.getProperty(\"java.vm.version\") + \"]\");";
         return runJavaAsScript(javaHome, versionInfoScript).trim();
     }
 

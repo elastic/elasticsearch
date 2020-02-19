@@ -18,6 +18,7 @@
  */
 
 
+import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
@@ -84,7 +85,7 @@ subprojects {
 
             Node developer = node.appendNode('developers').appendNode('developer')
             developer.appendNode('name', 'Elastic')
-            developer.appendNode('url', 'http://www.elastic.co')
+            developer.appendNode('url', 'https://www.elastic.co')
           }
         }
       }
@@ -106,6 +107,12 @@ subprojects {
     // is greater than the number of unformatted projects, this can be
     // switched to an exclude list, and eventualy removed completely.
     def projectPathsToFormat = [
+      ':build-tools',
+      ':distribution:tools:java-version-checker',
+      ':distribution:tools:keystore-cli',
+      ':distribution:tools:launchers',
+      ':distribution:tools:plugin-cli',
+      ':x-pack:plugin:autoscaling',
       ':x-pack:plugin:enrich'
     ]
 
@@ -114,6 +121,10 @@ subprojects {
 
       spotless {
         java {
+          // Normally this isn't necessary, but we have Java sources in
+          // non-standard places
+          target '**/*.java'
+
           removeUnusedImports()
           eclipse().configFile rootProject.file('.eclipseformat.xml')
           trimTrailingWhitespace()
@@ -502,7 +513,9 @@ gradle.projectsEvaluated {
 
 allprojects {
   tasks.register('resolveAllDependencies') {
-    dependsOn tasks.matching { it.name == "pullFixture" }
+    if (project.path.contains("fixture")) {
+      dependsOn tasks.withType(ComposePull)
+    }
     doLast {
       configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
     }

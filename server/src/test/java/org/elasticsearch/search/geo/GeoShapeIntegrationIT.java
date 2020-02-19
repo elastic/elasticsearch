@@ -72,7 +72,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         // left orientation test
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
         IndexService indexService = indicesService.indexService(resolveIndex(idxName));
-        MappedFieldType fieldType = indexService.mapperService().fullName("location");
+        MappedFieldType fieldType = indexService.mapperService().fieldType("location");
         assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
         GeoShapeFieldMapper.GeoShapeFieldType gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
@@ -84,7 +84,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
         indexService = indicesService.indexService(resolveIndex((idxName+"2")));
-        fieldType = indexService.mapperService().fullName("location");
+        fieldType = indexService.mapperService().fieldType("location");
         assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
         gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
@@ -100,7 +100,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,ignore_malformed=true").get());
+            .setMapping("shape", "type=geo_shape,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -127,7 +127,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testMappingUpdate() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape").get());
+            .setMapping("shape", "type=geo_shape").get());
         ensureGreen();
 
         String update ="{\n" +

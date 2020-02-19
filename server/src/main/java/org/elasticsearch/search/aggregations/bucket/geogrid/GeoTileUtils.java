@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -43,7 +44,20 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  */
 public final class GeoTileUtils {
 
-    private static final Double PI_DIV_2 = Math.PI / 2;
+    /**
+     * The geo-tile map is clipped at 85.05112878 to 90 and -85.05112878 to -90
+     */
+    public static final double LATITUDE_MASK = 85.0511287798066;
+
+    /**
+     * Since shapes are encoded, their boundaries are to be compared to against the encoded/decoded values of <code>LATITUDE_MASK</code>
+     */
+    static final double NORMALIZED_LATITUDE_MASK = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(LATITUDE_MASK));
+    static final double NORMALIZED_NEGATIVE_LATITUDE_MASK =
+        GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-LATITUDE_MASK));
+
+    private static final double PI_DIV_2 = Math.PI / 2;
+
 
     private GeoTileUtils() {}
 
@@ -55,7 +69,7 @@ public final class GeoTileUtils {
      * Another consideration is that index optimizes lat/lng storage, loosing some precision.
      * E.g. hash lng=140.74779717298918D lat=45.61884022447444D == "18/233561/93659", but shown as "18/233561/93658"
      */
-    static final int MAX_ZOOM = 29;
+    public static final int MAX_ZOOM = 29;
 
     /**
      * Bit position of the zoom value within hash - zoom is stored in the most significant 6 bits of a long number.
@@ -148,30 +162,10 @@ public final class GeoTileUtils {
      */
     public static long longEncode(double longitude, double latitude, int precision) {
         // Mathematics for this code was adapted from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Java
-
         // Number of tiles for the current zoom level along the X and Y axis
         final long tiles = 1 << checkPrecisionRange(precision);
-
-        long xTile = (long) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
-
-        double latSin = SloppyMath.cos(PI_DIV_2 - (Math.toRadians(normalizeLat(latitude))));
-        long yTile = (long) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
-
-        // Edge values may generate invalid values, and need to be clipped.
-        // For example, polar regions (above/below lat 85.05112878) get normalized.
-        if (xTile < 0) {
-            xTile = 0;
-        }
-        if (xTile >= tiles) {
-            xTile = tiles - 1;
-        }
-        if (yTile < 0) {
-            yTile = 0;
-        }
-        if (yTile >= tiles) {
-            yTile = tiles - 1;
-        }
-
+        long xTile = getXTile(longitude, tiles);
+        long yTile = getYTile(latitude, tiles);
         return longEncodeTiles(precision, xTile, yTile);
     }
 

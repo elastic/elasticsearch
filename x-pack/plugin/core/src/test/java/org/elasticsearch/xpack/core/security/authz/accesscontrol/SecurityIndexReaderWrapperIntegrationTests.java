@@ -39,8 +39,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.Executors;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -68,10 +70,14 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(mapperService.simpleMatchToFullName(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+
         final Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(mock(User.class));
-        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // don't care as long as it's not null
+        new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
+
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -80,7 +86,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
 
@@ -134,7 +140,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 FieldPermissions(),
                 DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery))));
             SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
-                bitsetCache, threadContext, licenseState, scriptService) {
+                bitsetCache, securityContext, licenseState, scriptService) {
 
                 @Override
                 protected IndicesAccessControl getIndicesAccessControl() {
@@ -172,10 +178,13 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(mapperService.simpleMatchToFullName(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(mock(User.class));
-        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // don't care as long as it's not null
+        new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
+
         final boolean noFilteredIndexPermissions = randomBoolean();
         boolean restrictiveLimitedIndexPermissions = false;
         if (noFilteredIndexPermissions == false) {
@@ -202,12 +211,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
-                bitsetCache, threadContext, licenseState, scriptService) {
+                bitsetCache, securityContext, licenseState, scriptService) {
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {

@@ -26,6 +26,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.geo.CentroidCalculator;
+import org.elasticsearch.common.geo.DimensionalShapeType;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoTestUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -33,13 +34,17 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 public class GeoCentroidAggregatorTests extends AggregatorTestCase {
@@ -88,6 +93,30 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
+            }
+        }
+    }
+
+    public void testUnmappedWithMissing() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg")
+                .field("another_field")
+                .missing("53.69437,6.475031");
+
+            GeoPoint expectedCentroid = new GeoPoint(53.69437, 6.475031);
+            Document document = new Document();
+            document.add(new LatLonDocValuesField("field", 10, 10));
+            w.addDocument(document);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
+                fieldType.setHasDocValues(true);
+                fieldType.setName("another_field");
+                InternalGeoCentroid result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                assertEquals(result.centroid(), expectedCentroid);
+                assertTrue(AggregationInspectionHelper.hasValue(result));
             }
         }
     }
@@ -146,31 +175,46 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
     @SuppressWarnings("unchecked")
     public void testGeoShapeField() throws Exception {
         int numDocs = scaledRandomIntBetween(64, 256);
-        Function<Boolean, Geometry> geometryGenerator = ESTestCase.randomFrom(
-            GeometryTestUtils::randomLine,
-            GeometryTestUtils::randomPoint,
-            GeometryTestUtils::randomPolygon,
-            GeometryTestUtils::randomMultiLine,
-            GeometryTestUtils::randomMultiPoint,
-            (hasAlt) -> GeometryTestUtils.randomRectangle(),
-            GeometryTestUtils::randomMultiPolygon
-        );
+        List<Geometry> geometries = new ArrayList<>();
+        DimensionalShapeType targetShapeType = null;
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
+        for (int i = 0; i < numDocs; i++) {
+            Function<Boolean, Geometry> geometryGenerator = ESTestCase.randomFrom(
+                GeometryTestUtils::randomLine,
+                GeometryTestUtils::randomPoint,
+                GeometryTestUtils::randomPolygon,
+                GeometryTestUtils::randomMultiLine,
+                GeometryTestUtils::randomMultiPoint,
+                (hasAlt) -> GeometryTestUtils.randomRectangle(),
+                GeometryTestUtils::randomMultiPolygon
+            );
+            Geometry geometry = geometryGenerator.apply(false);
+            try {
+                geometries.add(indexer.prepareForIndexing(geometry));
+            } catch (InvalidShapeException e) {
+                // do not include geometry
+            }
+            targetShapeType = DimensionalShapeType.max(targetShapeType, DimensionalShapeType.forGeometry(geometry));
+        }
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            GeoPoint expectedCentroid = new GeoPoint(0, 0);
             CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
             CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
-            for (int i = 0; i < numDocs; i++) {
-
+            CompensatedSum compensatedSumWeight = new CompensatedSum(0, 0);
+            for (Geometry geometry : geometries) {
                 Document document = new Document();
-                Geometry geometry = geometryGenerator.apply(false);
                 CentroidCalculator calculator = new CentroidCalculator(geometry);
                 document.add(new BinaryGeoShapeDocValuesField("field", GeoTestUtils.toDecodedTriangles(geometry), calculator));
                 w.addDocument(document);
-                compensatedSumLat.add(calculator.getY());
-                compensatedSumLon.add(calculator.getX());
+                if (DimensionalShapeType.COMPARATOR.compare(targetShapeType, calculator.getDimensionalShapeType()) == 0) {
+                    double weight = calculator.sumWeight();
+                    compensatedSumLat.add(weight * calculator.getY());
+                    compensatedSumLon.add(weight * calculator.getX());
+                    compensatedSumWeight.add(weight);
+                }
             }
-            expectedCentroid.reset(compensatedSumLat.value() / numDocs, compensatedSumLon.value() / numDocs);
+            GeoPoint expectedCentroid = new GeoPoint(compensatedSumLat.value() / compensatedSumWeight.value(),
+                compensatedSumLon.value() / compensatedSumWeight.value());
             assertCentroid(w, expectedCentroid, new GeoShapeFieldMapper.GeoShapeFieldType());
         }
     }

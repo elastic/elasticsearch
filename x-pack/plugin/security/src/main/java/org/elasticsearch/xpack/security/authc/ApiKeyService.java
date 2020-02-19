@@ -106,9 +106,11 @@ public class ApiKeyService {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     public static final String API_KEY_ID_KEY = "_security_api_key_id";
+    public static final String API_KEY_NAME_KEY = "_security_api_key_name";
     public static final String API_KEY_REALM_NAME = "_es_api_key";
     public static final String API_KEY_REALM_TYPE = "_es_api_key";
-    public static final String API_KEY_CREATOR_REALM = "_security_api_key_creator_realm";
+    public static final String API_KEY_CREATOR_REALM_NAME = "_security_api_key_creator_realm_name";
+    public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
 
@@ -271,8 +273,8 @@ public class ApiKeyService {
             .startObject("creator")
             .field("principal", authentication.getUser().principal())
             .field("metadata", authentication.getUser().metadata())
-            .field("realm", authentication.getLookedUpBy() == null ?
-                authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
+            .field("realm", authentication.getSourceRealm().getName())
+            .field("realm_type", authentication.getSourceRealm().getType())
             .endObject()
             .endObject();
 
@@ -294,33 +296,43 @@ public class ApiKeyService {
             }
 
             if (credentials != null) {
-                final String docId = credentials.getId();
-                final GetRequest getRequest = client
-                        .prepareGet(SECURITY_MAIN_ALIAS, docId)
-                        .setFetchSource(true)
-                        .request();
-                executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
-                    if (response.isExists()) {
-                        try (ApiKeyCredentials ignore = credentials) {
-                            final Map<String, Object> source = response.getSource();
-                            validateApiKeyCredentials(docId, source, credentials, clock, listener);
-                        }
-                    } else {
+                loadApiKeyAndValidateCredentials(ctx, credentials, ActionListener.wrap(
+                    response -> {
                         credentials.close();
-                        listener.onResponse(
-                            AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
+                        listener.onResponse(response);
+                    },
+                    e -> {
+                        credentials.close();
+                        listener.onFailure(e);
                     }
-                }, e -> {
-                    credentials.close();
-                    listener.onResponse(AuthenticationResult.unsuccessful("apikey authentication for id " + credentials.getId() +
-                        " encountered a failure", e));
-                }), client::get);
+                ));
             } else {
                 listener.onResponse(AuthenticationResult.notHandled());
             }
         } else {
             listener.onResponse(AuthenticationResult.notHandled());
         }
+    }
+
+    private void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
+                                                  ActionListener<AuthenticationResult> listener) {
+        final String docId = credentials.getId();
+        final GetRequest getRequest = client
+            .prepareGet(SECURITY_MAIN_ALIAS, docId)
+            .setFetchSource(true)
+            .request();
+        executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
+                if (response.isExists()) {
+                    final Map<String, Object> source = response.getSource();
+                    validateApiKeyCredentials(docId, source, credentials, clock, listener);
+                } else {
+                    listener.onResponse(
+                        AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
+                }
+            },
+            e -> listener.onResponse(AuthenticationResult.unsuccessful(
+                "apikey authentication for id " + credentials.getId() + " encountered a failure", e))),
+            client::get);
     }
 
     /**
@@ -491,10 +503,12 @@ public class ApiKeyService {
                 : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
             final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
             final Map<String, Object> authResultMetadata = new HashMap<>();
-            authResultMetadata.put(API_KEY_CREATOR_REALM, creator.get("realm"));
+            authResultMetadata.put(API_KEY_CREATOR_REALM_NAME, creator.get("realm"));
+            authResultMetadata.put(API_KEY_CREATOR_REALM_TYPE, creator.get("realm_type"));
             authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
             authResultMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleDescriptors);
             authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
+            authResultMetadata.put(API_KEY_NAME_KEY, source.get("name"));
             listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
         } else {
             listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));
@@ -535,7 +549,8 @@ public class ApiKeyService {
         return null;
     }
 
-    private static boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
+    // Protected instance method so this can be mocked
+    protected boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
         final char[] apiKeyHashChars = apiKeyHash.toCharArray();
         try {
             Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
@@ -867,7 +882,7 @@ public class ApiKeyService {
      */
     public static String getCreatorRealmName(final Authentication authentication) {
         if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
-            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM);
+            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getAuthenticatedBy().getName();
         }

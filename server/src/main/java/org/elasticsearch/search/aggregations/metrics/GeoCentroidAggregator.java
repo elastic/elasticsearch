@@ -20,9 +20,11 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.geo.DimensionalShapeType;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
@@ -43,8 +45,9 @@ import java.util.Map;
  */
 final class GeoCentroidAggregator extends MetricsAggregator {
     private final ValuesSource.Geo valuesSource;
-    private DoubleArray lonSum, lonCompensations, latSum, latCompensations;
+    private DoubleArray lonSum, lonCompensations, latSum, latCompensations, weightSum, weightCompensations;
     private LongArray counts;
+    private ByteArray dimensionalShapeTypes;
 
     GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
                           ValuesSource.Geo valuesSource, List<PipelineAggregator> pipelineAggregators,
@@ -57,7 +60,10 @@ final class GeoCentroidAggregator extends MetricsAggregator {
             lonCompensations = bigArrays.newDoubleArray(1, true);
             latSum = bigArrays.newDoubleArray(1, true);
             latCompensations = bigArrays.newDoubleArray(1, true);
+            weightSum = bigArrays.newDoubleArray(1, true);
+            weightCompensations = bigArrays.newDoubleArray(1, true);
             counts = bigArrays.newLongArray(1, true);
+            dimensionalShapeTypes = bigArrays.newByteArray(1, true);
         }
     }
 
@@ -70,15 +76,19 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         final MultiGeoValues values = valuesSource.geoValues(ctx);
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
+        final CompensatedSum compensatedSumWeight = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 latSum = bigArrays.grow(latSum, bucket + 1);
                 lonSum = bigArrays.grow(lonSum, bucket + 1);
+                weightSum = bigArrays.grow(weightSum, bucket + 1);
                 lonCompensations = bigArrays.grow(lonCompensations, bucket + 1);
                 latCompensations = bigArrays.grow(latCompensations, bucket + 1);
+                weightCompensations = bigArrays.grow(weightCompensations, bucket + 1);
                 counts = bigArrays.grow(counts, bucket + 1);
+                dimensionalShapeTypes = bigArrays.grow(dimensionalShapeTypes, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
@@ -86,26 +96,47 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     counts.increment(bucket, valueCount);
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
+                    DimensionalShapeType shapeType = DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket));
                     double sumLat = latSum.get(bucket);
                     double compensationLat = latCompensations.get(bucket);
                     double sumLon = lonSum.get(bucket);
                     double compensationLon = lonCompensations.get(bucket);
+                    double sumWeight = weightSum.get(bucket);
+                    double compensatedWeight = weightCompensations.get(bucket);
 
                     compensatedSumLat.reset(sumLat, compensationLat);
                     compensatedSumLon.reset(sumLon, compensationLon);
+                    compensatedSumWeight.reset(sumWeight, compensatedWeight);
 
                     // update the sum
                     for (int i = 0; i < valueCount; ++i) {
                         MultiGeoValues.GeoValue value = values.nextValue();
-                        //latitude
-                        compensatedSumLat.add(value.lat());
-                        //longitude
-                        compensatedSumLon.add(value.lon());
+                        int compares = DimensionalShapeType.COMPARATOR.compare(shapeType, value.dimensionalShapeType());
+                        if (compares < 0) {
+                            double coordinateWeight = value.weight();
+                            compensatedSumLat.reset(coordinateWeight * value.lat(), 0.0);
+                            compensatedSumLon.reset(coordinateWeight * value.lon(), 0.0);
+                            compensatedSumWeight.reset(coordinateWeight, 0.0);
+                            dimensionalShapeTypes.set(bucket, (byte) value.dimensionalShapeType().ordinal());
+                        } else if (compares == 0) {
+                            double coordinateWeight = value.weight();
+                            // weighted latitude
+                            compensatedSumLat.add(coordinateWeight * value.lat());
+                            // weighted longitude
+                            compensatedSumLon.add(coordinateWeight * value.lon());
+                            // weight
+                            compensatedSumWeight.add(coordinateWeight);
+                        }
+                        // else (compares > 0)
+                        //   do not modify centroid calculation since shape is of lower dimension than the running dimension
+
                     }
                     lonSum.set(bucket, compensatedSumLon.value());
                     lonCompensations.set(bucket, compensatedSumLon.delta());
                     latSum.set(bucket, compensatedSumLat.value());
                     latCompensations.set(bucket, compensatedSumLat.delta());
+                    weightSum.set(bucket, compensatedSumWeight.value());
+                    weightCompensations.set(bucket, compensatedSumWeight.delta());
                 }
             }
         };
@@ -117,8 +148,9 @@ final class GeoCentroidAggregator extends MetricsAggregator {
             return buildEmptyAggregation();
         }
         final long bucketCount = counts.get(bucket);
-        final GeoPoint bucketCentroid = (bucketCount > 0)
-            ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
+        final double bucketWeight = weightSum.get(bucket);
+        final GeoPoint bucketCentroid = (bucketWeight > 0)
+            ? new GeoPoint(latSum.get(bucket) / bucketWeight, lonSum.get(bucket) / bucketWeight)
             : null;
         return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metaData());
     }
@@ -130,6 +162,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(latSum, latCompensations, lonSum, lonCompensations, counts);
+        Releasables.close(latSum, latCompensations, lonSum, lonCompensations, counts, weightSum, weightCompensations,
+            dimensionalShapeTypes);
     }
 }

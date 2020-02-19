@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.inference.trainedmodels.langident;
 
-import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -16,22 +15,26 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LanguageExamples;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.closeTo;
-
+import static org.mockito.Mockito.mock;
 
 public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
 
     public void testLangInference() throws Exception {
-        TrainedModelConfig config = getLangIdentModel();
+        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
+        PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
+        // Should be OK as we don't make any client calls
+        trainedModelProvider.getTrainedModel("lang_ident_model_1", true, future);
+        TrainedModelConfig config = future.actionGet();
 
+        config.ensureParsedDefinition(xContentRegistry());
         TrainedModelDefinition trainedModelDefinition = config.getModelDefinition();
         List<LanguageExamples.LanguageExampleEntry> examples = new LanguageExamples().getLanguageExamples();
         ClassificationConfig classificationConfig = new ClassificationConfig(1);
@@ -50,19 +53,6 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
             double eps = entry.getLanguage().equals("hr") ? 0.001 : 0.00001;
             assertThat("mismatch probability for language " + cld3Actual,
                 singleValueInferenceResults.getTopClasses().get(0).getProbability(), closeTo(cld3Probability, eps));
-        }
-    }
-
-    private TrainedModelConfig getLangIdentModel() throws IOException {
-        String path = "/org/elasticsearch/xpack/ml/inference/persistence/lang_ident_model_1.json";
-        try(XContentParser parser =
-                XContentType.JSON.xContent().createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    Files.newInputStream(getDataPath(path)))) {
-            TrainedModelConfig config = TrainedModelConfig.fromXContent(parser, true).build();
-            config.ensureParsedDefinition(xContentRegistry());
-            return config;
         }
     }
 

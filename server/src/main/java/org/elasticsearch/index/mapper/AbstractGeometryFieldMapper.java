@@ -473,7 +473,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             if (fieldType().hasDocValues()) {
                 // doc values are generated from the indexed fields.
                 ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
-                for (int i =0; i < fields.size(); i++) {
+                for (int i = 0; i < fields.size(); i++) {
                     BytesRef bytesRef = fields.get(i).binaryValue();
                     assert bytesRef.length == 7 * Integer.BYTES;
                     System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);

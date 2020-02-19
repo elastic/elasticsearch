@@ -139,7 +139,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -200,7 +200,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -293,7 +293,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -416,7 +416,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             GetJobsStatsAction.Response statsResponse =
                     client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
             assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
-        });
+        }, 20, TimeUnit.SECONDS);
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
         client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
@@ -424,7 +426,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     private void run(String jobId, CheckedRunnable<Exception> disrupt) throws Exception {
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -435,7 +437,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         setupJobAndDatafeed(jobId, "data_feed_id", TimeValue.timeValueSeconds(1));
         waitForDatafeed(jobId, numDocs1);
 
-        client().admin().indices().prepareSyncedFlush().get();
+        client().admin().indices().prepareFlush().get();
 
         disrupt.run();
 

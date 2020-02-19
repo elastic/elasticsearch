@@ -212,9 +212,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testNestedFieldSimpleQueryString() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                         .startObject("properties")
                         .startObject("body").field("type", "text")
                         .startObject("fields")
@@ -569,7 +569,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     public void testLimitOnExpandedFields() throws Exception {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject("type1");
+        builder.startObject("_doc");
         builder.startObject("properties");
         for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT + 1; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
@@ -581,7 +581,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertAcked(prepareCreate("toomanyfields")
                 .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
                         CLUSTER_MAX_CLAUSE_COUNT + 100))
-                .addMapping("type1", builder));
+                .setMapping(builder));
 
         client().prepareIndex("toomanyfields").setId("1").setSource("field1", "foo bar baz").get();
         refresh();

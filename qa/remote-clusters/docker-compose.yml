@@ -1,0 +1,109 @@
+# Only used for testing the docker images
+version: '3.7'
+services:
+  elasticsearch-default-1:
+    image: elasticsearch:test
+    environment:
+       - node.name=elasticsearch-default-1
+       - cluster.initial_master_nodes=elasticsearch-default-1
+       - cluster.name=elasticsearch-default-1
+       - bootstrap.memory_lock=true
+       - network.publish_host=127.0.0.1
+       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+       - path.repo=/tmp/es-repo
+       - node.attr.testattr=test
+       - cluster.routing.allocation.disk.watermark.low=1b
+       - cluster.routing.allocation.disk.watermark.high=1b
+       - cluster.routing.allocation.disk.watermark.flood_stage=1b
+       - script.max_compilations_rate=2048/1m
+       - node.store.allow_mmap=false
+       - xpack.security.enabled=true
+       - xpack.security.transport.ssl.enabled=true
+       - xpack.security.http.ssl.enabled=true
+       - xpack.security.authc.token.enabled=true
+       - xpack.security.audit.enabled=true
+       - xpack.security.authc.realms.file.file1.order=0
+       - xpack.security.authc.realms.native.native1.order=1
+       - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
+       - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
+       - xpack.http.ssl.verification_mode=certificate
+       - xpack.security.transport.ssl.verification_mode=certificate
+       - xpack.license.self_generated.type=trial
+    volumes:
+       - ./build/repo:/tmp/es-repo
+       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
+       - ./build/logs/default-1:/usr/share/elasticsearch/logs
+       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
+    ports:
+      - "9200"
+      - "9300"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    entrypoint: /docker-test-entrypoint.sh
+    healthcheck:
+      start_period: 15s
+      test: ["CMD", "curl", "-f", "-u", "x_pack_rest_user:x-pack-test-password", "-k", "https://localhost:9200"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+  elasticsearch-default-2:
+    image: elasticsearch:test
+    environment:
+       - node.name=elasticsearch-default-2
+       - cluster.initial_master_nodes=elasticsearch-default-2
+       - cluster.name=elasticsearch-default-2
+       - bootstrap.memory_lock=true
+       - network.publish_host=127.0.0.1
+       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+       - path.repo=/tmp/es-repo
+       - node.attr.testattr=test
+       - cluster.routing.allocation.disk.watermark.low=1b
+       - cluster.routing.allocation.disk.watermark.high=1b
+       - cluster.routing.allocation.disk.watermark.flood_stage=1b
+       - script.max_compilations_rate=2048/1m
+       - node.store.allow_mmap=false
+       - xpack.security.enabled=true
+       - xpack.security.transport.ssl.enabled=true
+       - xpack.security.http.ssl.enabled=true
+       - xpack.security.authc.token.enabled=true
+       - xpack.security.audit.enabled=true
+       - xpack.security.authc.realms.file.file1.order=0
+       - xpack.security.authc.realms.native.native1.order=1
+       - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
+       - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
+       - xpack.http.ssl.verification_mode=certificate
+       - xpack.security.transport.ssl.verification_mode=certificate
+       - xpack.license.self_generated.type=trial
+    volumes:
+       - ./build/repo:/tmp/es-repo
+       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
+       - ./build/logs/default-2:/usr/share/elasticsearch/logs
+       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
+    ports:
+      - "9200"
+      - "9300"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    entrypoint: /docker-test-entrypoint.sh
+    healthcheck:
+      start_period: 15s
+      test: ["CMD", "curl", "-f", "-u", "x_pack_rest_user:x-pack-test-password", "-k", "https://localhost:9200"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+  haproxy:
+    image: haproxy:2.1.2
+    ports:
+      - "9600"
+    volumes:
+      - ./haproxy-default.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro

@@ -50,8 +50,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-
 /**
  * {@link Script} represents used-defined input that can be used to
  * compile and execute a script from the {@link ScriptService}
@@ -274,13 +272,24 @@ public final class Script implements ToXContentObject, Writeable {
     }
 
     /**
-     * Declare a script field on an {@link ObjectParser}.
+     * Declare a script field on an {@link ObjectParser} with the standard name ({@code script}).
      * @param <T> Whatever type the {@linkplain ObjectParser} is parsing.
      * @param parser the parser itself
      * @param consumer the consumer for the script
      */
     public static <T> void declareScript(AbstractObjectParser<T, ?> parser, BiConsumer<T, Script> consumer) {
-        parser.declareField(constructorArg(), (p, c) -> Script.parse(p), Script.SCRIPT_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
+        declareScript(parser, consumer, Script.SCRIPT_PARSE_FIELD);
+    }
+
+    /**
+     * Declare a script field on an {@link ObjectParser}.
+     * @param <T> Whatever type the {@linkplain ObjectParser} is parsing.
+     * @param parser the parser itself
+     * @param consumer the consumer for the script
+     * @param parseField the field name
+     */
+    public static <T> void declareScript(AbstractObjectParser<T, ?> parser, BiConsumer<T, Script> consumer, ParseField parseField) {
+        parser.declareField(consumer, (p, c) -> Script.parse(p), parseField, ValueType.OBJECT_OR_STRING);
     }
 
     /**

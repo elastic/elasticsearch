@@ -57,10 +57,10 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public void testDistanceSortingMVFields() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("locations").field("type", "geo_point");
         xContentBuilder.field("ignore_malformed", true).endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("names", "New York")
@@ -183,10 +183,10 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("locations").field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test").setId("1")
@@ -225,13 +225,13 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public void testDistanceSortingNestedFields() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("company").startObject("properties")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("name").field("type", "text").endObject().startObject("branches").field("type", "nested")
                 .startObject("properties").startObject("name").field("type", "text").endObject().startObject("location")
                 .field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject().endObject().endObject();
 
-        assertAcked(prepareCreate("companies").setSettings(settings).addMapping("company", xContentBuilder));
+        assertAcked(prepareCreate("companies").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         indexRandom(true,
@@ -384,13 +384,13 @@ public class GeoDistanceIT extends ESIntegTestCase {
         double lat = 40.720611;
         double lon = -73.998776;
 
-        XContentBuilder mapping = JsonXContent.contentBuilder().startObject().startObject("location").startObject("properties")
+        XContentBuilder mapping = JsonXContent.contentBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("pin").field("type", "geo_point");
         mapping.endObject().endObject().endObject().endObject();
 
         XContentBuilder source = JsonXContent.contentBuilder().startObject().field("pin", Geohash.stringEncode(lon, lat)).endObject();
 
-        assertAcked(prepareCreate("locations").setSettings(settings).addMapping("location", mapping));
+        assertAcked(prepareCreate("locations").setSettings(settings).setMapping(mapping));
         client().prepareIndex("locations").setId("1").setCreate(true).setSource(source).get();
         refresh();
         client().prepareGet("locations", "1").get();
@@ -402,10 +402,10 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testDistanceSortingWithUnmappedField() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("locations").field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test1").addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test1").setMapping(xContentBuilder));
         assertAcked(prepareCreate("test2"));
         ensureGreen();
 

@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractorTests;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractorTests;
-import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractorTests;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.sql.plugin.CursorTests;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
@@ -68,6 +69,6 @@ public class ScrollCursorTests extends AbstractSqlWireSerializingTestCase<Scroll
         if (randomBoolean()) {
             return super.copyInstance(instance, version);
         }
-        return (ScrollCursor) Cursors.decodeFromString(Cursors.encodeToString(instance, randomZone()));
+        return (ScrollCursor) CursorTests.decodeFromString(Cursors.encodeToString(instance, randomZone()));
     }
 }

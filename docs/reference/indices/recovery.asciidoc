@@ -77,7 +77,7 @@ This type of recovery is called a local store recovery.
 
 `SNAPSHOT`::
 The recovery is related to
-a <<restore-snapshot,snapshot restoration>>.
+a <<snapshots-restore-snapshot,snapshot restoration>>.
 
 `REPLICA`::
 The recovery is related to

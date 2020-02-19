@@ -29,8 +29,12 @@ experimental[]
 [[ml-get-inference-prereq]]
 ==== {api-prereq-title}
 
-* You must have `monitor_ml` privilege to use this API. For more information, 
-see <<security-privileges>> and <<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-get-inference-desc]]
@@ -71,6 +75,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=include-model-definition]
 (Optional, integer) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 
+`tags`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=tags]
 
 [[ml-get-inference-response-codes]]
 ==== {api-response-codes-title}

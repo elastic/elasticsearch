@@ -185,7 +185,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     protected SecureString nodeClientPassword() {
         return new SecureString(TEST_PASSWORD.toCharArray());
     }
-    
+
     public static void addSSLSettingsForNodePEMFiles(Settings.Builder builder, String prefix, boolean hostnameVerificationEnabled) {
         addSSLSettingsForPEMFiles(builder, prefix,
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",

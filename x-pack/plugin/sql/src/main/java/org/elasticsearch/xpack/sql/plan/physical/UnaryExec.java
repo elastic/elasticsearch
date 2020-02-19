@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.tree.Source;
-
-abstract class UnaryExec extends PhysicalPlan {
+public abstract class UnaryExec extends PhysicalPlan {
 
     private final PhysicalPlan child;
 
-    UnaryExec(Source source, PhysicalPlan child) {
+    protected UnaryExec(Source source, PhysicalPlan child) {
         super(source, Collections.singletonList(child));
         this.child = child;
     }
@@ -28,6 +28,7 @@ abstract class UnaryExec extends PhysicalPlan {
         }
         return replaceChild(newChildren.get(0));
     }
+
     protected abstract UnaryExec replaceChild(PhysicalPlan newChild);
 
     public PhysicalPlan child() {

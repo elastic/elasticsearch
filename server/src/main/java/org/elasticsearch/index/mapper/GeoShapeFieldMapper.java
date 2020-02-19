@@ -67,13 +67,22 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         public GeoShapeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), new Explicit<>(docValues, docValuesSet), context.indexSettings(),
+                ignoreZValue(), docValues(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
         public boolean defaultDocValues(Version indexCreated) {
             return Version.V_8_0_0.onOrBefore(indexCreated);
+        }
+
+        protected Explicit<Boolean> docValues() {
+            if (docValuesSet && fieldType.hasDocValues()) {
+                return new Explicit<>(true, true);
+            } else if (docValuesSet) {
+                return new Explicit<>(false, true);
+            }
+            return new Explicit<>(fieldType.hasDocValues(), false);
         }
 
         protected void setupFieldType(BuilderContext context) {

@@ -70,6 +70,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
+        public static final Explicit<Boolean> DOC_VALUES = new Explicit<>(false, false);
     }
 
 
@@ -116,21 +117,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
         protected Orientation orientation;
-        protected Boolean docValues;
 
         /** default builder - used for external mapper*/
         public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name, fieldType, defaultFieldType);
-        }
-
-        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                       boolean coerce, boolean ignoreMalformed, Orientation orientation, boolean ignoreZ, boolean docValues) {
-            super(name, fieldType, defaultFieldType);
-            this.coerce = coerce;
-            this.ignoreMalformed = ignoreMalformed;
-            this.orientation = orientation;
-            this.ignoreZValue = ignoreZ;
-            this.docValues = docValues;
         }
 
         public Builder coerce(boolean coerce) {
@@ -193,10 +183,12 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
 
         protected Explicit<Boolean> docValues() {
-            if (docValues != null) {
-                return new Explicit<>(docValues, true);
+            if (docValuesSet && fieldType.hasDocValues()) {
+                return new Explicit<>(true, true);
+            } else if (docValuesSet) {
+                return new Explicit<>(false, true);
             }
-            return new Explicit<>(defaultDocValues(Version.CURRENT), false);
+            return Defaults.DOC_VALUES;
         }
 
         @Override

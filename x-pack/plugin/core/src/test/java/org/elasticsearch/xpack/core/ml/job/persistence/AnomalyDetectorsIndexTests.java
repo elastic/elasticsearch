@@ -49,10 +49,14 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AnomalyDetectorsIndexTests extends ESTestCase {
+
+    private static final String ML_STATE = ".ml-state";
+    private static final String ML_STATE_WRITE_ALIAS = ".ml-state-write";
 
     private ThreadPool threadPool;
     private IndicesAdminClient indicesAdminClient;
@@ -69,9 +73,9 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
         indicesAdminClient = mock(IndicesAdminClient.class);
-        when(indicesAdminClient.prepareCreate(".ml-state"))
-            .thenReturn(new CreateIndexRequestBuilder(client, CreateIndexAction.INSTANCE, ".ml-state"));
-        doAnswer(withResponse(new CreateIndexResponse(true, true, ".ml-state"))).when(indicesAdminClient).create(any(), any());
+        when(indicesAdminClient.prepareCreate(ML_STATE))
+            .thenReturn(new CreateIndexRequestBuilder(client, CreateIndexAction.INSTANCE, ML_STATE));
+        doAnswer(withResponse(new CreateIndexResponse(true, true, ML_STATE))).when(indicesAdminClient).create(any(), any());
         when(indicesAdminClient.prepareAliases()).thenReturn(new IndicesAliasesRequestBuilder(client, IndicesAliasesAction.INSTANCE));
         doAnswer(withResponse(new AcknowledgedResponse(true))).when(indicesAdminClient).aliases(any(), any());
 
@@ -98,37 +102,35 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, finalListener);
 
         InOrder inOrder = inOrder(indicesAdminClient, finalListener);
-        inOrder.verify(indicesAdminClient).prepareCreate(".ml-state");
+        inOrder.verify(indicesAdminClient).prepareCreate(ML_STATE);
         inOrder.verify(indicesAdminClient).create(createRequestCaptor.capture(), any());
         inOrder.verify(finalListener).onResponse(true);
 
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
-        assertThat(createRequest.index(), equalTo(".ml-state"));
-        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(".ml-state-write"))));
+        assertThat(createRequest.index(), equalTo(ML_STATE));
+        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(ML_STATE_WRITE_ALIAS))));
     }
 
-    private void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExists(String indexName) {
+    private void assertNoClientInteractionsWhenWriteAliasAlreadyExists(String indexName) {
         ClusterState clusterState = createClusterState(Collections.singletonMap(indexName, createIndexMetaDataWithAlias(indexName)));
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, finalListener);
 
-        InOrder inOrder = inOrder(finalListener);
-        inOrder.verify(finalListener).onResponse(false);
+        verify(finalListener).onResponse(false);
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtInitialStateIndex() {
-        testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExists(".ml-state-000001");
+        assertNoClientInteractionsWhenWriteAliasAlreadyExists(".ml-state-000001");
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtSubsequentStateIndex() {
-        testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExists(".ml-state-000007");
+        assertNoClientInteractionsWhenWriteAliasAlreadyExists(".ml-state-000007");
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtDummyIndex() {
-        testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExists("dummy-index");
+        assertNoClientInteractionsWhenWriteAliasAlreadyExists("dummy-index");
     }
 
-    private void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExist(List<String> existingIndexNames,
-                                                                                String expectedWriteIndexName) {
+    private void assertMlStateWriteAliasAddedToMostRecentMlStateIndex(List<String> existingIndexNames, String expectedWriteIndexName) {
         ClusterState clusterState =
             createClusterState(
                 existingIndexNames.stream().collect(toMap(Function.identity(), AnomalyDetectorsIndexTests::createIndexMetaData)));
@@ -142,25 +144,22 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
         IndicesAliasesRequest indicesAliasesRequest = aliasesRequestCaptor.getValue();
         assertThat(
             indicesAliasesRequest.getAliasActions(),
-            contains(AliasActions.add().alias(".ml-state-write").index(expectedWriteIndexName)));
+            contains(AliasActions.add().alias(ML_STATE_WRITE_ALIAS).index(expectedWriteIndexName)));
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButInitialStateIndexExists() {
-        testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExist(
-            Arrays.asList(".ml-state-000001"),
-            ".ml-state-000001");
+        assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
+            Arrays.asList(".ml-state-000001"), ".ml-state-000001");
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButSubsequentStateIndicesExist() {
-        testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExist(
-            Arrays.asList(".ml-state-000003", ".ml-state-000040", ".ml-state-000500"),
-            ".ml-state-000500");
+        assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
+            Arrays.asList(".ml-state-000003", ".ml-state-000040", ".ml-state-000500"), ".ml-state-000500");
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButBothLegacyAndNewStateIndicesDoExist() {
-        testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExist(
-            Arrays.asList(".ml-state", ".ml-state-000003", ".ml-state-000040", ".ml-state-000500"),
-            ".ml-state-000500");
+        assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
+            Arrays.asList(ML_STATE, ".ml-state-000003", ".ml-state-000040", ".ml-state-000500"), ".ml-state-000500");
     }
 
     @SuppressWarnings("unchecked")
@@ -197,7 +196,7 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
         IndexMetaData.Builder builder = IndexMetaData.builder(indexName)
             .settings(settings);
         if (withAlias) {
-            builder.putAlias(AliasMetaData.builder(".ml-state-write").build());
+            builder.putAlias(AliasMetaData.builder(ML_STATE_WRITE_ALIAS).build());
         }
         return builder.build();
     }

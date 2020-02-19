@@ -46,8 +46,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
@@ -58,7 +56,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_alias"),
             new Route(GET, "/_aliases"),
             new Route(GET, "/_alias/{name}"),
@@ -66,7 +64,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             new Route(GET, "/{index}/_alias"),
             new Route(HEAD, "/{index}/_alias"),
             new Route(GET, "/{index}/_alias/{name}"),
-            new Route(HEAD, "/{index}/_alias/{name}")));
+            new Route(HEAD, "/{index}/_alias/{name}"));
     }
 
     @Override

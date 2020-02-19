@@ -15,17 +15,15 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_slm/policy"),
-            new Route(GET, "/_slm/policy/{name}")));
+            new Route(GET, "/_slm/policy/{name}"));
     }
 
     @Override

@@ -46,13 +46,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -85,9 +89,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -95,7 +99,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.DoubleConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -738,41 +741,56 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 )
             );
         }
-        assertNotNull(
+        for (DateFieldMapper.Resolution resolution : DateFieldMapper.Resolution.values()) {
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(new MatchAllDocsQuery()),
+                    mockAggregator(),
+                    mockDateValuesSourceConfig("number", true, resolution)
+                )
+            );
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(new TermQuery(new Term("foo", "bar"))),
+                    null,
+                    mockDateValuesSourceConfig("number", true, resolution)
+                )
+            );
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(null),
+                    mockAggregator(),
+                    mockDateValuesSourceConfig("number", true, resolution)
+                )
+            );
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(null),
+                    null,
+                    mockDateValuesSourceConfig("number", false, resolution)
+                )
+            );
+        }
+        // Check that we decode a dates "just like" the doc values instance.
+        Instant expected = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2020-01-01T00:00:00Z"));
+        byte[] scratch = new byte[8];
+        LongPoint.encodeDimension(DateFieldMapper.Resolution.MILLISECONDS.convert(expected), scratch, 0);
+        assertThat(
             MinAggregator.getPointReaderOrNull(
                 mockSearchContext(new MatchAllDocsQuery()),
                 null,
-                mockDateValuesSourceConfig("number", true)
-            )
+                mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.MILLISECONDS)
+            ).apply(scratch), equalTo(expected.toEpochMilli())
         );
-        assertNull(
+        LongPoint.encodeDimension(DateFieldMapper.Resolution.NANOSECONDS.convert(expected), scratch, 0);
+        assertThat(
             MinAggregator.getPointReaderOrNull(
                 mockSearchContext(new MatchAllDocsQuery()),
-                mockAggregator(),
-                mockDateValuesSourceConfig("number", true)
-            )
-        );
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(new TermQuery(new Term("foo", "bar"))),
                 null,
-                mockDateValuesSourceConfig("number", true)
-            )
+                mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.NANOSECONDS)
+            ).apply(scratch), equalTo(expected.toEpochMilli())
         );
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(null),
-                mockAggregator(),
-                mockDateValuesSourceConfig("number", true)
-            )
-        );
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(null),
-                null,
-                mockDateValuesSourceConfig("number", false)
-            )
-        );
+
     }
 
     public void testMinShortcutRandom() throws Exception {
@@ -795,21 +813,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
             () -> randomDouble(),
             (n) -> new DoublePoint("number", n.doubleValue()),
             (v) -> DoublePoint.decodeDimension(v, 0));
-    }
-
-    private void testMinCase(IndexSearcher searcher,
-                                AggregationBuilder aggregationBuilder,
-                                MappedFieldType ft,
-                                DoubleConsumer testResult) throws IOException {
-        Collection<Query> queries = Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery(ft.name()));
-        for (Query query : queries) {
-            MinAggregator aggregator = createAggregator(query, aggregationBuilder, searcher, createIndexSettings(), ft);
-            aggregator.preCollection();
-            searcher.search(new MatchAllDocsQuery(), aggregator);
-            aggregator.postCollection();
-            InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
-            testResult.accept(result.getValue());
-        }
     }
 
     private void testMinShortcutCase(Supplier<Number> randomNumber,
@@ -887,12 +890,17 @@ public class MinAggregatorTests extends AggregatorTestCase {
         return config;
     }
 
-    private ValuesSourceConfig mockDateValuesSourceConfig(String fieldName, boolean indexed) {
+    private ValuesSourceConfig mockDateValuesSourceConfig(String fieldName, boolean indexed,
+            DateFieldMapper.Resolution resolution) {
         ValuesSourceConfig config = mock(ValuesSourceConfig.class);
-        MappedFieldType ft = new DateFieldMapper.Builder(fieldName).fieldType();
-        ft.setName(fieldName);
-        ft.setIndexOptions(indexed ? IndexOptions.DOCS : IndexOptions.NONE);
-        ft.freeze();
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
+                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(),
+                new ContentPath());
+        MappedFieldType ft = new DateFieldMapper.Builder(fieldName)
+                .index(indexed)
+                .withResolution(resolution)
+                .build(builderContext)
+                .fieldType();
         when(config.fieldContext()).thenReturn(new FieldContext(fieldName, null, ft));
         return config;
     }

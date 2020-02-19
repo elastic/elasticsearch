@@ -51,7 +51,11 @@ public class TransformInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState
+        );
         boolean available = randomBoolean();
         when(licenseState.isTransformAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -62,13 +66,21 @@ public class TransformInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.transform.enabled", enabled);
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings.build(),
+            licenseState
+        );
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState
+        );
         assertTrue(featureSet.enabled());
     }
 
@@ -77,8 +89,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
         SearchResponse withEmptyAggs = mock(SearchResponse.class);
         when(withEmptyAggs.getAggregations()).thenReturn(emptyAggs);
 
-        assertThat(TransformInfoTransportAction.parseSearchAggs(withEmptyAggs),
-            equalTo(new TransformIndexerStats()));
+        assertThat(TransformInfoTransportAction.parseSearchAggs(withEmptyAggs), equalTo(new TransformIndexerStats()));
 
         TransformIndexerStats expectedStats = new TransformIndexerStats(
             1,  // numPages
@@ -90,12 +101,16 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             7,  // indexTotal
             8,  // searchTotal
             9,  // indexFailures
-            10); // searchFailures
+            10, // searchFailures
+            11.0,  // exponential_avg_checkpoint_duration_ms
+            12.0,  // exponential_avg_documents_indexed
+            13.0   // exponential_avg_documents_processed
+        );
 
         int currentStat = 1;
         List<Aggregation> aggs = new ArrayList<>(PROVIDED_STATS.length);
         for (String statName : PROVIDED_STATS) {
-            aggs.add(buildAgg(statName, (double) currentStat++));
+            aggs.add(buildAgg(statName, currentStat++));
         }
         Aggregations aggregations = new Aggregations(aggs);
         SearchResponse withAggs = mock(SearchResponse.class);
@@ -115,8 +130,16 @@ public class TransformInfoTransportActionTests extends ESTestCase {
         when(licenseState.isTransformAllowed()).thenReturn(true);
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.transform.enabled", false);
-        var usageAction = new TransformUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, settings.build(), licenseState, mock(Client.class));
+        var usageAction = new TransformUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            null,
+            mock(ActionFilters.class),
+            null,
+            settings.build(),
+            licenseState,
+            mock(Client.class)
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, mock(ClusterState.class), future);
         XPackFeatureSet.Usage usage = future.get().getUsage();

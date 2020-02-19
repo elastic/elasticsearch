@@ -31,12 +31,15 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.util.List;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so
@@ -62,7 +65,11 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-            boolean transpositions) {
+            boolean transpositions, QueryShardContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[fuzzy] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
         failIfNotIndexed();
         return new FuzzyQuery(new Term(name(), indexedValueForSearch(value)),
                 fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
@@ -70,6 +77,11 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
+                    "fields please enable [index_prefixes].");
+        }
         failIfNotIndexed();
         PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
         if (method != null) {
@@ -84,6 +96,11 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
             return termQuery;
         }
+
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
         Term term = MappedFieldType.extractTerm(termQuery);
 
         WildcardQuery query = new WildcardQuery(term);
@@ -94,6 +111,10 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
             MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[regexp] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
         failIfNotIndexed();
         RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
         if (method != null) {
@@ -104,6 +125,10 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[range] queries on [text] or [keyword] fields cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
         failIfNotIndexed();
         return new TermRangeQuery(name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),

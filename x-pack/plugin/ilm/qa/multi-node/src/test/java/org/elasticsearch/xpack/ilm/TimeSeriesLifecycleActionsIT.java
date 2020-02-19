@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -1565,6 +1566,51 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse("expected " + index + " to be deleted by ILM", indexExists(index)));
     }
 
+    public void testSearchableSnapshotAction() throws Exception {
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        Request request = new Request("PUT", "/_snapshot/" + snapshotRepo);
+        String location = System.getProperty("tests.path.repo") + "/" + randomAlphaOfLengthBetween(4, 10);
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                //random location to avoid clash with other snapshots
+                .field("location", location)
+                .field("max_snapshot_bytes_per_sec", "100m")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+        String searchableSnapshotRepo = createSearchableSnapshotRepo(location);
+
+        createNewSingletonPolicy("cold", new SearchableSnapshotAction(snapshotRepo, searchableSnapshotRepo));
+
+        createIndexWithSettings(index,
+            Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            randomBoolean());
+
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        try {
+            assertTrue(waitUntil(() -> {
+                try {
+                    return indexExists(restoredIndexName);
+                } catch (IOException e) {
+                    return false;
+                }
+            }, 30, TimeUnit.SECONDS));
+        } catch (Throwable e) {
+            System.out.println(explainIndex(index));
+            System.out.println(explainIndex(restoredIndexName));
+            throw e;
+        }
+        assertBusy(() -> assertThat(explainIndex(restoredIndexName).get("step"),
+            is(PhaseCompleteStep.NAME)), 30, TimeUnit.SECONDS);
+    }
+
     // This method should be called inside an assertBusy, it has no retry logic of its own
     private void assertHistoryIsPresent(String policyName, String indexName, boolean success, String stepName) throws IOException {
         assertHistoryIsPresent(policyName, indexName, success, null, null, stepName);
@@ -1845,6 +1891,25 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 //random location to avoid clash with other snapshots
                 .field("location", System.getProperty("tests.path.repo")+ "/" + randomAlphaOfLengthBetween(4, 10))
                 .field("max_snapshot_bytes_per_sec", "100m")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+        return repo;
+    }
+
+    private String createSearchableSnapshotRepo(String delegateRepoLocation) throws IOException {
+        String repo = randomAlphaOfLengthBetween(4, 10);
+        Request request = new Request("PUT", "/_snapshot/" + repo);
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "searchable")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                //random location to avoid clash with other snapshots
+                .field("location", delegateRepoLocation)
+                .field("max_snapshot_bytes_per_sec", "100m")
+                .field("delegate_type", "fs")
                 .endObject()
                 .endObject()));
         assertOK(client().performRequest(request));

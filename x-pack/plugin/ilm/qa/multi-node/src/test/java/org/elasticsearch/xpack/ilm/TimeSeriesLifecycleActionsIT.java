@@ -230,19 +230,18 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testRetryFreezeDeleteAction() throws Exception {
-        createIndexWithSettings(index, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-
         createNewSingletonPolicy("cold", new FreezeAction());
 
-        Request request = new Request("PUT", index + "/_settings");
-        request.setJsonEntity("{\"index.blocks.read_only\": true, \"index.lifecycle.name\": \"" + policy + "\"}");
-        assertOK(client().performRequest(request));
+        createIndexWithSettings(index, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_READ_ONLY, true)
+            .put("index.lifecycle.name", policy));
 
         assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(FreezeStep.NAME)));
         assertFalse(getOnlyIndexSettings(index).containsKey("index.frozen"));
 
+        Request request = new Request("PUT", index + "/_settings");
         request.setJsonEntity("{\"index.blocks.read_only\":false}");
         assertOK(client().performRequest(request));
 

@@ -28,7 +28,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.Requests.restoreSnapshotRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -39,7 +38,7 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_snapshot/{repository}/{snapshot}/_restore"));
+        return List.of(new Route(POST, "/_snapshot/{repository}/{snapshot}/_restore"));
     }
 
     @Override

@@ -21,8 +21,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestWatcherStatsAction extends BaseRestHandler {
@@ -31,9 +29,9 @@ public class RestWatcherStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_watcher/stats"),
-            new Route(GET, "/_watcher/stats/{metric}")));
+            new Route(GET, "/_watcher/stats/{metric}"));
     }
 
     @Override

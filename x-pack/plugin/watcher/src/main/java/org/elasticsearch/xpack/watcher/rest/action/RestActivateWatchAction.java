@@ -22,8 +22,6 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -34,9 +32,9 @@ public class RestActivateWatchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_watcher/watch/{id}/_activate"),
-            new Route(PUT, "/_watcher/watch/{id}/_activate")));
+            new Route(PUT, "/_watcher/watch/{id}/_activate"));
     }
 
     @Override
@@ -63,9 +61,9 @@ public class RestActivateWatchAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
+            return List.of(
                 new Route(POST, "/_watcher/watch/{id}/_deactivate"),
-                new Route(PUT, "/_watcher/watch/{id}/_deactivate")));
+                new Route(PUT, "/_watcher/watch/{id}/_deactivate"));
         }
 
         @Override

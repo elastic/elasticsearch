@@ -39,17 +39,15 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSegmentsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cat/segments"),
-            new Route(GET, "/_cat/segments/{index}")));
+            new Route(GET, "/_cat/segments/{index}"));
     }
 
     @Override

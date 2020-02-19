@@ -182,7 +182,7 @@ image:images/sql/odbc/dsn_editor_security_cert.png[]
 
 [float]
 ===== 2.4 Connection parameters
-The connection configuration can further be tweaked by the following parameters, but these should only need to be changed in rare cases.
+The connection configuration can further be tweaked by the following parameters.
 
 * Request timeout (s)
 +
@@ -372,7 +372,7 @@ values are:
 preferred encoding, given its more compact format.
 
 * `JSON`: use the JavaScript Object Notation format. This format is more
-verbose, but easier to read, handful in debugging cases.
+verbose, but easier to read, useful in debugging cases.
 
 
 `Compression` (default: `auto`)::

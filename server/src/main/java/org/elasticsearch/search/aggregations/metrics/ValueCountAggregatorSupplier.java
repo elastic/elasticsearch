@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public interface ValueCountAggregationSupplier extends AggregatorSupplier {
+public interface ValueCountAggregatorSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      ValuesSource valuesSource,
                      SearchContext aggregationContext,

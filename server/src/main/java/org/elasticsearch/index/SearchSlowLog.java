@@ -213,16 +213,18 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
             sb.append("search_type[").append(context.searchType()).append("], total_shards[")
                 .append(context.numberOfShards()).append("], ");
-            if (context.request().source() != null) {
-                sb.append("source[").append(context.request().source().toString(FORMAT_PARAMS)).append("], ");
-            } else {
-                sb.append("source[], ");
-            }
             if (context.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
                 sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("], ");
             } else {
                 sb.append("id[], ");
             }
+            if (context.request().source() != null) {
+                sb.append("source[").append(context.request().source().toString(FORMAT_PARAMS)).append("], ");
+            } else {
+                sb.append("source[], ");
+            }
+            // Any field added in the future should add before `source`
+            // to avoid being truncated when the query source body is too long
             return sb.toString();
         }
 

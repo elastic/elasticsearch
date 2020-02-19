@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -61,12 +62,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
@@ -87,52 +87,6 @@ public final class Verifier {
 
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
-    }
-
-    static class Failure {
-        private final Node<?> node;
-        private final String message;
-
-        Failure(Node<?> node, String message) {
-            this.node = node;
-            this.message = message;
-        }
-
-        Node<?> node() {
-            return node;
-        }
-
-        String message() {
-            return message;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(node);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-
-            Verifier.Failure other = (Verifier.Failure) obj;
-            return Objects.equals(node, other.node);
-        }
-
-        @Override
-        public String toString() {
-            return message;
-        }
-    }
-
-    private static Failure fail(Node<?> source, String message, Object... args) {
-        return new Failure(source, format(message, args));
     }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
@@ -707,7 +661,7 @@ public final class Verifier {
             Filter filter = (Filter) p;
             if ((filter.child() instanceof Aggregate) == false) {
                 filter.condition().forEachDown(e -> {
-                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e)) == true) {
+                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
                         localFailures.add(
                                 fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead", Expressions.name(e)));
                     }

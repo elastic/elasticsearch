@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.singleton;
 
@@ -44,16 +43,6 @@ public final class STry extends AStatement {
 
         this.block = block;
         this.catches = Collections.unmodifiableList(catches);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        if (block != null) {
-            block.extractVariables(variables);
-        }
-        for (SCatch expr : catches) {
-            expr.extractVariables(variables);
-        }
     }
 
     @Override

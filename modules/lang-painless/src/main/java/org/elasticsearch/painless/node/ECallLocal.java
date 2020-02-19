@@ -19,10 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.UnboundCallNode;
+import org.elasticsearch.painless.ir.MemberCallNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -34,7 +34,6 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a user-defined call.
@@ -56,13 +55,6 @@ public final class ECallLocal extends AExpression {
 
         this.name = Objects.requireNonNull(name);
         this.arguments = Objects.requireNonNull(arguments);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
     }
 
     @Override
@@ -158,23 +150,23 @@ public final class ECallLocal extends AExpression {
     }
 
     @Override
-    UnboundCallNode write(ClassNode classNode) {
-        UnboundCallNode unboundCallNode = new UnboundCallNode();
+    MemberCallNode write(ClassNode classNode) {
+        MemberCallNode memberCallNode = new MemberCallNode();
 
         for (AExpression argument : arguments) {
-            unboundCallNode.addArgumentNode(argument.write(classNode));
+            memberCallNode.addArgumentNode(argument.write(classNode));
         }
 
-        unboundCallNode.setLocation(location);
-        unboundCallNode.setExpressionType(actual);
-        unboundCallNode.setLocalFunction(localFunction);
-        unboundCallNode.setImportedMethod(importedMethod);
-        unboundCallNode.setClassBinding(classBinding);
-        unboundCallNode.setClassBindingOffset(classBindingOffset);
-        unboundCallNode.setBindingName(bindingName);
-        unboundCallNode.setInstanceBinding(instanceBinding);
+        memberCallNode.setLocation(location);
+        memberCallNode.setExpressionType(actual);
+        memberCallNode.setLocalFunction(localFunction);
+        memberCallNode.setImportedMethod(importedMethod);
+        memberCallNode.setClassBinding(classBinding);
+        memberCallNode.setClassBindingOffset(classBindingOffset);
+        memberCallNode.setBindingName(bindingName);
+        memberCallNode.setInstanceBinding(instanceBinding);
 
-        return unboundCallNode;
+        return memberCallNode;
     }
 
     @Override

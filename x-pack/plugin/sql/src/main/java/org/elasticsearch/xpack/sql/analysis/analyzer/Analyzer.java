@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -45,7 +46,6 @@ import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
@@ -341,6 +341,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
                     AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
+
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
@@ -618,7 +619,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 for (Order or : o.order()) {
                     maybeResolved.add(or.resolved() ? or : tryResolveExpression(or, child));
                 }
-                
+
                 Stream<Order> referencesStream = maybeResolved.stream()
                         .filter(Expression::resolved);
 
@@ -629,7 +630,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // a + 1 in SELECT is actually Alias("a + 1", a + 1) and translates to ReferenceAttribute
                 // in the output. However it won't match the unnamed a + 1 despite being the same expression
                 // so explicitly compare the source
-                
+
                 // if there's a match, remove the item from the reference stream
                 if (Expressions.hasReferenceAttribute(child.outputSet())) {
                     final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
@@ -720,6 +721,18 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
+            // Try to resolve aggregates and groupings based on the child plan
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                LogicalPlan child = a.child();
+                List<Expression> newGroupings = new ArrayList<>(a.groupings().size());
+                a.groupings().forEach(e -> newGroupings.add(tryResolveExpression(e, child)));
+                List<NamedExpression> newAggregates = new ArrayList<>(a.aggregates().size());
+                a.aggregates().forEach(e -> newAggregates.add(tryResolveExpression(e, child)));
+                if (newAggregates.equals(a.aggregates()) == false || newGroupings.equals(a.groupings()) == false) {
+                    return new Aggregate(a.source(), child, newGroupings, newAggregates);
+                }
+            }
             return plan;
         }
 
@@ -812,7 +825,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (p.child() instanceof Filter) {
                     Filter f = (Filter) p.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
                         if (newCondition != condition) {
                             return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
@@ -826,7 +839,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (a.child() instanceof Filter) {
                     Filter f = (Filter) a.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
                         if (newCondition != condition) {
                             return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
@@ -998,7 +1011,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (n.foldable() == false && Functions.isAggregate(n) == false
                             // folding might not work (it might wait for the optimizer)
                             // so check whether any column is referenced
-                            && n.anyMatch(e -> e instanceof FieldAttribute) == true) {
+                            && n.anyMatch(e -> e instanceof FieldAttribute)) {
                         return f;
                     }
                 }

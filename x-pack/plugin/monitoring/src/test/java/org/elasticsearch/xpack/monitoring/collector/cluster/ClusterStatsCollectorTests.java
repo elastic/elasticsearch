@@ -131,6 +131,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
                 case STANDARD:
                 case GOLD:
                 case PLATINUM:
+                case ENTERPRISE:
                     transportTLSEnabled = true;
                     break;
                 default:
@@ -161,14 +162,15 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
 
         final License license = License.builder()
-                                        .uid(UUID.randomUUID().toString())
-                                        .type(mode.name().toLowerCase(Locale.ROOT))
-                                        .issuer("elasticsearch")
-                                        .issuedTo("elastic")
-                                        .issueDate(System.currentTimeMillis())
-                                        .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(24L).getMillis())
-                                        .maxNodes(2)
-                                        .build();
+                .uid(UUID.randomUUID().toString())
+                .type(mode.name().toLowerCase(Locale.ROOT))
+                .issuer("elasticsearch")
+                .issuedTo("elastic")
+                .issueDate(System.currentTimeMillis())
+                .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(24L).getMillis())
+                .maxNodes(License.OperationMode.ENTERPRISE == mode ? -1 : randomIntBetween(1, 10))
+                .maxResourceUnits(License.OperationMode.ENTERPRISE == mode ? randomIntBetween(10, 99) : -1)
+                .build();
         when(licenseService.getLicense()).thenReturn(license);
 
         final ClusterStatsResponse mockClusterStatsResponse = mock(ClusterStatsResponse.class);
@@ -259,5 +261,65 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         verify(licenseService, times(1)).getLicense();
         verify(clusterAdminClient).prepareClusterStats();
         verify(client).execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class));
+    }
+
+    public void testDoCollectNoLicense() throws Exception {
+        final TimeValue timeout;
+        {
+            final String clusterName = randomAlphaOfLength(10);
+            whenClusterStateWithName(clusterName);
+            final String clusterUUID = UUID.randomUUID().toString();
+            whenClusterStateWithUUID(clusterUUID);
+            timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+            withCollectionTimeout(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT, timeout);
+        }
+        final IndexNameExpressionResolver indexNameExpressionResolver;
+        {
+            indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+            when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*"))
+                .thenReturn(new Index[0]);
+        }
+
+        final Client client = mock(Client.class);
+        {
+            final ClusterStatsResponse mockClusterStatsResponse = mock(ClusterStatsResponse.class);
+            final ClusterHealthStatus clusterStatus = randomFrom(ClusterHealthStatus.values());
+            when(mockClusterStatsResponse.getStatus()).thenReturn(clusterStatus);
+            when(mockClusterStatsResponse.getNodesStats()).thenReturn(mock(ClusterStatsNodes.class));
+
+            final ClusterStatsIndices mockClusterStatsIndices = mock(ClusterStatsIndices.class);
+
+            when(mockClusterStatsIndices.getIndexCount()).thenReturn(0);
+            when(mockClusterStatsResponse.getIndicesStats()).thenReturn(mockClusterStatsIndices);
+
+            final ClusterStatsRequestBuilder clusterStatsRequestBuilder = mock(ClusterStatsRequestBuilder.class);
+            when(clusterStatsRequestBuilder.get(eq(timeout))).thenReturn(mockClusterStatsResponse);
+
+            final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
+            when(clusterAdminClient.prepareClusterStats()).thenReturn(clusterStatsRequestBuilder);
+
+            final AdminClient adminClient = mock(AdminClient.class);
+            when(adminClient.cluster()).thenReturn(clusterAdminClient);
+            when(client.admin()).thenReturn(adminClient);
+
+            final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(
+                singletonList(new MonitoringFeatureSetUsage(true, true, false, null)));
+            @SuppressWarnings("unchecked")
+            final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);
+            when(client.execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class))).thenReturn(xPackUsageFuture);
+            when(xPackUsageFuture.actionGet()).thenReturn(xPackUsageResponse);
+        }
+
+        final long interval = randomNonNegativeLong();
+        final Settings.Builder settings = Settings.builder();
+        final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
+
+        final ClusterStatsCollector collector =
+            new ClusterStatsCollector(settings.build(), clusterService, licenseState,
+                client, licenseService, indexNameExpressionResolver);
+        final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
+        assertEquals(1, results.size());
+        final ClusterStatsMonitoringDoc doc = (ClusterStatsMonitoringDoc) results.iterator().next();
+        assertThat(doc.getLicense(), nullValue());
     }
 }

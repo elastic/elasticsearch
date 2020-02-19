@@ -36,9 +36,7 @@ import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
@@ -208,13 +206,12 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return The ScriptRoot used to compile
      */
-    ScriptRoot compile(Loader loader, Set<String> extractedVariables, String name, String source,
-            CompilerSettings settings) {
+    ScriptRoot compile(Loader loader, String name, String source, CompilerSettings settings) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
-        root.extractVariables(extractedVariables);
         ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
         ClassNode classNode = root.writeClass();
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
         Map<String, Object> statics = classNode.write();
 
         try {
@@ -243,11 +240,10 @@ final class Compiler {
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup,
-                debugStream);
-        root.extractVariables(new HashSet<>());
-        root.analyze(painlessLookup, settings);
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, debugStream);
+        ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
         ClassNode classNode = root.writeClass();
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
         classNode.write();
 
         return classNode.getBytes();

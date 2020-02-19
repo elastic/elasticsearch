@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;

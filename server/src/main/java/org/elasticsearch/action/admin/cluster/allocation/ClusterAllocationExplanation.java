@@ -133,7 +133,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         return this.clusterInfo;
     }
 
-    /** \
+    /**
      * Returns the shard allocation decision for attempting to assign or move the shard.
      */
     public ShardAllocationDecision getShardAllocationDecision() {

@@ -46,6 +46,12 @@ dependencies {
 
   // TOML parser for EqlActionIT tests
   testCompile 'io.ous:jtoml:2.0.0'
+
+  // JSON parser for tests input data
+  testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+
 }
 
 

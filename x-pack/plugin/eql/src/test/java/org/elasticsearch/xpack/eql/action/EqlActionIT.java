@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.eql.action;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -15,14 +17,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.junit.BeforeClass;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EqlActionIT extends AbstractEqlIntegTestCase {
@@ -35,27 +32,18 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
     public void testEqlSearchAction() throws Exception {
         final String indexPrefix = "endgame";
         final String testIndexName = indexPrefix + "-1.4.0";
-        final String testIndexPattern = indexPrefix + "-*";
-
-        String endgame = copyToStringFromClasspath("/endgame.json");
-        endgame = endgame.replace("[index_pattern_placeholder]", testIndexPattern);
-
-        assertAcked(client().admin().indices().preparePutTemplate(testIndexName)
-            .setSource(endgame.getBytes(StandardCharsets.UTF_8), XContentType.JSON).get());
 
         // Insert test data
-        InputStream is = EqlActionIT.class.getResourceAsStream("/endgame.ndjson");
+        ObjectMapper mapper = new ObjectMapper();
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        try (BufferedReader reader = new BufferedReader(
-            new InputStreamReader(is, StandardCharsets.UTF_8))) {
-
-            String line;
-            while ((line = reader.readLine()) != null) {
-                bulkBuilder.add(new IndexRequest(testIndexName).source(line.trim(), XContentType.JSON));
-            }
-            BulkResponse response = bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-            assertThat(response.hasFailures() ? response.buildFailureMessage() : "", response.hasFailures(), equalTo(false));
+        JsonNode rootNode = mapper.readTree(this.getClass().getResourceAsStream("/test_data.json"));
+        Iterator<JsonNode> entries = rootNode.elements();
+        while (entries.hasNext()) {
+            JsonNode entry = entries.next();
+            bulkBuilder.add(new IndexRequest(testIndexName).source(entry.toString(), XContentType.JSON));
         }
+        BulkResponse bulkResponse = bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertThat(bulkResponse.hasFailures() ? bulkResponse.buildFailureMessage() : "", bulkResponse.hasFailures(), equalTo(false));
 
         ensureYellow(testIndexName);
 

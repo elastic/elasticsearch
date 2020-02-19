@@ -248,7 +248,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             // When a read_only_allow_delete block is set on the index,
             // it will trigger a retry policy in the delete by query request because the rest status of the block is 429
             enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
-            if (diskAllocationDeciderEnabled == true) {
+            if (diskAllocationDeciderEnabled) {
                 InternalTestCluster internalTestCluster = internalCluster();
                 InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster
                     .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
@@ -272,7 +272,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                 setDiskAllocationDeciderEnabled(true);
             }
         }
-        if (diskAllocationDeciderEnabled == true) {
+        if (diskAllocationDeciderEnabled) {
             assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
         } else {
             assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
@@ -370,8 +370,10 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
     /** Enables or disables the cluster disk allocation decider **/
     private void setDiskAllocationDeciderEnabled(boolean value) {
-        Settings settings = value ? Settings.builder().putNull(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()).build() :
-            Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), value).build();
+        Settings settings = value ? Settings.builder().putNull(
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()).build() :
+            Settings.builder().put(
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), value).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
     }
 }

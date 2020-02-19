@@ -39,19 +39,17 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_stats"),
             new Route(GET, "/_stats/{metric}"),
             new Route(GET, "/{index}/_stats"),
-            new Route(GET, "/{index}/_stats/{metric}")));
+            new Route(GET, "/{index}/_stats/{metric}"));
     }
 
     @Override

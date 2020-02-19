@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -31,6 +32,51 @@ public final class Aggregations {
     public static final String LONG = "long";
     public static final String GEO_SHAPE = "geo_shape";
     public static final String GEO_POINT = "geo_point";
+
+    /*
+     * List of currently unsupported aggregations (not group_by) in transform.
+     *
+     * The only purpose of this list is to track which aggregations should be added to transform and assert if new
+     * aggregations are added.
+     *
+     * Created a new aggs?
+     *
+     * Please add it to the list (sorted) together with a comment containing a link to the created github issue.
+     */
+    private static final List<String> UNSUPPORTED_AGGS = Arrays.asList(
+        "adjacency_matrix",
+        "auto_date_histogram",
+        "boxplot", // https://github.com/elastic/elasticsearch/issues/52189
+        "composite", // DONT because it makes no sense
+        "date_histogram",
+        "date_range",
+        "diversified_sampler",
+        "extended_stats", // https://github.com/elastic/elasticsearch/issues/51925
+        "filter", // https://github.com/elastic/elasticsearch/issues/52151
+        "filters",
+        "geo_distance",
+        "geohash_grid",
+        "geotile_grid",
+        "global",
+        "histogram",
+        "ip_range",
+        "matrix_stats",
+        "median_absolute_deviation",
+        "missing",
+        "nested",
+        "percentile_ranks",
+        "range",
+        "rare_terms",
+        "reverse_nested",
+        "sampler",
+        "significant_terms", // https://github.com/elastic/elasticsearch/issues/51073
+        "significant_text",
+        "stats", // https://github.com/elastic/elasticsearch/issues/51925
+        "string_stats", // https://github.com/elastic/elasticsearch/issues/51925
+        "terms", // https://github.com/elastic/elasticsearch/issues/51073
+        "top_hits",
+        "top_metrics" // https://github.com/elastic/elasticsearch/issues/52236
+    );
 
     private Aggregations() {}
 
@@ -79,8 +125,17 @@ public final class Aggregations {
         .map(AggregationType::name)
         .collect(Collectors.toSet());
 
+    private static Set<String> aggregationsNotSupported = UNSUPPORTED_AGGS.stream()
+        .map(agg -> agg.toUpperCase(Locale.ROOT))
+        .collect(Collectors.toSet());
+
     public static boolean isSupportedByTransform(String aggregationType) {
         return aggregationSupported.contains(aggregationType.toUpperCase(Locale.ROOT));
+    }
+
+    // only for testing
+    static boolean isUnSupportedByTransform(String aggregationType) {
+        return aggregationsNotSupported.contains(aggregationType.toUpperCase(Locale.ROOT));
     }
 
     public static boolean isDynamicMapping(String targetMapping) {

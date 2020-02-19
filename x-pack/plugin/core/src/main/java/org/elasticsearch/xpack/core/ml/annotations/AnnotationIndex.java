@@ -61,11 +61,13 @@ public class AnnotationIndex {
             // Create the annotations index if it doesn't exist already.
             if (mlLookup.containsKey(INDEX_NAME) == false) {
 
-                CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
-                createIndexRequest.mapping(SINGLE_MAPPING_NAME, annotationsMapping(), XContentType.JSON);
-                createIndexRequest.settings(Settings.builder()
-                    .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1"));
+                CreateIndexRequest createIndexRequest =
+                    new CreateIndexRequest(INDEX_NAME)
+                        .mapping(SINGLE_MAPPING_NAME, annotationsMapping(), XContentType.JSON)
+                        .settings(Settings.builder()
+                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                            .put(IndexMetaData.SETTING_INDEX_HIDDEN, true));
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(

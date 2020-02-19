@@ -389,7 +389,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 // ignore invalid metadata blob names, which most likely have been created externally
                 continue;
             }
-            if (false == allDataBlobs.containsKey(blobNameAndMetaId.v1()) && blobNameAndMetaId.v2().repositoryGeneration < latestKnownRepoGen.get()) {
+            if (false == allDataBlobs.containsKey(blobNameAndMetaId.v1()) &&
+                    blobNameAndMetaId.v2().repositoryGeneration < latestKnownRepoGen.get()) {
                 // the data blob for this metadata blob is not going to appear, the repo moved to a new generation, which means that a
                 // "parent" blob of it appeared
                 metadataBlobsToDelete.add(blobNameAndMetaId.v1());

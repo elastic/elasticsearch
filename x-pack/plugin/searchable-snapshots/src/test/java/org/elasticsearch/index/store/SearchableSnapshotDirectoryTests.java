@@ -32,6 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -341,7 +342,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final PlainActionFuture<String> future = PlainActionFuture.newFuture();
                 threadPool.generic().submit(() -> {
                     IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                    repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, true, emptyMap(), future);
+                    repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, Version.CURRENT, emptyMap(),
+                        future);
                     future.actionGet();
                 });
                 future.actionGet();

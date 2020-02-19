@@ -19,9 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
-
 import java.lang.reflect.Method;
 
 /**
@@ -71,13 +68,8 @@ public final class ScriptContext<FactoryType> {
     /** A class that is an instance of a script. */
     public final Class<?> instanceClazz;
 
-    public final int cacheSizeDefault;
-    public final TimeValue cacheExpireDefault;
-    public final Tuple<Integer, TimeValue> maxCompilationRateDefault;
-
     /** Construct a context with the related instance and compiled classes. */
-    public ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
-            Tuple<Integer, TimeValue> maxCompilationRateDefault) {
+    public ScriptContext(String name, Class<FactoryType> factoryClazz) {
         this.name = name;
         this.factoryClazz = factoryClazz;
         Method newInstanceMethod = findMethod("FactoryType", factoryClazz, "newInstance");
@@ -98,14 +90,6 @@ public final class ScriptContext<FactoryType> {
                 + factoryClazz.getName() + "] for script context [" + name + "]");
         }
         instanceClazz = newInstanceMethod.getReturnType();
-
-        this.cacheSizeDefault = cacheSizeDefault;
-        this.cacheExpireDefault = cacheExpireDefault;
-        this.maxCompilationRateDefault = maxCompilationRateDefault;
-    }
-
-    public ScriptContext(String name, Class<FactoryType> factoryClazz) {
-        this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), new Tuple<>(75, TimeValue.timeValueMinutes(5)));
     }
 
     /** Returns a method with the given name, or throws an exception if multiple are found. */

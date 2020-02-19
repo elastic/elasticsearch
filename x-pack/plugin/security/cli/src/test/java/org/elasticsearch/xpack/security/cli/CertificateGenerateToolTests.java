@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.security.cli;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import org.bouncycastle.asn1.DLTaggedObject;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERTaggedObject;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x509.Extension;
@@ -489,8 +489,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 assertThat(seq.size(), equalTo(2));
                 assertThat(seq.getObjectAt(0), instanceOf(ASN1ObjectIdentifier.class));
                 assertThat(seq.getObjectAt(0).toString(), equalTo(CN_OID));
-                assertThat(seq.getObjectAt(1), instanceOf(DERTaggedObject.class));
-                DERTaggedObject taggedName = (DERTaggedObject) seq.getObjectAt(1);
+                assertThat(seq.getObjectAt(1), instanceOf(DLTaggedObject.class));
+                DLTaggedObject taggedName = (DLTaggedObject) seq.getObjectAt(1);
                 assertThat(taggedName.getTagNo(), equalTo(0));
                 assertThat(taggedName.getObject(), instanceOf(ASN1String.class));
                 assertThat(taggedName.getObject().toString(), Matchers.isIn(certInfo.commonNames));

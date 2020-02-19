@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.joda.time.Instant;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -32,6 +34,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -364,6 +367,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     @After
     public void waitForTransform() throws Exception {
+        logAudits();
         if (preserveClusterUponCompletion() == false) {
             ensureNoInitializingShards();
             wipeTransforms();
@@ -467,5 +471,40 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected static String getTransformEndpoint() {
         return useDeprecatedEndpoints ? TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED : TransformField.REST_BASE_PATH_TRANSFORMS;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void logAudits() throws IOException {
+        logger.info("writing audit messages to the log");
+        Request searchRequest = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search?ignore_unavailable=true");
+        searchRequest.setJsonEntity(
+            "{   \"size\": 100,"
+                + "  \"sort\": ["
+                + "    {"
+                + "      \"timestamp\": {"
+                + "        \"order\": \"asc\""
+                + "      }"
+                + "    }"
+                + "  ] }"
+        );
+
+        refreshIndex(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
+
+        Response searchResponse = client().performRequest(searchRequest);
+        Map<String, Object> searchResult = entityAsMap(searchResponse);
+        List<Map<String, Object>> searchHits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchResult);
+
+        for (Map<String, Object> hit : searchHits) {
+            Map<String, Object> source = (Map<String, Object>) XContentMapValues.extractValue("_source", hit);
+            String level = (String) source.getOrDefault("level", "info");
+            logger.log(
+                Level.getLevel(level.toUpperCase(Locale.ROOT)),
+                "Transform audit: [{}] [{}] [{}] [{}]",
+                Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
+                source.getOrDefault("transform_id", "n/a"),
+                source.getOrDefault("message", "n/a"),
+                source.getOrDefault("node_name", "n/a")
+            );
+        }
     }
 }

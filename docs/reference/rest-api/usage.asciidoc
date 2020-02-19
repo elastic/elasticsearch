@@ -18,6 +18,7 @@ Provides usage information about the installed {xpack} features.
 This API provides information about which features are currently enabled and
 available under the current license and some usage statistics. 
 
+[discrete]
 [[usage-api-query-parms]]
 === {api-query-parms-title}
 

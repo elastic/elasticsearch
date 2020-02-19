@@ -8,15 +8,15 @@ jobs:
     name: Assign an issue to project based on label
     steps:
       - name: Assign to project
-  uses: elastic/github-actions/project-assigner@v1.0.3
-  id: project_assigner
-  with:
-    issue-mappings: |
-      [
-        {
-          "label": ":Core/Infra/Build",
-          "projectName": "Elasticsearch Build Engineering",
-          "columnId": 6493832
-        }
-      ]
-    ghToken: ${{ secrets.GITHUB_TOKEN }}
+        uses: elastic/github-actions/project-assigner@v1.0.3
+        id: project_assigner
+        with:
+          issue-mappings: |
+            [
+              {
+                "label": ":Core/Infra/Build",
+                "projectName": "Elasticsearch Build Engineering",
+                "columnId": 6493832
+              }
+            ]
+          ghToken: ${{ secrets.GITHUB_TOKEN }}

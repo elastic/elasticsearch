@@ -194,7 +194,10 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             } catch (InvalidShapeException e) {
                 // do not include geometry
             }
-            targetShapeType = DimensionalShapeType.max(targetShapeType, DimensionalShapeType.forGeometry(geometry));
+            // find dimensional-shape-type of geometry
+            CentroidCalculator centroidCalculator = new CentroidCalculator(geometry);
+            DimensionalShapeType geometryShapeType = centroidCalculator.getDimensionalShapeType();
+            targetShapeType = targetShapeType.compareTo(geometryShapeType) >= 0 ? targetShapeType : geometryShapeType;
         }
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -206,7 +209,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 CentroidCalculator calculator = new CentroidCalculator(geometry);
                 document.add(new BinaryGeoShapeDocValuesField("field", GeoTestUtils.toDecodedTriangles(geometry), calculator));
                 w.addDocument(document);
-                if (DimensionalShapeType.COMPARATOR.compare(targetShapeType, calculator.getDimensionalShapeType()) == 0) {
+                if (targetShapeType.compareTo(calculator.getDimensionalShapeType()) == 0) {
                     double weight = calculator.sumWeight();
                     compensatedSumLat.add(weight * calculator.getY());
                     compensatedSumLon.add(weight * calculator.getX());

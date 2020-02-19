@@ -72,12 +72,21 @@ public class ShapeTestUtils {
             List<LinearRing> holes = new ArrayList<>();
             for (int i = 0; i < lucenePolygon.numHoles(); i++) {
                 XYPolygon poly = luceneHoles[i];
-                holes.add(linearRing(poly.getPolyX(), poly.getPolyY(), hasAlt));
+                holes.add(linearRing(floatsToDoubles(poly.getPolyX()), floatsToDoubles(poly.getPolyY()), hasAlt));
             }
-            return new Polygon(linearRing(lucenePolygon.getPolyX(), lucenePolygon.getPolyY(), hasAlt), holes);
+            return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt), holes);
         }
-        return new Polygon(linearRing(lucenePolygon.getPolyX(), lucenePolygon.getPolyY(), hasAlt));
+        return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt));
     }
+    
+    static double[] floatsToDoubles(float[] f) {
+        double[] d = new double[f.length];
+        for (int i = 0; i < f.length; i++) {
+          d[i] = f[i];
+        }
+        return d;
+      }    
+
 
     public static Rectangle randomRectangle() {
         org.apache.lucene.geo.XYRectangle rectangle = XShapeTestUtil.nextBox();

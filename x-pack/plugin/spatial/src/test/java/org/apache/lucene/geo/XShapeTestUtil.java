@@ -75,26 +75,26 @@ public class XShapeTestUtil {
 
     private static XYRectangle nextBoxInternal() {
         // prevent lines instead of boxes
-        double x0 = nextDouble();
-        double x1 = nextDouble();
+        float x0 = nextFloat();
+        float x1 = nextFloat();
         while (x0 == x1) {
-            x1 = nextDouble();
+            x1 = nextFloat();
         }
         // prevent lines instead of boxes
-        double y0 = nextDouble();
-        double y1 = nextDouble();
+        float y0 = nextFloat();
+        float y1 = nextFloat();
         while (y0 == y1) {
-            y1 = nextDouble();
+            y1 = nextFloat();
         }
 
         if (x1 < x0) {
-            double x = x0;
+            float x = x0;
             x0 = x1;
             x1 = x;
         }
 
         if (y1 < y0) {
-            double y = y0;
+            float y = y0;
             y0 = y1;
             y1 = y;
         }
@@ -199,6 +199,10 @@ public class XShapeTestUtil {
 
     public static double nextDouble() {
         return BiasedNumbers.randomDoubleBetween(random(), -Float.MAX_VALUE, Float.MAX_VALUE);
+    }
+
+    public static float nextFloat() {
+        return BiasedNumbers.randomFloatBetween(random(), -Float.MAX_VALUE, Float.MAX_VALUE);
     }
 
     /** Keep it simple, we don't need to take arbitrary Random for geo tests */

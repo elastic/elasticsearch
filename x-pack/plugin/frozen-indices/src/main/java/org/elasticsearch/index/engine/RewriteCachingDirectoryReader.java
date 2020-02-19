@@ -116,7 +116,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                         byte[] maxPackedValue = pointValues.getMaxPackedValue();
                         int numDimensions = pointValues.getNumIndexDimensions();
                         int bytesPerDimension = pointValues.getBytesPerDimension();
-                        int numDataDimensions = pointValues.getNumDataDimensions();
+                        int numDataDimensions = pointValues.getNumDimensions();
                         long size = pointValues.size();
                         int docCount = pointValues.getDocCount();
                         valuesMap.put(info.name, new PointValues() {
@@ -141,7 +141,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                             }
 
                             @Override
-                            public int getNumDataDimensions() {
+                            public int getNumDimensions() {
                                 return numDataDimensions;
                             }
 

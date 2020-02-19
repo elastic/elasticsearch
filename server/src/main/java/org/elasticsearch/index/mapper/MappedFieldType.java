@@ -440,7 +440,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (indexOptions() == IndexOptions.NONE && pointDataDimensionCount() == 0) {
+        if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }

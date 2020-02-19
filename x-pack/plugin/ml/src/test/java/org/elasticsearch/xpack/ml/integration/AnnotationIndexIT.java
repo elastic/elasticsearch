@@ -75,7 +75,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         int count = 0;
         ImmutableOpenMap<String, List<AliasMetaData>> aliases = client().admin().indices()
             .prepareGetAliases(AnnotationIndex.READ_ALIAS_NAME, AnnotationIndex.WRITE_ALIAS_NAME)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get()
             .getAliases();
         if (aliases != null) {

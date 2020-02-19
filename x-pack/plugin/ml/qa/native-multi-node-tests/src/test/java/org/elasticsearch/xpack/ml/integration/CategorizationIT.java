@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -79,7 +80,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
     public void tearDownData() {
         cleanUp();
         client().admin().indices().prepareDelete(DATA_INDEX).get();
-        client().admin().indices().prepareRefresh("*", ".ml-*").get();
+        client().admin().indices().prepareRefresh("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
     }
 
     public void testBasicCategorization() throws Exception {

@@ -47,6 +47,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.geo.DimensionalShapeType.POINT;
+
 public class GeoCentroidAggregatorTests extends AggregatorTestCase {
 
     private static final double GEOHASH_TOLERANCE = 1E-6D;
@@ -176,7 +178,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
     public void testGeoShapeField() throws Exception {
         int numDocs = scaledRandomIntBetween(64, 256);
         List<Geometry> geometries = new ArrayList<>();
-        DimensionalShapeType targetShapeType = null;
+        DimensionalShapeType targetShapeType = POINT;
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         for (int i = 0; i < numDocs; i++) {
             Function<Boolean, Geometry> geometryGenerator = ESTestCase.randomFrom(

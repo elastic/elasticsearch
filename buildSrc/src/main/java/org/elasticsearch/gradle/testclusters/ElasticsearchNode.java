@@ -1014,6 +1014,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         defaultConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
         defaultConfig.put("cluster.routing.allocation.disk.watermark.high", "1b");
+        // increase script compilation limit since tests can rapid-fire script compilations
+        defaultConfig.put("script.max_compilations_rate", "2048/1m");
         if (getVersion().getMajor() >= 6) {
             defaultConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }

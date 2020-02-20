@@ -60,7 +60,8 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
         public ShapeFieldMapper.Builder docValues(boolean hasDocValues) {
             super.docValues(hasDocValues);
             if (hasDocValues) {
-                throw new ElasticsearchParseException("field [" + name + "] of type [" + fieldType().typeName() + "] does not support doc-values");
+                throw new ElasticsearchParseException("field [" + name + "] of type [" + fieldType().typeName()
+                    + "] does not support doc-values");
             }
             return this;
         }

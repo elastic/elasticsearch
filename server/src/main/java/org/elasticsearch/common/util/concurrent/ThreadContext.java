@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -442,6 +443,15 @@ public final class ThreadContext implements Writeable {
         threadLocal.set(threadLocal.get().setAllowSystemIndices(patterns));
     }
 
+    /**
+     * Returns the list of allowed system index patterns or {@code null} if none are allowed. An
+     * empty list indicates that all system indices are allowed to be accessed.
+     */
+    @Nullable
+    public List<String> allowedSystemIndexPatterns() {
+        return threadLocal.get().allowedSystemIndexPatterns;
+    }
+
     @FunctionalInterface
     public interface StoredContext extends AutoCloseable {
         @Override
@@ -520,8 +530,8 @@ public final class ThreadContext implements Writeable {
         }
 
         private ThreadContextStruct setAllowSystemIndices(List<String> allowedSystemIndexPatterns) {
-            return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, allowedSystemIndexPatterns,
-                isSystemContext, warningHeadersSize);
+            final List<String> copy = allowedSystemIndexPatterns == null ? null : List.copyOf(allowedSystemIndexPatterns);
+            return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, copy, isSystemContext, warningHeadersSize);
         }
 
         private ThreadContextStruct putRequest(String key, String value) {

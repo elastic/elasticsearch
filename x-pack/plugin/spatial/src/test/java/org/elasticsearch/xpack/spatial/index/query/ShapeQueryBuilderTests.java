@@ -81,11 +81,7 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
     }
 
     protected ShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
-        Geometry shape;
-        // multipoint queries not (yet) supported
-        do {
-            shape = ShapeTestUtils.randomGeometry(false);
-        } while (shape.type() == ShapeType.MULTIPOINT || shape.type() == ShapeType.GEOMETRYCOLLECTION);
+        Geometry shape = ShapeTestUtils.randomGeometry(false);
 
         ShapeQueryBuilder builder;
         clearShapeFields();
@@ -110,10 +106,9 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
         }
 
         if (shape.type() == ShapeType.LINESTRING || shape.type() == ShapeType.MULTILINESTRING) {
-            builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS));
+            builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS));
         } else {
-            // XYShape does not support CONTAINS:
-            builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN));
+            builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN, ShapeRelation.CONTAINS));
         }
 
         if (randomBoolean()) {

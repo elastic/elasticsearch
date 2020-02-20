@@ -701,7 +701,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 rangeType = RangeType.DOUBLE;
             } else if (fieldType.typeName().equals(RangeType.FLOAT.typeName())) {
                 start = randomFloat();
-                end = RangeType.FLOAT.nextUp(randomFloat());
+                end = RangeType.FLOAT.nextUp(start);
                 rangeType = RangeType.DOUBLE;
             } else if (fieldType.typeName().equals(RangeType.IP.typeName())) {
                 boolean v4 = randomBoolean();

@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.join.mapper.ParentIdFieldMapper;
@@ -34,7 +33,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -109,23 +107,19 @@ public class ChildrenAggregationBuilder
 
     @Override
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
-        ValuesSourceConfig config = new ValuesSourceConfig(CoreValuesSourceType.BYTES);
-        joinFieldResolveConfig(queryShardContext, config);
-        return config;
-    }
-
-    private void joinFieldResolveConfig(QueryShardContext queryShardContext, ValuesSourceConfig config) {
+        ValuesSourceConfig config;
         ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(queryShardContext.getMapperService());
         ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
         if (parentIdFieldMapper != null) {
             parentFilter = parentIdFieldMapper.getParentFilter();
             childFilter = parentIdFieldMapper.getChildFilter(childType);
             MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            final SortedSetDVOrdinalsIndexFieldData fieldData = queryShardContext.getForField(fieldType);
-            config.fieldContext(new FieldContext(fieldType.name(), fieldData, fieldType));
+            config = new ValuesSourceConfig(fieldType.getValuesSourceType(), fieldType, queryShardContext);
         } else {
-            config.unmapped(true);
+            // Unmapped field case
+            config = new ValuesSourceConfig(defaultValueSourceType(), queryShardContext);
         }
+        return config;
     }
 
     @Override

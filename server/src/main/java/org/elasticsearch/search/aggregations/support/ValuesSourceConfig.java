@@ -80,7 +80,7 @@ public class ValuesSourceConfig {
             } else {
                 valuesSourceType = defaultValueSourceType;
             }
-            config = new ValuesSourceConfig(valuesSourceType);
+            config = new ValuesSourceConfig(valuesSourceType, null, false, null);
             config.script(createScript(script, context));
             config.scriptValueType(userValueTypeHint);
         } else {
@@ -98,7 +98,7 @@ public class ValuesSourceConfig {
                 } else {
                     valuesSourceType = defaultValueSourceType;
                 }
-               config = new ValuesSourceConfig(valuesSourceType);
+               config = new ValuesSourceConfig(valuesSourceType, null, false, null);
                 // TODO: PLAN - get rid of the unmapped flag field; it's only used by valid(), and we're intending to get rid of that.
                 // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
                 config.unmapped(true);
@@ -110,7 +110,7 @@ public class ValuesSourceConfig {
                 IndexFieldData<?> indexFieldData = context.getForField(fieldType);
                 valuesSourceType = context.getValuesSourceRegistry().getValuesSourceType(fieldType, aggregationName, indexFieldData,
                     userValueTypeHint, script, defaultValueSourceType);
-                config = new ValuesSourceConfig(valuesSourceType);
+                config = new ValuesSourceConfig(valuesSourceType, null, false, null);
 
                 config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
                 config.script(createScript(script, context));
@@ -140,21 +140,49 @@ public class ValuesSourceConfig {
         return valuesSourceType.getFormatter(format, tz);
     }
 
-    private final ValuesSourceType valueSourceType;
+    private final ValuesSourceType valuesSourceType;
     private FieldContext fieldContext;
     private AggregationScript.LeafFactory script;
     private ValueType scriptValueType;
-    private boolean unmapped = false;
+    private boolean unmapped;
     private DocValueFormat format = DocValueFormat.RAW;
     private Object missing;
     private ZoneId timeZone;
 
-    public ValuesSourceConfig(ValuesSourceType valueSourceType) {
-        this.valueSourceType = valueSourceType;
+
+    /**
+     * Config instances which only need to specify a field should use this constructor
+     */
+    public ValuesSourceConfig(ValuesSourceType valuesSourceType,
+                              MappedFieldType fieldType,
+                              QueryShardContext queryShardContext) {
+        this(valuesSourceType, fieldType, false, queryShardContext);
+    }
+
+    /**
+     * Convenience method for creating unmapped configs
+     */
+    public ValuesSourceConfig(ValuesSourceType valuesSourceType, QueryShardContext queryShardContext) {
+        this(valuesSourceType, null, true, queryShardContext);
+    }
+
+    public ValuesSourceConfig(ValuesSourceType valuesSourceType,
+                              MappedFieldType fieldType,
+                              boolean unmapped,
+                              QueryShardContext queryShardContext) {
+        if (unmapped && fieldType != null) {
+            throw new IllegalStateException("value source config is invalid; marked as unmapped but specified a mapped field");
+        }
+        this.valuesSourceType = valuesSourceType;
+        if (fieldType != null) {
+            this.fieldContext = new FieldContext(fieldType.name(), queryShardContext.getForField(fieldType), fieldType);
+        }
+        this.unmapped = unmapped;
+
     }
 
     public ValuesSourceType valueSourceType() {
-        return valueSourceType;
+        return valuesSourceType;
     }
 
     public FieldContext fieldContext() {
@@ -240,7 +268,9 @@ public class ValuesSourceConfig {
         final ValuesSource vs;
         if (unmapped()) {
             if (missing() == null) {
-                // otherwise we will have values because of the missing value
+                /* Null values source signals to the AggregationBuilder to use the createUnmapped method, which aggregator factories can
+                 * override to provide an aggregator optimized to return empty values
+                 */
                 vs = null;
             } else {
                 vs = valueSourceType().getEmpty();

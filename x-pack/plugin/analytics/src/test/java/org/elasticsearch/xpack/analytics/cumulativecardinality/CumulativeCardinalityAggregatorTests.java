@@ -117,7 +117,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testParentValidations() throws IOException {
-        ValuesSourceConfig valuesSource = new ValuesSourceConfig(CoreValuesSourceType.NUMERIC);
+        ValuesSourceConfig valuesSource = new ValuesSourceConfig(CoreValuesSourceType.NUMERIC, null, false, null);
 
         // Histogram
         Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
@@ -140,7 +140,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         builder.validate(parent, Collections.emptySet(), aggBuilders);
 
         // Auto Date Histogram
-        ValuesSourceConfig numericVS = new ValuesSourceConfig(CoreValuesSourceType.NUMERIC);
+        ValuesSourceConfig numericVS = new ValuesSourceConfig(CoreValuesSourceType.NUMERIC, null, false, null);
         aggBuilders.clear();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
         AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = new AutoDateHistogramAggregationBuilder.RoundingInfo[1];

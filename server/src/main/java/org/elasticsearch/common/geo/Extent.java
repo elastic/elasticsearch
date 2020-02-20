@@ -136,7 +136,7 @@ public class Extent {
                 posRight = input.readVInt();
                 posLeft =  Math.toIntExact(posRight - input.readVLong());
                 negRight = -input.readVInt();
-                negLeft =  Math.toIntExact(negRight - input.readVLong());
+                negLeft = Math.toIntExact(negRight - input.readVLong());
                 break;
             default:
                 throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");

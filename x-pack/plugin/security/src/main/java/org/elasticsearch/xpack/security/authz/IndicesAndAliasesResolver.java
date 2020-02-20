@@ -418,10 +418,21 @@ class IndicesAndAliasesResolver {
                                           boolean dateMathExpression) {
         AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(index);
         if (aliasOrIndex.isAlias()) {
-            //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-            //complicated to support those options with aliases pointing to multiple indices...
-            //TODO investigate supporting expandWildcards option for aliases too, like es core does.
-            return indicesOptions.ignoreAliases() == false;
+            if (indicesOptions.ignoreAliases()) {
+                return false;
+            }
+            final boolean isWildcardExpression = Regex.isSimpleMatchPattern(expression);
+            final IndexMetaData.State excludeState = excludeState(indicesOptions);
+            for (IndexMetaData indexMetaData : aliasOrIndex.getIndices()) {
+                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                    if (indicesOptions.forbidClosedIndices()) {
+                        return false;
+                    }
+                } else if (isWildcardExpression && indexMetaData.getState() == excludeState) {
+                    return false;
+                }
+            }
+            return true;
         }
         assert aliasOrIndex.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
@@ -446,6 +457,21 @@ class IndicesAndAliasesResolver {
 
     private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
         return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
+    }
+
+    private static IndexMetaData.State excludeState(IndicesOptions options) {
+        final IndexMetaData.State excludeState;
+        if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
+            excludeState = null;
+        } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed() == false) {
+            excludeState = IndexMetaData.State.CLOSE;
+        } else if (options.expandWildcardsClosed() && options.expandWildcardsOpen() == false) {
+            excludeState = IndexMetaData.State.OPEN;
+        } else {
+            assert false : "this shouldn't get called if wildcards expand to none";
+            excludeState = null;
+        }
+        return excludeState;
     }
 
     private static List<String> indicesList(String[] list) {

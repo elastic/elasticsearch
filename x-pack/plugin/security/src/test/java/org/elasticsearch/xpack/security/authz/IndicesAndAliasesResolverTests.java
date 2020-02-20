@@ -1196,7 +1196,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         {
             RefreshRequest request = new RefreshRequest("*");
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            String[] expectedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
+            String[] expectedIndices = new String[]{"bar", "foobarfoo", "foofoo"};
             assertThat(indices.size(), equalTo(expectedIndices.length));
             assertThat(indices, hasItems(expectedIndices));
             assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));

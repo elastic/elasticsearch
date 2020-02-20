@@ -41,6 +41,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 
 import java.io.IOException;
@@ -56,7 +57,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrown;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -109,7 +110,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .get();
 
         // test create param
-        assertThrows(client().admin().indices().preparePutTemplate("template_2")
+        ElasticsearchAssertions.assertThrown(client().admin().indices().preparePutTemplate("template_2")
                 .setPatterns(Collections.singletonList("test*"))
                 .setSettings(indexSettings())
                 .setCreate(true)
@@ -329,7 +330,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     private void testExpectActionRequestValidationException(String... names) {
-        assertThrows(client().admin().indices().prepareGetTemplates(names),
+        ElasticsearchAssertions.assertThrown(client().admin().indices().prepareGetTemplates(names),
                 ActionRequestValidationException.class,
                 "get template with " + Arrays.toString(names));
     }

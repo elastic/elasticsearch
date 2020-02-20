@@ -46,6 +46,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,7 +63,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrown;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -241,7 +242,7 @@ public class UpdateIT extends ESIntegTestCase {
         createTestIndex();
         ensureGreen();
 
-        assertThrows(client().prepareUpdate(indexOrAlias(), "1")
+        ElasticsearchAssertions.assertThrown(client().prepareUpdate(indexOrAlias(), "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setDocAsUpsert(false)
                 .setFetchSource(true)

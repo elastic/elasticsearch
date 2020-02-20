@@ -44,6 +44,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.IsolateAllNodes;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
@@ -53,7 +54,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrown;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -96,35 +97,35 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
-        assertThrows(clientToMasterlessNode.prepareGet("test", "1"),
+        ElasticsearchAssertions.assertThrown(clientToMasterlessNode.prepareGet("test", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareGet("no_index", "1"),
+        ElasticsearchAssertions.assertThrown(clientToMasterlessNode.prepareGet("no_index", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareMultiGet().add("test", "1"),
+        ElasticsearchAssertions.assertThrown(clientToMasterlessNode.prepareMultiGet().add("test", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareMultiGet().add("no_index", "1"),
+        ElasticsearchAssertions.assertThrown(clientToMasterlessNode.prepareMultiGet().add("no_index", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.admin().indices().prepareAnalyze("test", "this is a test"),
+        ElasticsearchAssertions.assertThrown(clientToMasterlessNode.admin().indices().prepareAnalyze("test", "this is a test"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.admin().indices().prepareAnalyze("no_index", "this is a test"),
+        ElasticsearchAssertions.assertThrown(clientToMasterlessNode.admin().indices().prepareAnalyze("no_index", "this is a test"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareSearch("test").setSize(0),
+        ElasticsearchAssertions.assertThrown(clientToMasterlessNode.prepareSearch("test").setSize(0),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareSearch("no_index").setSize(0),
+        ElasticsearchAssertions.assertThrown(clientToMasterlessNode.prepareSearch("no_index").setSize(0),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 

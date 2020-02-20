@@ -76,6 +76,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.apache.lucene.util.LuceneTestCase.expectThrows;
+import static org.apache.lucene.util.LuceneTestCase.expectThrowsAnyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -493,15 +495,15 @@ public class ElasticsearchAssertions {
     /**
      * Run the request from a given builder and check that it throws an exception of the right type
      */
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass) {
-        assertThrows(builder.execute(), exceptionClass);
+    public static <E extends Throwable> void assertThrown(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass) {
+        assertThrown(builder.execute(), exceptionClass);
     }
 
     /**
      * Run the request from a given builder and check that it throws an exception of the right type, with a given {@link RestStatus}
      */
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass, RestStatus status) {
-        assertThrows(builder.execute(), exceptionClass, status);
+    public static <E extends Throwable> void assertThrown(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass, RestStatus status) {
+        assertThrown(builder.execute(), exceptionClass, status);
     }
 
     /**
@@ -509,22 +511,22 @@ public class ElasticsearchAssertions {
      *
      * @param extraInfo extra information to add to the failure message
      */
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass, String extraInfo) {
-        assertThrows(builder.execute(), exceptionClass, extraInfo);
+    public static <E extends Throwable> void assertThrown(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass, String extraInfo) {
+        assertThrown(builder.execute(), exceptionClass, extraInfo);
     }
 
     /**
      * Run future.actionGet() and check that it throws an exception of the right type
      */
-    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass) {
-        assertThrows(future, exceptionClass, null, null);
+    public static <E extends Throwable> void assertThrown(ActionFuture<?> future, Class<E> exceptionClass) {
+        assertThrown(future, exceptionClass, null, null);
     }
 
     /**
      * Run future.actionGet() and check that it throws an exception of the right type, with a given {@link RestStatus}
      */
-    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass, RestStatus status) {
-        assertThrows(future, exceptionClass, status, null);
+    public static <E extends Throwable> void assertThrown(ActionFuture<?> future, Class<E> exceptionClass, RestStatus status) {
+        assertThrown(future, exceptionClass, status, null);
     }
 
     /**
@@ -532,8 +534,8 @@ public class ElasticsearchAssertions {
      *
      * @param extraInfo extra information to add to the failure message
      */
-    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass, String extraInfo) {
-        assertThrows(future, exceptionClass, null, extraInfo);
+    public static <E extends Throwable> void assertThrown(ActionFuture<?> future, Class<E> exceptionClass, String extraInfo) {
+        assertThrown(future, exceptionClass, null, extraInfo);
     }
 
     /**
@@ -543,9 +545,8 @@ public class ElasticsearchAssertions {
      * @param status         {@link org.elasticsearch.rest.RestStatus} to check for. Can be null to disable the check
      * @param extraInfo      extra information to add to the failure message. Can be null.
      */
-    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass,
-            @Nullable RestStatus status, @Nullable String extraInfo) {
-        boolean fail = false;
+    public static <E extends Throwable> void assertThrown(ActionFuture<?> future, Class<E> exceptionClass,
+                                                          @Nullable RestStatus status, @Nullable String extraInfo) {
         extraInfo = extraInfo == null || extraInfo.isEmpty() ? "" : extraInfo + ": ";
         extraInfo += "expected a " + exceptionClass + " exception to be thrown";
 
@@ -553,54 +554,36 @@ public class ElasticsearchAssertions {
             extraInfo += " with status [" + status + "]";
         }
 
-        try {
-            future.actionGet();
-            fail = true;
-
-        } catch (ElasticsearchException esException) {
-            assertThat(extraInfo, esException.unwrapCause(), instanceOf(exceptionClass));
-            if (status != null) {
-                assertThat(extraInfo, ExceptionsHelper.status(esException), equalTo(status));
-            }
-        } catch (Exception e) {
-            assertThat(extraInfo, e, instanceOf(exceptionClass));
-            if (status != null) {
-                assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
-            }
+        Throwable expected = expectThrowsAnyOf(List.of(exceptionClass, ElasticsearchException.class), future::actionGet);
+        if (expected instanceof ElasticsearchException) {
+            assertThat(extraInfo, ((ElasticsearchException) expected).unwrapCause(), instanceOf(exceptionClass));
+        } else {
+            assertThat(extraInfo, expected, instanceOf(exceptionClass));
         }
-        // has to be outside catch clause to get a proper message
-        if (fail) {
-            throw new AssertionError(extraInfo);
+
+        if (status != null) {
+            assertThat(extraInfo, ExceptionsHelper.status(expected), equalTo(status));
         }
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, RestStatus status) {
-        assertThrows(builder.execute(), status);
+    public static void assertThrown(ActionRequestBuilder<?, ?> builder, RestStatus status) {
+        assertThrown(builder.execute(), status);
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, RestStatus status, String extraInfo) {
-        assertThrows(builder.execute(), status, extraInfo);
+    public static void assertThrown(ActionRequestBuilder<?, ?> builder, RestStatus status, String extraInfo) {
+        assertThrown(builder.execute(), status, extraInfo);
     }
 
-    public static <E extends Throwable> void assertThrows(ActionFuture future, RestStatus status) {
-        assertThrows(future, status, null);
+    public static void assertThrown(ActionFuture<?> future, RestStatus status) {
+        assertThrown(future, status, null);
     }
 
-    public static void assertThrows(ActionFuture future, RestStatus status, String extraInfo) {
-        boolean fail = false;
+    public static void assertThrown(ActionFuture<?> future, RestStatus status, String extraInfo) {
         extraInfo = extraInfo == null || extraInfo.isEmpty() ? "" : extraInfo + ": ";
         extraInfo += "expected a " + status + " status exception to be thrown";
 
-        try {
-            future.actionGet();
-            fail = true;
-        } catch (Exception e) {
-            assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
-        }
-        // has to be outside catch clause to get a proper message
-        if (fail) {
-            throw new AssertionError(extraInfo);
-        }
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
     }
 
     /**

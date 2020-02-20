@@ -59,6 +59,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -87,7 +88,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrown;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -786,7 +787,7 @@ public class TasksIT extends ESIntegTestCase {
         request.setShouldBlock(false);
 
         // Start non-blocking test task that should fail
-        assertThrows(
+        ElasticsearchAssertions.assertThrown(
             client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request),
             IllegalStateException.class
         );

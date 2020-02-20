@@ -44,6 +44,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,7 +53,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrown;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -303,7 +304,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             .addAlias(new Alias("alias1").writeIndex(true))
             .get());
 
-        assertThrows(client().admin().indices().prepareCreate("test-idx-2")
+        ElasticsearchAssertions.assertThrown(client().admin().indices().prepareCreate("test-idx-2")
                 .setSettings(settings)
                 .addAlias(new Alias("alias1").writeIndex(true)),
             IllegalStateException.class);

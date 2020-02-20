@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * A holder for the current state of the license for all xpack features.
@@ -292,7 +294,11 @@ public class XPackLicenseState {
     private final boolean isSecurityEnabled;
     private final boolean isSecurityExplicitlyEnabled;
 
-    private Status status = new Status(OperationMode.TRIAL, true);
+    // Since Status is the only field that can be updated, we do not need to synchronize access to
+    // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
+    // reads. Methods should use `executeAgainstStatus` and `checkAgainstStatus` to ensure that the status
+    // is only read once.
+    private volatile Status status = new Status(OperationMode.TRIAL, true);
 
     public XPackLicenseState(Settings settings) {
         this.listeners = new CopyOnWriteArrayList<>();
@@ -300,15 +306,27 @@ public class XPackLicenseState {
         this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
     }
 
-    private XPackLicenseState(XPackLicenseState xPackLicenseState) {
-        this.listeners = xPackLicenseState.listeners;
-        this.isSecurityEnabled = xPackLicenseState.isSecurityEnabled;
-        this.isSecurityExplicitlyEnabled = xPackLicenseState.isSecurityExplicitlyEnabled;
-        this.status = xPackLicenseState.status;
+    private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,
+                              Status status) {
+
+        this.listeners = listeners;
+        this.isSecurityEnabled = isSecurityEnabled;
+        this.isSecurityExplicitlyEnabled = isSecurityExplicitlyEnabled;
+        this.status = status;
     }
 
     private static boolean isSecurityExplicitlyEnabled(Settings settings) {
         return settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
+    }
+
+    /** Performs function against status, only reading the status once to avoid races */
+    private <T> T executeAgainstStatus(Function<Status, T> statusFn) {
+        return statusFn.apply(this.status);
+    }
+
+    /** Performs predicate against status, only reading the status once to avoid races */
+    private boolean checkAgainstStatus(Predicate<Status> statusPredicate) {
+        return statusPredicate.test(this.status);
     }
 
     /**
@@ -321,9 +339,7 @@ public class XPackLicenseState {
      *                               trial was prior to this metadata being tracked (6.1)
      */
     void update(OperationMode mode, boolean active, @Nullable Version mostRecentTrialVersion) {
-        synchronized (this) {
-            status = new Status(mode, active);
-        }
+        status = new Status(mode, active);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
@@ -338,13 +354,13 @@ public class XPackLicenseState {
     }
 
     /** Return the current license type. */
-    public synchronized OperationMode getOperationMode() {
-        return status.mode;
+    public OperationMode getOperationMode() {
+        return executeAgainstStatus(status -> status.mode);
     }
 
     /** Return true if the license is currently within its time boundaries, false otherwise. */
-    public synchronized boolean isActive() {
-        return status.active;
+    public boolean isActive() {
+        return checkAgainstStatus(status -> status.active);
     }
 
     /**
@@ -406,26 +422,27 @@ public class XPackLicenseState {
     /**
      * @return the type of realms that are enabled based on the license {@link OperationMode}
      */
-    public synchronized AllowedRealmType allowedRealmType() {
-        final boolean isSecurityCurrentlyEnabled =
-            isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-        if (isSecurityCurrentlyEnabled) {
-            switch (status.mode) {
-                case PLATINUM:
-                case ENTERPRISE:
-                case TRIAL:
-                    return AllowedRealmType.ALL;
-                case GOLD:
-                    return AllowedRealmType.DEFAULT;
-                case BASIC:
-                case STANDARD:
-                    return AllowedRealmType.NATIVE;
-                default:
-                    return AllowedRealmType.NONE;
+    public AllowedRealmType allowedRealmType() {
+        return executeAgainstStatus(status -> {
+            final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+            if (isSecurityCurrentlyEnabled) {
+                switch (status.mode) {
+                    case PLATINUM:
+                    case ENTERPRISE:
+                    case TRIAL:
+                        return AllowedRealmType.ALL;
+                    case GOLD:
+                        return AllowedRealmType.DEFAULT;
+                    case BASIC:
+                    case STANDARD:
+                        return AllowedRealmType.NATIVE;
+                    default:
+                        return AllowedRealmType.NONE;
+                }
+            } else {
+                return AllowedRealmType.NONE;
             }
-        } else {
-            return AllowedRealmType.NONE;
-        }
+        });
     }
 
     /**
@@ -645,8 +662,8 @@ public class XPackLicenseState {
      * <p>
      *  EQL is available for all license types except {@link OperationMode#MISSING}
      */
-    public synchronized boolean isEqlAllowed() {
-        return status.active;
+    public boolean isEqlAllowed() {
+        return checkAgainstStatus(status -> status.active);
     }
 
     /**
@@ -707,17 +724,15 @@ public class XPackLicenseState {
         return isActive();
     }
 
-    public synchronized boolean isTrialLicense() {
-        return status.mode == OperationMode.TRIAL;
-    }
-
     /**
      * @return true if security is available to be used with the current license type
      */
-    public synchronized boolean isSecurityAvailable() {
-        OperationMode mode = status.mode;
-        return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.STANDARD ||
+    public boolean isSecurityAvailable() {
+        return checkAgainstStatus(status -> {
+            OperationMode mode = status.mode;
+            return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.STANDARD ||
                 mode == OperationMode.TRIAL || mode == OperationMode.BASIC || mode == OperationMode.ENTERPRISE;
+        });
     }
 
     /**
@@ -728,13 +743,15 @@ public class XPackLicenseState {
      *             <li>xpack.security.enabled not specified as a setting</li>
      *         </ul>
      */
-    public synchronized boolean isSecurityDisabledByLicenseDefaults() {
-        switch (status.mode) {
-            case TRIAL:
-            case BASIC:
-                return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
-        }
-        return false;
+    public boolean isSecurityDisabledByLicenseDefaults() {
+        return checkAgainstStatus(status -> {
+            switch (status.mode) {
+                case TRIAL:
+                case BASIC:
+                    return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+            }
+            return false;
+        });
     }
 
     public static boolean isTransportTlsRequired(License license, Settings settings) {
@@ -802,12 +819,12 @@ public class XPackLicenseState {
      * lived but instead used within a method when a consistent view of the license state
      * is needed for multiple interactions with the license state.
      */
-    public synchronized XPackLicenseState copyCurrentLicenseState() {
-        return new XPackLicenseState(this);
+    public XPackLicenseState copyCurrentLicenseState() {
+        return executeAgainstStatus(status -> new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status));
     }
 
-    private synchronized boolean isAllowedBySecurity() {
-        return isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+    private boolean isAllowedBySecurity() {
+        return checkAgainstStatus(status -> isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled));
     }
 
     /**
@@ -820,16 +837,17 @@ public class XPackLicenseState {
      *
      * @return true if feature is allowed, otherwise false
      */
-    private synchronized boolean isAllowedByLicenseAndSecurity(
+    private boolean isAllowedByLicenseAndSecurity(
         OperationMode minimumMode, boolean needSecurity, boolean needActive, boolean allowTrial) {
-
-        if (needSecurity && false == isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled)) {
-            return false;
-        }
-        if (needActive && false == status.active) {
-            return false;
-        }
-        return isAllowedByOperationMode(status.mode, minimumMode, allowTrial);
+        return checkAgainstStatus(status -> {
+            if (needSecurity && false == isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled)) {
+                return false;
+            }
+            if (needActive && false == status.active) {
+                return false;
+            }
+            return isAllowedByOperationMode(status.mode, minimumMode, allowTrial);
+        });
     }
 
 }

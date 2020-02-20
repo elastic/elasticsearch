@@ -316,8 +316,8 @@ setup:
 ---
 "sub aggs":
   - skip:
-      version: " - 7.99.99"
-      reason: Sub aggs fixed in 8.0 (to be backported to 7.6.1)
+      version: " - 7.6.1"
+      reason: Sub aggs fixed in 7.6.1
 
   - do:
       index:

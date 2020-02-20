@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction.Reques
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction.INSTANCE;
 
@@ -23,7 +22,7 @@ public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(PUT, "/_ccr/auto_follow/{name}"));
+        return List.of(new Route(PUT, "/_ccr/auto_follow/{name}"));
     }
 
     @Override

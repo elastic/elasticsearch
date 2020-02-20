@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +33,6 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestInvalidateTokenAction.class));
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER =
         new ConstructingObjectParser<>("invalidate_token", a -> {
             final String token = (String) a[0];
@@ -77,7 +74,7 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRoute(DELETE, "/_security/oauth2/token", DELETE, "/_xpack/security/oauth2/token", deprecationLogger)
+            new ReplacedRoute(DELETE, "/_security/oauth2/token", DELETE, "/_xpack/security/oauth2/token")
         );
     }
 

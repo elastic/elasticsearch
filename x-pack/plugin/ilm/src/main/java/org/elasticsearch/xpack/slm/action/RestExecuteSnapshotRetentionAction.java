@@ -14,14 +14,13 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestExecuteSnapshotRetentionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_slm/_execute_retention"));
+        return List.of(new Route(POST, "/_slm/_execute_retention"));
     }
 
     @Override

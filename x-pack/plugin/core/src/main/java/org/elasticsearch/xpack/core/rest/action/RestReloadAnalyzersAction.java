@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.core.action.ReloadAnalyzersRequest;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -26,9 +24,9 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/{index}/_reload_search_analyzers"),
-            new Route(POST, "/{index}/_reload_search_analyzers")));
+            new Route(POST, "/{index}/_reload_search_analyzers"));
     }
 
     @Override

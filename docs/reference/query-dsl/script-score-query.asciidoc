@@ -221,6 +221,10 @@ and default time zone. Also calculations with `now` are not supported.
 <<vector-functions, Functions for vector fields>> are accessible through
 `script_score` query.
 
+===== Allow expensive queries
+Script score queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.
+
 [[script-score-faster-alt]]
 ===== Faster alternatives
 The `script_score` query calculates the score for

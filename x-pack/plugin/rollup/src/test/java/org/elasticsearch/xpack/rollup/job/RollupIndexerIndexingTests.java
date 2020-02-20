@@ -91,7 +91,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         settings = createIndexSettings();
         queryShardContext = new QueryShardContext(0, settings,
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-                null, null, null, null, () -> 0L, null, null);
+                null, null, null, null, () -> 0L, null, null, () -> true);
     }
 
     public void testSimpleDateHisto() throws Exception {

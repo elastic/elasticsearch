@@ -30,14 +30,13 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.util.List;
 import java.util.Locale;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestHealthAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat/health"));
+        return List.of(new Route(GET, "/_cat/health"));
     }
 
     @Override

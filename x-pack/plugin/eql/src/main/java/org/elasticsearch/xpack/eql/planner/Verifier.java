@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.eql.planner;
 
-import org.elasticsearch.xpack.eql.common.Failure;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.Unexecutable;
 import org.elasticsearch.xpack.eql.plan.physical.UnplannedExec;
+import org.elasticsearch.xpack.ql.common.Failure;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.eql.common.Failure.fail;
+import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 abstract class Verifier {
 

@@ -8,8 +8,7 @@
 #   ES_PATH_CONF -- Path to config directory
 #   ES_JAVA_OPTS -- External Java Opts on top of the defaults set
 #
-# Optionally, exact memory values can be set using the `ES_JAVA_OPTS`. Note that
-# the Xms and Xmx lines in the JVM options file must be commented out. Example
+# Optionally, exact memory values can be set using the `ES_JAVA_OPTS`. Example
 # values are "512m", and "10g".
 #
 #   ES_JAVA_OPTS="-Xms8g -Xmx8g" ./bin/elasticsearch
@@ -46,6 +45,13 @@ then
   fi
 fi
 
+# The JVM options parser produces the final JVM options to start Elasticsearch.
+# It does this by incorporating JVM options in the following way:
+#   - first, system JVM options are applied (these are hardcoded options in the
+#     parser)
+#   - second, JVM options are read from jvm.options and jvm.options.d/*.options
+#   - third, JVM options from ES_JAVA_OPTS are applied
+#   - fourth, ergonomic JVM options are applied
 ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
 
 # manual parsing to find out, if process should be detached

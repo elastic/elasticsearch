@@ -635,6 +635,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             MappedFieldType fieldType = mapper.fieldType();
 
+            // Non-aggregatable fields are not testable (they will throw an error on all aggs anyway), so skip
+            if (fieldType.isAggregatable() == false) {
+                continue;
+            }
+
             try (Directory directory = newDirectory()) {
                 RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
                 writeTestDoc(fieldType, fieldName, indexWriter);

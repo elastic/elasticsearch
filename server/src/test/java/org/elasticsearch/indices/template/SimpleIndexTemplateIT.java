@@ -56,7 +56,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrown;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -109,7 +109,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .get();
 
         // test create param
-        assertThrown(client().admin().indices().preparePutTemplate("template_2")
+        assertRequestBuilderThrows(client().admin().indices().preparePutTemplate("template_2")
                 .setPatterns(Collections.singletonList("test*"))
                 .setSettings(indexSettings())
                 .setCreate(true)
@@ -329,7 +329,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     private void testExpectActionRequestValidationException(String... names) {
-        assertThrown(client().admin().indices().prepareGetTemplates(names),
+        assertRequestBuilderThrows(client().admin().indices().prepareGetTemplates(names),
                 ActionRequestValidationException.class,
                 "get template with " + Arrays.toString(names));
     }

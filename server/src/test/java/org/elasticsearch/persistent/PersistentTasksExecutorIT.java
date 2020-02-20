@@ -43,7 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrown;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -132,7 +132,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             //try sending completion request with incorrect allocation id
             PlainActionFuture<PersistentTask<?>> failedCompletionNotificationFuture = new PlainActionFuture<>();
             persistentTasksService.sendCompletionRequest(taskId, Long.MAX_VALUE, null, failedCompletionNotificationFuture);
-            assertThrown(failedCompletionNotificationFuture, ResourceNotFoundException.class);
+            assertFutureThrows(failedCompletionNotificationFuture, ResourceNotFoundException.class);
             // Make sure that the task is still running
             assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
                     .setDetailed(true).get().getTasks().size(), equalTo(1));
@@ -240,11 +240,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         persistentTasksService.waitForPersistentTaskCondition(taskId,
                 task -> false, TimeValue.timeValueMillis(10), future1);
 
-        assertThrown(future1, IllegalStateException.class, "timed out after 10ms");
+        assertFutureThrows(future1, IllegalStateException.class, "timed out after 10ms");
 
         PlainActionFuture<PersistentTask<?>> failedUpdateFuture = new PlainActionFuture<>();
         persistentTasksService.sendUpdateStateRequest(taskId, -2, new State("should fail"), failedUpdateFuture);
-        assertThrown(failedUpdateFuture, ResourceNotFoundException.class, "the task with id " + taskId +
+        assertFutureThrows(failedUpdateFuture, ResourceNotFoundException.class, "the task with id " + taskId +
                 " and allocation id -2 doesn't exist");
 
         // Wait for the task to disappear
@@ -268,7 +268,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         PlainActionFuture<PersistentTask<TestParams>> future2 = new PlainActionFuture<>();
         persistentTasksService.sendStartRequest(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future2);
-        assertThrown(future2, ResourceAlreadyExistsException.class);
+        assertFutureThrows(future2, ResourceAlreadyExistsException.class);
 
         assertBusy(() -> {
             // Wait for the task to start

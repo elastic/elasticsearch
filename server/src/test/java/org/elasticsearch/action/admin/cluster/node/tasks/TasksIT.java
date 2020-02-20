@@ -85,9 +85,9 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrown;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -786,7 +786,7 @@ public class TasksIT extends ESIntegTestCase {
         request.setShouldBlock(false);
 
         // Start non-blocking test task that should fail
-        assertThrown(
+        assertFutureThrows(
             client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request),
             IllegalStateException.class
         );

@@ -245,7 +245,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         if (getType() == Type.INTEG_TEST_ZIP) {
             if (platform.getOrNull() != null) {
                 throw new IllegalArgumentException(
-                    "platform not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]"
+                    "platform cannot be set on elasticsearch distribution [" + name + "] of type [integ_test_zip]"
                 );
             }
             if (flavor.getOrNull() != null) {
@@ -255,7 +255,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             }
             if (bundledJdk.getOrNull() != null) {
                 throw new IllegalArgumentException(
-                    "bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]"
+                    "bundledJdk cannot be set on elasticsearch distribution [" + name + "] of type [integ_test_zip]"
                 );
             }
             return;
@@ -263,7 +263,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
         if (getType() != Type.DOCKER && failIfUnavailable.get() == false) {
             throw new IllegalArgumentException(
-                "failIfUnavailable not allowed for elasticsearch distribution [" + name + "] of type [" + getType() + "]"
+                "failIfUnavailable cannot be 'false' on elasticsearch distribution [" + name + "] of type [" + getType() + "]"
             );
         }
 
@@ -275,11 +275,13 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         } else { // rpm, deb or docker
             if (platform.isPresent()) {
                 throw new IllegalArgumentException(
-                    "platform not allowed for elasticsearch distribution [" + name + "] of type [" + getType() + "]"
+                    "platform cannot be set on elasticsearch distribution [" + name + "] of type [" + getType() + "]"
                 );
             }
             if (getType() == Type.DOCKER && bundledJdk.isPresent()) {
-                throw new IllegalArgumentException("bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [docker]");
+                throw new IllegalArgumentException(
+                    "bundledJdk cannot be set on elasticsearch distribution [" + name + "] of type [docker]"
+                );
             }
         }
 

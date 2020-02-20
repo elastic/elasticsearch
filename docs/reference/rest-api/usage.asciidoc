@@ -154,10 +154,6 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true
   },
-  "eql" : {
-    "available" : true,
-    "enabled" : true
-  },
   "sql" : {
     "available" : true,
     "enabled" : true,
@@ -280,18 +276,17 @@ GET /_xpack/usage
 ------------------------------------------------------------
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
-// TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
-// TESTRESPONSE[s/"ilm" : \{[^\}]*\},/"ilm" : $body.$_path,/]
+// TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
 // TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
 // TESTRESPONSE[s/"analytics" : \{[^\}]*\}/"analytics" : $body.$_path/]
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
 // These replacements do a few things:
-// 1. Handling eql, which is disabled by default on release builds and enabled
-//    everywhere else during the initial implementation phase until its release
-// 2. Ignore the contents of the `ilm` and `slm` objects because they don't know
-//    all of the policies that will be in them. 
+// 1. Ignore the contents of the `policy_stats` object because we don't know all
+//    of the policies that will be in it. And because we figure folks don't need
+//    to see an exhaustive list anyway.
+// 2. Ignore the contents of the `slm` object because it might contain policies
 // 3. Ignore the contents of the `analytics` object because it might contain
 //    additional stats
 // 4. All of the numbers and strings on the right hand side of *every* field in

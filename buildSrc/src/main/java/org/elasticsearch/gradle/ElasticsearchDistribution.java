@@ -220,7 +220,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     @Override
     public TaskDependency getBuildDependencies() {
         // For non-required Docker distributions, skip building the distribution is Docker is unavailable
-        if (getType() == Type.DOCKER && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
+        if (getType() == Type.DOCKER
+            && getFailIfUnavailable() == false
+            && dockerSupport.get().getDockerAvailability().isAvailable == false) {
             return task -> Collections.emptySet();
         }
 
@@ -277,9 +279,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                 );
             }
             if (getType() == Type.DOCKER && bundledJdk.isPresent()) {
-                throw new IllegalArgumentException(
-                    "bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [docker]"
-                );
+                throw new IllegalArgumentException("bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [docker]");
             }
         }
 

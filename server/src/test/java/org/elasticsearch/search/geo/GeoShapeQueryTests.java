@@ -192,23 +192,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testRandomGeoCollectionQuery() throws Exception {
-        boolean usePrefixTrees = randomBoolean();
         // Create a random geometry collection to index.
-        GeometryCollectionBuilder gcb;
-        if (usePrefixTrees) {
-            gcb = RandomShapeGenerator.createGeometryCollection(random());
-        } else {
-            // vector strategy does not yet support multipoint queries
-            gcb = new GeometryCollectionBuilder();
-            int numShapes = RandomNumbers.randomIntBetween(random(), 1, 4);
-            for (int i = 0; i < numShapes; ++i) {
-                ShapeBuilder shape;
-                do {
-                    shape = RandomShapeGenerator.createShape(random());
-                } while (shape instanceof MultiPointBuilder);
-                gcb.shape(shape);
-            }
-        }
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());;
+
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
 
         assumeTrue("Skipping the check for the polygon with a degenerated dimension",
@@ -220,10 +206,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         }
         gcb.shape(new PolygonBuilder(cb));
 
-        logger.info("Created Random GeometryCollection containing {} shapes using {} tree", gcb.numShapes(),
-            usePrefixTrees ? "geohash" : "quadtree");
+        logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        XContentBuilder mapping = createPrefixTreeMapping(usePrefixTrees ? "geohash" : "quadtree");
+        XContentBuilder mapping = createRandomMapping();
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(settings).get();
         ensureGreen();
@@ -453,11 +438,8 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         PointBuilder pb = new PointBuilder(pt[0], pt[1]);
         gcb.shape(pb);
 
-        // don't use random as permits quadtree
-        String mapping = Strings.toString(
-            randomBoolean() ?
-                createDefaultMapping() :
-                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE));
+        // create mapping
+        String mapping = Strings.toString(createRandomMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
@@ -523,10 +505,8 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        String mapping = Strings.toString(
-            randomBoolean() ?
-                createDefaultMapping() :
-                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE));
+        String mapping = Strings.toString(createRandomMapping());
+
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
@@ -673,8 +653,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testQueryRandomGeoCollection() throws Exception {
         // Create a random geometry collection.
-        String mapping = Strings.toString(randomBoolean() ? createDefaultMapping() : createPrefixTreeMapping(
-            LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE));
+        String mapping = Strings.toString(createRandomMapping());
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
         CoordinatesBuilder cb = new CoordinatesBuilder();
@@ -704,8 +683,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {
-        String mapping = Strings.toString(
-            createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE));
+        String mapping = Strings.toString(createRandomMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 

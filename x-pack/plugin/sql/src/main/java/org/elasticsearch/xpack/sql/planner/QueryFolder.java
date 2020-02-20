@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.ql.execution.search.AggRef;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumeric
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -283,7 +283,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     field = field.exactAttribute();
                     key = new GroupByValue(aggId, field.name());
                 }
-
                 // handle functions
                 else if (exp instanceof Function) {
                     // dates are handled differently because of date histograms
@@ -322,17 +321,30 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             // date histogram
                             if (isDateBased(h.dataType())) {
                                 Object value = h.interval().value();
-                                // interval of exactly 1 year
-                                if (value instanceof IntervalYearMonth
-                                        && ((IntervalYearMonth) value).interval().equals(Period.ofYears(1))) {
-                                    String calendarInterval = Year.YEAR_INTERVAL;
+                                // interval of exactly 1 year or 1 month
+                                if (value instanceof IntervalYearMonth &&
+                                        (((IntervalYearMonth) value).interval().equals(Period.ofYears(1)) 
+                                        || ((IntervalYearMonth) value).interval().equals(Period.ofMonths(1)))) {
+                                    Period yearMonth = ((IntervalYearMonth) value).interval();
+                                    
+                                    String calendarInterval = null;
+                                    if (yearMonth.equals(Period.ofYears(1))) {
+                                        calendarInterval = Histogram.YEAR_INTERVAL;
+                                    } else if (yearMonth.equals(Period.ofMonths(1))) {
+                                        calendarInterval = Histogram.MONTH_INTERVAL;
+                                    }
 
-                                    // When the histogram is `INTERVAL '1' YEAR`, the interval used in the ES date_histogram will be
-                                    // a calendar_interval with value "1y". All other intervals will be fixed_intervals expressed in ms.
-                                    if (field instanceof FieldAttribute) {
-                                        key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), calendarInterval, h.zoneId());
-                                    } else if (field instanceof Function) {
-                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), calendarInterval, h.zoneId());
+                                    // When the histogram is `INTERVAL '1' YEAR` or `INTERVAL '1' MONTH`, the interval used in 
+                                    // the ES date_histogram will be a calendar_interval with value "1y" or "1M" respectively.
+                                    // All other intervals will be fixed_intervals expressed in ms.
+                                    if (calendarInterval != null) {
+                                        if (field instanceof FieldAttribute) {
+                                            key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), calendarInterval,
+                                                    h.zoneId());
+                                        } else if (field instanceof Function) {
+                                            key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), calendarInterval,
+                                                    h.zoneId());
+                                        }
                                     }
                                 }
                                 // typical interval

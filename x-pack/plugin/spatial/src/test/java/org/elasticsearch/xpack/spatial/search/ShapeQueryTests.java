@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.MultiPoint;
 
 import java.io.IOException;
 import java.util.Collection;

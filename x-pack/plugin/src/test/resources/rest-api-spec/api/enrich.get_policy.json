@@ -11,8 +11,8 @@
           "methods": [ "GET" ],
           "parts": {
             "name": {
-              "type" : "string",
-              "description" : "The name of the enrich policy"
+              "type" : "list",
+              "description" : "A comma-separated list of enrich policy names"
             }
           }
         },

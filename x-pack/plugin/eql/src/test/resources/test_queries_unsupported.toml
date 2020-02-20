@@ -3,6 +3,15 @@
 # This file is expected to become empty once the feature parity is reached with the
 # official EQL implementation
 
+# The query below is the first query from the test_queries.toml
+# and is currently "emulated" as supported with the hardcoded response
+# in order to allow at least one round-trip test with the test harness.
+# This will be removed once the EQL implementation is wired and actually supports this query.
+
+# [[queries]]
+# query = 'process where serial_event_id = 1'
+# expected_event_ids  = [1]
+
 [[queries]]
 query = 'process where serial_event_id < 4'
 expected_event_ids  = [1, 2, 3]

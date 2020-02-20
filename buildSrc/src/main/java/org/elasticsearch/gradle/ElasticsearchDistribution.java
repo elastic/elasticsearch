@@ -123,7 +123,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Platform> platform;
     private final Property<Flavor> flavor;
     private final Property<Boolean> bundledJdk;
-    private final Property<Boolean> required;
+    private final Property<Boolean> failIfUnavailable;
 
     ElasticsearchDistribution(
         String name,
@@ -141,7 +141,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.platform = objectFactory.property(Platform.class);
         this.flavor = objectFactory.property(Flavor.class);
         this.bundledJdk = objectFactory.property(Boolean.class);
-        this.required = objectFactory.property(Boolean.class).convention(true);
+        this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
         this.extracted = new Extracted(extractedConfiguration);
     }
 
@@ -190,12 +190,12 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.bundledJdk.set(bundledJdk);
     }
 
-    public boolean isRequired() {
-        return this.required.get();
+    public boolean getFailIfUnavailable() {
+        return this.failIfUnavailable.get();
     }
 
-    public void setRequired(boolean required) {
-        this.required.set(required);
+    public void setFailIfUnavailable(boolean failIfUnavailable) {
+        this.failIfUnavailable.set(failIfUnavailable);
     }
 
     @Override
@@ -220,7 +220,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     @Override
     public TaskDependency getBuildDependencies() {
         // For non-required Docker distributions, skip building the distribution is Docker is unavailable
-        if (getType() == Type.DOCKER && isRequired() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
+        if (getType() == Type.DOCKER && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
             return task -> Collections.emptySet();
         }
 
@@ -259,6 +259,12 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             return;
         }
 
+        if (getType() != Type.DOCKER && failIfUnavailable.get() == false) {
+            throw new IllegalArgumentException(
+                "failIfUnavailable not allowed for elasticsearch distribution [" + name + "] of type [" + getType() + "]"
+            );
+        }
+
         if (getType() == Type.ARCHIVE) {
             // defaults for archive, set here instead of via convention so integ-test-zip can verify they are not set
             if (platform.isPresent() == false) {
@@ -268,6 +274,11 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             if (platform.isPresent()) {
                 throw new IllegalArgumentException(
                     "platform not allowed for elasticsearch distribution [" + name + "] of type [" + getType() + "]"
+                );
+            }
+            if (getType() == Type.DOCKER && bundledJdk.isPresent()) {
+                throw new IllegalArgumentException(
+                    "bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [docker]"
                 );
             }
         }

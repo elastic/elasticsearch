@@ -11,12 +11,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * <p>Plugin providing {@link DockerSupportService} for detecting Docker installations and determining requirements for Docker-based
- * Elasticsearch build tasks.</p>
- *
- * <p>Additionally registers a task graph listener used to assert a compatible Docker installation exists when task requiring Docker are
+ * Plugin providing {@link DockerSupportService} for detecting Docker installations and determining requirements for Docker-based
+ * Elasticsearch build tasks.
+ * <p>
+ * Additionally registers a task graph listener used to assert a compatible Docker installation exists when task requiring Docker are
  * scheduled for execution. Tasks may declare a Docker requirement via an extra property. If a compatible Docker installation is not
- * available on the build system an exception will be thrown prior to task execution.</p>
+ * available on the build system an exception will be thrown prior to task execution.
  *
  * <pre>
  *     task myDockerTask {
@@ -49,11 +49,11 @@ public class DockerSupportPlugin implements Plugin<Project> {
         project.getGradle().getTaskGraph().whenReady(graph -> {
             List<String> dockerTasks = graph.getAllTasks().stream().filter(task -> {
                 ExtraPropertiesExtension ext = task.getExtensions().getExtraProperties();
-                return ext.has(REQUIRES_DOCKER_ATTRIBUTE) && ext.get(REQUIRES_DOCKER_ATTRIBUTE).equals("true");
+                return ext.has(REQUIRES_DOCKER_ATTRIBUTE) && (boolean) ext.get(REQUIRES_DOCKER_ATTRIBUTE);
             }).map(Task::getPath).collect(Collectors.toList());
 
             if (dockerTasks.isEmpty() == false) {
-                dockerSupportServiceProvider.get().assertDockerIsAvailable(dockerTasks);
+                dockerSupportServiceProvider.get().failIfDockerUnavailable(dockerTasks);
             }
         });
     }

@@ -444,14 +444,16 @@ public class DistroTestPlugin implements Plugin<Project> {
             if (type == Type.ARCHIVE) {
                 d.setPlatform(platform);
             }
-            d.setBundledJdk(bundledJdk);
+            if (type != Type.DOCKER) {
+                d.setBundledJdk(bundledJdk);
+            }
             d.setVersion(version);
         });
 
         // Allow us to gracefully omit building Docker distributions if Docker is not available on the system.
         // In such a case as we can't build the Docker images we'll simply skip the corresponding tests.
         if (type == Type.DOCKER) {
-            distro.setRequired(false);
+            distro.setFailIfUnavailable(false);
         }
 
         container.add(distro);

@@ -49,7 +49,7 @@ elasticsearch_distributions {
     type = 'docker'
     flavor = System.getProperty('tests.distribution', 'default')
     version = VersionProperties.getElasticsearch()
-    required = false // This ensures we skip this testing if Docker is unavailable
+    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
 }
 

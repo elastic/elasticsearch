@@ -104,7 +104,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      *
      * @throws GradleException if Docker is not available. The exception message gives the reason.
      */
-    void assertDockerIsAvailable(List<String> tasks) {
+    void failIfDockerUnavailable(List<String> tasks) {
         DockerAvailability availability = getDockerAvailability();
 
         // Docker installation is available and compatible
@@ -255,7 +255,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
     private void throwDockerRequiredException(final String message, Exception e) {
         throw new GradleException(
-            message + "\nyou can address this by attending to the reported issue, " + "removing the offending tasks from being executed.",
+            message + "\nyou can address this by attending to the reported issue, or removing the offending tasks from being executed.",
             e
         );
     }

@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
+import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.UNSPECIFIED;
 
 
@@ -74,7 +75,8 @@ public class SamlAuthnRequestValidator {
             final Map<String, String> parameters = new HashMap<>();
             RestUtils.decodeQueryString(queryString, 0, parameters);
             if (parameters.isEmpty()) {
-                logAndRespond("Invalid Authentication Request query string", listener);
+                logAndRespond("Invalid Authentication Request query string (zero parameters)", listener);
+                return;
             }
             logger.trace(new ParameterizedMessage("Parsed the following parameters from the query string: {}", parameters));
             final String samlRequest = parameters.get("SAMLRequest");
@@ -134,6 +136,7 @@ public class SamlAuthnRequestValidator {
                 queryString, response));
             listener.onResponse(response);
         } catch (ElasticsearchSecurityException e) {
+            logger.debug("Could not process and validate AuthnRequest", e);
             listener.onFailure(e);
         } catch (Exception e) {
             logAndRespond("Could not process and validate AuthnRequest", e, listener);
@@ -196,7 +199,7 @@ public class SamlAuthnRequestValidator {
     }
 
     private void checkDestination(AuthnRequest request) {
-        final String url = idp.getSingleSignOnEndpoint("redirect");
+        final String url = idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI);
         if (url.equals(request.getDestination()) == false) {
             throw new ElasticsearchSecurityException(
                 "SAML authentication request [{}] is for destination [{}] but the SSO endpoint of this Identity Provider is [{}]",
@@ -291,8 +294,4 @@ public class SamlAuthnRequestValidator {
         listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
     }
 
-    private void logAndRespond(ParameterizedMessage message, Throwable e, ActionListener listener) {
-        logger.debug(message.getFormattedMessage(), e);
-        listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage(), e));
-    }
 }

@@ -34,6 +34,8 @@ import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SLO_POST_EN
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SLO_REDIRECT_ENDPOINT;
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_POST_ENDPOINT;
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_REDIRECT_ENDPOINT;
+import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_POST_BINDING_URI;
+import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 
 public class CloudIdp implements SamlIdentityProvider {
 
@@ -45,15 +47,15 @@ public class CloudIdp implements SamlIdentityProvider {
 
     public CloudIdp(Environment env, Settings settings) {
         this.entityId = require(settings, IDP_ENTITY_ID);
-        this.ssoEndpoints.put("redirect", require(settings, IDP_SSO_REDIRECT_ENDPOINT));
+        this.ssoEndpoints.put(SAML2_REDIRECT_BINDING_URI, require(settings, IDP_SSO_REDIRECT_ENDPOINT));
         if (settings.hasValue(IDP_SSO_POST_ENDPOINT.getKey())) {
-            this.ssoEndpoints.put("post", settings.get(IDP_SSO_POST_ENDPOINT.getKey()));
+            this.ssoEndpoints.put(SAML2_POST_BINDING_URI, settings.get(IDP_SSO_POST_ENDPOINT.getKey()));
         }
         if (settings.hasValue(IDP_SLO_POST_ENDPOINT.getKey())) {
-            this.sloEndpoints.put("post", settings.get(IDP_SLO_POST_ENDPOINT.getKey()));
+            this.sloEndpoints.put(SAML2_POST_BINDING_URI, settings.get(IDP_SLO_POST_ENDPOINT.getKey()));
         }
         if (settings.hasValue(IDP_SLO_REDIRECT_ENDPOINT.getKey())) {
-            this.sloEndpoints.put("redirect", settings.get(IDP_SLO_REDIRECT_ENDPOINT.getKey()));
+            this.sloEndpoints.put(SAML2_REDIRECT_BINDING_URI, settings.get(IDP_SLO_REDIRECT_ENDPOINT.getKey()));
         }
         this.signingCredential = buildSigningCredential(env, settings);
         this.registeredServiceProviders = gatherRegisteredServiceProviders();

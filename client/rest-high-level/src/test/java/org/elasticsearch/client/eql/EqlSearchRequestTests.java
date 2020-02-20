@@ -27,7 +27,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -85,6 +85,6 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
     }
 }

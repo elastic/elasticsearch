@@ -777,6 +777,12 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getTotalSizeInBytes());
             table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getTotalSizeInBytes());
 
+            table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getAvgTime());
+            table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getAvgTime());
+
+            table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getAvgSizeInBytes());
+            table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getAvgSizeInBytes());
+
             table.endRow();
         });
 

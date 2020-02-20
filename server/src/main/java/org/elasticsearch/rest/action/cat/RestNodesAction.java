@@ -431,6 +431,8 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(bulkStats == null ? null : bulkStats.getTotalOperations());
             table.addCell(bulkStats == null ? null : bulkStats.getTotalTime());
             table.addCell(bulkStats == null ? null : bulkStats.getTotalSizeInBytes());
+            table.addCell(bulkStats == null ? null : bulkStats.getAvgTime());
+            table.addCell(bulkStats == null ? null : bulkStats.getAvgSizeInBytes());
 
             table.endRow();
         }

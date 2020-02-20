@@ -363,7 +363,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalOperations));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalTime));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalSizeInBytes));
-            table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgTimeInMillis));
+            table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgTime));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgSizeInBytes));
             table.endRow();
         }

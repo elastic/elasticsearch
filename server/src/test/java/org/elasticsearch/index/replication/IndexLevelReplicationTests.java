@@ -536,6 +536,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52148")
     public void testSeqNoCollision() throws Exception {
         try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();

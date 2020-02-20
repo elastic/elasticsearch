@@ -282,8 +282,12 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     private Map<String, Double> featureImportance(List<Double> fieldValues, Map<String, String> featureDecoder) {
         calculateNodeEstimatesIfNeeded();
         double[] featureImportance = new double[fieldValues.size()];
-        ShapPath initialPath = new ShapPath(this.maxDepth + 1);
-        shapRecursive(fieldValues, this.nodeEstimates, initialPath, 0, 1.0, 1.0, -1, featureImportance);
+        int arrSize = ((this.maxDepth + 1) * (this.maxDepth + 2))/2;
+        ShapPath.PathElement[] elements = Collections.nCopies(arrSize, new ShapPath.PathElement())
+            .toArray(new ShapPath.PathElement[0]);
+        double[] scale = new double[arrSize];
+        ShapPath initialPath = new ShapPath(elements, scale);
+        shapRecursive(fieldValues, this.nodeEstimates, initialPath, 0, 1.0, 1.0, -1, featureImportance, 0);
         return InferenceHelpers.decodeFeatureImportances(featureDecoder,
             IntStream.range(0, featureImportance.length)
                 .boxed()
@@ -312,30 +316,22 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
      */
     private void shapRecursive(List<Double> processedFeatures,
                                double[] nodeValues,
-                               ShapPath splitPath,
+                               ShapPath parentSplitPath,
                                int nodeIndex,
                                double parentFractionZero,
                                double parentFractionOne,
                                int parentFeatureIndex,
-                               double[] featureImportance) {
+                               double[] featureImportance,
+                               int nextIndex) {
+        ShapPath splitPath = new ShapPath(parentSplitPath, nextIndex);
         TreeNode currNode = nodes.get(nodeIndex);
-        ShapPath backupPath = null;
-        splitPath.extend(parentFeatureIndex, parentFractionZero, parentFractionOne);
+        nextIndex = splitPath.extend(parentFractionZero, parentFractionOne, parentFeatureIndex, nextIndex);
         if (currNode.isLeaf()) {
+            // TODO multi-value????
             double leafValue = nodeValues[nodeIndex];
-            for (int i = 1; i <= splitPath.depth(); ++i) {
-                double scale = splitPath.sumUnwoundPath(i);
+            for (int i = 1; i < nextIndex; ++i) {
+                double scale = splitPath.sumUnwoundPath(i, nextIndex);
                 int inputColumnIndex = splitPath.featureIndex(i);
-                // inputColumnIndex is read by seeing what the feature at position i is on the path to this leaf.
-                // fractionOnes(i) is an indicator variable which tells us if we condition on this variable
-                // do we visit this path from that node or not, fractionZeros(i) tells us what proportion of
-                // all training data which reaches that node visits this path, i.e. the case we're averaging
-                // over that feature. So this is telling us exactly about the difference in E[f | S U {i}] -
-                // E[f | S] given we're examining only that part of the sample space concerned with this leaf.
-                //
-                // The key observation is that the leaves form a disjoint partition of the
-                // sample space (set of all training data) so we can compute the full
-                // expectation as a simple sum over the contributions of the individual leaves.
                 featureImportance[inputColumnIndex] += scale * (splitPath.fractionOnes(i) - splitPath.fractionZeros(i)) * leafValue;
             }
         } else {
@@ -345,31 +341,21 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             double incomingFractionZero = 1.0;
             double incomingFractionOne = 1.0;
             int splitFeature = currNode.getSplitFeature();
-            int pathIndex = splitPath.findFeatureIndex(splitFeature);
+            int pathIndex = splitPath.findFeatureIndex(splitFeature, nextIndex);
             if (pathIndex > -1) {
-                // Since we pass splitPath by reference, we need to backup the object before unwinding it.
-                // TODO this is doing a deep copy of all internal arrays, drastically increasing run time
-                backupPath = new ShapPath(splitPath);
                 incomingFractionZero = splitPath.fractionZeros(pathIndex);
                 incomingFractionOne = splitPath.fractionOnes(pathIndex);
-                splitPath.unwind(pathIndex);
+                nextIndex = splitPath.unwind(pathIndex, nextIndex);
             }
 
             double hotFractionZero = nodes.get(hotIndex).getNumberSamples() / (double)currNode.getNumberSamples();
             double coldFractionZero = nodes.get(coldIndex).getNumberSamples() / (double)currNode.getNumberSamples();
-            int nextIndex = splitPath.nextIndex();
             shapRecursive(processedFeatures, nodeValues, splitPath,
                 hotIndex, incomingFractionZero * hotFractionZero,
-                incomingFractionOne, splitFeature, featureImportance);
-            splitPath.unwind(nextIndex);
+                incomingFractionOne, splitFeature, featureImportance, nextIndex);
             shapRecursive(processedFeatures, nodeValues, splitPath,
                 coldIndex, incomingFractionZero * coldFractionZero,
-                0.0, splitFeature, featureImportance);
-            splitPath.unwind(nextIndex);
-            if (backupPath != null) {
-                // now we swap to restore the data before unwinding
-                splitPath.reset(backupPath);
-            }
+                0.0, splitFeature, featureImportance, nextIndex);
         }
     }
 

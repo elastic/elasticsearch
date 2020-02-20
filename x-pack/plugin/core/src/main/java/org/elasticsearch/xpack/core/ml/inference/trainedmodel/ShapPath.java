@@ -6,53 +6,31 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 
-import java.util.Arrays;
-import java.util.Collections;
-
 /**
  * Ported from https://github.com/elastic/ml-cpp/blob/master/include/maths/CTreeShapFeatureImportance.h Path struct
  */
 public class ShapPath  {
     private static final double DBL_EPSILON = Math.ulp(1.0);
 
-    private double[] fractionOnes;
-    private double[] fractionZeros;
-    private int[] featureIndex;
-    private double[] scale;
-    private int nextIndex = 0;
-    private int maxLength;
+    private final PathElement[] pathElements;
+    private final double[] scale;
+    private int currFraction;
+    private int currScale;
 
-    public ShapPath(ShapPath path) {
-        this.featureIndex = Arrays.copyOf(path.featureIndex, path.maxLength);
-        this.fractionOnes = Arrays.copyOf(path.fractionOnes, path.maxLength);
-        this.fractionZeros = Arrays.copyOf(path.fractionZeros, path.maxLength);
-        this.scale = Arrays.copyOf(path.scale, path.maxLength);
-        this.maxLength = path.maxLength;
-        this.nextIndex = path.nextIndex;
+    public ShapPath(ShapPath path, int nextIndex) {
+        this.currFraction = path.currFraction + nextIndex;
+        this.currScale = path.currScale + nextIndex;
+        this.pathElements = path.pathElements;
+        this.scale = path.scale;
+        for (int i = 0; i < nextIndex; i++) {
+            pathElements[currFraction + i] = new PathElement(path.getElement(i));
+            scale[currScale + i] = path.getScale(i);
+        }
     }
 
-    public ShapPath(int length) {
-        fractionOnes = new double[length];
-        fractionZeros = new double[length];
-        featureIndex = Collections.nCopies(length, -1).stream().mapToInt(Integer::intValue).toArray();
-        scale = new double[length];
-        maxLength = length;
-    }
-
-    public void reset(ShapPath path) {
-        if (path == null) {
-            return;
-        }
-        if (this.maxLength != path.maxLength) {
-            throw new IllegalArgumentException("paths must have the same length");
-        }
-        for (int i = 0; i < this.maxLength; i++) {
-            this.featureIndex[i] = path.featureIndex[i];
-            this.fractionOnes[i] = path.fractionOnes[i];
-            this.fractionZeros[i] = path.fractionZeros[i];
-            this.scale[i] = path.scale[i];
-        }
-        this.nextIndex = path.nextIndex;
+    public ShapPath(PathElement[] elements, double[] scale) {
+        this.pathElements = elements;
+        this.scale = scale;
     }
 
     // Update binomial coefficients to be able to compute Equation (2) from the paper.  In particular,
@@ -63,98 +41,128 @@ public class ShapPath  {
     // to sets of size i and we **also** need to scale by the difference in binomial coefficients as both M
     // increases by one and i increases by one. So we get additive term 1{last feature selects path if in S}
     // * scale(i) * (i+1)! (M+1-(i+1)-1)!/(M+1)! / (i! (M-i-1)!/ M!), whence += scale(i) * (i+1) / (M+1).
-    public void extend(int featureIndex, double fractionZero, double fractionOne) {
-        if (nextIndex < maxLength) {
-            this.featureIndex[nextIndex] = featureIndex;
-            fractionZeros[nextIndex] = fractionZero;
-            fractionOnes[nextIndex] = fractionOne;
-            if (nextIndex == 0) {
-                scale[nextIndex] = 1.0;
-            } else {
-                scale[nextIndex] = 0.0;
-            }
-            ++nextIndex;
+    public int extend(double fractionZero, double fractionOne, int featureIndex, int nextIndex) {
+        setValues(nextIndex, fractionOne, fractionZero, featureIndex);
+        setScale(nextIndex, nextIndex == 0 ? 1.0 : 0.0);
+        double stepDown = fractionOne / (double)(nextIndex + 1);
+        double stepUp = fractionZero / (double)(nextIndex + 1);
+        double countDown = nextIndex * stepDown;
+        double countUp = stepUp;
+        for (int i = (nextIndex - 1); i >= 0; --i, countDown -= stepDown, countUp += stepUp) {
+            setScale(i + 1, getScale(i + 1) + getScale(i) * countDown);
+            setScale(i, getScale(i) * countUp);
         }
-        int pathDepth = depth();
-        for (int i = (pathDepth - 1); i >= 0; --i) {
-            scale[i + 1] += fractionOne * scale[i] * (i + 1.0) / (pathDepth + 1.0);
-            scale[i] = fractionZero * scale[i] * (pathDepth - i) / (pathDepth + 1.0);
-        }
+        return nextIndex + 1;
     }
 
-    public double sumUnwoundPath(int pathIndex) {
+    public double sumUnwoundPath(int pathIndex, int nextIndex) {
         double total = 0.0;
-        int pathDepth = depth();
-        double nextFractionOne = scale[pathDepth];
-        double fractionOne = fractionOnes[pathIndex];
-        double fractionZero = fractionZeros[pathIndex];
-
+        int pathDepth = nextIndex - 1;
+        double nextFractionOne = getScale(pathDepth);
+        double fractionOne = fractionOnes(pathIndex);
+        double fractionZero = fractionZeros(pathIndex);
         if (fractionOne != 0) {
-            for (int i = pathDepth - 1; i >= 0; --i) {
-                double tmp = nextFractionOne * (pathDepth + 1) / ((i + 1) * fractionOne + DBL_EPSILON);
-                nextFractionOne = scale[i] - tmp * fractionZero * (pathDepth - i) / (pathDepth + 1);
+            double pD = pathDepth + 1;
+            double stepUp = fractionZero / pD;
+            double stepDown = fractionOne / pD;
+            double countUp = stepUp;
+            double countDown = (pD - 1.0) * stepDown;
+            for (int i = pathDepth - 1; i >= 0; --i, countUp += stepUp, countDown -= stepDown) {
+                double tmp = nextFractionOne / countDown;
+                nextFractionOne = getScale(i) - tmp * countUp;
                 total += tmp;
             }
         } else {
-            for (int i = pathDepth - 1; i >= 0; --i) {
-                total += scale[i] * (pathDepth + 1) / (fractionZero * (pathDepth - i) + DBL_EPSILON);
+            double pD = pathDepth;
+
+            for(int i = 0; i < pathDepth; i++) {
+                total += getScale(i) / pD--;
             }
+            total *= (pathDepth + 1) / (fractionZero + DBL_EPSILON);
         }
 
         return total;
     }
 
-    public void unwind(int pathIndex) {
-        int pathDepth = depth();
-        double nextFractionOne = scale[pathDepth];
-        double fractionOne = fractionOnes[pathIndex];
-        double fractionZero = fractionZeros[pathIndex];
+    public int unwind(int pathIndex, int nextIndex) {
+        int pathDepth = nextIndex - 1;
+        double nextFractionOne = getScale(pathDepth);
+        double fractionOne = fractionOnes(pathIndex);
+        double fractionZero = fractionZeros(pathIndex);
 
         if (fractionOne != 0) {
-            for (int i = pathDepth - 1; i >= 0; --i) {
-                double tmp = nextFractionOne * (pathDepth + 1) / ((i + 1) * fractionOne);
-                nextFractionOne = scale[i] - tmp * fractionZero * (pathDepth - i) / (pathDepth + 1);
-                scale[i] = tmp;
+            double stepUp = fractionZero / (double)(pathDepth + 1);
+            double stepDown = fractionOne / (double)nextIndex;
+            double countUp = 0.0;
+            double countDown = nextIndex * stepDown;
+            for (int i = pathDepth; i >= 0; --i, countUp += stepUp, countDown -= stepDown) {
+                double tmp = nextFractionOne / countDown;
+                nextFractionOne = getScale(i) - tmp * countUp;
+                setScale(i, tmp);
             }
         } else {
-            for (int i = pathDepth - 1; i >= 0; --i) {
-                scale[i] = scale[i] * (pathDepth + 1) / (fractionZero * (pathDepth - i));
+            double stepDown = (fractionZero + DBL_EPSILON) / (double)(pathDepth + 1);
+            double countDown = pathDepth * stepDown;
+            for (int i = 0; i <= pathDepth; ++i, countDown -= stepDown) {
+                setScale(i, getScale(i) / countDown);
             }
         }
-        for (int i = pathIndex; i < depth(); ++i) {
-            featureIndex[i] = featureIndex[i + 1];
-            fractionZeros[i] = fractionZeros[i + 1];
-            fractionOnes[i] = fractionOnes[i + 1];
+        for (int i = pathIndex; i < pathDepth; ++i) {
+            PathElement element = getElement(i + 1);
+            setValues(i, element.fractionOnes, element.fractionZeros, element.featureIndex);
         }
-        --nextIndex;
+        return nextIndex - 1;
     }
 
-    //! Indicator whether or not the feature \p pathIndex is decicive for the path.
+    private void setValues(int index, double fractionOnes, double fractionZeros, int featureIndex) {
+        pathElements[index + currFraction].fractionOnes = fractionOnes;
+        pathElements[index + currFraction].fractionZeros = fractionZeros;
+        pathElements[index + currFraction].featureIndex = featureIndex;
+    }
+
+    private double getScale(int offset) {
+        return scale[offset + currScale];
+    }
+
+    private void setScale(int offset, double value) {
+        scale[offset + currScale] = value;
+    }
+
     public double fractionOnes(int pathIndex) {
-        return fractionOnes[pathIndex];
+        return pathElements[pathIndex + currFraction].fractionOnes;
     }
 
-    //! Fraction of all training data that reached the \pathIndex in the path.
     public double fractionZeros(int pathIndex) {
-        return fractionZeros[pathIndex];
+        return pathElements[pathIndex + currFraction].fractionZeros;
     }
-    //! Current depth in the tree
-    public int depth() { return nextIndex - 1; }
 
-    public int findFeatureIndex(int splitFeature) {
-        for (int i = 0; i < nextIndex; i++) {
-            if (featureIndex[i] == splitFeature) {
-                return i;
+    public int findFeatureIndex(int splitFeature, int nextIndex) {
+        for (int i = currFraction; i < currFraction + nextIndex; i++) {
+            if (pathElements[i].featureIndex == splitFeature) {
+                return i - currFraction;
             }
         }
         return -1;
     }
 
     public int featureIndex(int pathIndex) {
-        return featureIndex[pathIndex];
+        return pathElements[pathIndex + currFraction].featureIndex;
     }
 
-    public int nextIndex() {
-        return nextIndex;
+    private PathElement getElement(int offset) {
+        return pathElements[offset + currFraction];
+    }
+
+    public final static class PathElement {
+        double fractionOnes = 1.0;
+        double fractionZeros = 1.0;
+        int featureIndex = -1;
+        public PathElement() {}
+
+        public PathElement(PathElement element) {
+            this.featureIndex  = element.featureIndex;
+            this.fractionOnes  = element.fractionOnes;
+            this.fractionZeros = element.fractionZeros;
+        }
     }
 }

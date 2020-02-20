@@ -30,6 +30,8 @@ dependencies {
   compile 'com.google.guava:guava:20.0'
   compile 'org.apache.commons:commons-lang3:3.4'
   testCompile project(':test:fixtures:azure-fixture')
+  // required by the test for the encrypted Azure repository
+  testCompile project(path: ':x-pack:plugin:repository-encrypted', configuration: 'testArtifacts')
 }
 
 dependencyLicenses {

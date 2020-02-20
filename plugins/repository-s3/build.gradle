@@ -53,6 +53,8 @@ dependencies {
   compile 'javax.xml.bind:jaxb-api:2.2.2'
 
   testCompile project(':test:fixtures:s3-fixture')
+  // required by the test for the encrypted S3 repository
+  testCompile project(path: ':x-pack:plugin:repository-encrypted', configuration: 'testArtifacts')
 }
 
 dependencyLicenses {

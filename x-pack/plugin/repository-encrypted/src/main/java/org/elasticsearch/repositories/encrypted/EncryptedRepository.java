@@ -87,7 +87,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
     // this can be changed freely (can be made a repository parameter) without adjusting
     // the {@link #CURRENT_ENCRYPTION_VERSION_NUMBER}, as long as it stays under the value
     // of {@link #MAX_PACKET_LENGTH_IN_BYTES}
-    static final int PACKET_LENGTH_IN_BYTES = 64 * (1 << 10); // 64KB
+    public static final int PACKET_LENGTH_IN_BYTES = 64 * (1 << 10); // 64KB - "public" because used in tests
     static final String SALTED_PASSWORD_HASH_ALGO = "PBKDF2WithHmacSHA512";
     static final int SALTED_PASSWORD_HASH_ITER_COUNT = 10000;
     static final int SALTED_PASSWORD_HASH_KEY_LENGTH_IN_BITS = 512;
@@ -161,7 +161,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
         this.passwordHashVerifier = new HashVerifier(password);
     }
 
-    static class MetadataIdentifier {
+    public static class MetadataIdentifier {
 
         final byte[] id;
         final long repositoryGeneration;
@@ -190,7 +190,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
             return sb.toString();
         }
 
-        static int byteLength() {
+        public static int byteLength() {
             return METADATA_UID_LENGTH_IN_BYTES + Long.BYTES;
         }
 

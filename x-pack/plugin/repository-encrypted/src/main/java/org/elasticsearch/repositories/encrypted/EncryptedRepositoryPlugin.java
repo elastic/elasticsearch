@@ -35,12 +35,14 @@ import java.util.function.Function;
 public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     static final Logger logger = LogManager.getLogger(EncryptedRepositoryPlugin.class);
-    static final String REPOSITORY_TYPE_NAME = "encrypted";
+    public static final String REPOSITORY_TYPE_NAME = "encrypted";
     static final String CIPHER_ALGO = "AES";
     static final String RAND_ALGO = "SHA1PRNG";
-    static final Setting.AffixSetting<SecureString> ENCRYPTION_PASSWORD_SETTING = Setting.affixKeySetting("repository.encrypted.",
+    // "public" because used in integ tests for other repository types
+    public static final Setting.AffixSetting<SecureString> ENCRYPTION_PASSWORD_SETTING = Setting.affixKeySetting("repository.encrypted.",
             "password", key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
-    static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity());
+    // "public" because used in integ tests for other repository types
+    public static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity());
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 

@@ -54,6 +54,8 @@ dependencies {
   compile 'com.google.apis:google-api-services-storage:v1-rev20190426-1.28.0'
 
   testCompile project(':test:fixtures:gcs-fixture')
+  // required by the test for the encrypted GCS repository
+  testCompile project(path: ':x-pack:plugin:repository-encrypted', configuration: 'testArtifacts')
 }
 
 dependencyLicenses {
@@ -125,17 +127,3 @@ check {
   dependsOn 'qa:google-cloud-storage:check'
 }
 
-// test jar is exported by the testArtifacts configuration to be used in the repository-encrypted module
-configurations {
-  testArtifacts.extendsFrom testRuntime
-}
-
-task testJar(type: Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  archives jar
-  testArtifacts testJar
-}

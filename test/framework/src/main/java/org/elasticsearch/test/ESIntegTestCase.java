@@ -81,6 +81,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -1614,8 +1615,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // randomly enable low-level search cancellation to make sure it does not alter results
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
+            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+            .setSecureSettings(nodeSecureSettings(nodeOrdinal));
         return builder.build();
+    }
+
+    protected MockSecureSettings nodeSecureSettings(int nodeOrdinal) {
+        return new MockSecureSettings();
     }
 
     protected Path nodeConfigPath(int nodeOrdinal) {

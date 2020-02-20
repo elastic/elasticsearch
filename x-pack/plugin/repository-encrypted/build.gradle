@@ -12,7 +12,21 @@ dependencies {
     // necessary for the license check
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: ':plugins:repository-gcs', configuration: 'testArtifacts')
 }
 
 integTest.enabled = false
+
+// test jar is exported by the testArtifacts configuration to be used in the cloud repositories (S3, GCS, Azure) tests
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
+
+task testJar(type: Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  archives jar
+  testArtifacts testJar
+}

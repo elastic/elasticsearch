@@ -457,7 +457,7 @@ public class Node implements Closeable {
                     indicesService,
                     clusterModule.getAllocationService(),
                     aliasValidator,
-                    initialEnvironment,
+                    environment,
                     settingsModule.getIndexScopedSettings(),
                     threadPool,
                     xContentRegistry,

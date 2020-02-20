@@ -169,10 +169,10 @@ also contains information about the type of the targeted field: `lterms` (for a 
  aggregation based on the TDigest algorithm).
  
 
- [[indexing-aggregation-results]]
- == Indexing aggregation results with {transforms}
+[[indexing-aggregation-results]]
+== Indexing aggregation results with {transforms}
  
- {ref}/transforms.html[Transforms] enable you to convert existing {es} indices 
- into summarized indices, which provide opportunities for new insights and 
- analytics. You can use {transforms} to persistently index your aggregation 
- results into entity-centric indices.
+{ref}/transforms.html[Transforms] enable you to convert existing {es} indices 
+into summarized indices, which provide opportunities for new insights and 
+analytics. You can use {transforms} to persistently index your aggregation 
+results into entity-centric indices.

@@ -585,8 +585,8 @@ public class InternalEngine extends Engine {
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
         if (combinedDeletionPolicy.hasUnreferencedCommits()) {
             indexWriter.deleteUnusedFiles();
-            translog.trimUnreferencedReaders();
         }
+        translog.trimUnreferencedReaders();
     }
 
     @Override

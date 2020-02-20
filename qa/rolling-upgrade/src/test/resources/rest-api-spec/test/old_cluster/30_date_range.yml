@@ -22,7 +22,7 @@
         refresh: true
         body:
           - '{"index": {"_index": "joda_for_range"}}'
-          - '{"time_frame": {"gte": "2020-01-01", "lte" : "2020-01-03"}}'
+          - '{"time_frame": {"gte": "2019-12-31", "lte" : "2020-01-03"}}'
 
   - do:
       search:

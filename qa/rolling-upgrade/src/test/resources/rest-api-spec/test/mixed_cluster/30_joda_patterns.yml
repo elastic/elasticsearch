@@ -1,4 +1,4 @@
----
+--- TODO make scenario with multiple shards, more documents and make sure search works
 "Info":
   - do:         {info: {}}
   - is_true:    name

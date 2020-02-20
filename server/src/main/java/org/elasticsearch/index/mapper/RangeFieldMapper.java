@@ -140,7 +140,7 @@ public class RangeFieldMapper extends FieldMapper {
 
                 if (hasPatternChanged || Objects.equals(builder.locale, formatter.locale()) == false) {
                     DateFormatter dateTimeFormatter;
-                    if (Joda.isJodaStyleIndex(context,pattern) ) {
+                    if (Joda.isJodaStyleIndex(context,pattern) ) { //TODO make sure it fails too..g
                         dateTimeFormatter = Joda.forPattern(pattern).withLocale(locale);
                     } else {
                         dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);

@@ -550,11 +550,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Version version;
             if (in.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 version = Version.readVersion(in);
-            } else {
+            } else if (in.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
                 // If an older master informs us that shard generations are supported we use the minimum shard generation compatible
                 // version. If shard generations are not supported yet we use a placeholder for a version that does not use shard
                 // generations.
                 version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : SnapshotsService.OLD_SNAPSHOT_FORMAT;
+            } else {
+                version = SnapshotsService.OLD_SNAPSHOT_FORMAT;
             }
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
@@ -604,7 +606,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             if (out.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 Version.writeVersion(entry.version, out);
-            } else {
+            } else if (out.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
                 out.writeBoolean(SnapshotsService.useShardGenerations(entry.version));
             }
         }

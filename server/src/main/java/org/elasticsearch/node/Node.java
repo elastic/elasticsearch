@@ -466,7 +466,7 @@ public class Node implements Closeable {
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
-                                                 scriptModule.getScriptService(), xContentRegistry, initialEnvironment, nodeEnvironment,
+                                                 scriptModule.getScriptService(), xContentRegistry, environment, nodeEnvironment,
                                                  namedWriteableRegistry).stream())
                 .collect(Collectors.toList());
 
@@ -521,7 +521,7 @@ public class Node implements Closeable {
             final DiscoveryModule discoveryModule = new DiscoveryModule(settings, transportService, namedWriteableRegistry,
                 networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService(), initialEnvironment.configFile(), gatewayMetaState, rerouteService);
+                clusterModule.getAllocationService(), environment.configFile(), gatewayMetaState, rerouteService);
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,

@@ -718,7 +718,6 @@ final class RequestConverters {
         Params params = new Params();
         params.withRouting(tvrequest.getRouting());
         params.withPreference(tvrequest.getPreference());
-        params.withFields(tvrequest.getFields());
         params.withRealtime(tvrequest.getRealtime());
         request.addParameters(params.asMap());
         request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));

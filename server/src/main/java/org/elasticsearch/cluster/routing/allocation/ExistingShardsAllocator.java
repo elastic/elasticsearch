@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -38,9 +39,22 @@ public interface ExistingShardsAllocator {
         Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
     /**
+     * Called before starting a round of allocation, allowing the allocator to invalidate some caches if appropriate.
+     */
+    void beforeAllocation(RoutingAllocation allocation);
+
+
+    /**
+     * Called during a round of allocation after attempting to allocate all the primaries but before any replicas, allowing the allocator
+     * to prepare for replica allocation.
+     */
+    void afterPrimariesBeforeReplicas(RoutingAllocation allocation);
+
+    /**
      * Allocate any unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.
      */
-    void allocateUnassigned(RoutingAllocation allocation);
+    void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
+                            RoutingNodes.UnassignedShards.UnassignedIterator iterator);
 
     /**
      * Returns an explanation for a single unassigned shard.

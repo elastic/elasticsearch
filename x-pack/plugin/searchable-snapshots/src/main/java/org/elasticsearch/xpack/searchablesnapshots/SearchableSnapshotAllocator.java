@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,65 +26,64 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     static final String ALLOCATOR_NAME = "searchable_snapshot_allocator";
 
     @Override
-    public void allocateUnassigned(RoutingAllocation allocation) {
+    public void beforeAllocation(RoutingAllocation allocation) {
+    }
 
-        final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+    @Override
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+    }
 
-        while (iterator.hasNext()) {
-            final ShardRouting shardRouting = iterator.next();
-            final AllocateUnassignedDecision allocateUnassignedDecision = decideAllocation(allocation, shardRouting);
-
-            if (allocateUnassignedDecision.isDecisionTaken()) {
-                if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {
-                    if (shardRouting.primary() && shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
-                        // we don't care what the allocation ID is since we know that these shards cannot really be stale, so we can
-                        // safely ignore the allocation ID with a forced-stale allocation
-                        iterator.updateUnassigned(shardRouting.unassignedInfo(),
-                            RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE, allocation.changes());
-                    }
-                    iterator.initialize(allocateUnassignedDecision.getTargetNode().getId(), null, 0L, allocation.changes());
-                } else {
-                    iterator.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
+    @Override
+    public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
+                                   RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+        final AllocateUnassignedDecision allocateUnassignedDecision = decideAllocation(allocation, shardRouting);
+        if (allocateUnassignedDecision.isDecisionTaken()) {
+            if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {
+                if (shardRouting.primary() && shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
+                    // we don't care what the allocation ID is since we know that these shards cannot really be stale, so we can
+                    // safely ignore the allocation ID with a forced-stale allocation
+                    iterator.updateUnassigned(shardRouting.unassignedInfo(),
+                        RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE, allocation.changes());
                 }
+                iterator.initialize(allocateUnassignedDecision.getTargetNode().getId(), null, 0L, allocation.changes());
+            } else {
+                iterator.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
             }
         }
     }
 
     private static AllocateUnassignedDecision decideAllocation(RoutingAllocation allocation, ShardRouting shardRouting) {
-        if (isResponsibleFor(allocation, shardRouting)) {
-            Decision.Type bestDecision = Decision.Type.NO;
-            RoutingNode bestNode = null;
-            final List<NodeAllocationResult> nodeAllocationResults
-                = allocation.debugDecision() ? new ArrayList<>(allocation.routingNodes().size()) : null;
+        assert shardRouting.unassigned();
+        assert ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
+            allocation.metaData().getIndexSafe(shardRouting.index()).getSettings()).equals(ALLOCATOR_NAME);
 
-            for (final RoutingNode routingNode : allocation.routingNodes()) {
-                final Decision decision = allocation.deciders().canAllocate(shardRouting, routingNode, allocation);
-                if (decision.type() == Decision.Type.YES
-                    || (decision.type() == Decision.Type.THROTTLE && bestDecision != Decision.Type.YES)) {
-                    bestDecision = decision.type();
-                    bestNode = routingNode;
-                }
-                if (nodeAllocationResults != null) {
-                    nodeAllocationResults.add(new NodeAllocationResult(routingNode.node(), null, decision));
-                }
+        Decision.Type bestDecision = Decision.Type.NO;
+        RoutingNode bestNode = null;
+        final List<NodeAllocationResult> nodeAllocationResults
+            = allocation.debugDecision() ? new ArrayList<>(allocation.routingNodes().size()) : null;
+
+        for (final RoutingNode routingNode : allocation.routingNodes()) {
+            final Decision decision = allocation.deciders().canAllocate(shardRouting, routingNode, allocation);
+            if (decision.type() == Decision.Type.YES
+                || (decision.type() == Decision.Type.THROTTLE && bestDecision != Decision.Type.YES)) {
+                bestDecision = decision.type();
+                bestNode = routingNode;
             }
-
-            switch (bestDecision) {
-                case YES:
-                    return AllocateUnassignedDecision.yes(bestNode.node(), null, nodeAllocationResults, false);
-                case THROTTLE:
-                    return AllocateUnassignedDecision.throttle(nodeAllocationResults);
-                case NO:
-                    return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, nodeAllocationResults);
+            if (nodeAllocationResults != null) {
+                nodeAllocationResults.add(new NodeAllocationResult(routingNode.node(), null, decision));
             }
         }
 
-        return AllocateUnassignedDecision.NOT_TAKEN;
-    }
+        switch (bestDecision) {
+            case YES:
+                return AllocateUnassignedDecision.yes(bestNode.node(), null, nodeAllocationResults, false);
+            case THROTTLE:
+                return AllocateUnassignedDecision.throttle(nodeAllocationResults);
+            case NO:
+                return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, nodeAllocationResults);
+        }
 
-    private static boolean isResponsibleFor(RoutingAllocation allocation, ShardRouting shardRouting) {
-        final Settings settings = allocation.metaData().getIndexSafe(shardRouting.index()).getSettings();
-        return shardRouting.unassigned() && ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals(ALLOCATOR_NAME);
+        return AllocateUnassignedDecision.NOT_TAKEN;
     }
 
     @Override

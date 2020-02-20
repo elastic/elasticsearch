@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -81,10 +80,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService);
     }
 
-    public static MockAllocationService createAllocationService(Settings settings, ExistingShardsAllocator existingShardsAllocator) {
+    public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-                existingShardsAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
+            gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {
@@ -236,9 +235,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         private volatile long nanoTimeOverride = -1L;
 
-        public MockAllocationService(AllocationDeciders allocationDeciders, ExistingShardsAllocator existingShardsAllocator,
+        public MockAllocationService(AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
                                      ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-            super(allocationDeciders, existingShardsAllocator, shardsAllocator, clusterInfoService);
+            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService);
         }
 
         public void setNanoTimeOverride(long nanoTime) {
@@ -268,16 +267,23 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
 
         @Override
-        public void allocateUnassigned(RoutingAllocation allocation) {
-            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-            while (unassignedIterator.hasNext()) {
-                ShardRouting shard = unassignedIterator.next();
-                if (shard.primary() || shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
-                    continue;
-                }
-                if (shard.unassignedInfo().isDelayed()) {
-                    unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
-                }
+        public void beforeAllocation(RoutingAllocation allocation) {
+            // no-op
+        }
+
+        @Override
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+            // no-op
+        }
+
+        @Override
+        public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
+                                       RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+            if (shardRouting.primary() || shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+                return;
+            }
+            if (shardRouting.unassignedInfo().isDelayed()) {
+                iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
             }
         }
     }

@@ -137,8 +137,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     }
 
     @Override
-    public Collection<ExistingShardsAllocator> getExistingShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
-        return List.of(new SearchableSnapshotAllocator());
+    public Map<String, ExistingShardsAllocator> getExistingShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
+        return Collections.singletonMap(SearchableSnapshotAllocator.ALLOCATOR_NAME, new SearchableSnapshotAllocator());
     }
 }
 

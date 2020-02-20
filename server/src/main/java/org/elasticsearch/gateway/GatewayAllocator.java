@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -122,23 +123,41 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void allocateUnassigned(final RoutingAllocation allocation) {
+    public void beforeAllocation(final RoutingAllocation allocation) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
         ensureAsyncFetchStorePrimaryRecency(allocation);
-        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
+    }
+
+    @Override
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+        assert replicaShardAllocator != null;
+        if (allocation.routingNodes().hasInactiveShards()) {
+            // cancel existing recoveries if we have a better match
+            replicaShardAllocator.processExistingRecoveries(allocation);
+        }
+    }
+
+    @Override
+    public void allocateUnassigned(final RoutingAllocation allocation, ShardRouting shardRouting,
+                                   RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+        assert primaryShardAllocator != null;
+        assert replicaShardAllocator != null;
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, iterator);
     }
 
     // allow for testing infra to change shard allocators implementation
     protected static void innerAllocatedUnassigned(RoutingAllocation allocation,
                                                    PrimaryShardAllocator primaryShardAllocator,
-                                                   ReplicaShardAllocator replicaShardAllocator) {
-        primaryShardAllocator.allocateUnassigned(allocation);
-        if (allocation.routingNodes().hasInactiveShards()) {
-            // cancel existing recoveries if we have a better match
-            replicaShardAllocator.processExistingRecoveries(allocation);
+                                                   ReplicaShardAllocator replicaShardAllocator,
+                                                   ShardRouting shardRouting,
+                                                   RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+        assert shardRouting.unassigned();
+        if (shardRouting.primary()) {
+            primaryShardAllocator.allocateUnassigned(allocation, shardRouting, iterator);
+        } else {
+            replicaShardAllocator.allocateUnassigned(allocation, shardRouting, iterator);
         }
-        replicaShardAllocator.allocateUnassigned(allocation);
     }
 
     @Override

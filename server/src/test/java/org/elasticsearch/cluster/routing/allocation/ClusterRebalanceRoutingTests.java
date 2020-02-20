@@ -566,19 +566,13 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         AllocationService strategy = createAllocationService(Settings.EMPTY, new TestGatewayAllocator() {
             @Override
-            public void allocateUnassigned(RoutingAllocation allocation) {
-                if (allocateTest1.get() == false) {
-                    RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-                    RoutingNodes.UnassignedShards.UnassignedIterator iterator = unassigned.iterator();
-                    while (iterator.hasNext()) {
-                        ShardRouting next = iterator.next();
-                        if ("test1".equals(next.index().getName())) {
-                            iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
-                        }
-
-                    }
+            public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
+                                           RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+                if (allocateTest1.get() == false && "test1".equals(shardRouting.index().getName())) {
+                    iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                } else {
+                    super.allocateUnassigned(allocation, shardRouting, iterator);
                 }
-                super.allocateUnassigned(allocation);
             }
         });
 
@@ -667,11 +661,12 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build(), new TestGatewayAllocator() {
             @Override
-            public void allocateUnassigned(RoutingAllocation allocation) {
+            public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
+                                           RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
                 if (hasFetches.get()) {
                     allocation.setHasPendingAsyncFetch();
                 }
-                super.allocateUnassigned(allocation);
+                super.allocateUnassigned(allocation, shardRouting, iterator);
             }
         });
 

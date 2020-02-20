@@ -39,6 +39,11 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
 
     @Override
     public final int compare(ShardRouting o1, ShardRouting o2) {
+
+        if (o1.primary() != o2.primary()) {
+            return o1.primary() ? -1 : 1;
+        }
+
         final String o1Index = o1.getIndexName();
         final String o2Index = o2.getIndexName();
         int cmp = 0;

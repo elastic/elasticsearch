@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -84,8 +85,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Configures classes and services that affect the entire cluster.
@@ -258,10 +257,20 @@ public class ClusterModule extends AbstractModule {
     public void setExistingShardsAllocators(Injector injector, List<ClusterPlugin> clusterPlugins) {
         final Settings settings = clusterService.getSettings();
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        allocationService.setExistingShardsAllocators(Stream.concat(clusterPlugins.stream()
-            .flatMap(clusterPlugin -> clusterPlugin.getExistingShardsAllocators(settings, clusterSettings).stream()),
-            Stream.of(injector.getInstance(GatewayAllocator.class))) // GatewayAllocator runs last
-            .collect(Collectors.toList()));
+
+        final Map<String, ExistingShardsAllocator> existingShardsAllocators = new HashMap<>();
+        existingShardsAllocators.put(GatewayAllocator.ALLOCATOR_NAME, injector.getInstance(GatewayAllocator.class));
+
+        for (ClusterPlugin clusterPlugin : clusterPlugins) {
+            for (Map.Entry<String, ExistingShardsAllocator> existingShardsAllocatorEntry
+                : clusterPlugin.getExistingShardsAllocators(settings, clusterSettings).entrySet()) {
+                final String allocatorName = existingShardsAllocatorEntry.getKey();
+                if (existingShardsAllocators.put(allocatorName, existingShardsAllocatorEntry.getValue()) != null) {
+                    throw new IllegalArgumentException("ExistingShardsAllocator [" + allocatorName + "] already defined");
+                }
+            }
+        }
+        allocationService.setExistingShardsAllocators(existingShardsAllocators);
     }
 
 }

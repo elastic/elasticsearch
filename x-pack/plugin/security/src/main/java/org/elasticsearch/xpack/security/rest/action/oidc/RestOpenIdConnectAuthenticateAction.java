@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthentica
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
@@ -51,7 +50,7 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_security/oidc/authenticate"));
+        return List.of(new Route(POST, "/_security/oidc/authenticate"));
     }
 
     @Override

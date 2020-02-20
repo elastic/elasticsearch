@@ -38,16 +38,20 @@ public class EncryptedFSBlobStoreRepositoryIntegTests extends ESBlobStoreReposit
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        final MockSecureSettings secureSettings = new MockSecureSettings();
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+                .build();
+    }
+
+    @Override
+    protected MockSecureSettings nodeSecureSettings(int nodeOrdinal) {
+        MockSecureSettings secureSettings = super.nodeSecureSettings(nodeOrdinal);
         for (String repositoryName : repositoryNames) {
             secureSettings.setString(EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.
                     getConcreteSettingForNamespace(repositoryName).getKey(), "passwordPassword");
         }
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-                .setSecureSettings(secureSettings)
-                .build();
+        return secureSettings;
     }
 
     @Override

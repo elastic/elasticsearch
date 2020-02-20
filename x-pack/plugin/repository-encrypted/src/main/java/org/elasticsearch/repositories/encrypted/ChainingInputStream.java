@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -74,39 +76,34 @@ public abstract class ChainingInputStream extends InputStream {
 
     /**
      * Returns a new {@link ChainingInputStream} that concatenates the bytes to be read from the first
-     * input stream with the bytes from the second input stream.
+     * input stream with the bytes from the second input stream. The stream arguments must support
+     * {@code mark} and {@code reset}.
      *
-     * @param first the input stream supplying the first bytes of the returned {@link ChainingInputStream}
-     * @param second the input stream supplying the bytes after the {@code first} input stream has been exhausted (and closed)
-     * @param markSupported whether the returned {@link ChainingInputStream} supports mark and reset
+     * @param firstComponentSupplier  the input stream supplying the first bytes of the returned {@link ChainingInputStream}
+     * @param secondComponentSupplier the input stream supplying the bytes after the {@code first} input stream has been exhausted (and
+     *                                closed)
      */
-    public static InputStream chain(InputStream first, InputStream second, boolean markSupported) {
-        Objects.requireNonNull(first);
-        Objects.requireNonNull(second);
-        if (markSupported && false == first.markSupported()) {
-            throw new IllegalArgumentException("The first input stream does not support mark");
-        }
-        if (markSupported && false == second.markSupported()) {
-            throw new IllegalArgumentException("The second input stream does not support mark");
-        }
+    public static InputStream chain(Supplier<InputStream> firstComponentSupplier, Supplier<InputStream> secondComponentSupplier) {
+        Objects.requireNonNull(firstComponentSupplier);
+        Objects.requireNonNull(secondComponentSupplier);
+        final int FIRST_TAG = 1;
+        final int SECOND_TAG = 2;
         return new ChainingInputStream() {
-
             @Override
             InputStream nextComponent(InputStream currentComponentIn) {
                 if (currentComponentIn == null) {
-                    return first;
-                } else if (currentComponentIn == first) {
-                    return second;
-                } else if (currentComponentIn == second){
+                    return new TaggedFilterInputStream(Objects.requireNonNull(firstComponentSupplier.get(),
+                            "First component supplier returned null. Return the empty stream instead."), FIRST_TAG);
+                } else if (false == currentComponentIn instanceof TaggedFilterInputStream) {
+                    throw new IllegalStateException("Unexpected component input stream");
+                } else if (((TaggedFilterInputStream) currentComponentIn).getTag() == FIRST_TAG) {
+                    return new TaggedFilterInputStream(Objects.requireNonNull(secondComponentSupplier.get(),
+                            "Second component supplier returned null. Return the empty stream instead."), SECOND_TAG);
+                } else if (((TaggedFilterInputStream) currentComponentIn).getTag() == SECOND_TAG) {
                     return null;
                 } else {
                     throw new IllegalStateException("Unexpected component input stream");
                 }
-            }
-
-            @Override
-            public boolean markSupported() {
-                return markSupported;
             }
         };
     }
@@ -411,4 +408,17 @@ public abstract class ChainingInputStream extends InputStream {
         return true;
     }
 
+    private static class TaggedFilterInputStream extends FilterInputStream {
+
+        final int tag;
+
+        TaggedFilterInputStream(InputStream in, int tag) {
+            super(in);
+            this.tag = tag;
+        }
+
+        public int getTag() {
+            return tag;
+        }
+    }
 }

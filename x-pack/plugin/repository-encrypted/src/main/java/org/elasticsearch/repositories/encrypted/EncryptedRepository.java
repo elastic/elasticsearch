@@ -466,8 +466,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
             return new EncryptedBlobContainer(delegatedBlobStore, delegatedBasePath, path, dataEncryptionKeySupplier, metadataEncryption,
                     encryptionNonceSupplier, metadataIdentifierSupplier);
         }
-
     }
+
     private static class EncryptedBlobContainer implements BlobContainer {
 
         private final BlobStore delegatedBlobStore;
@@ -595,8 +595,9 @@ public final class EncryptedRepository extends BlobStoreRepository {
             // prepended to the encrypted data blob is the unique identifier (fixed length) of the metadata blob
             final long encryptedBlobSize = (long) MetadataIdentifier.byteLength() +
                     EncryptionPacketsInputStream.getEncryptionLength(blobSize, PACKET_LENGTH_IN_BYTES);
-            try (InputStream encryptedInputStream = ChainingInputStream.chain(new ByteArrayInputStream(metadataIdentifier.asByteArray()),
-                    new EncryptionPacketsInputStream(inputStream, dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES), true)) {
+            try (InputStream encryptedInputStream =
+                         ChainingInputStream.chain(() -> new ByteArrayInputStream(metadataIdentifier.asByteArray()),
+                                 () -> new EncryptionPacketsInputStream(inputStream, dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES))) {
                 delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
             }
         }

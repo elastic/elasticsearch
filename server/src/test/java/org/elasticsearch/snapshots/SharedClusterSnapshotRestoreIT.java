@@ -2389,10 +2389,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> try restoring while changing the number of shards - should fail");
         assertThrown(client.admin().cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap")
-            .setIgnoreIndexSettings("index.analysis.*")
-            .setIndexSettings(newIncorrectIndexSettings)
-            .setWaitForCompletion(true), SnapshotRestoreException.class);
+                .prepareRestoreSnapshot("test-repo", "test-snap")
+                .setIgnoreIndexSettings("index.analysis.*")
+                .setIndexSettings(newIncorrectIndexSettings)
+                .setWaitForCompletion(true), SnapshotRestoreException.class);
 
         logger.info("--> try restoring while changing the number of replicas to a negative number - should fail");
         Settings newIncorrectReplicasIndexSettings = Settings.builder()

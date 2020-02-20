@@ -108,9 +108,9 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         headers.put(SecurityField.USER_SETTING.getKey(), user);
         headers.put(BASIC_AUTH_HEADER, basicAuth);
         assertThrown(client().filterWithHeader(headers)
-            .prepareClearScroll()
-            .addScrollId("_all"), ElasticsearchSecurityException.class,
-            "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
+                .prepareClearScroll()
+                .addScrollId("_all"), ElasticsearchSecurityException.class,
+                "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
 
         // deletion of scroll ids should work
         ClearScrollResponse clearByIdScrollResponse = client().prepareClearScroll().setScrollIds(scrollIds).get();

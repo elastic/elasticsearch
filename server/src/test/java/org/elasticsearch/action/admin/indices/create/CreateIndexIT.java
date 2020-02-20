@@ -304,9 +304,9 @@ public class CreateIndexIT extends ESIntegTestCase {
             .get());
 
         assertThrown(client().admin().indices().prepareCreate("test-idx-2")
-            .setSettings(settings)
-            .addAlias(new Alias("alias1").writeIndex(true)),
-        IllegalStateException.class);
+                .setSettings(settings)
+                .addAlias(new Alias("alias1").writeIndex(true)),
+            IllegalStateException.class);
 
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getMasterName());
         for (IndexService indexService : indicesService) {

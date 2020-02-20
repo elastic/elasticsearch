@@ -242,10 +242,10 @@ public class UpdateIT extends ESIntegTestCase {
         ensureGreen();
 
         assertThrown(client().prepareUpdate(indexOrAlias(), "1")
-            .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
-            .setDocAsUpsert(false)
-            .setFetchSource(true)
-            .execute(), DocumentMissingException.class);
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setDocAsUpsert(false)
+                .setFetchSource(true)
+                .execute(), DocumentMissingException.class);
     }
 
     public void testUpsertFields() throws Exception {

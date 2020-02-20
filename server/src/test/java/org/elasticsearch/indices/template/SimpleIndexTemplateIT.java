@@ -41,7 +41,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 
 import java.io.IOException;
@@ -111,14 +110,14 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         // test create param
         assertThrown(client().admin().indices().preparePutTemplate("template_2")
-            .setPatterns(Collections.singletonList("test*"))
-            .setSettings(indexSettings())
-            .setCreate(true)
-            .setOrder(1)
-            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                    .startObject("field2").field("type", "text").field("store", false).endObject()
-                    .endObject().endObject().endObject())
-            , IllegalArgumentException.class
+                .setPatterns(Collections.singletonList("test*"))
+                .setSettings(indexSettings())
+                .setCreate(true)
+                .setOrder(1)
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
+                        .startObject("field2").field("type", "text").field("store", false).endObject()
+                        .endObject().endObject().endObject())
+                , IllegalArgumentException.class
         );
 
         response = client().admin().indices().prepareGetTemplates().get();
@@ -330,7 +329,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     private void testExpectActionRequestValidationException(String... names) {
-        ElasticsearchAssertions.assertThrown(client().admin().indices().prepareGetTemplates(names),
+        assertThrown(client().admin().indices().prepareGetTemplates(names),
                 ActionRequestValidationException.class,
                 "get template with " + Arrays.toString(names));
     }

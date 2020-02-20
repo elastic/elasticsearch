@@ -97,7 +97,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
     maxWaitInSeconds 60
-    onlyIf { project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled && BuildParams.inFipsJvm == false }
+    onlyIf { project(':test:fixtures:krb5kdc-fixture').buildFixture.state.executed && BuildParams.inFipsJvm == false }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist

@@ -371,6 +371,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.tags = config.getTags();
             this.metadata = config.getMetadata();
             this.input = config.getInput();
+            this.estimatedOperations = config.estimatedOperations;
+            this.estimatedHeapMemory = config.estimatedHeapMemory;
+            this.licenseLevel = config.licenseLevel.description();
         }
 
         public Builder setModelId(String modelId) {

@@ -205,7 +205,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
             }
             long generation = Long.parseLong(metadataBlobName.substring(generationPos + 1));
             int idPos = metadataBlobName.lastIndexOf('.', generationPos - 1);
-            if (idPos <= 0 || generationPos - idPos != METADATA_UID_LENGTH_IN_CHARS) {
+            if (idPos <= 0 || generationPos - idPos != METADATA_UID_LENGTH_IN_CHARS + 1) {
                 throw new IllegalArgumentException("Unrecognized metadata blob name");
             }
             byte[] id = Base64.getUrlDecoder().decode(metadataBlobName.substring(idPos + 1, generationPos));
@@ -658,7 +658,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 }
                 // group metadata blob names to their associated blob name
                 if (blobNamesToDelete.contains(blobNameForMetadata)) {
-                    blobNamesToMetadataNamesToDelete.putIfAbsent(blobNameForMetadata, new ArrayList<>(1)).add(metadataBlobName);
+                    blobNamesToMetadataNamesToDelete.computeIfAbsent(blobNameForMetadata, k -> new ArrayList<>(1))
+                            .add(metadataBlobName);
                 }
             }
             // Metadata deletes when there are multiple for the same blob is un-safe, so don't try it now.

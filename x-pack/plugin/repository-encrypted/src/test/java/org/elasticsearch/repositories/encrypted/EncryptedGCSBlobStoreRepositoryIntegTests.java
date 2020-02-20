@@ -13,8 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
-import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -23,7 +22,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class EncryptedFSBlobStoreRepositoryIntegTests extends ESBlobStoreRepositoryIntegTestCase {
+public class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloudStorageBlobStoreRepositoryTests {
 
     private static List<String> repositoryNames;
 
@@ -38,16 +37,22 @@ public class EncryptedFSBlobStoreRepositoryIntegTests extends ESBlobStoreReposit
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        final MockSecureSettings secureSettings = new MockSecureSettings();
+        final MockSecureSettings secureSettings = nodeSecureSettings(nodeOrdinal);
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal), false)
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+                .setSecureSettings(secureSettings)
+                .build();
+    }
+
+    @Override
+    protected MockSecureSettings nodeSecureSettings(int nodeOrdinal) {
+        MockSecureSettings secureSettings = super.nodeSecureSettings(nodeOrdinal);
         for (String repositoryName : repositoryNames) {
             secureSettings.setString(EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.
                     getConcreteSettingForNamespace(repositoryName).getKey(), "passwordPassword");
         }
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-                .setSecureSettings(secureSettings)
-                .build();
+        return secureSettings;
     }
 
     @Override
@@ -67,7 +72,7 @@ public class EncryptedFSBlobStoreRepositoryIntegTests extends ESBlobStoreReposit
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateEncryptedRepositoryPlugin.class);
+        return Arrays.asList(LocalStateEncryptedRepositoryPlugin.class, TestGoogleCloudStoragePlugin.class);
     }
 
     @Override
@@ -79,8 +84,7 @@ public class EncryptedFSBlobStoreRepositoryIntegTests extends ESBlobStoreReposit
     protected Settings repositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put(super.repositorySettings());
-        settings.put("location", randomRepoPath());
-        settings.put(EncryptedRepositoryPlugin.DELEGATE_TYPE.getKey(), FsRepository.TYPE);
+        settings.put(EncryptedRepositoryPlugin.DELEGATE_TYPE.getKey(), "gcs");
         if (randomBoolean()) {
             long size = 1 << randomInt(10);
             settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));

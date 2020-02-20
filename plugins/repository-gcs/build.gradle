@@ -124,3 +124,18 @@ check {
   // also execute the QA tests when testing the plugin
   dependsOn 'qa:google-cloud-storage:check'
 }
+
+// test jar is exported by the testArtifacts configuration to be used in the repository-encrypted module
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
+
+task testJar(type: Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  archives jar
+  testArtifacts testJar
+}

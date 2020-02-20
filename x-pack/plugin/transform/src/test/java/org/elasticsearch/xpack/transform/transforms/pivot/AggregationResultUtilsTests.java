@@ -822,44 +822,45 @@ public class AggregationResultUtilsTests extends ESTestCase {
         Aggregation agg = createSingleBucketAgg("sba", 42L);
         assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "long", Collections.emptyMap(), ""), equalTo(42L));
 
-        agg = createSingleBucketAgg("sba", 42L, createSingleMetricAgg("sub1", 100.0, "100.0"));
+        agg = createSingleBucketAgg("sba1", 42L, createSingleMetricAgg("sub1", 100.0, "100.0"));
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), ""),
             equalTo(Collections.singletonMap("sub1", 100.0))
         );
 
         agg = createSingleBucketAgg(
-            "sba",
+            "sba2",
             42L,
-            createSingleMetricAgg("sub1", 100.0, "100.0"),
-            createSingleMetricAgg("sub2", 33.33, "33.33")
+            createSingleMetricAgg("sub1", 100.0, "hundred"),
+            createSingleMetricAgg("sub2", 33.33, "thirty_three")
         );
         assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), ""),
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", asStringMap("sba2.sub1", "long", "sba2.sub2", "float"), ""),
             equalTo(asMap("sub1", 100.0, "sub2", 33.33))
         );
 
         agg = createSingleBucketAgg(
-            "sba",
+            "sba3",
             42L,
-            createSingleMetricAgg("sub1", 100.0, "100.0"),
-            createSingleMetricAgg("sub2", 33.33, "33.33"),
+            createSingleMetricAgg("sub1", 100.0, "hundred"),
+            createSingleMetricAgg("sub2", 33.33, "thirty_three"),
             createSingleBucketAgg("sub3", 42L)
         );
         assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), ""),
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", asStringMap("sba3.sub1", "long", "sba3.sub2", "double"), ""),
             equalTo(asMap("sub1", 100.0, "sub2", 33.33, "sub3", 42L))
         );
 
         agg = createSingleBucketAgg(
-            "sba",
+            "sba4",
             42L,
-            createSingleMetricAgg("sub1", 100.0, "100.0"),
-            createSingleMetricAgg("sub2", 33.33, "33.33"),
+            createSingleMetricAgg("sub1", 100.0, "hundred"),
+            createSingleMetricAgg("sub2", 33.33, "thirty_three"),
             createSingleBucketAgg("sub3", 42L, createSingleMetricAgg("subsub1", 11.1, "eleven_dot_eleven"))
         );
         assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.singletonMap("subsub1", "double"), ""),
+            AggregationResultUtils.getExtractor(agg)
+                .value(agg, "object", asStringMap("sba4.sub3.subsub1", "double", "sba4.sub2", "float", "sba4.sub1", "long"), ""),
             equalTo(asMap("sub1", 100.0, "sub2", 33.33, "sub3", asMap("subsub1", 11.1)))
         );
     }

@@ -145,8 +145,8 @@ public class CloudIdp implements SamlIdentityProvider {
         // For now hardcode something to use.
         Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
         registeredSps.put("https://sp.some.org",
-            new CloudServiceProvider("https://sp.some.org", "https://sp.some.org/api/security/v1/saml", NameID.TRANSIENT, false, false,
-                null));
+            new CloudServiceProvider("https://sp.some.org", "https://sp.some.org/api/security/v1/saml", NameID.TRANSIENT, null, false,
+                false, null));
         return registeredSps;
     }
 

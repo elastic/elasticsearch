@@ -52,6 +52,8 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -71,6 +73,7 @@ import static org.elasticsearch.common.time.DateUtils.toLong;
 public final class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
+    public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
 
     public static class Defaults {
@@ -88,8 +91,13 @@ public final class DateFieldMapper extends FieldMapper {
             public Instant toInstant(long value) {
                 return Instant.ofEpochMilli(value);
             }
+
+            @Override
+            public Instant clampToValidRange(Instant instant) {
+                return instant;
+            }
         },
-        NANOSECONDS("date_nanos", NumericType.DATE_NANOSECONDS) {
+        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
             @Override
             public long convert(Instant instant) {
                 return toLong(instant);
@@ -98,6 +106,11 @@ public final class DateFieldMapper extends FieldMapper {
             @Override
             public Instant toInstant(long value) {
                 return DateUtils.toInstant(value);
+            }
+
+            @Override
+            public Instant clampToValidRange(Instant instant) {
+                return DateUtils.clampToNanosRange(instant);
             }
         };
 
@@ -117,9 +130,17 @@ public final class DateFieldMapper extends FieldMapper {
             return numericType;
         }
 
+        /**
+         * Convert an {@linkplain Instant} into a long value in this resolution.
+         */
         public abstract long convert(Instant instant);
 
+        /**
+         * Convert a long value in this resolution into an instant.
+         */
         public abstract Instant toInstant(long value);
+
+        public abstract Instant clampToValidRange(Instant instant);
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
@@ -440,9 +461,30 @@ public final class DateFieldMapper extends FieldMapper {
                 }
             }
 
-            // This check needs to be done after fromInclusive and toInclusive
-            // are resolved so we can throw an exception if they are invalid
-            // even if there are no points in the shard
+            return isFieldWithinRange(reader, fromInclusive, toInclusive);
+        }
+
+        /**
+         * Return whether all values of the given {@link IndexReader} are within the range,
+         * outside the range or cross the range. Unlike {@link #isFieldWithinQuery} this
+         * accepts values that are out of the range of the {@link #resolution} of this field.
+         * @param fromInclusive start date, inclusive
+         * @param toInclusive end date, inclusive
+         */
+        public Relation isFieldWithinRange(IndexReader reader, Instant fromInclusive, Instant toInclusive)
+                throws IOException {
+            return isFieldWithinRange(reader,
+                    resolution.convert(resolution.clampToValidRange(fromInclusive)),
+                    resolution.convert(resolution.clampToValidRange(toInclusive)));
+        }
+
+        /**
+         * Return whether all values of the given {@link IndexReader} are within the range,
+         * outside the range or cross the range.
+         * @param fromInclusive start date, inclusive, {@link Resolution#convert(Instant) converted} to the appropriate scale
+         * @param toInclusive end date, inclusive, {@link Resolution#convert(Instant) converted} to the appropriate scale
+         */
+        private Relation isFieldWithinRange(IndexReader reader, long fromInclusive, long toInclusive) throws IOException {
             if (PointValues.size(reader, name()) == 0) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;
@@ -464,6 +506,11 @@ public final class DateFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(resolution.numericType());
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.NUMERIC;
         }
 
         @Override

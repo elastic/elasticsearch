@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,8 +29,6 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public class RestDeleteUserAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestDeleteUserAction.class));
-
     public RestDeleteUserAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
@@ -46,7 +42,7 @@ public class RestDeleteUserAction extends SecurityBaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRoute(DELETE, "/_security/user/{username}", DELETE, "/_xpack/security/user/{username}", deprecationLogger)
+            new ReplacedRoute(DELETE, "/_security/user/{username}", DELETE, "/_xpack/security/user/{username}")
         );
     }
 

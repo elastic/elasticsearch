@@ -260,8 +260,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public void validate() {
-        if (featureNames.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("[{}] must not be empty for tree model", FEATURE_NAMES.getPreferredName());
+        int maxFeatureIndex = maxFeatureIndex();
+        if (maxFeatureIndex >= featureNames.size()) {
+            throw ExceptionsHelper.badRequestException("feature index [{}] is out of bounds for the [{}] array",
+                    maxFeatureIndex, FEATURE_NAMES.getPreferredName());
         }
         checkTargetType();
         detectMissingNodes();
@@ -396,6 +398,23 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     @Override
     public boolean supportsFeatureImportance() {
         return true;
+    }
+
+    /**
+     * The highest index of a feature used any of the nodes.
+     * If no nodes use a feature return -1. This can only happen
+     * if the tree contains a single leaf node.
+     *
+     * @return The max or -1
+     */
+    int maxFeatureIndex() {
+        int maxFeatureIndex = -1;
+
+        for (TreeNode node : nodes) {
+            maxFeatureIndex = Math.max(maxFeatureIndex, node.getSplitFeature());
+        }
+
+        return maxFeatureIndex;
     }
 
     private void checkTargetType() {

@@ -39,8 +39,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -49,11 +47,11 @@ public class RestNoopBulkAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_noop_bulk"),
             new Route(PUT, "/_noop_bulk"),
             new Route(POST, "/{index}/_noop_bulk"),
-            new Route(PUT, "/{index}/_noop_bulk")));
+            new Route(PUT, "/{index}/_noop_bulk"));
     }
 
     @Override

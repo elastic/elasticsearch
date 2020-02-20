@@ -15,14 +15,13 @@ import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(PUT, "/_rollup/job/{id}"));
+        return List.of(new Route(PUT, "/_rollup/job/{id}"));
     }
 
     @Override

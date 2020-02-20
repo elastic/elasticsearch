@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -99,7 +100,7 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
 
     public void testCreateStateIndexAndAliasIfNecessary_CleanState() {
         ClusterState clusterState = createClusterState(Collections.emptyMap());
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, finalListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, new IndexNameExpressionResolver(), finalListener);
 
         InOrder inOrder = inOrder(indicesAdminClient, finalListener);
         inOrder.verify(indicesAdminClient).prepareCreate(ML_STATE);
@@ -113,7 +114,7 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
 
     private void assertNoClientInteractionsWhenWriteAliasAlreadyExists(String indexName) {
         ClusterState clusterState = createClusterState(Collections.singletonMap(indexName, createIndexMetaDataWithAlias(indexName)));
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, finalListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, new IndexNameExpressionResolver(), finalListener);
 
         verify(finalListener).onResponse(false);
     }
@@ -134,7 +135,7 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
         ClusterState clusterState =
             createClusterState(
                 existingIndexNames.stream().collect(toMap(Function.identity(), AnomalyDetectorsIndexTests::createIndexMetaData)));
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, finalListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, new IndexNameExpressionResolver(), finalListener);
 
         InOrder inOrder = inOrder(indicesAdminClient, finalListener);
         inOrder.verify(indicesAdminClient).prepareAliases();

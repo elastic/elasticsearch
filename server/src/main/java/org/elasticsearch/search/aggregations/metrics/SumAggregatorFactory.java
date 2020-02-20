@@ -52,7 +52,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(SumAggregationBuilder.NAME,
-           List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE),
+           List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new SumAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name,

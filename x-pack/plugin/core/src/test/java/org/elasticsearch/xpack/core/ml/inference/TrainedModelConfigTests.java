@@ -142,21 +142,21 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             "platinum");
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
-        assertThat(reference.utf8ToString(), containsString("\"definition\""));
+        assertThat(reference.utf8ToString(), containsString("\"compressed_definition\""));
 
         reference = XContentHelper.toXContent(config,
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false);
         assertThat(reference.utf8ToString(), not(containsString("definition")));
+        assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
 
         reference = XContentHelper.toXContent(config,
             XContentType.JSON,
-            new ToXContent.MapParams(Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, "false")),
+            new ToXContent.MapParams(Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, "true")),
             false);
-        assertThat(reference.utf8ToString(), not(containsString("\"definition\"")));
-        assertThat(reference.utf8ToString(), containsString("compressed_definition"));
-        assertThat(reference.utf8ToString(), containsString(lazyModelDefinition.getCompressedString()));
+        assertThat(reference.utf8ToString(), containsString("\"definition\""));
+        assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
     }
 
     public void testParseWithBothDefinitionAndCompressedSupplied() throws IOException {
@@ -179,7 +179,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         Map<String, Object> objectMap = XContentHelper.convertToMap(reference, true, XContentType.JSON).v2();
 
-        objectMap.put(TrainedModelConfig.COMPRESSED_DEFINITION.getPreferredName(), lazyModelDefinition.getCompressedString());
+        objectMap.put(TrainedModelConfig.DEFINITION.getPreferredName(), config.getModelDefinition());
 
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(objectMap);
             XContentParser parser = XContentType.JSON

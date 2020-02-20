@@ -128,15 +128,15 @@ public class Extent {
                 break;
             case CROSSES_LAT_AXIS:
                 posRight = input.readVInt();
-                negLeft = Math.toIntExact(posRight - input.readVLong());
+                negLeft = -input.readVInt();
                 posLeft = 0;
                 negRight = 0;
                 break;
             case ALL_SET:
                 posRight = input.readVInt();
                 posLeft =  Math.toIntExact(posRight - input.readVLong());
-                negRight = input.readInt();
-                negLeft = Math.toIntExact(negRight - input.readVLong());
+                negRight = -input.readVInt();
+                negLeft =  Math.toIntExact(negRight - input.readVLong());
                 break;
             default:
                 throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
@@ -176,14 +176,16 @@ public class Extent {
                 break;
             case CROSSES_LAT_AXIS:
                 output.writeVInt(this.posRight);
-                output.writeVLong((long) this.posRight - this.negLeft);
+                output.writeVInt(-this.negLeft);
                 break;
-            default:
+            case ALL_SET:
                 output.writeVInt(this.posRight);
                 output.writeVLong((long) this.posRight - this.posLeft);
-                output.writeInt(this.negRight);
+                output.writeVInt(-this.negRight);
                 output.writeVLong((long) this.negRight - this.negLeft);
                 break;
+            default:
+                throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
         }
     }
 

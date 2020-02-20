@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LogisticRegressionTests extends WeightedAggregatorTests<LogisticRegression> {
@@ -59,6 +60,36 @@ public class LogisticRegressionTests extends WeightedAggregatorTests<LogisticReg
 
         logisticRegression = new LogisticRegression();
         assertThat(logisticRegression.aggregate(logisticRegression.processValues(values)), equalTo(1.0));
+    }
+
+    public void testAggregateMultiValueArrays() {
+        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
+        double[][] values = new double[][]{
+            new double[] {1.0, 0.0, 1.0},
+            new double[] {2.0, 0.0, 0.0},
+            new double[] {2.0, 3.0, 1.0},
+            new double[] {3.0, 3.0, 1.0},
+            new double[] {1.0, 1.0, 5.0}
+        };
+
+        LogisticRegression logisticRegression = new LogisticRegression(ones);
+        double[] processedValues = logisticRegression.processValues(values);
+        assertThat(processedValues.length, equalTo(3));
+        assertThat(processedValues[0], closeTo(0.665240955, 0.00001));
+        assertThat(processedValues[1], closeTo(0.090030573, 0.00001));
+        assertThat(processedValues[2], closeTo(0.244728471, 0.00001));
+        assertThat(logisticRegression.aggregate(logisticRegression.processValues(values)), equalTo(0.0));
+
+        double[] variedWeights = new double[]{1.0, -1.0, .5, 1.0, 5.0};
+
+        logisticRegression = new LogisticRegression(variedWeights);
+        processedValues = logisticRegression.processValues(values);
+        assertThat(processedValues.length, equalTo(3));
+        assertThat(processedValues[0], closeTo(0.0, 0.00001));
+        assertThat(processedValues[1], closeTo(0.0, 0.00001));
+        assertThat(processedValues[2], closeTo(0.9999999, 0.00001));
+        assertThat(logisticRegression.aggregate(logisticRegression.processValues(values)), equalTo(2.0));
+
     }
 
     public void testCompatibleWith() {

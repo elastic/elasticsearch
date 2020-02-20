@@ -19,9 +19,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.sigmoid;
+import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
 
 public class LogisticRegression implements StrictlyParsedOutputAggregator, LenientlyParsedOutputAggregator {
 
@@ -80,14 +80,25 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
     @Override
     public double[] processValues(double[][] values) {
         Objects.requireNonNull(values, "values must not be null");
-        assert values[0].length == 1;
         if (weights != null && values.length != weights.length) {
             throw new IllegalArgumentException("values must be the same length as weights.");
         }
-        double summation = weights == null ?
-            Arrays.stream(values).mapToDouble(vs -> vs[0]).sum() :
-            IntStream.range(0, weights.length).mapToDouble(i -> values[i][0] * weights[i]).sum();
-        double probOfClassOne = sigmoid(summation);
+        double[] sumOnAxis1 = new double[values[0].length];
+        for (int j = 0; j < values.length; j++) {
+            double[] value = values[j];
+            double weight = weights == null ? 1.0 : weights[j];
+            for(int i = 0; i < value.length; i++) {
+                if (i >= sumOnAxis1.length) {
+                    throw new IllegalArgumentException("value entries must have the same dimensions");
+                }
+                sumOnAxis1[i] += (value[i] * weight);
+            }
+        }
+        if (sumOnAxis1.length > 1) {
+            return softMax(sumOnAxis1);
+        }
+
+        double probOfClassOne = sigmoid(sumOnAxis1[0]);
         assert 0.0 <= probOfClassOne && probOfClassOne <= 1.0;
         return new double[] {1.0 - probOfClassOne, probOfClassOne};
     }
@@ -95,7 +106,6 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
     @Override
     public double aggregate(double[] values) {
         Objects.requireNonNull(values, "values must not be null");
-        assert values.length == 2;
         int bestValue = 0;
         double bestProb = Double.NEGATIVE_INFINITY;
         for (int i = 0; i < values.length; i++) {

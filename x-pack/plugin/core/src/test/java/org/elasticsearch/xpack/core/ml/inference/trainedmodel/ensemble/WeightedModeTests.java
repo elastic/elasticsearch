@@ -109,6 +109,7 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
         assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(2.0));
 
     }
+
     public void testCompatibleWith() {
         WeightedMode weightedMode = createTestInstance();
         assertThat(weightedMode.compatibleWith(TargetType.CLASSIFICATION), is(true));

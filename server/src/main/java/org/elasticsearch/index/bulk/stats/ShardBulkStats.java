@@ -43,23 +43,31 @@ public class ShardBulkStats implements BulkOperationListener {
     public void afterBulk(long shardBulkSizeInBytes, long tookInNanos) {
         totalStats.totalSizeInBytes.inc(shardBulkSizeInBytes);
         totalStats.shardBulkMetric.inc(tookInNanos);
-        totalStats.timeInMillis.addValue(tookInNanos);
-        totalStats.sizeInBytes.addValue(tookInNanos);
+        if (totalStats.timeInMillis == null) {
+            totalStats.timeInMillis = new ExponentiallyWeightedMovingAverage(ALPHA, tookInNanos);
+        } else {
+            totalStats.timeInMillis.addValue(tookInNanos);
+        }
+        if (totalStats.sizeInBytes == null) {
+            totalStats.sizeInBytes = new ExponentiallyWeightedMovingAverage(ALPHA, shardBulkSizeInBytes);
+        } else {
+            totalStats.sizeInBytes.addValue(shardBulkSizeInBytes);
+        }
     }
 
     static final class StatsHolder {
         final MeanMetric shardBulkMetric = new MeanMetric();
         final CounterMetric totalSizeInBytes = new CounterMetric();
-        final ExponentiallyWeightedMovingAverage timeInMillis = new ExponentiallyWeightedMovingAverage(ALPHA, 0);
-        final ExponentiallyWeightedMovingAverage sizeInBytes = new ExponentiallyWeightedMovingAverage(ALPHA, 0);
+        ExponentiallyWeightedMovingAverage timeInMillis;
+        ExponentiallyWeightedMovingAverage sizeInBytes;
 
         BulkStats stats() {
             return new BulkStats(
                 shardBulkMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(shardBulkMetric.sum()),
                 totalSizeInBytes.count(),
-                (long) timeInMillis.getAverage(),
-                (long) sizeInBytes.getAverage());
+                timeInMillis == null ? 0L : TimeUnit.NANOSECONDS.toMillis((long) timeInMillis.getAverage()),
+                sizeInBytes == null ? 0L : (long) sizeInBytes.getAverage());
         }
     }
 }

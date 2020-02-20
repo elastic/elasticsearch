@@ -402,7 +402,8 @@ public class SearchModule {
                 SignificantTermsAggregationBuilder::parse)
                     .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)
                     .addResultReader(SignificantLongTerms.NAME, SignificantLongTerms::new)
-                    .addResultReader(UnmappedSignificantTerms.NAME, UnmappedSignificantTerms::new));
+                    .addResultReader(UnmappedSignificantTerms.NAME, UnmappedSignificantTerms::new)
+                    .setAggregatorRegistrar(SignificantTermsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(SignificantTextAggregationBuilder.NAME, SignificantTextAggregationBuilder::new,
                 SignificantTextAggregationBuilder::parse));
         registerAggregation(new AggregationSpec(RangeAggregationBuilder.NAME, RangeAggregationBuilder::new,

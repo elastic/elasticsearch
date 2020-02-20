@@ -294,7 +294,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher indexSearcher = newIndexSearcher(reader);
-                expectThrows(AggregationExecutionException.class, () -> createAggregator(sigAgg, indexSearcher, fieldType));
+                expectThrows(IllegalArgumentException.class, () -> createAggregator(sigAgg, indexSearcher, fieldType));
             }
         }
     }

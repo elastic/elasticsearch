@@ -24,11 +24,16 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBatchedWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +53,10 @@ public class TransportBatchedShardBulkAction extends TransportBatchedWriteAction
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
     public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME, BulkShardResponse::new);
 
+    private static final ActionListener<Void> FLUSH_DONE_MARKER = ActionListener.wrap(() -> {});
     private static final Logger logger = LogManager.getLogger(TransportBatchedShardBulkAction.class);
+
+    private final BatchedShardExecutor batchedShardExecutor;
 
 
     @Inject
@@ -58,6 +66,7 @@ public class TransportBatchedShardBulkAction extends TransportBatchedWriteAction
                                            ActionFilters actionFilters) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false);
+        this.batchedShardExecutor = new BatchedShardExecutor(clusterService, threadPool, updateHelper, mappingUpdatedAction);
     }
 
     @Override
@@ -73,20 +82,54 @@ public class TransportBatchedShardBulkAction extends TransportBatchedWriteAction
     @Override
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
                                            ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
+        CompletableContext<BatchedShardExecutor.FlushResult> flushContext = new CompletableContext<>();
+
+        ActionListener<BulkShardResponse> writeListener = new ActionListener<>() {
+            @Override
+            public void onResponse(BulkShardResponse response) {
+                listener.onResponse(new WritePrimaryResult<>(request, response));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+
+        ActionListener<BatchedShardExecutor.FlushResult> flushListener = new ActionListener<>() {
+            @Override
+            public void onResponse(BatchedShardExecutor.FlushResult flushResult) {
+                assert flushContext.isDone() == false;
+                flushContext.complete(flushResult);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert flushContext.isDone() == false;
+                flushContext.completeExceptionally(e);
+            }
+        };
+
+        batchedShardExecutor.primary(request, primary, writeListener, flushListener);
     }
 
-    // TODO: Allow rejection after mapping logic
-//    private static void onShardOperationFailure(PrimaryOp shardOp, Exception e) {
-//        BulkPrimaryExecutionContext context = shardOp.context;
-//        while (context.hasMoreOperationsToExecute()) {
-//            context.setRequestToExecute(context.getCurrent());
-//            final DocWriteRequest<?> docWriteRequest = context.getRequestToExecute();
-//            onComplete(
-//                exceptionToResult(
-//                    e, shardOp.getIndexShard(), docWriteRequest.opType() == DocWriteRequest.OpType.DELETE, docWriteRequest.version()),
-//                context, null);
-//        }
-//    }
+    /**
+     * Result of taking the action on the primary.
+     *
+     * NOTE: public for testing
+     */
+    public static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
+        Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response> {
+
+        public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse) {
+            super(request, finalResponse, null);
+        }
+
+        @Override
+        public void runPostReplicationActions(ActionListener<Void> listener) {
+
+        }
+    }
 
 
     @Override

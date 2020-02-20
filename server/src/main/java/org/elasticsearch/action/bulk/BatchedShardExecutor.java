@@ -39,6 +39,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -59,7 +60,7 @@ public class BatchedShardExecutor {
     private final ThreadPool threadPool;
     private final int maxWriteThreads;
 
-    private final ConcurrentHashMap<ShardId, ShardState> shardQueues = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ShardId, ShardState> shardState = new ConcurrentHashMap<>();
 
 
     public BatchedShardExecutor(ClusterService clusterService, ThreadPool threadPool, UpdateHelper updateHelper,
@@ -87,6 +88,10 @@ public class BatchedShardExecutor {
         enqueueAndSchedule(shardOp, false, true);
     }
 
+    ShardState getShardState(ShardId shardId) {
+        return shardState.get(shardId);
+    }
+
     private void enqueueAndSchedule(ShardOp shardOp, boolean isPrimary, boolean allowReject) {
         ShardId shardId = shardOp.getIndexShard().shardId();
         ShardState shardState = getOrCreateShardState(shardId);
@@ -98,10 +103,10 @@ public class BatchedShardExecutor {
     }
 
     private ShardState getOrCreateShardState(ShardId shardId) {
-        ShardState queue = shardQueues.get(shardId);
+        ShardState queue = shardState.get(shardId);
         if (queue == null) {
             ShardState createdQueue = new ShardState(maxWriteThreads);
-            ShardState previous = shardQueues.putIfAbsent(shardId, createdQueue);
+            ShardState previous = shardState.putIfAbsent(shardId, createdQueue);
             queue = Objects.requireNonNullElse(previous, createdQueue);
         }
         return queue;
@@ -145,7 +150,7 @@ public class BatchedShardExecutor {
 
     private void performShardOperations(IndexShard indexShard, boolean isPrimary) {
         ShardId shardId = indexShard.shardId();
-        ShardState shardState = shardQueues.get(shardId);
+        ShardState shardState = this.shardState.get(shardId);
 
         ArrayList<ShardOp> completedOps = new ArrayList<>(MAX_PERFORM_OPS);
         try {
@@ -162,8 +167,7 @@ public class BatchedShardExecutor {
                         opCompleted = replicaOpHandler.apply((ReplicaOp) shardOp);
                     }
                 } catch (Exception e) {
-                    // TODO: Do we want to attempt to complete as many ops as possible so far?
-                    shardOp.getWriteListener().onFailure(e);
+                    onFailure(Stream.of(shardOp.getWriteListener()), e);
                 } finally {
                     if (opCompleted) {
                         completedOps.add(shardOp);
@@ -176,6 +180,9 @@ public class BatchedShardExecutor {
     }
 
     private void finishOperations(IndexShard indexShard, ArrayList<ShardOp> completedOps) {
+        // Notify the write listeners
+        onResponse(completedOps.stream().map(ShardOp::getWriteListener), null);
+
         indexShard.afterWriteOperation();
 
         ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
@@ -215,7 +222,7 @@ public class BatchedShardExecutor {
                 // TODO: Do we want to add each listener individually?
                 addRefreshListeners(indexShard, maxLocation, completedOpsWaitForRefresh);
             } else {
-                onResponse(completedOpsWaitForRefresh.stream().map(ShardOp::getFlushListener), false);
+                onResponse(completedOpsWaitForRefresh.stream().map(ShardOp::getFlushListener), null);
             }
         }
 
@@ -248,7 +255,8 @@ public class BatchedShardExecutor {
                     logger.warn("block until refresh ran out of slots and forced a refresh");
                 }
 
-                onResponse(operations.stream().map(ShardOp::getFlushListener), forcedRefresh);
+                operations.forEach(op -> op.flushListener.setForcedRefresh(forcedRefresh));
+                onResponse(operations.stream().map(ShardOp::getFlushListener), null);
             });
         } catch (Exception ex) {
             logger.warn("exception while adding refresh listener for shard operations", ex);
@@ -304,16 +312,18 @@ public class BatchedShardExecutor {
         };
     }
 
-    private static class ShardState {
+    static class ShardState {
 
         private static final int MAX_QUEUED = 200;
 
+        private final int maxScheduledTasks;
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
         private final Semaphore scheduleTaskSemaphore;
 
         private ShardState(int maxScheduledTasks) {
             scheduleTaskSemaphore = new Semaphore(maxScheduledTasks);
+            this.maxScheduledTasks = maxScheduledTasks;
         }
 
         private boolean attemptPreIndexedEnqueue(ShardOp shardOp, boolean allowReject) {
@@ -340,6 +350,14 @@ public class BatchedShardExecutor {
 
         private void markTaskStarted() {
             scheduleTaskSemaphore.release();
+        }
+
+        int pendingOperations() {
+            return pendingOps.get();
+        }
+
+        int scheduledTasks() {
+            return maxScheduledTasks - scheduleTaskSemaphore.availablePermits();
         }
     }
 
@@ -381,11 +399,11 @@ public class BatchedShardExecutor {
             this.flushListener = new FlushListener(request.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE, flushListener);
         }
 
-        public IndexShard getIndexShard() {
+        IndexShard getIndexShard() {
             return indexShard;
         }
 
-        public FlushListener getFlushListener() {
+        FlushListener getFlushListener() {
             return flushListener;
         }
 
@@ -393,14 +411,15 @@ public class BatchedShardExecutor {
 
         abstract Translog.Location locationToSync();
 
-        public BulkShardRequest getRequest() {
+        BulkShardRequest getRequest() {
             return request;
         }
 
-        private static class FlushListener implements ActionListener<Boolean> {
+        private static class FlushListener implements ActionListener<Void> {
 
             private final CountDown countDown;
             private final ActionListener<FlushResult> delegate;
+            private volatile boolean forcedRefresh;
 
             private FlushListener(boolean waitOnRefresh, ActionListener<FlushResult> delegate) {
                 this.delegate = delegate;
@@ -412,7 +431,7 @@ public class BatchedShardExecutor {
             }
 
             @Override
-            public void onResponse(Boolean forcedRefresh) {
+            public void onResponse(Void v) {
                 if (countDown.countDown()) {
                     delegate.onResponse(new FlushResult(forcedRefresh));
                 }
@@ -423,6 +442,10 @@ public class BatchedShardExecutor {
                 if (countDown.fastForward()) {
                     delegate.onFailure(e);
                 }
+            }
+
+            void setForcedRefresh(boolean forcedRefresh) {
+                this.forcedRefresh = forcedRefresh;
             }
         }
     }
@@ -450,13 +473,17 @@ public class BatchedShardExecutor {
         }
 
         @Override
-        public ActionListener<Void> getWriteListener() {
+        ActionListener<Void> getWriteListener() {
             return writeListener;
         }
 
         @Override
-        public Translog.Location locationToSync() {
+        Translog.Location locationToSync() {
             return context.getLocationToSync();
+        }
+
+        BulkPrimaryExecutionContext getContext() {
+            return context;
         }
     }
 
@@ -472,7 +499,7 @@ public class BatchedShardExecutor {
         }
 
         @Override
-        public ActionListener<Void> getWriteListener() {
+        ActionListener<Void> getWriteListener() {
             return listener;
         }
 
@@ -481,7 +508,7 @@ public class BatchedShardExecutor {
             return this.location;
         }
 
-        private void setLocation(Translog.Location location) {
+        void setLocation(Translog.Location location) {
             this.location = location;
         }
     }

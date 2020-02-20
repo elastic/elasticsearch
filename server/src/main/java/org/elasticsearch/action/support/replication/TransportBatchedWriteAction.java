@@ -31,11 +31,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -57,33 +54,6 @@ public abstract class TransportBatchedWriteAction<
                                           boolean forceExecutionOnPrimary) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
               request, replicaRequest, executor, true, forceExecutionOnPrimary);
-    }
-
-    /** Syncs operation result to the translog or throws a shard not available failure */
-    protected static Location syncOperationResultOrThrow(final Engine.Result operationResult,
-                                                         final Location currentLocation) throws Exception {
-        final Location location;
-        if (operationResult.getFailure() != null) {
-            // check if any transient write operation failures should be bubbled up
-            Exception failure = operationResult.getFailure();
-            assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
-            throw failure;
-        } else {
-            location = locationToSync(currentLocation, operationResult.getTranslogLocation());
-        }
-        return location;
-    }
-
-    public static Location locationToSync(Location current, Location next) {
-        /* here we are moving forward in the translog with each operation. Under the hood this might
-         * cross translog files which is ok since from the user perspective the translog is like a
-         * tape where only the highest location needs to be fsynced in order to sync all previous
-         * locations even though they are not in the same file. When the translog rolls over files
-         * the previous file is fsynced on after closing if needed.*/
-        assert next != null : "next operation can't be null";
-        assert current == null || current.compareTo(next) < 0 :
-                "translog locations are not increasing";
-        return next;
     }
 
     @Override

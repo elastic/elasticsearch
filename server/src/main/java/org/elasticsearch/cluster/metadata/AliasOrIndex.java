@@ -28,7 +28,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_HIDDEN_SETTING;
 
 /**
  * Encapsulates the  {@link IndexMetaData} instances of a concrete index or indices an alias is pointing to.
@@ -45,6 +49,11 @@ public interface AliasOrIndex {
      * or if this is a concrete index its {@link IndexMetaData}
      */
     List<IndexMetaData> getIndices();
+
+    /**
+     * @return whether this alias/index is hidden or not
+     */
+    Boolean isHidden();
 
     /**
      * Represents an concrete index and encapsulates its {@link IndexMetaData}
@@ -66,6 +75,11 @@ public interface AliasOrIndex {
         public List<IndexMetaData> getIndices() {
             return Collections.singletonList(concreteIndex);
         }
+
+        @Override @Nullable
+        public Boolean isHidden() {
+            return concreteIndex.getSettings().getAsBoolean(INDEX_HIDDEN_SETTING.getKey(), null);
+        }
     }
 
     /**
@@ -76,11 +90,13 @@ public interface AliasOrIndex {
         private final String aliasName;
         private final List<IndexMetaData> referenceIndexMetaDatas;
         private final SetOnce<IndexMetaData> writeIndex = new SetOnce<>();
+        private final Boolean isHidden;
 
         public Alias(AliasMetaData aliasMetaData, IndexMetaData indexMetaData) {
             this.aliasName = aliasMetaData.getAlias();
             this.referenceIndexMetaDatas = new ArrayList<>();
             this.referenceIndexMetaDatas.add(indexMetaData);
+            this.isHidden = aliasMetaData.isHidden();
         }
 
         @Override
@@ -101,6 +117,11 @@ public interface AliasOrIndex {
         @Nullable
         public IndexMetaData getWriteIndex() {
             return writeIndex.get();
+        }
+
+        @Override @Nullable
+        public Boolean isHidden() {
+            return isHidden;
         }
 
         /**
@@ -135,7 +156,8 @@ public interface AliasOrIndex {
             this.referenceIndexMetaDatas.add(indexMetaData);
         }
 
-        public void computeAndValidateWriteIndex() {
+        public void computeAndValidateAliasProperties() {
+            // Validate write indices
             List<IndexMetaData> writeIndices = referenceIndexMetaDatas.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
                 .collect(Collectors.toList());
@@ -153,6 +175,24 @@ public interface AliasOrIndex {
                 throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
                     Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]");
             }
+
+            // Validate hidden status
+            final Map<Boolean, List<IndexMetaData>> groupedByHiddenStatus = referenceIndexMetaDatas.stream()
+                    .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
+            if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
+                List<String> hiddenOn = groupedByHiddenStatus.get(true).stream()
+                    .map(idx -> idx.getIndex().getName()).collect(Collectors.toList());
+                List<String> nonHiddenOn = groupedByHiddenStatus.get(false).stream()
+                    .map(idx -> idx.getIndex().getName()).collect(Collectors.toList());
+                throw new IllegalStateException("alias [" + aliasName + "] is hidden set as on [" +
+                    Strings.collectionToCommaDelimitedString(hiddenOn) + "] but as NOT hidden on [" +
+                    Strings.collectionToCommaDelimitedString(nonHiddenOn) + "]; alias must have same hidden setting " +
+                    "on all indices");
+            }
+        }
+
+        private boolean isNonEmpty(List<IndexMetaData> idxMetas) {
+            return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
         }
     }
 }

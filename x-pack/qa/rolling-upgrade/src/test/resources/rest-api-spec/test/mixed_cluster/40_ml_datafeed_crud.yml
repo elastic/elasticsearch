@@ -26,7 +26,7 @@ setup:
 ---
 "Test old cluster datafeed with aggs":
   - skip:
-      feature: warnings
+      features: warnings
       version: "all"
       reason: "If we hit the old node we get a warning. If we hit the new node, we don't"
   - do:

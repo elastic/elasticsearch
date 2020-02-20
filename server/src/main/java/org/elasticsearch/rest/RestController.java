@@ -84,11 +84,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final boolean restrictSystemIndices;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
-        this(headersToCopy, handlerWrapper, client, circuitBreakerService, usageService, false);
-    }
-
-    public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
             NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService, boolean restrictSystemIndices) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;

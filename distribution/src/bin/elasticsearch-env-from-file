@@ -14,7 +14,7 @@ set -e -o pipefail
 # This script is intended to be sourced, not executed, and modifies the
 # environment.
 
-for VAR_NAME_FILE in ELASTIC_PASSWORD_FILE KEYSTORE_PASSWORD_FILE ES_JAVA_OPTS_FILE; do
+for VAR_NAME_FILE in ELASTIC_PASSWORD_FILE KEYSTORE_PASSWORD_FILE ; do
   if [[ -n "${!VAR_NAME_FILE}" ]]; then
     VAR_NAME="${VAR_NAME_FILE%_FILE}"
 

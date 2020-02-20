@@ -37,6 +37,7 @@ import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.Netty4Plugin;
 
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.allOf;
@@ -76,7 +77,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         // we have to test all the ports that the data node might be bound to
-        try (TransportClient transportClient = new MockTransportClient(settings, Netty4Plugin.class)) {
+        try (TransportClient transportClient = new MockTransportClient(settings, Arrays.asList(Netty4Plugin.class))) {
             for (int i = 0; i <= 10; i++) {
                 transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName("127.0.0.1"), randomPort + i));
             }

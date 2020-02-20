@@ -209,7 +209,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final Setting<Boolean> ALLOW_CONCURRENT_MODIFICATION =
         Setting.boolSetting("allow_concurrent_modifications", false, Setting.Property.Deprecated);
 
+    /**
+     * Setting to disable caching of the latest repository data.
+     */
+    public static final Setting<Boolean> CACHE_REPOSITORY_DATA =
+        Setting.boolSetting("cache_repository_data", true, Setting.Property.Deprecated);
+
     private final boolean compress;
+
+    private final boolean cacheRepositoryData;
 
     private final RateLimiter snapshotRateLimiter;
 
@@ -286,6 +294,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         readOnly = metadata.settings().getAsBoolean("readonly", false);
+        cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         this.basePath = basePath;
 
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
@@ -536,7 +545,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
                 repositoryStateId + "], actual current generation [" + genToLoad + "]");
         }
-        if (cached != null && cached.v1() == genToLoad && cached.v2() != null) {
+        if (cached != null && cached.v1() == genToLoad) {
             return repositoryDataFromCachedEntry(cached);
         }
         return getRepositoryData(genToLoad);
@@ -1068,8 +1077,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.UNKNOWN_REPO_GEN);
 
     // Best effort cache of the latest known repository data and its generation, cached serialized as compressed json
-    private final AtomicReference<Tuple<Long, BytesReference>> latestKnownRepositoryData =
-        new AtomicReference<>(new Tuple<>(RepositoryData.EMPTY_REPO_GEN, null));
+    private final AtomicReference<Tuple<Long, BytesReference>> latestKnownRepositoryData = new AtomicReference<>();
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
@@ -1107,7 +1115,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final Tuple<Long, BytesReference> cached = latestKnownRepositoryData.get();
                 final RepositoryData loaded;
                 // Caching is not used with #bestEffortConsistency see docs on #cacheRepositoryData for details
-                if (bestEffortConsistency == false && cached.v1() == genToLoad) {
+                if (bestEffortConsistency == false && cached != null && cached.v1() == genToLoad) {
                     loaded = repositoryDataFromCachedEntry(cached);
                 } else {
                     loaded = getRepositoryData(genToLoad);
@@ -1149,7 +1157,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param updated RepositoryData to cache if newer than the cache contents
      */
     private void cacheRepositoryData(RepositoryData updated) {
-        if (bestEffortConsistency == false) {
+        if (cacheRepositoryData && bestEffortConsistency == false) {
             final BytesReference serialized;
             BytesStreamOutput out = new BytesStreamOutput();
             try {
@@ -1168,7 +1176,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             " repository behavior going forward.", metadata.name());
                     }
                     // Set empty repository data to not waste heap for an outdated cached value
-                    latestKnownRepositoryData.set(new Tuple<>(RepositoryData.EMPTY_REPO_GEN, null));
+                    latestKnownRepositoryData.set(null);
                     return;
                 }
             } catch (IOException e) {
@@ -1177,7 +1185,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             latestKnownRepositoryData.updateAndGet(known -> {
-                if (known.v1() > updated.getGenId()) {
+                if (known != null && known.v1() > updated.getGenId()) {
                     return known;
                 }
                 return new Tuple<>(updated.getGenId(), serialized);
@@ -1186,9 +1194,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
-        if (cacheEntry.v1() == RepositoryData.EMPTY_REPO_GEN) {
-            return RepositoryData.EMPTY;
-        }
         return RepositoryData.snapshotsFromXContent(
             XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,

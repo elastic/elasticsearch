@@ -238,6 +238,10 @@ GET /_xpack/usage
     "follower_indices_count" : 0,
     "auto_follow_patterns_count" : 0
   },
+  "enrich" : {
+    "available" : true,
+    "enabled" : true
+  },
   "transform" : {
     "available" : true,
     "enabled" : true
@@ -251,7 +255,8 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true,
     "dense_vector_fields_count" : 0,
-    "dense_vector_dims_avg_count" : 0
+    "dense_vector_dims_avg_count" : 0,
+    "sparse_vector_fields_count" : 0
   },
   "voting_only" : {
     "available" : true,
@@ -268,25 +273,27 @@ GET /_xpack/usage
   },
   "analytics" : {
     "available" : true,
-    "enabled" : true
+    "enabled" : true,
+    ...
   }
 }
 ------------------------------------------------------------
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
-// TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
+// TESTRESPONSE[s/"ilm" : \{[^\}]*\},/"ilm" : $body.$_path,/]
 // TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
+// TESTRESPONSE[s/"analytics" : \{[^\}]*\}/"analytics" : $body.$_path/]
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
 // These replacements do a few things:
-// 1. Ignore the contents of the `policy_stats` object because we don't know all
-//    of the policies that will be in it. And because we figure folks don't need
-//    to see an exhaustive list anyway.
-// 2. Handling eql, which is disabled by default on release builds and enabled
+// 1. Handling eql, which is disabled by default on release builds and enabled
 //    everywhere else during the initial implementation phase until its release
-// 3. Ignore the contents of the `slm` object because it might contain policies
+// 2. Ignore the contents of the `ilm` and `slm` objects because they don't know
+//    all of the policies that will be in them. 
+// 3. Ignore the contents of the `analytics` object because it might contain
+//    additional stats
 // 4. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.

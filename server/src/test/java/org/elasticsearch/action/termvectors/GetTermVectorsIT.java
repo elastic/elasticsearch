@@ -39,7 +39,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockKeywordPlugin;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -369,7 +368,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         for (TestConfig test : testConfigs) {
             TermVectorsRequestBuilder request = getRequestForConfig(test);
             if (test.expectedException != null) {
-                ElasticsearchAssertions.assertThrown(request, test.expectedException);
+                assertThrown(request, test.expectedException);
                 continue;
             }
 

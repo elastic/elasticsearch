@@ -29,7 +29,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutionException;
@@ -60,7 +59,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         final String masterNode = startBlockedCleanup("test-repo");
 
         logger.info("-->  sending another cleanup");
-        ElasticsearchAssertions.assertThrown(client().admin().cluster().prepareCleanupRepository("test-repo").execute(), IllegalStateException.class);
+        assertThrown(client().admin().cluster().prepareCleanupRepository("test-repo").execute(), IllegalStateException.class);
 
         logger.info("-->  ensure cleanup is still in progress");
         final RepositoryCleanupInProgress cleanup =

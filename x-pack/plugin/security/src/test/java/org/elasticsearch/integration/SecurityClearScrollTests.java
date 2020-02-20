@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.junit.After;
 import org.junit.Before;
@@ -108,10 +107,10 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         Map<String, String> headers = new HashMap<>();
         headers.put(SecurityField.USER_SETTING.getKey(), user);
         headers.put(BASIC_AUTH_HEADER, basicAuth);
-        ElasticsearchAssertions.assertThrown(client().filterWithHeader(headers)
-                .prepareClearScroll()
-                .addScrollId("_all"), ElasticsearchSecurityException.class,
-                "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
+        assertThrown(client().filterWithHeader(headers)
+            .prepareClearScroll()
+            .addScrollId("_all"), ElasticsearchSecurityException.class,
+            "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
 
         // deletion of scroll ids should work
         ClearScrollResponse clearByIdScrollResponse = client().prepareClearScroll().setScrollIds(scrollIds).get();

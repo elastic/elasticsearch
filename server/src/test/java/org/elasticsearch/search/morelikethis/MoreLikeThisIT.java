@@ -35,7 +35,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -320,12 +319,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
 
         // Explicit list of fields including numeric fields -> fail
-        ElasticsearchAssertions.assertThrown(client().prepareSearch().setQuery(
+        assertThrown(client().prepareSearch().setQuery(
                 new MoreLikeThisQueryBuilder(new String[] {"string_value", "int_value"}, null,
                         new Item[] {new Item("test", "1")}).minTermFreq(1).minDocFreq(1)), SearchPhaseExecutionException.class);
 
         // mlt query with no field -> exception because _all is not enabled)
-        ElasticsearchAssertions.assertThrown(client().prepareSearch()
+        assertThrown(client().prepareSearch()
             .setQuery(moreLikeThisQuery(new String[] {"index"}).minTermFreq(1).minDocFreq(1)),
             SearchPhaseExecutionException.class);
 
@@ -335,12 +334,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
 
         // mlt query with at least a numeric field -> fail by default
-        ElasticsearchAssertions.assertThrown(client().prepareSearch().setQuery(
+        assertThrown(client().prepareSearch().setQuery(
                 moreLikeThisQuery(new String[] {"string_value", "int_value"}, new String[] {"index"}, null)),
                 SearchPhaseExecutionException.class);
 
         // mlt query with at least a numeric field -> fail by command
-        ElasticsearchAssertions.assertThrown(client().prepareSearch().setQuery(
+        assertThrown(client().prepareSearch().setQuery(
                 moreLikeThisQuery(new String[] {"string_value", "int_value"}, new String[] {"index"}, null).failOnUnsupportedField(true)),
                 SearchPhaseExecutionException.class);
 
@@ -352,12 +351,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
 
         // mlt field query on a numeric field -> failure by default
-        ElasticsearchAssertions.assertThrown(client().prepareSearch().setQuery(
+        assertThrown(client().prepareSearch().setQuery(
                 moreLikeThisQuery(new String[] {"int_value"}, new String[] {"42"}, null).minTermFreq(1).minDocFreq(1)),
                 SearchPhaseExecutionException.class);
 
         // mlt field query on a numeric field -> failure by command
-        ElasticsearchAssertions.assertThrown(client().prepareSearch().setQuery(
+        assertThrown(client().prepareSearch().setQuery(
                 moreLikeThisQuery(new String[] {"int_value"}, new String[] {"42"}, null).minTermFreq(1).minDocFreq(1)
                 .failOnUnsupportedField(true)),
                 SearchPhaseExecutionException.class);

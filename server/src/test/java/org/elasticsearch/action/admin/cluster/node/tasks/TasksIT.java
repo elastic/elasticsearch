@@ -59,7 +59,6 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -787,7 +786,7 @@ public class TasksIT extends ESIntegTestCase {
         request.setShouldBlock(false);
 
         // Start non-blocking test task that should fail
-        ElasticsearchAssertions.assertThrown(
+        assertThrown(
             client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request),
             IllegalStateException.class
         );

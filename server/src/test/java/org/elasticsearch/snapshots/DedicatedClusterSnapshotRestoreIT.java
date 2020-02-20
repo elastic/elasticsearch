@@ -83,7 +83,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
@@ -315,7 +314,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .setWaitForCompletion(true).execute().actionGet();
 
         logger.info("--> make sure old repository wasn't restored");
-        ElasticsearchAssertions.assertThrown(client.admin().cluster().prepareGetRepositories("test-repo"), RepositoryMissingException.class);
+        assertThrown(client.admin().cluster().prepareGetRepositories("test-repo"), RepositoryMissingException.class);
         assertThat(client.admin().cluster().prepareGetRepositories("test-repo-2").get().repositories().size(), equalTo(1));
 
         logger.info("--> check that custom persistent metadata was restored");
@@ -616,7 +615,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(client().admin().indices().prepareClose("test-idx-all"));
 
         logger.info("--> restore incomplete snapshot - should fail");
-        ElasticsearchAssertions.assertThrown(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false)
+        assertThrown(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false)
                 .setWaitForCompletion(true).execute(),
             SnapshotRestoreException.class);
 

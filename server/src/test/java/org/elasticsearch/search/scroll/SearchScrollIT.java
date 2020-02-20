@@ -328,9 +328,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(clearResponse.status(), equalTo(RestStatus.OK));
         assertToXContentResponse(clearResponse, true, clearResponse.getNumFreed());
 
-        ElasticsearchAssertions.assertThrown(client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
+        assertThrown(client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
                 RestStatus.NOT_FOUND);
-        ElasticsearchAssertions.assertThrown(client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
+        assertThrown(client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
                 RestStatus.NOT_FOUND);
     }
 
@@ -436,9 +436,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(clearResponse.status(), equalTo(RestStatus.OK));
         assertToXContentResponse(clearResponse, true, clearResponse.getNumFreed());
 
-        ElasticsearchAssertions.assertThrown(internalCluster().client().prepareSearchScroll(searchResponse1.getScrollId())
+        assertThrown(internalCluster().client().prepareSearchScroll(searchResponse1.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
-        ElasticsearchAssertions.assertThrown(internalCluster().client().prepareSearchScroll(searchResponse2.getScrollId())
+        assertThrown(internalCluster().client().prepareSearchScroll(searchResponse2.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
     }
 
@@ -486,7 +486,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         ClearScrollResponse clearScrollResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
-        ElasticsearchAssertions.assertThrown(internalCluster().client().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
+        assertThrown(internalCluster().client().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
     }
 
     public void testStringSortMissingAscTerminates() throws Exception {

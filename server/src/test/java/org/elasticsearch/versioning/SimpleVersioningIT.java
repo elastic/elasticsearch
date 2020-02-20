@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,10 +63,10 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
 
         // this should conflict with the delete command transaction which told us that the object was deleted at version 17.
-        ElasticsearchAssertions.assertThrown(
-                client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(13)
-                    .setVersionType(VersionType.EXTERNAL).execute(),
-                VersionConflictEngineException.class
+        assertThrown(
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(13)
+                .setVersionType(VersionType.EXTERNAL).execute(),
+            VersionConflictEngineException.class
         );
 
         IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(18).
@@ -90,7 +89,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             .setVersionType(VersionType.EXTERNAL_GTE).get();
         assertThat(indexResponse.getVersion(), equalTo(14L));
 
-        ElasticsearchAssertions.assertThrown(client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(13)
+        assertThrown(client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(13)
                 .setVersionType(VersionType.EXTERNAL_GTE),
                 VersionConflictEngineException.class);
 
@@ -103,9 +102,9 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         }
 
         // deleting with a lower version fails.
-        ElasticsearchAssertions.assertThrown(
-                client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE),
-                VersionConflictEngineException.class);
+        assertThrown(
+            client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE),
+            VersionConflictEngineException.class);
 
         // Delete with a higher or equal version deletes all versions up to the given one.
         long v = randomIntBetween(14, 17);
@@ -115,9 +114,9 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(deleteResponse.getVersion(), equalTo(v));
 
         // Deleting with a lower version keeps on failing after a delete.
-        ElasticsearchAssertions.assertThrown(
-                client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE).execute(),
-                VersionConflictEngineException.class);
+        assertThrown(
+            client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE).execute(),
+            VersionConflictEngineException.class);
 
 
         // But delete with a higher version is OK.
@@ -139,9 +138,9 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             .setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(14L));
 
-        ElasticsearchAssertions.assertThrown(client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(13)
-                .setVersionType(VersionType.EXTERNAL).execute(),
-                VersionConflictEngineException.class);
+        assertThrown(client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(13)
+            .setVersionType(VersionType.EXTERNAL).execute(),
+            VersionConflictEngineException.class);
 
         if (randomBoolean()) {
             refresh();
@@ -151,9 +150,9 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         }
 
         // deleting with a lower version fails.
-        ElasticsearchAssertions.assertThrown(
-                client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
-                VersionConflictEngineException.class);
+        assertThrown(
+            client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
+            VersionConflictEngineException.class);
 
         // Delete with a higher version deletes all versions up to the given one.
         DeleteResponse deleteResponse = client().prepareDelete("test", "1").setVersion(17)
@@ -162,9 +161,9 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(deleteResponse.getVersion(), equalTo(17L));
 
         // Deleting with a lower version keeps on failing after a delete.
-        ElasticsearchAssertions.assertThrown(
-                client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
-                VersionConflictEngineException.class);
+        assertThrown(
+            client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
+            VersionConflictEngineException.class);
 
 
         // But delete with a higher version is OK.
@@ -218,8 +217,8 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        ElasticsearchAssertions.assertThrown(client().prepareDelete("test", "1").setIfSeqNo(17).setIfPrimaryTerm(10).execute(),
-                VersionConflictEngineException.class);
+        assertThrown(client().prepareDelete("test", "1").setIfSeqNo(17).setIfPrimaryTerm(10).execute(),
+            VersionConflictEngineException.class);
 
         IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1")
                 .setCreate(true).execute().actionGet();
@@ -238,22 +237,22 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(indexResponse.getSeqNo(), equalTo(1L));
         assertThat(indexResponse.getPrimaryTerm(), equalTo(1L));
 
-        ElasticsearchAssertions.assertThrown(
+        assertThrown(
             client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(1).execute(),
             VersionConflictEngineException.class);
 
-        ElasticsearchAssertions.assertThrown(
+        assertThrown(
             client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(2).execute(),
             VersionConflictEngineException.class);
 
-        ElasticsearchAssertions.assertThrown(
+        assertThrown(
             client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(1).setIfPrimaryTerm(2).execute(),
             VersionConflictEngineException.class);
 
 
-        ElasticsearchAssertions.assertThrown(client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(1), VersionConflictEngineException.class);
-        ElasticsearchAssertions.assertThrown(client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(2), VersionConflictEngineException.class);
-        ElasticsearchAssertions.assertThrown(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+        assertThrown(client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertThrown(client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+        assertThrown(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
@@ -280,12 +279,12 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(deleteResponse.getSeqNo(), equalTo(2L));
         assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
 
-        ElasticsearchAssertions.assertThrown(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1), VersionConflictEngineException.class);
-        ElasticsearchAssertions.assertThrown(client().prepareDelete("test", "1").setIfSeqNo(3).setIfPrimaryTerm(12), VersionConflictEngineException.class);
-        ElasticsearchAssertions.assertThrown(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+        assertThrown(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertThrown(client().prepareDelete("test", "1").setIfSeqNo(3).setIfPrimaryTerm(12), VersionConflictEngineException.class);
+        assertThrown(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
 
         // the doc is deleted. Even when we hit the deleted seqNo, a conditional delete should fail.
-        ElasticsearchAssertions.assertThrown(client().prepareDelete("test", "1").setIfSeqNo(2).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertThrown(client().prepareDelete("test", "1").setIfSeqNo(2).setIfPrimaryTerm(1), VersionConflictEngineException.class);
     }
 
     public void testSimpleVersioningWithFlush() throws Exception {
@@ -300,13 +299,13 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(indexResponse.getSeqNo(), equalTo(1L));
 
         client().admin().indices().prepareFlush().execute().actionGet();
-        ElasticsearchAssertions.assertThrown(client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(0).setIfPrimaryTerm(1),
-                VersionConflictEngineException.class);
+        assertThrown(client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(0).setIfPrimaryTerm(1),
+            VersionConflictEngineException.class);
 
-        ElasticsearchAssertions.assertThrown(client().prepareIndex("test").setId("1").setCreate(true).setSource("field1", "value1_1"),
-                VersionConflictEngineException.class);
+        assertThrown(client().prepareIndex("test").setId("1").setCreate(true).setSource("field1", "value1_1"),
+            VersionConflictEngineException.class);
 
-        ElasticsearchAssertions.assertThrown(client().prepareDelete("test", "1").setIfSeqNo(0).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertThrown(client().prepareDelete("test", "1").setIfSeqNo(0).setIfPrimaryTerm(1), VersionConflictEngineException.class);
 
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareGet("test", "1").execute().actionGet().getVersion(), equalTo(2L));

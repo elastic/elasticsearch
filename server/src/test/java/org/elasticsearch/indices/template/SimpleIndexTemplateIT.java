@@ -110,15 +110,15 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .get();
 
         // test create param
-        ElasticsearchAssertions.assertThrown(client().admin().indices().preparePutTemplate("template_2")
-                .setPatterns(Collections.singletonList("test*"))
-                .setSettings(indexSettings())
-                .setCreate(true)
-                .setOrder(1)
-                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                        .startObject("field2").field("type", "text").field("store", false).endObject()
-                        .endObject().endObject().endObject())
-                , IllegalArgumentException.class
+        assertThrown(client().admin().indices().preparePutTemplate("template_2")
+            .setPatterns(Collections.singletonList("test*"))
+            .setSettings(indexSettings())
+            .setCreate(true)
+            .setOrder(1)
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
+                    .startObject("field2").field("type", "text").field("store", false).endObject()
+                    .endObject().endObject().endObject())
+            , IllegalArgumentException.class
         );
 
         response = client().admin().indices().prepareGetTemplates().get();

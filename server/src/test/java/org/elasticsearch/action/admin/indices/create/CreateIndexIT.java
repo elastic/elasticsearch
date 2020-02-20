@@ -44,7 +44,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -304,10 +303,10 @@ public class CreateIndexIT extends ESIntegTestCase {
             .addAlias(new Alias("alias1").writeIndex(true))
             .get());
 
-        ElasticsearchAssertions.assertThrown(client().admin().indices().prepareCreate("test-idx-2")
-                .setSettings(settings)
-                .addAlias(new Alias("alias1").writeIndex(true)),
-            IllegalStateException.class);
+        assertThrown(client().admin().indices().prepareCreate("test-idx-2")
+            .setSettings(settings)
+            .addAlias(new Alias("alias1").writeIndex(true)),
+        IllegalStateException.class);
 
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getMasterName());
         for (IndexService indexService : indicesService) {

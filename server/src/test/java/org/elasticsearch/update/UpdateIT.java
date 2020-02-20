@@ -46,7 +46,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -242,11 +241,11 @@ public class UpdateIT extends ESIntegTestCase {
         createTestIndex();
         ensureGreen();
 
-        ElasticsearchAssertions.assertThrown(client().prepareUpdate(indexOrAlias(), "1")
-                .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
-                .setDocAsUpsert(false)
-                .setFetchSource(true)
-                .execute(), DocumentMissingException.class);
+        assertThrown(client().prepareUpdate(indexOrAlias(), "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+            .setDocAsUpsert(false)
+            .setFetchSource(true)
+            .execute(), DocumentMissingException.class);
     }
 
     public void testUpsertFields() throws Exception {

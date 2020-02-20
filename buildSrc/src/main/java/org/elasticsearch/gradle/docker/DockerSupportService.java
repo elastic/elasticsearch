@@ -60,7 +60,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
             // Check if the Docker binary exists
             final Optional<String> dockerBinary = getDockerPath();
-            if (isBlacklistedOs() == false && dockerBinary.isPresent()) {
+            if (isExcludedOs() == false && dockerBinary.isPresent()) {
                 dockerPath = dockerBinary.get();
 
                 // Since we use a multi-stage Docker build, check the Docker version meets minimum requirement
@@ -150,7 +150,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         throwDockerRequiredException(message);
     }
 
-    private boolean isBlacklistedOs() {
+    private boolean isExcludedOs() {
         // We don't attempt to check the current flavor and version of Linux unless we're
         // running in CI, because we don't want to stop people running the Docker tests in
         // their own environments if they really want to.
@@ -175,13 +175,13 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             }
 
             final String id = deriveId(values);
-            final boolean blacklisted = getLinuxExclusionList().contains(id);
+            final boolean excluded = getLinuxExclusionList().contains(id);
 
-            if (blacklisted) {
+            if (excluded) {
                 LOGGER.warn("Linux OS id [{}] is present in the Docker exclude list. Tasks requiring Docker will be disabled.", id);
             }
 
-            return blacklisted;
+            return excluded;
         }
 
         return false;

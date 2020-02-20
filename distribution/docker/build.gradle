@@ -112,7 +112,7 @@ elasticsearch_distributions {
       flavor = distroFlavor
       type = 'docker'
       version = VersionProperties.getElasticsearch()
-      required = false // This ensures we skip this testing if Docker is unavailable
+      required = false // This ensures we don't attempt to build images if docker is unavailable
     }
   }
 }

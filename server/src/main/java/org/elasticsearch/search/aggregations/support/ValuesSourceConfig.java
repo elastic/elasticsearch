@@ -64,6 +64,9 @@ public class ValuesSourceConfig {
         ValuesSourceConfig config;
         MappedFieldType fieldType = null;
         ValuesSourceType valuesSourceType;
+        ValueType scriptValueType = null;
+        AggregationScript.LeafFactory aggregationScript = null;
+        boolean unmapped = false;
         if (field == null) {
             // Stand Alone Script Case
             if (script == null) {
@@ -80,9 +83,8 @@ public class ValuesSourceConfig {
             } else {
                 valuesSourceType = defaultValueSourceType;
             }
-            config = new ValuesSourceConfig(valuesSourceType, null, false, null);
-            config.script(createScript(script, context));
-            config.scriptValueType(userValueTypeHint);
+            aggregationScript = createScript(script, context);
+            scriptValueType = userValueTypeHint;
         } else {
             // Field case
             fieldType = context.fieldMapper(field);
@@ -98,24 +100,22 @@ public class ValuesSourceConfig {
                 } else {
                     valuesSourceType = defaultValueSourceType;
                 }
-               config = new ValuesSourceConfig(valuesSourceType, null, false, null);
                 // TODO: PLAN - get rid of the unmapped flag field; it's only used by valid(), and we're intending to get rid of that.
                 // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
-                config.unmapped(true);
+                unmapped = true;
                 if (userValueTypeHint != null) {
                     // todo do we really need this for unmapped?
-                    config.scriptValueType(userValueTypeHint);
+                    scriptValueType = userValueTypeHint;
                 }
             } else {
                 IndexFieldData<?> indexFieldData = context.getForField(fieldType);
                 valuesSourceType = context.getValuesSourceRegistry().getValuesSourceType(fieldType, aggregationName, indexFieldData,
                     userValueTypeHint, script, defaultValueSourceType);
-                config = new ValuesSourceConfig(valuesSourceType, null, false, null);
 
-                config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
-                config.script(createScript(script, context));
+                aggregationScript = createScript(script, context);
             }
         }
+        config = new ValuesSourceConfig(valuesSourceType, fieldType, unmapped, aggregationScript, scriptValueType , context);
         config.format(resolveFormat(format, valuesSourceType, timeZone, fieldType));
         config.missing(missing);
         config.timezone(timeZone);
@@ -156,19 +156,21 @@ public class ValuesSourceConfig {
     public ValuesSourceConfig(ValuesSourceType valuesSourceType,
                               MappedFieldType fieldType,
                               QueryShardContext queryShardContext) {
-        this(valuesSourceType, fieldType, false, queryShardContext);
+        this(valuesSourceType, fieldType, false, null, null, queryShardContext);
     }
 
     /**
      * Convenience method for creating unmapped configs
      */
     public ValuesSourceConfig(ValuesSourceType valuesSourceType, QueryShardContext queryShardContext) {
-        this(valuesSourceType, null, true, queryShardContext);
+        this(valuesSourceType, null, true, null, null, queryShardContext);
     }
 
     public ValuesSourceConfig(ValuesSourceType valuesSourceType,
                               MappedFieldType fieldType,
                               boolean unmapped,
+                              AggregationScript.LeafFactory script,
+                              ValueType scriptValueType,
                               QueryShardContext queryShardContext) {
         if (unmapped && fieldType != null) {
             throw new IllegalStateException("value source config is invalid; marked as unmapped but specified a mapped field");
@@ -178,6 +180,8 @@ public class ValuesSourceConfig {
             this.fieldContext = new FieldContext(fieldType.name(), queryShardContext.getForField(fieldType), fieldType);
         }
         this.unmapped = unmapped;
+        this.script = script;
+        this.scriptValueType = scriptValueType;
 
     }
 
@@ -201,28 +205,8 @@ public class ValuesSourceConfig {
         return fieldContext != null || script != null || unmapped;
     }
 
-    public ValuesSourceConfig fieldContext(FieldContext fieldContext) {
-        this.fieldContext = fieldContext;
-        return this;
-    }
-
-    private ValuesSourceConfig script(AggregationScript.LeafFactory script) {
-        this.script = script;
-        return this;
-    }
-
-    private ValuesSourceConfig scriptValueType(ValueType scriptValueType) {
-        this.scriptValueType = scriptValueType;
-        return this;
-    }
-
     public ValueType scriptValueType() {
         return this.scriptValueType;
-    }
-
-    public ValuesSourceConfig unmapped(boolean unmapped) {
-        this.unmapped = unmapped;
-        return this;
     }
 
     public ValuesSourceConfig format(final DocValueFormat format) {

@@ -35,6 +35,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -78,7 +79,7 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
             bulkRequest.append(System.lineSeparator());
         }
 
-        ArrayList<Tuple<String, CharSequence>> requests = new ArrayList<Tuple<String,CharSequence>>();
+        List<Tuple<String, CharSequence>> requests = new ArrayList<>();
         for (int i = 0; i < 150; i++) {
             requests.add(Tuple.tuple("/index/_bulk", bulkRequest));
         }
@@ -108,7 +109,7 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
     public void testDoesNotLimitExcludedRequests() throws Exception {
         ensureGreen();
 
-        ArrayList<Tuple<String, CharSequence>> requestUris = new ArrayList<Tuple<String, CharSequence>>();
+        List<Tuple<String, CharSequence>> requestUris = new ArrayList<>();
         for (int i = 0; i < 1500; i++) {
             requestUris.add(Tuple.tuple("/_cluster/settings",
                 "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));

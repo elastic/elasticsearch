@@ -121,10 +121,10 @@ public class FilterRepository implements Repository {
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                              Map<String, Object> userMetadata, ActionListener<String> listener) {
-        in.snapshotShard(
-            store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, repositoryMetaVersion, userMetadata, listener);
+                              IndexCommit snapshotIndexCommit, boolean isSafeCommit, IndexShardSnapshotStatus snapshotStatus,
+                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
+        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, isSafeCommit, snapshotStatus,
+            repositoryMetaVersion, userMetadata, listener);
     }
     @Override
     public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,

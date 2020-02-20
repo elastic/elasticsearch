@@ -105,8 +105,8 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<String> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, Version.CURRENT,
-                    Collections.emptyMap(), future1);
+                repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, randomBoolean(), snapshotStatus,
+                    Version.CURRENT, Collections.emptyMap(), future1);
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
@@ -134,8 +134,8 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<String> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-                repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit, snapshotStatus, Version.CURRENT,
-                    Collections.emptyMap(), future2);
+                repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit, randomBoolean(), snapshotStatus,
+                    Version.CURRENT, Collections.emptyMap(), future2);
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(2, copy.getIncrementalFileCount());

@@ -1459,8 +1459,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                              Map<String, Object> userMetadata, ActionListener<String> listener) {
+                              IndexCommit snapshotIndexCommit, boolean isSafeCommit, IndexShardSnapshotStatus snapshotStatus,
+                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
         try {
@@ -1487,7 +1487,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     "Duplicate snapshot name [" + snapshotId.getName() + "] detected, aborting");
             }
             final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
-            final String seqNumString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
+            // We only check the sequence number to see if the shard has changed if we know that the commit is safe,
+            // otherwise we short-circuit things here by not reading the sequence number from the commit
+            final String seqNumString = isSafeCommit ? userCommitData.get(SequenceNumbers.MAX_SEQ_NO) : null;
             final long sequenceNum;
             final String historyUUID;
             if (seqNumString == null) {

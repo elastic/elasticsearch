@@ -309,6 +309,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52598")
     public void testResyncAfterPrimaryPromotion() throws Exception {
         // TODO: check translog trimming functionality once rollback is implemented in Lucene (ES trimming is done)
         String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";

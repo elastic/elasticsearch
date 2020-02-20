@@ -28,6 +28,9 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -42,32 +45,34 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
-public class BatchedShard {
+public class BatchedShardExecutor {
 
     // TODO: Consider some type of time slice for indexing
     private static final int MAX_PERFORM_OPS = 10;
 
-    private static final Logger logger = LogManager.getLogger(BatchedShard.class);
+    private static final Logger logger = LogManager.getLogger(BatchedShardExecutor.class);
 
-    private final ClusterService clusterService;
+    private final CheckedBiFunction<PrimaryOp, Runnable, Boolean, Exception> primaryOpHandler;
+    private final CheckedFunction<ReplicaOp, Boolean, Exception> replicaOpHandler;
     private final ThreadPool threadPool;
-    private final UpdateHelper updateHelper;
-    private final MappingUpdatedAction mappingUpdatedAction;
-    private final CheckedBiFunction<BulkPrimaryExecutionContext, Runnable, Boolean, Exception> primaryOpHandler;
     private final int maxWriteThreads;
 
     private final ConcurrentHashMap<ShardId, ShardState> shardQueues = new ConcurrentHashMap<>();
 
 
-    public BatchedShard(ClusterService clusterService, ThreadPool threadPool, UpdateHelper updateHelper,
-                        MappingUpdatedAction mappingUpdatedAction) {
-        this.clusterService = clusterService;
+    public BatchedShardExecutor(ClusterService clusterService, ThreadPool threadPool, UpdateHelper updateHelper,
+                                MappingUpdatedAction mappingUpdatedAction) {
+        this(primaryOpHandler(clusterService, threadPool, updateHelper, mappingUpdatedAction), replicaOpHandler(), threadPool);
+    }
+
+    public BatchedShardExecutor(CheckedBiFunction<PrimaryOp, Runnable, Boolean, Exception> primaryOpHandler,
+                                CheckedFunction<ReplicaOp, Boolean, Exception> replicaOpHandler, ThreadPool threadPool) {
+        this.primaryOpHandler = primaryOpHandler;
+        this.replicaOpHandler = replicaOpHandler;
         this.threadPool = threadPool;
-        this.updateHelper = updateHelper;
-        this.mappingUpdatedAction = mappingUpdatedAction;
         this.maxWriteThreads = threadPool.info(ThreadPool.Names.WRITE).getMax();
-        primaryOpHandler = null;
     }
 
     public void primary(BulkShardRequest request, IndexShard primary, ActionListener<BulkShardResponse> writeListener,
@@ -103,7 +108,39 @@ public class BatchedShard {
     }
 
     private void maybeSchedule(IndexShard indexShard, ShardState shardState, boolean isPrimary) {
+        if (shardState.shouldScheduleWriteTask()) {
+            threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Uncaught exception when handling shard operations", e);
+                    assert false : e;
+                }
+
+                @Override
+                protected void doRun() {
+                    shardState.markTaskStarted();
+                    performShardOperations(indexShard, isPrimary);
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    assert false : e;
+                }
+
+                @Override
+                public void onAfter() {
+                    if (shardState.preIndexedQueue.isEmpty() == false) {
+                        maybeSchedule(indexShard, shardState, isPrimary);
+                    }
+                }
+            });
+        }
     }
 
     private void performShardOperations(IndexShard indexShard, boolean isPrimary) {
@@ -118,9 +155,11 @@ public class BatchedShard {
                 boolean opCompleted = false;
                 try {
                     if (isPrimary) {
-                        opCompleted = performPrimaryOperation((PrimaryOp) shardOp);
+                        PrimaryOp primaryOp = (PrimaryOp) shardOp;
+                        Runnable rescheduler = () -> enqueueAndSchedule(primaryOp, true, false);
+                        opCompleted = primaryOpHandler.apply(primaryOp, rescheduler);
                     } else {
-                        opCompleted = performReplicaOperation((ReplicaOp) shardOp);
+                        opCompleted = replicaOpHandler.apply((ReplicaOp) shardOp);
                     }
                 } catch (Exception e) {
                     // TODO: Do we want to attempt to complete as many ops as possible so far?
@@ -164,62 +203,105 @@ public class BatchedShard {
 
     private void finishOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> completedOps,
                                   ArrayList<ShardOp> completedOpsWaitForRefresh, boolean forceRefresh) {
-        // TODO: Need to improve resiliency around error handling on failed syncs, refreshes, and listener
-        //  calls
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST && maxLocation != null) {
-            try {
-                indexShard.sync(maxLocation, (ex) -> {
-                    if (ex == null) {
-                        ActionListener.onResponse(completedOps.stream().map(ShardOp::getFlushListener), null);
-                    } else {
-                        ActionListener.onFailure(completedOps.stream().map(ShardOp::getFlushListener), ex);
-                    }
-                });
-            } catch (Exception ex) {
-                ActionListener.onFailure(completedOps.stream().map(ShardOp::getFlushListener), ex);
-            }
+            syncOperations(indexShard, maxLocation, completedOps);
         } else {
-            ActionListener.onResponse(completedOps.stream().map(ShardOp::getFlushListener), null);
+            onResponse(completedOps.stream().map(ShardOp::getFlushListener), null);
         }
 
         AtomicBoolean refreshed = new AtomicBoolean(false);
         if (completedOpsWaitForRefresh.isEmpty() == false) {
             if (maxLocation != null) {
                 // TODO: Do we want to add each listener individually?
-                indexShard.addRefreshListener(maxLocation, forcedRefresh -> {
-                    if (forcedRefresh) {
-                        logger.warn("block until refresh ran out of slots and forced a refresh");
-                    }
-
-                    ActionListener.onResponse(completedOpsWaitForRefresh.stream().map(ShardOp::getFlushListener), forcedRefresh);
-                });
+                addRefreshListeners(indexShard, maxLocation, completedOpsWaitForRefresh);
             } else {
-                ActionListener.onResponse(completedOps.stream().map(ShardOp::getFlushListener), null);
+                onResponse(completedOpsWaitForRefresh.stream().map(ShardOp::getFlushListener), false);
             }
         }
 
         if (refreshed.get() == false && forceRefresh) {
-            indexShard.refresh("refresh_flag_index");
+            forceRefresh(indexShard);
         }
     }
 
-    private boolean performPrimaryOperation(PrimaryOp shardOp) throws Exception {
-        BulkShardRequest request = shardOp.getRequest();
-        Runnable rescheduler = () -> enqueueAndSchedule(shardOp, true, false);
+    // TODO: Confirm if we want WARN log level. A lot of these will be thrown when the shard is closed/closing
 
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        return TransportShardBulkAction.executeBulkItemRequests(shardOp.context, updateHelper, threadPool::absoluteTimeInMillis,
-            (update, shardId, mappingListener) -> {
-                assert update != null;
-                assert shardId != null;
-                mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
-            }, TransportShardBulkAction.waitForMappingUpdate(observer, clusterService), rescheduler);
+    private void syncOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> operations) {
+        try {
+            indexShard.sync(maxLocation, (ex) -> {
+                if (ex == null) {
+                    onResponse(operations.stream().map(ShardOp::getFlushListener), null);
+                } else {
+                    onFailure(operations.stream().map(ShardOp::getFlushListener), ex);
+                }
+            });
+        } catch (Exception ex) {
+            logger.warn("exception while syncing shard operations", ex);
+            onFailure(operations.stream().map(ShardOp::getFlushListener), ex);
+        }
     }
 
-    private boolean performReplicaOperation(ReplicaOp replicaOp) throws Exception {
-        Translog.Location location = TransportShardBulkAction.performOnReplica(replicaOp.getRequest(), replicaOp.getIndexShard());
-        replicaOp.setLocation(location);
-        return true;
+    private void addRefreshListeners(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> operations) {
+        try {
+            indexShard.addRefreshListener(maxLocation, forcedRefresh -> {
+                if (forcedRefresh) {
+                    logger.warn("block until refresh ran out of slots and forced a refresh");
+                }
+
+                onResponse(operations.stream().map(ShardOp::getFlushListener), forcedRefresh);
+            });
+        } catch (Exception ex) {
+            logger.warn("exception while adding refresh listener for shard operations", ex);
+        }
+    }
+
+    private void forceRefresh(IndexShard indexShard) {
+        try {
+            indexShard.refresh("refresh_flag_index");
+        } catch (Exception ex) {
+            logger.warn("exception while forcing immediate refresh for shard operation", ex);
+        }
+    }
+
+    private <T> void onResponse(Stream<ActionListener<T>> listenerStream, T value) {
+        try {
+            ActionListener.onResponse(listenerStream, value);
+        } catch (Exception e) {
+            logger.error("uncaught exception when notifying shard operation listeners", e);
+        }
+    }
+
+    private <T> void onFailure(Stream<ActionListener<T>> listenerStream, Exception ex) {
+        try {
+            ActionListener.onFailure(listenerStream, ex);
+        } catch (Exception e) {
+            logger.error("uncaught exception when notifying shard operation listeners", e);
+        }
+    }
+
+    private static CheckedBiFunction<PrimaryOp, Runnable, Boolean, Exception> primaryOpHandler(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        UpdateHelper updateHelper,
+        MappingUpdatedAction mappingUpdatedAction) {
+        return (primaryOp, rescheduler) -> {
+            TimeValue timeout = primaryOp.getRequest().timeout();
+            ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
+            return TransportShardBulkAction.executeBulkItemRequests(primaryOp.context, updateHelper, threadPool::absoluteTimeInMillis,
+                (update, shardId, mappingListener) -> {
+                    assert update != null;
+                    assert shardId != null;
+                    mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
+                }, TransportShardBulkAction.waitForMappingUpdate(observer, clusterService), rescheduler);
+        };
+    }
+
+    private static CheckedFunction<ReplicaOp, Boolean, Exception> replicaOpHandler() {
+        return (replicaOp) -> {
+            Translog.Location location = TransportShardBulkAction.performOnReplica(replicaOp.getRequest(), replicaOp.getIndexShard());
+            replicaOp.setLocation(location);
+            return true;
+        };
     }
 
     private static class ShardState {
@@ -228,10 +310,10 @@ public class BatchedShard {
 
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
-        private final Semaphore writeThreadsSemaphore;
+        private final Semaphore scheduleTaskSemaphore;
 
-        private ShardState(int maxWriteThreads) {
-            writeThreadsSemaphore = new Semaphore(maxWriteThreads);
+        private ShardState(int maxScheduledTasks) {
+            scheduleTaskSemaphore = new Semaphore(maxScheduledTasks);
         }
 
         private boolean attemptPreIndexedEnqueue(ShardOp shardOp, boolean allowReject) {
@@ -252,8 +334,12 @@ public class BatchedShard {
             return operation;
         }
 
-        private boolean shouldScheduleWrites() {
-            return writeThreadsSemaphore.tryAcquire();
+        private boolean shouldScheduleWriteTask() {
+            return scheduleTaskSemaphore.tryAcquire();
+        }
+
+        private void markTaskStarted() {
+            scheduleTaskSemaphore.release();
         }
     }
 

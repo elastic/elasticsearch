@@ -172,6 +172,40 @@ setup:
   - match: { count: 1 }
   - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
 ---
+"Test put ensemble with single node and empty feature_names":
+
+  - do:
+      ml.put_trained_model:
+        model_id: "ensemble_tree_empty_feature_names"
+        body: >
+          {
+            "input": {
+              "field_names": "fieldy_mc_fieldname"
+            },
+            "definition": {
+              "trained_model": {
+                "ensemble": {
+                  "feature_names": [],
+                  "trained_models": [
+                     {
+                        "tree": {
+                           "feature_names": [],
+                           "tree_structure": [
+                             {
+                               "node_index": 0,
+                               "decision_type": "lte",
+                               "leaf_value": 12.0,
+                               "default_left": true
+                             }]
+                        }
+                     }
+                  ]
+                }
+              }
+            }
+          }
+
+---
 "Test put ensemble with empty models":
   - do:
       catch: /\[trained_models\] must not be empty/
@@ -192,11 +226,11 @@ setup:
             }
           }
 ---
-"Test put ensemble with tree where tree has empty feature-names":
+"Test put ensemble with tree where tree has out of bounds feature_names index":
   - do:
-      catch: /\[feature_names\] must not be empty/
+      catch: /feature index \[1\] is out of bounds for the \[feature_names\] array/
       ml.put_trained_model:
-        model_id: "ensemble_tree_missing_feature_names"
+        model_id: "ensemble_tree_out_of_bounds_feature_names_index"
         body: >
           {
             "input": {
@@ -213,7 +247,7 @@ setup:
                            "tree_structure": [
                              {
                                "node_index": 0,
-                               "split_feature": 0,
+                               "split_feature": 1,
                                "split_gain": 12.0,
                                "threshold": 10.0,
                                "decision_type": "lte",

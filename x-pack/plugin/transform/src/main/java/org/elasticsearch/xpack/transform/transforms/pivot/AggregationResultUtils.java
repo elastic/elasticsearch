@@ -98,7 +98,7 @@ public final class AggregationResultUtils {
                 if (aggResult != null) {
                     final String fieldType = fieldTypeMap.get(aggName);
                     AggValueExtractor extractor = getExtractor(aggResult);
-                    updateDocument(document, aggName, extractor.value(aggResult, fieldType, fieldTypeMap));
+                    updateDocument(document, aggName, extractor.value(aggResult, fieldType, fieldTypeMap, ""));
                 }
             }
 
@@ -179,12 +179,12 @@ public final class AggregationResultUtils {
     }
 
     interface AggValueExtractor {
-        Object value(Aggregation aggregation, String fieldType, Map<String, String> fieldTypeMap);
+        Object value(Aggregation aggregation, String fieldType, Map<String, String> fieldTypeMap, String lookupFieldPrefix);
     }
 
     static class SingleValueAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             SingleValue aggregation = (SingleValue) agg;
             // If the double is invalid, this indicates sparse data
             if (Numbers.isValidDouble(aggregation.value()) == false) {
@@ -202,7 +202,7 @@ public final class AggregationResultUtils {
 
     static class PercentilesAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             Percentiles aggregation = (Percentiles) agg;
 
             HashMap<String, Double> percentiles = new HashMap<>();
@@ -217,7 +217,7 @@ public final class AggregationResultUtils {
 
     static class SingleBucketAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             SingleBucketAggregation aggregation = (SingleBucketAggregation) agg;
 
             if (aggregation.getAggregations().iterator().hasNext() == false) {
@@ -226,7 +226,16 @@ public final class AggregationResultUtils {
 
             HashMap<String, Object> nested = new HashMap<>();
             for (Aggregation subAgg : aggregation.getAggregations()) {
-                nested.put(subAgg.getName(), getExtractor(subAgg).value(subAgg, fieldTypeMap.get(agg.getName()), fieldTypeMap));
+                String subLookupFieldPrefix = lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName();
+                nested.put(
+                    subAgg.getName(),
+                    getExtractor(subAgg).value(
+                        subAgg,
+                        fieldTypeMap.get(subLookupFieldPrefix + "." + subAgg.getName()),
+                        fieldTypeMap,
+                        subLookupFieldPrefix
+                    )
+                );
             }
 
             return nested;
@@ -235,7 +244,7 @@ public final class AggregationResultUtils {
 
     static class ScriptedMetricAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             ScriptedMetric aggregation = (ScriptedMetric) agg;
             return aggregation.aggregation();
         }
@@ -243,7 +252,7 @@ public final class AggregationResultUtils {
 
     static class GeoCentroidAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             GeoCentroid aggregation = (GeoCentroid) agg;
             // if the account is `0` iff there is no contained centroid
             return aggregation.count() > 0 ? aggregation.centroid().toString() : null;
@@ -252,7 +261,7 @@ public final class AggregationResultUtils {
 
     static class GeoBoundsAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap) {
+        public Object value(Aggregation agg, String fieldType, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             GeoBounds aggregation = (GeoBounds) agg;
             if (aggregation.bottomRight() == null || aggregation.topLeft() == null) {
                 return null;

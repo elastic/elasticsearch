@@ -47,6 +47,8 @@ import org.elasticsearch.search.aggregations.metrics.ParsedScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.ParsedStats;
 import org.elasticsearch.search.aggregations.metrics.ParsedSum;
 import org.elasticsearch.search.aggregations.metrics.ParsedValueCount;
+import org.elasticsearch.search.aggregations.metrics.Percentile;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
@@ -626,13 +628,13 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("mixed object types of nested and non-nested fields [foo.bar]"));
     }
 
-    private NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, Double value, String valueAsString) {
+    public static NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, Double value, String valueAsString) {
         NumericMetricsAggregation.SingleValue agg = createSingleMetricAgg(value, valueAsString);
         when(agg.getName()).thenReturn(name);
         return agg;
     }
 
-    private NumericMetricsAggregation.SingleValue createSingleMetricAgg(Double value, String valueAsString) {
+    public static NumericMetricsAggregation.SingleValue createSingleMetricAgg(Double value, String valueAsString) {
         NumericMetricsAggregation.SingleValue agg = mock(NumericMetricsAggregation.SingleValue.class);
         when(agg.value()).thenReturn(value);
         when(agg.getValueAsString()).thenReturn(valueAsString);
@@ -641,19 +643,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     public void testSingleValueAggExtractor() {
         Aggregation agg = createSingleMetricAgg(Double.NaN, "NaN");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap()), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap(), ""), is(nullValue()));
 
         agg = createSingleMetricAgg(Double.POSITIVE_INFINITY, "NaN");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap()), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap(), ""), is(nullValue()));
 
         agg = createSingleMetricAgg(100.0, "100.0");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap()), equalTo(100.0));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap(), ""), equalTo(100.0));
 
         agg = createSingleMetricAgg(100.0, "one_hundred");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap()), equalTo(100.0));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "double", Collections.emptyMap(), ""), equalTo(100.0));
 
         agg = createSingleMetricAgg(100.0, "one_hundred");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "string", Collections.emptyMap()), equalTo("one_hundred"));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "string", Collections.emptyMap(), ""), equalTo("one_hundred"));
     }
 
     private ScriptedMetric createScriptedMetric(Object returnValue) {
@@ -665,14 +667,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testScriptedMetricAggExtractor() {
         Aggregation agg = createScriptedMetric(null);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), ""), is(nullValue()));
 
         agg = createScriptedMetric(Collections.singletonList("values"));
-        Object val = AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap());
+        Object val = AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), "");
         assertThat((List<String>) val, hasItem("values"));
 
         agg = createScriptedMetric(Collections.singletonMap("key", 100));
-        val = AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap());
+        val = AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), "");
         assertThat(((Map<String, Object>) val).get("key"), equalTo(100));
     }
 
@@ -685,13 +687,13 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     public void testGeoCentroidAggExtractor() {
         Aggregation agg = createGeoCentroid(null, 0);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point", Collections.emptyMap()), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point", Collections.emptyMap(), ""), is(nullValue()));
 
         agg = createGeoCentroid(new GeoPoint(100.0, 101.0), 0);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point", Collections.emptyMap()), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point", Collections.emptyMap(), ""), is(nullValue()));
 
         agg = createGeoCentroid(new GeoPoint(100.0, 101.0), randomIntBetween(1, 100));
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point", Collections.emptyMap()), equalTo("100.0, 101.0"));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_point", Collections.emptyMap(), ""), equalTo("100.0, 101.0"));
     }
 
     private GeoBounds createGeoBounds(GeoPoint tl, GeoPoint br) {
@@ -705,10 +707,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testGeoBoundsAggExtractor() {
         final int numberOfRuns = 25;
         Aggregation agg = createGeoBounds(null, new GeoPoint(100.0, 101.0));
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap()), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap(), ""), is(nullValue()));
 
         agg = createGeoBounds(new GeoPoint(100.0, 101.0), null);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap()), is(nullValue()));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap(), ""), is(nullValue()));
 
         String type = "point";
         for (int i = 0; i < numberOfRuns; i++) {
@@ -718,7 +720,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
             double lon = randomDoubleBetween(-180.0, 180.0, false);
             expectedObject.put("coordinates", Arrays.asList(lon, lat));
             agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat, lon));
-            assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap()), equalTo(expectedObject));
+            assertThat(
+                AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap(), ""),
+                equalTo(expectedObject)
+            );
         }
 
         type = "linestring";
@@ -733,7 +738,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 lon2 = randomDoubleBetween(-180.0, 180.0, false);
             }
             agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat2, lon2));
-            Object val = AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap());
+            Object val = AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap(), "");
             Map<String, Object> geoJson = (Map<String, Object>) val;
             assertThat(geoJson.get("type"), equalTo(type));
             List<Double[]> coordinates = (List<Double[]>) geoJson.get("coordinates");
@@ -757,7 +762,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 lon2 = randomDoubleBetween(-180.0, 180.0, false);
             }
             agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat2, lon2));
-            Object val = AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap());
+            Object val = AggregationResultUtils.getExtractor(agg).value(agg, "geo_shape", Collections.emptyMap(), "");
             Map<String, Object> geoJson = (Map<String, Object>) val;
             assertThat(geoJson.get("type"), equalTo(type));
             List<List<Double[]>> coordinates = (List<List<Double[]>>) geoJson.get("coordinates");
@@ -779,7 +784,26 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
     }
 
-    private SingleBucketAggregation createSingleBucketAgg(String name, long docCount, Aggregation... subAggregations) {
+    public static Percentiles createPercentilesAgg(String name, List<Percentile> percentiles) {
+        Percentiles agg = mock(Percentiles.class);
+
+        when(agg.iterator()).thenReturn(percentiles.iterator());
+        when(agg.getName()).thenReturn(name);
+        return agg;
+    }
+
+    public void testPercentilesAggExtractor() {
+        Aggregation agg = createPercentilesAgg(
+            "p_agg",
+            Arrays.asList(new Percentile(1, 0), new Percentile(50, 22.2), new Percentile(99, 43.3), new Percentile(99.5, 100.3))
+        );
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), ""),
+            equalTo(asMap("1", 0.0, "50", 22.2, "99", 43.3, "99_5", 100.3))
+        );
+    }
+
+    public static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, Aggregation... subAggregations) {
         SingleBucketAggregation agg = mock(SingleBucketAggregation.class);
         when(agg.getDocCount()).thenReturn(docCount);
         when(agg.getName()).thenReturn(name);
@@ -796,11 +820,11 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     public void testSingleBucketAggExtractor() {
         Aggregation agg = createSingleBucketAgg("sba", 42L);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "long", Collections.emptyMap()), equalTo(42L));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, "long", Collections.emptyMap(), ""), equalTo(42L));
 
         agg = createSingleBucketAgg("sba", 42L, createSingleMetricAgg("sub1", 100.0, "100.0"));
         assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()),
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), ""),
             equalTo(Collections.singletonMap("sub1", 100.0))
         );
 
@@ -811,7 +835,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             createSingleMetricAgg("sub2", 33.33, "33.33")
         );
         assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()),
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), ""),
             equalTo(asMap("sub1", 100.0, "sub2", 33.33))
         );
 
@@ -823,7 +847,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             createSingleBucketAgg("sub3", 42L)
         );
         assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()),
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap(), ""),
             equalTo(asMap("sub1", 100.0, "sub2", 33.33, "sub3", 42L))
         );
 
@@ -832,10 +856,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
             42L,
             createSingleMetricAgg("sub1", 100.0, "100.0"),
             createSingleMetricAgg("sub2", 33.33, "33.33"),
-            createSingleBucketAgg("sub3", 42L, createSingleMetricAgg("subsub1", 11.1, "11.1"))
+            createSingleBucketAgg("sub3", 42L, createSingleMetricAgg("subsub1", 11.1, "eleven_dot_eleven"))
         );
         assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.emptyMap()),
+            AggregationResultUtils.getExtractor(agg).value(agg, "object", Collections.singletonMap("subsub1", "double"), ""),
             equalTo(asMap("sub1", 100.0, "sub2", 33.33, "sub3", asMap("subsub1", 11.1)))
         );
     }

@@ -55,15 +55,15 @@ setup:
         body:
           query:
             script_score:
-              query: {match_all: {boost: 10}}
+              query: {match_all: {boost: 5}}
               script:
                 source: "doc['i'].value * _score"
               boost: 10
 
   - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._score: 300 }
-  - match: { hits.hits.1._score: 200 }
-  - match: { hits.hits.2._score: 100 }
+  - match: { hits.hits.0._score: 150 }
+  - match: { hits.hits.1._score: 100 }
+  - match: { hits.hits.2._score: 50 }
 
 ---
 "Boost script_score with explain":

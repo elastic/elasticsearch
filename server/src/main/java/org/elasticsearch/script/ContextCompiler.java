@@ -33,6 +33,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Script cache and compilation rate limiter.
+ */
 public class ContextCompiler {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);

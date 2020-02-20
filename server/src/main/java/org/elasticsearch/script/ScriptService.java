@@ -210,6 +210,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                     );
     }
 
+    /**
+     * This is overridden in tests to disable compilation rate limiting.
+     */
     boolean compilationLimitsEnabled() {
         return true;
     }

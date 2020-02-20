@@ -52,15 +52,15 @@ public class ValuesSourceConfig {
      *                          {@link ValuesSourceRegistry}
      * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
-    public static  ValuesSourceConfig resolve(
-        QueryShardContext context,
-        ValueType userValueTypeHint,
-        String field, Script script,
-        Object missing,
-        ZoneId timeZone,
-        String format,
-        ValuesSourceType defaultValueSourceType,
-        String aggregationName) {
+    public static ValuesSourceConfig resolve(QueryShardContext context,
+                                             ValueType userValueTypeHint,
+                                             String field,
+                                             Script script,
+                                             Object missing,
+                                             ZoneId timeZone,
+                                             String format,
+                                             ValuesSourceType defaultValueSourceType,
+                                             String aggregationName) {
         ValuesSourceConfig config;
         MappedFieldType fieldType = null;
         ValuesSourceType valuesSourceType;

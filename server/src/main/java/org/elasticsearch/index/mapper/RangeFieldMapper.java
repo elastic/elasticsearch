@@ -32,6 +32,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -138,7 +139,13 @@ public class RangeFieldMapper extends FieldMapper {
                     Objects.equals(builder.pattern, formatter.pattern()) == false;
 
                 if (hasPatternChanged || Objects.equals(builder.locale, formatter.locale()) == false) {
-                    fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
+                    DateFormatter dateTimeFormatter;
+                    if (Joda.isJodaStyleIndex(context,pattern) ) {
+                        dateTimeFormatter = Joda.forPattern(pattern).withLocale(locale);
+                    } else {
+                        dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
+                    }
+                    fieldType().setDateTimeFormatter(dateTimeFormatter);
                 }
             } else if (pattern != null) {
                 throw new IllegalArgumentException("field [" + name() + "] of type [" + fieldType().rangeType

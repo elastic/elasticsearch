@@ -20,10 +20,12 @@
 package org.elasticsearch.common.joda;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.index.mapper.Mapper;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeField;
@@ -335,6 +337,12 @@ public class Joda {
                 new DividedDateTimeField(new OffsetDateTimeField(chronology.monthOfYear(), -1), QuarterOfYear, 3), 1);
         }
     };
+
+    public static boolean isJodaStyleIndex(Mapper.BuilderContext context, String pattern) {
+        return context.indexCreatedVersion().before(Version.V_7_0_0)
+            && context.indexCreatedVersion().after(Version.V_6_0_0)
+            && pattern.startsWith("8") == false;
+    }
 
     public static class EpochTimeParser implements DateTimeParser {
 

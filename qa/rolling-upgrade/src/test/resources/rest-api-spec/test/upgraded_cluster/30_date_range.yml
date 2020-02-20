@@ -1,0 +1,33 @@
+---
+"Verify that we can find results with joda style pattern":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: joda_for_range
+        body:
+          query:
+            range:
+              time_frame:
+                gte: "2019-12-01"
+                lte: "2020-01-02"
+  - match: { hits.total: 1 }
+
+---
+"Verify that we can find results with java style pattern":
+  - skip:
+      version: " - 6.7.99"
+      reason: java.time patterns are allowed since 6.8
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: java_for_range
+        body:
+          query:
+            range:
+              time_frame:
+                gte: "2019-12-01"
+                lte: "2020-01-02"
+  - match: { hits.total: 1 }
+
+

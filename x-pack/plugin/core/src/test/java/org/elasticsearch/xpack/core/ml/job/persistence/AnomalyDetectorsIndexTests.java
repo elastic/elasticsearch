@@ -38,9 +38,11 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.contains;
@@ -55,7 +57,8 @@ import static org.mockito.Mockito.when;
 
 public class AnomalyDetectorsIndexTests extends ESTestCase {
 
-    private static final String ML_STATE = ".ml-state";
+    private static final String LEGACY_ML_STATE = ".ml-state";
+    private static final String INITIAL_ML_STATE = ".ml-state-000001";
     private static final String ML_STATE_WRITE_ALIAS = ".ml-state-write";
 
     private ThreadPool threadPool;
@@ -73,9 +76,9 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
         indicesAdminClient = mock(IndicesAdminClient.class);
-        when(indicesAdminClient.prepareCreate(ML_STATE))
-            .thenReturn(new CreateIndexRequestBuilder(client, CreateIndexAction.INSTANCE, ML_STATE));
-        doAnswer(withResponse(new CreateIndexResponse(true, true, ML_STATE))).when(indicesAdminClient).create(any(), any());
+        when(indicesAdminClient.prepareCreate(INITIAL_ML_STATE))
+            .thenReturn(new CreateIndexRequestBuilder(client, CreateIndexAction.INSTANCE, INITIAL_ML_STATE));
+        doAnswer(withResponse(new CreateIndexResponse(true, true, INITIAL_ML_STATE))).when(indicesAdminClient).create(any(), any());
         when(indicesAdminClient.prepareAliases()).thenReturn(new IndicesAliasesRequestBuilder(client, IndicesAliasesAction.INSTANCE));
         doAnswer(withResponse(new AcknowledgedResponse(true))).when(indicesAdminClient).aliases(any(), any());
 
@@ -102,12 +105,12 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, finalListener);
 
         InOrder inOrder = inOrder(indicesAdminClient, finalListener);
-        inOrder.verify(indicesAdminClient).prepareCreate(ML_STATE);
+        inOrder.verify(indicesAdminClient).prepareCreate(INITIAL_ML_STATE);
         inOrder.verify(indicesAdminClient).create(createRequestCaptor.capture(), any());
         inOrder.verify(finalListener).onResponse(true);
 
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
-        assertThat(createRequest.index(), equalTo(ML_STATE));
+        assertThat(createRequest.index(), equalTo(INITIAL_ML_STATE));
         assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(ML_STATE_WRITE_ALIAS))));
     }
 
@@ -118,8 +121,12 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
         verify(finalListener).onResponse(false);
     }
 
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtLegacyStateIndex() {
+        assertNoClientInteractionsWhenWriteAliasAlreadyExists(LEGACY_ML_STATE);
+    }
+
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtInitialStateIndex() {
-        assertNoClientInteractionsWhenWriteAliasAlreadyExists(".ml-state-000001");
+        assertNoClientInteractionsWhenWriteAliasAlreadyExists(INITIAL_ML_STATE);
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtSubsequentStateIndex() {
@@ -147,9 +154,14 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
             contains(AliasActions.add().alias(ML_STATE_WRITE_ALIAS).index(expectedWriteIndexName)));
     }
 
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButLegacyStateIndexExists() {
+        assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
+            Arrays.asList(LEGACY_ML_STATE), LEGACY_ML_STATE);
+    }
+
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButInitialStateIndexExists() {
         assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
-            Arrays.asList(".ml-state-000001"), ".ml-state-000001");
+            Arrays.asList(INITIAL_ML_STATE), INITIAL_ML_STATE);
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButSubsequentStateIndicesExist() {
@@ -159,7 +171,32 @@ public class AnomalyDetectorsIndexTests extends ESTestCase {
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButBothLegacyAndNewStateIndicesDoExist() {
         assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
-            Arrays.asList(ML_STATE, ".ml-state-000003", ".ml-state-000040", ".ml-state-000500"), ".ml-state-000500");
+            Arrays.asList(LEGACY_ML_STATE, ".ml-state-000003", ".ml-state-000040", ".ml-state-000500"), ".ml-state-000500");
+    }
+
+    public void testStateIndexNameComparator() {
+        Comparator<String> comparator = AnomalyDetectorsIndex.STATE_INDEX_NAME_COMPARATOR;
+        assertThat(
+            Stream.of(".ml-state-000001").max(comparator).get(),
+            equalTo(".ml-state-000001"));
+        assertThat(
+            Stream.of(".ml-state-000002", ".ml-state-000001").max(comparator).get(),
+            equalTo(".ml-state-000002"));
+        assertThat(
+            Stream.of(".ml-state-000003", ".ml-state-000040", ".ml-state-000500").max(comparator).get(),
+            equalTo(".ml-state-000500"));
+        assertThat(
+            Stream.of(".ml-state-000042", ".ml-state-000049", ".ml-state-000038").max(comparator).get(),
+            equalTo(".ml-state-000049"));
+        assertThat(
+            Stream.of(".ml-state", ".ml-state-000003", ".ml-state-000040", ".ml-state-000500").max(comparator).get(),
+            equalTo(".ml-state-000500"));
+        assertThat(
+            Stream.of(".reindexed-6-ml-state", ".ml-state-000042").max(comparator).get(),
+            equalTo(".ml-state-000042"));
+        assertThat(
+            Stream.of(".a-000002", ".b-000001").max(comparator).get(),
+            equalTo(".a-000002"));
     }
 
     @SuppressWarnings("unchecked")

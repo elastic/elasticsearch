@@ -200,6 +200,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52607")
     public void testReadLargeBlobWithRetries() throws Exception {
         final int maxRetries = randomIntBetween(2, 10);
         final CountDown countDown = new CountDown(maxRetries);

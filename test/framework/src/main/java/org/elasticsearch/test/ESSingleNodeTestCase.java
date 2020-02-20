@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
@@ -124,13 +125,20 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
-        assertAcked(client().admin().indices().prepareDelete("*").get());
+        assertAcked(
+            client().admin().indices().prepareDelete("*")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().keySet(),
                 metaData.persistentSettings().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
                 metaData.transientSettings().size(), equalTo(0));
-        GetIndexResponse indices = client().admin().indices().prepareGetIndex().addIndices("*").get();
+        GetIndexResponse indices =
+            client().admin().indices().prepareGetIndex()
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .addIndices("*")
+                .get();
         assertThat("test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
             indices.indices(), equalTo(Strings.EMPTY_ARRAY));
         if (resetNodeAfterTest()) {

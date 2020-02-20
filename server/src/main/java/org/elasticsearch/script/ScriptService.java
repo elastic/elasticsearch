@@ -113,7 +113,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     private final Set<String> typesAllowed;
     private final Set<String> contextsAllowed;
 
-    final ContextCompiler compiler;
+    final ScriptCache compiler;
 
     private final Map<String, ScriptEngine> engines;
     private final Map<String, ScriptContext<?>> contexts;
@@ -201,7 +201,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
 
         this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
-        compiler = new ContextCompiler(
+        compiler = new ScriptCache(
                     SCRIPT_CACHE_SIZE_SETTING.get(settings),
                     SCRIPT_CACHE_EXPIRE_SETTING.get(settings),
                     compilationLimitsEnabled() ?

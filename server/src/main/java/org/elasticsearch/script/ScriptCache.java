@@ -36,7 +36,7 @@ import java.util.Objects;
 /**
  * Script cache and compilation rate limiter.
  */
-public class ContextCompiler {
+public class ScriptCache {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
@@ -54,7 +54,7 @@ public class ContextCompiler {
     private int cacheSize;
     private TimeValue cacheExpire;
 
-    public ContextCompiler(
+    public ScriptCache(
             int cacheMaxSize,
             TimeValue cacheExpire,
             Tuple<Integer, TimeValue> maxCompilationRate

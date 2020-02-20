@@ -87,13 +87,19 @@
                     },
                     "bulk": {
                       "properties": {
-                        "total": {
+                        "total_operations": {
                           "type": "long"
                         },
                         "total_time_in_millis": {
                           "type": "long"
                         },
                         "total_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "avg_time_in_millis": {
+                          "type": "long"
+                        },
+                        "avg_size_in_bytes": {
                           "type": "long"
                         }
                       }
@@ -131,13 +137,19 @@
                     },
                     "bulk": {
                       "properties": {
-                        "total": {
+                        "total_operations": {
                           "type": "long"
                         },
                         "total_time_in_millis": {
                           "type": "long"
                         },
                         "total_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "avg_time_in_millis": {
+                          "type": "long"
+                        },
+                        "avg_size_in_bytes": {
                           "type": "long"
                         }
                       }
@@ -287,13 +299,19 @@
                 },
                 "bulk": {
                   "properties": {
-                    "total": {
+                    "total_operations": {
                       "type": "long"
                     },
                     "total_time_in_millis": {
                       "type": "long"
                     },
                     "total_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "avg_time_in_millis": {
+                      "type": "long"
+                    },
+                    "avg_size_in_bytes": {
                       "type": "long"
                     }
                   }
@@ -434,13 +452,19 @@
                 },
                 "bulk": {
                   "properties": {
-                    "total": {
+                    "total_operations": {
                       "type": "long"
                     },
                     "total_time_in_millis": {
                       "type": "long"
                     },
                     "total_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "avg_time_in_millis": {
+                      "type": "long"
+                    },
+                    "avg_size_in_bytes": {
                       "type": "long"
                     }
                   }

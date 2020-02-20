@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.bulk.stats;
 
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.index.shard.IndexShard;
@@ -32,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 public class ShardBulkStats implements BulkOperationListener {
 
     private final StatsHolder totalStats = new StatsHolder();
+    private static final double ALPHA = 0.1;
 
     public BulkStats stats() {
         return totalStats.stats();
@@ -41,14 +43,23 @@ public class ShardBulkStats implements BulkOperationListener {
     public void afterBulk(long shardBulkSizeInBytes, long tookInNanos) {
         totalStats.totalSizeInBytes.inc(shardBulkSizeInBytes);
         totalStats.shardBulkMetric.inc(tookInNanos);
+        totalStats.timeInMillis.addValue(tookInNanos);
+        totalStats.sizeInBytes.addValue(tookInNanos);
     }
 
     static final class StatsHolder {
         final MeanMetric shardBulkMetric = new MeanMetric();
         final CounterMetric totalSizeInBytes = new CounterMetric();
+        final ExponentiallyWeightedMovingAverage timeInMillis = new ExponentiallyWeightedMovingAverage(ALPHA, 0);
+        final ExponentiallyWeightedMovingAverage sizeInBytes = new ExponentiallyWeightedMovingAverage(ALPHA, 0);
 
         BulkStats stats() {
-            return new BulkStats(shardBulkMetric.count(), TimeUnit.NANOSECONDS.toMillis(shardBulkMetric.sum()), totalSizeInBytes.count());
+            return new BulkStats(
+                shardBulkMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(shardBulkMetric.sum()),
+                totalSizeInBytes.count(),
+                (long) timeInMillis.getAverage(),
+                (long) sizeInBytes.getAverage());
         }
     }
 }

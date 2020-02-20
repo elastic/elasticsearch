@@ -21,6 +21,7 @@ package org.elasticsearch.index.bulk.stats;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 public class BulkStatsTests extends AbstractWireSerializingTestCase<BulkStats> {
 
@@ -31,27 +32,54 @@ public class BulkStatsTests extends AbstractWireSerializingTestCase<BulkStats> {
 
     @Override
     protected BulkStats createTestInstance() {
-        return new BulkStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        return new BulkStats(randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong());
     }
 
     @Override
     protected BulkStats mutateInstance(BulkStats instance) {
-        BulkStats mutateBulkStats = new BulkStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-        switch (between(0, 1)) {
+        switch (between(0, 4)) {
             case 0:
-                break;
+                return new BulkStats(randomValueOtherThan(instance.getTotalOperations(), ESTestCase::randomNonNegativeLong),
+                    instance.getTotalTimeInMillis(),
+                    instance.getTotalSizeInBytes(),
+                    instance.getAvgTimeInMillis(),
+                    instance.getAvgTimeInMillis());
             case 1:
-                mutateBulkStats.add(instance);
-                break;
+                return new BulkStats(instance.getTotalOperations(),
+                    randomValueOtherThan(instance.getTotalTimeInMillis(), ESTestCase::randomNonNegativeLong),
+                    instance.getTotalSizeInBytes(),
+                    instance.getAvgTimeInMillis(),
+                    instance.getAvgTimeInMillis());
+            case 2:
+                return new BulkStats(instance.getTotalOperations(),
+                    instance.getTotalTimeInMillis(),
+                    randomValueOtherThan(instance.getTotalSizeInBytes(), ESTestCase::randomNonNegativeLong),
+                    instance.getAvgTimeInMillis(),
+                    instance.getAvgTimeInMillis());
+            case 3:
+                return new BulkStats(instance.getTotalOperations(),
+                    instance.getTotalTimeInMillis(),
+                    instance.getTotalSizeInBytes(),
+                    randomValueOtherThan(instance.getAvgTimeInMillis(), ESTestCase::randomNonNegativeLong),
+                    instance.getAvgTimeInMillis());
+            case 4:
+                return new BulkStats(instance.getTotalOperations(),
+                    instance.getTotalTimeInMillis(),
+                    instance.getTotalSizeInBytes(),
+                    instance.getAvgTimeInMillis(),
+                    randomValueOtherThan(instance.getAvgSizeInBytes(), ESTestCase::randomNonNegativeLong));
             default:
-                throw new AssertionError("Illegal randomisation branch");
+                throw new AssertionError("failure, got illegal switch case");
         }
-        return mutateBulkStats;
     }
 
     public void testAddTotals() {
-        BulkStats bulkStats1 = new BulkStats(1, 1, 1);
-        BulkStats bulkStats2 = new BulkStats(1, 1, 1);
+        BulkStats bulkStats1 = new BulkStats(1, 1, 1, 2, 2);
+        BulkStats bulkStats2 = new BulkStats(1, 1, 1, 2, 2);
 
         // adding these two bulk stats and checking stats are correct
         bulkStats1.add(bulkStats2);

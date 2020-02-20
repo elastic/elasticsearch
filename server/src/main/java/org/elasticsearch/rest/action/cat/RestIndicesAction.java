@@ -495,11 +495,19 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("bulk.total_time",
             "sibling:pri;alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
-        table.addCell("pri.bulk.shard_bulk_time", "default:false;text-align:right;desc:time spend in shard bulk");
+        table.addCell("pri.bulk.total_time", "default:false;text-align:right;desc:time spend in shard bulk");
 
         table.addCell("bulk.total_size_in_bytes",
             "sibling:pri;alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
         table.addCell("pri.bulk.total_size_in_bytes", "default:false;text-align:right;desc:total size in bytes of shard bulk");
+
+        table.addCell("bulk.avg_time",
+            "sibling:pri;alias:bati,bulkAvgTime;default:false;text-align:right;desc:average time spend in shard bulk");
+        table.addCell("pri.bulk.avg_time", "default:false;text-align:right;desc:average time spend in shard bulk");
+
+        table.addCell("bulk.avg_size_in_bytes",
+            "sibling:pri;alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:average size in bytes of shard bulk");
+        table.addCell("pri.bulk.avg_size_in_bytes", "default:false;text-align:right;desc:average size in bytes of shard bulk");
 
         table.endHeaders();
         return table;

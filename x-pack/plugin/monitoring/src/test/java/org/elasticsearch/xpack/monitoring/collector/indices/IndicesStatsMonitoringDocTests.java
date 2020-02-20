@@ -122,7 +122,9 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
                 + "        \"bulk\": {"
                 + "          \"total_operations\": 0,"
                 + "          \"total_time_in_millis\": 0,"
-                + "          \"total_size_in_bytes\": 0"
+                + "          \"total_size_in_bytes\": 0,"
+                + "          \"avg_time_in_millis\": 0,"
+                + "          \"avg_size_in_bytes\": 0"
                 + "        }"
                 + "      },"
                 + "      \"total\": {"
@@ -145,7 +147,9 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
                 + "        \"bulk\": {"
                 + "          \"total_operations\": 0,"
                 + "          \"total_time_in_millis\": 0,"
-                + "          \"total_size_in_bytes\": 0"
+                + "          \"total_size_in_bytes\": 0,"
+                + "          \"avg_time_in_millis\": 0,"
+                + "          \"avg_size_in_bytes\": 0"
                 + "        }"
                 + "      }"
                 + "    }"
@@ -166,7 +170,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, -1L, -1L, -1L, -1L, -1L, -1L, -1L, -1L, -1L, -1L);
         commonStats.getSearch().add(new SearchStats(searchStats, -1L, null));
 
-        final BulkStats bulkStats = new BulkStats(0L, 0L, 0L);
+        final BulkStats bulkStats = new BulkStats(0L, 0L, 0L, 0L, 0L);
         commonStats.getBulk().add(bulkStats);
 
         return commonStats;

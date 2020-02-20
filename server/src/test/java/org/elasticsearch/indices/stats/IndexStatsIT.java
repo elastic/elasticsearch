@@ -1083,13 +1083,13 @@ public class IndexStatsIT extends ESIntegTestCase {
             .put("index.number_of_replicas", 1)));
         ensureGreen();
         final BulkRequest request1 = new BulkRequest();
-        for (int i = 0; i < 500; ++i) {
+        for (int i = 0; i < 20; ++i) {
             request1.add(new IndexRequest(index).source(Collections.singletonMap("key", "value" + i)))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
         BulkResponse bulkResponse = client().bulk(request1).get();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
-        assertThat(bulkResponse.getItems().length, equalTo(500));
+        assertThat(bulkResponse.getItems().length, equalTo(20));
         for (BulkItemResponse bulkItemResponse : bulkResponse) {
             assertThat(bulkItemResponse.getIndex(), equalTo(index));
         }
@@ -1098,10 +1098,14 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal().bulk.getTotalOperations(), equalTo(4L));
         assertThat(stats.getTotal().bulk.getTotalTimeInMillis(), greaterThan(0L));
         assertThat(stats.getTotal().bulk.getTotalSizeInBytes(), greaterThan(0L));
+        assertThat(stats.getTotal().bulk.getAvgTimeInMillis(), greaterThan(0L));
+        assertThat(stats.getTotal().bulk.getAvgSizeInBytes(), greaterThan(0L));
 
         assertThat(stats.getPrimaries().bulk.getTotalOperations(), equalTo(2L));
         assertThat(stats.getPrimaries().bulk.getTotalTimeInMillis(), greaterThan(0L));
         assertThat(stats.getPrimaries().bulk.getTotalSizeInBytes(), greaterThan(0L));
+        assertThat(stats.getPrimaries().bulk.getAvgTimeInMillis(), greaterThan(0L));
+        assertThat(stats.getPrimaries().bulk.getAvgSizeInBytes(), greaterThan(0L));
     }
 
     /**

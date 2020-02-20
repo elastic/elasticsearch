@@ -34,7 +34,7 @@ public interface MetricAggregatorSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      ValuesSource valuesSource,
                      DocValueFormat formatter,
-                     SearchContext aggregationContext,
+                     SearchContext searchContext,
                      Aggregator parent,
                      List<PipelineAggregator> pipelineAggregators,
                      Map<String, Object> metaData) throws IOException;

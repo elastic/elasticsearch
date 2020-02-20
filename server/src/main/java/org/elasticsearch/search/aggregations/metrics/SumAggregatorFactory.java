@@ -86,7 +86,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
             SumAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected SumAggregatorSupplier, found [" +
+            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent,

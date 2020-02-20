@@ -66,6 +66,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
                 .put("compress", false)
+                // Don't cache repository data because the test manually modifies the repository data
+                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2");
@@ -250,6 +252,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
                 .put("compress", false)
+                // Don't cache repository data because the test manually modifies the repository data
+                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         final String snapshotPrefix = "test-snap-";
@@ -313,6 +317,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().preparePutRepository(repoName)
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
+                // Don't cache repository data because the test manually modifies the repository data
+                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("compress", false)));
 
         final String snapshot = "test-snap";

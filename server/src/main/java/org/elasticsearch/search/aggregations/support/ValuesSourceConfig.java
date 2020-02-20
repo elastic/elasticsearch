@@ -68,7 +68,7 @@ public class ValuesSourceConfig {
             // Stand Alone Script Case
             if (script == null) {
                 throw new IllegalStateException(
-                    "value source config is invalid; must have either a field context or a script or marked as unwrapped");
+                    "value source config is invalid; must have either a field context or a script or marked as unmapped");
             }
             /*
              * This is the Stand Alone Script path.  We should have a script that will produce a value independent of the presence or

@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -40,18 +40,18 @@ public final class AnomalyDetectorsIndex {
     private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
 
     // Visible for testing
-    static final Comparator<String> STATE_INDEX_NAME_COMPARATOR = new Comparator<>() {
+    static final Comparator<String> STATE_INDEX_NAME_COMPARATOR = new Comparator<String>() {
 
-        private final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
+        private final Pattern HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}");
 
         @Override
         public int compare(String index1, String index2) {
             String[] index1Parts = index1.split("-");
             String index1Suffix = index1Parts[index1Parts.length - 1];
-            boolean index1HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index1Suffix);
+            boolean index1HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.matcher(index1Suffix).matches();
             String[] index2Parts = index2.split("-");
             String index2Suffix = index2Parts[index2Parts.length - 1];
-            boolean index2HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index2Suffix);
+            boolean index2HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.matcher(index2Suffix).matches();
             if (index1HasSixDigitsSuffix && index2HasSixDigitsSuffix) {
                 return index1Suffix.compareTo(index2Suffix);
             } else if (index1HasSixDigitsSuffix != index2HasSixDigitsSuffix) {

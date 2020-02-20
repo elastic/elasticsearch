@@ -49,6 +49,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;
@@ -218,6 +219,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
+        plugins.add(MockScriptService.TestPlugin.class);
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             node.start();

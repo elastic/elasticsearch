@@ -28,9 +28,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.DeleteStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
+import org.elasticsearch.xpack.core.ilm.FreezeStep;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -204,6 +206,46 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(originalIndex)), 30, TimeUnit.SECONDS);
         // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
+    }
+
+    public void testRetryFailedDeleteAction() throws Exception {
+        createIndexWithSettings(index, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, false));
+
+        createNewSingletonPolicy("delete", new DeleteAction());
+
+        Request request = new Request("PUT", index + "/_settings");
+        request.setJsonEntity("{\"index.blocks.read_only\": true, \"index.lifecycle.name\": \"" + policy + "\"}");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(DeleteStep.NAME)));
+        assertTrue(indexExists(index));
+
+        request.setJsonEntity("{\"index.blocks.read_only\":false}");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertFalse(indexExists(index)));
+    }
+
+    public void testRetryFreezeDeleteAction() throws Exception {
+        createNewSingletonPolicy("cold", new FreezeAction());
+
+        createIndexWithSettings(index, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_READ_ONLY, true)
+            .put("index.lifecycle.name", policy));
+
+        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(FreezeStep.NAME)));
+        assertFalse(getOnlyIndexSettings(index).containsKey("index.frozen"));
+
+        Request request = new Request("PUT", index + "/_settings");
+        request.setJsonEntity("{\"index.blocks.read_only\":false}");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertThat(getOnlyIndexSettings(index).get("index.frozen"), equalTo("true")));
     }
 
     public void testRetryFailedShrinkAction() throws Exception {

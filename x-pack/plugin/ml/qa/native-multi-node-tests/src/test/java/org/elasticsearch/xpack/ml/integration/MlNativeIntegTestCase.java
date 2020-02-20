@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -148,7 +149,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             new DeleteExpiredDataAction.Request()).get();
 
         // We need to refresh to ensure the deletion is visible
-        client().admin().indices().prepareRefresh("*").get();
+        client().admin().indices().prepareRefresh("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
 
         return response;
     }

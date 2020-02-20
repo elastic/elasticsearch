@@ -459,7 +459,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         if (random.nextBoolean()) {
             builder.put(Store.FORCE_RAM_TERM_DICT.getKey(), true);
-	}
+        }
 
         if (random.nextBoolean()) {
             builder.put(IndexSettings.ON_HEAP_ID_TERMS_INDEX.getKey(), random.nextBoolean());

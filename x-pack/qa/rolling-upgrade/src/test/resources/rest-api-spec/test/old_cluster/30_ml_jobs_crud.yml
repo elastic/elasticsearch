@@ -1,7 +1,11 @@
 setup:
   - do:
-      indices.create:
+      index:
         index: .ml-state
+        id: "dummy-document-to-make-index-creation-idempotent"
+        body: >
+          {
+          }
 
   - do:
       cluster.health:

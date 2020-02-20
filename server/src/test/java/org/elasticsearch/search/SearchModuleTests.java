@@ -40,8 +40,6 @@ import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
@@ -53,7 +51,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.subphase.ExplainFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.ExplainPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.CustomHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -120,8 +118,8 @@ public class SearchModuleTests extends ESTestCase {
 
         SearchPlugin registersDupeSignificanceHeuristic = new SearchPlugin() {
             @Override
-            public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
-                return singletonList(new SearchExtensionSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
+            public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
+                return singletonList(new SignificanceHeuristicSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSignificanceHeuristic));
@@ -129,7 +127,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeFetchSubPhase = new SearchPlugin() {
             @Override
             public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-                return singletonList(new ExplainFetchSubPhase());
+                return singletonList(new ExplainPhase());
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeFetchSubPhase));

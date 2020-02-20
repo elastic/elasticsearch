@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
@@ -95,10 +96,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .preparePutTemplate("random-soft-deletes-template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
-                    randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
-            ).get();
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
+            .get();
     }
 
     private static void stopNode() throws IOException, InterruptedException {
@@ -126,13 +125,20 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
-        assertAcked(client().admin().indices().prepareDelete("*").get());
+        assertAcked(
+            client().admin().indices().prepareDelete("*")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().keySet(),
                 metaData.persistentSettings().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
                 metaData.transientSettings().size(), equalTo(0));
-        GetIndexResponse indices = client().admin().indices().prepareGetIndex().addIndices("*").get();
+        GetIndexResponse indices =
+            client().admin().indices().prepareGetIndex()
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .addIndices("*")
+                .get();
         assertThat("test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
             indices.indices(), equalTo(Strings.EMPTY_ARRAY));
         if (resetNodeAfterTest()) {
@@ -267,16 +273,16 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Create a new index on the singleton node with the provided index settings.
      */
     protected IndexService createIndex(String index, Settings settings) {
-        return createIndex(index, settings, null, (XContentBuilder) null);
+        return createIndex(index, settings, null);
     }
 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+    protected IndexService createIndex(String index, Settings settings, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
-        if (type != null && mappings != null) {
-            createIndexRequestBuilder.addMapping(type, mappings);
+        if (mappings != null) {
+            createIndexRequestBuilder.setMapping(mappings);
         }
         return createIndex(index, createIndexRequestBuilder);
     }
@@ -284,10 +290,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
+    protected IndexService createIndex(String index, Settings settings, String type, String... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null) {
-            createIndexRequestBuilder.addMapping(type, mappings);
+            createIndexRequestBuilder.setMapping(mappings);
         }
         return createIndex(index, createIndexRequestBuilder);
     }

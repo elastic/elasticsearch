@@ -67,7 +67,7 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
             fieldName(), "type=shape"))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
@@ -179,7 +179,7 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
                 "  }\n" +
                 "}";
         ShapeQueryBuilder parsed = (ShapeQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
+        checkGeneratedJson(json.replaceAll("envelope", "Envelope"), parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.0001);
     }
 

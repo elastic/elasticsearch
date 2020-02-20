@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -34,7 +35,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
@@ -53,7 +53,9 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -72,6 +74,7 @@ public abstract class MappedFieldType extends FieldType {
     private Object nullValue;
     private String nullValueAsString; // for sending null value to _all field
     private boolean eagerGlobalOrdinals;
+    private Map<String, String> meta;
 
     protected MappedFieldType(MappedFieldType ref) {
         super(ref);
@@ -85,6 +88,7 @@ public abstract class MappedFieldType extends FieldType {
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
+        this.meta = ref.meta;
     }
 
     public MappedFieldType() {
@@ -94,6 +98,7 @@ public abstract class MappedFieldType extends FieldType {
         setOmitNorms(false);
         setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
         setBoost(1.0f);
+        meta = Collections.emptyMap();
     }
 
     @Override
@@ -126,13 +131,14 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
             Objects.equals(nullValueAsString, fieldType.nullValueAsString) &&
-            Objects.equals(similarity, fieldType.similarity);
+            Objects.equals(similarity, fieldType.similarity) &&
+            Objects.equals(meta, fieldType.meta);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
+            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString, meta);
     }
 
     // TODO: we need to override freeze() and add safety checks that all settings are actually set
@@ -344,7 +350,8 @@ public abstract class MappedFieldType extends FieldType {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
-    public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+    public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions,
+                            QueryShardContext context) {
         throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
@@ -413,10 +420,10 @@ public abstract class MappedFieldType extends FieldType {
      *  {@link Relation#INTERSECTS}, which is always fine to return when there is
      *  no way to check whether values are actually within bounds. */
     public Relation isFieldWithinQuery(
-        IndexReader reader,
-        Object from, Object to,
-        boolean includeLower, boolean includeUpper,
-        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+            IndexReader reader,
+            Object from, Object to,
+            boolean includeLower, boolean includeUpper,
+            ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 
@@ -433,7 +440,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (indexOptions() == IndexOptions.NONE && pointDataDimensionCount() == 0) {
+        if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }
@@ -490,4 +497,18 @@ public abstract class MappedFieldType extends FieldType {
         return ((TermQuery) termQuery).getTerm();
     }
 
+    /**
+     * Get the metadata associated with this field.
+     */
+    public Map<String, String> meta() {
+        return meta;
+    }
+
+    /**
+     * Associate metadata with this field.
+     */
+    public void setMeta(Map<String, String> meta) {
+        checkIfFrozen();
+        this.meta = Map.copyOf(Objects.requireNonNull(meta));
+    }
 }

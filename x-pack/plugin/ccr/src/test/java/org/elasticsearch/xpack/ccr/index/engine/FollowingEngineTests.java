@@ -131,7 +131,6 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -157,7 +156,6 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -192,7 +190,6 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -223,7 +220,6 @@ public class FollowingEngineTests extends ESTestCase {
                 .put("index.number_of_replicas", 0)
                 .put("index.version.created", Version.CURRENT)
                 .put("index.xpack.ccr.following_index", true)
-                .put("index.soft_deletes.enabled", true)
                 .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -492,7 +488,7 @@ public class FollowingEngineTests extends ESTestCase {
 
         Settings leaderSettings = Settings.builder()
             .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.soft_deletes.enabled", true).build();
+            .put("index.version.created", Version.CURRENT).build();
         IndexMetaData leaderIndexMetaData = IndexMetaData.builder(index.getName()).settings(leaderSettings).build();
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetaData, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
@@ -578,8 +574,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();
@@ -673,8 +668,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testMaxSeqNoInCommitUserData() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {

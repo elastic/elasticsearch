@@ -54,7 +54,7 @@ import java.lang.reflect.Method;
  * If the variable name starts with an underscore, for example, {@code _score}, the needs method would
  * be {@code boolean needs_score()}.
  */
-public final class ScriptContext<FactoryType extends ScriptFactory> {
+public final class ScriptContext<FactoryType> {
 
     /** A unique identifier for this context. */
     public final String name;

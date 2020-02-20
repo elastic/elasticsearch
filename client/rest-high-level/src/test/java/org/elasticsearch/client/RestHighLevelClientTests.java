@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -59,8 +60,8 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -68,14 +69,16 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Binar
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
+import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
+import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
+import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
-import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
-import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
-import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.client.transform.transforms.SyncConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.CheckedFunction;
@@ -106,7 +109,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
-
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -128,6 +130,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -673,6 +676,11 @@ public class RestHighLevelClientTests extends ESTestCase {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
         int expectedInternalAggregations = InternalAggregationTestCase.getDefaultNamedXContents().size();
         int expectedSuggestions = 3;
+
+        // Explicitly check for metrics from the analytics module because they aren't in InternalAggregationTestCase
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("string_stats")));
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("top_metrics")));
+
         assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -688,7 +696,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(51, namedXContents.size());
+        assertEquals(57, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -730,30 +738,40 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(TimeSyncConfig.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
         assertThat(names, hasItems(BinarySoftClassification.NAME, Classification.NAME, Regression.NAME));
-        assertEquals(Integer.valueOf(8), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
+        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
         assertThat(names,
-            hasItems(AucRocMetric.NAME,
-                PrecisionMetric.NAME,
-                RecallMetric.NAME,
-                ConfusionMatrixMetric.NAME,
-                AccuracyMetric.NAME,
-                MulticlassConfusionMatrixMetric.NAME,
-                MeanSquaredErrorMetric.NAME,
-                RSquaredMetric.NAME));
-        assertEquals(Integer.valueOf(8), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
+            hasItems(
+                registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, PrecisionMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, RecallMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, ConfusionMatrixMetric.NAME),
+                registeredMetricName(Classification.NAME, AccuracyMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
+                registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
+        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
         assertThat(names,
-            hasItems(AucRocMetric.NAME,
-                PrecisionMetric.NAME,
-                RecallMetric.NAME,
-                ConfusionMatrixMetric.NAME,
-                AccuracyMetric.NAME,
-                MulticlassConfusionMatrixMetric.NAME,
-                MeanSquaredErrorMetric.NAME,
-                RSquaredMetric.NAME));
-        assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
-        assertThat(names, hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME));
-        assertEquals(Integer.valueOf(2), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
-        assertThat(names, hasItems(Tree.NAME, Ensemble.NAME));
+            hasItems(
+                registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, PrecisionMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, RecallMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, ConfusionMatrixMetric.NAME),
+                registeredMetricName(Classification.NAME, AccuracyMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
+                registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
+        assertEquals(Integer.valueOf(4), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
+        assertThat(names, hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME, CustomWordEmbedding.NAME));
+        assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
+        assertThat(names, hasItems(Tree.NAME, Ensemble.NAME, LangIdentNeuralNetwork.NAME));
         assertEquals(Integer.valueOf(3),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator.class));
         assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME));
@@ -762,11 +780,9 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testApiNamingConventions() throws Exception {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
-            "cluster.remote_info",
             "create",
             "get_script_context",
             "get_script_languages",
-            "get_source",
             "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",
@@ -828,7 +844,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         // looking like it doesn't have a valid implementatation when it does.
         apiUnsupported.remove("indices.get_template");
 
-
+        // Synced flush is deprecated
+        apiUnsupported.remove("indices.flush_synced");
 
         for (Map.Entry<String, Set<Method>> entry : methods.entrySet()) {
             String apiName = entry.getKey();
@@ -864,6 +881,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("ccr.") == false &&
                                 apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("transform.") == false &&
+                                apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we

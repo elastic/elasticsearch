@@ -282,7 +282,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
             return config.format(resolveFormat(format, valueType));
         }
 
-        MappedFieldType fieldType = queryShardContext.getMapperService().fullName(field);
+        MappedFieldType fieldType = queryShardContext.getMapperService().fieldType(field);
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);

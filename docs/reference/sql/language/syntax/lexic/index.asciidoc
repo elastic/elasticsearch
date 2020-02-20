@@ -121,7 +121,8 @@ SELECT "first_name" <1>
 <1> Double quotes `"` used for column and table identifiers
 <2> Single quotes `'` used for a string literal
 
-NOTE:: to escape single or double quotes, one needs to use that specific quote one more time. For example, the literal `John's` can be escaped like
+[NOTE]
+To escape single or double quotes, one needs to use that specific quote one more time. For example, the literal `John's` can be escaped like
 `SELECT 'John''s' AS name`. The same goes for double quotes escaping - `SELECT 123 AS "test""number"` will display as a result a column with the name `test"number`.
 
 [[sql-syntax-special-chars]]
@@ -148,7 +149,7 @@ s|Description
 
 Most operators in {es-sql} have the same precedence and are left-associative. As this is done at parsing time, parenthesis need to be used to enforce a different precedence.
 
-The following table indicates the supported operators and their precendence (highest to lowest);
+The following table indicates the supported operators and their precedence (highest to lowest);
 
 [cols="^2m,^,^3"]
 
@@ -176,7 +177,7 @@ s|Description
 
 |+ -
 |left
-|addition, substraction
+|addition, subtraction
 
 |BETWEEN IN LIKE
 |

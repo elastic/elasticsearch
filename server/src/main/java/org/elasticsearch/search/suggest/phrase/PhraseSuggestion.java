@@ -120,8 +120,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             }
         }
 
-        private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("PhraseSuggestionEntryParser", true, Entry::new);
-
+        private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("PhraseSuggestionEntryParser", true, Entry::new);
         static {
             declareCommonFields(PARSER);
             PARSER.declareObjectArray(Entry::addOptions, (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));

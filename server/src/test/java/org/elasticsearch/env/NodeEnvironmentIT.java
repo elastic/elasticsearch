@@ -24,6 +24,8 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -47,11 +49,13 @@ import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeEnvironmentIT extends ESIntegTestCase {
-    public void testStartFailureOnDataForNonDataNode() {
+    public void testStartFailureOnDataForNonDataNode() throws Exception {
         final String indexName = "test-fail-on-data";
 
         logger.info("--> starting one node");
-        String node = internalCluster().startNode();
+        final boolean writeDanglingIndices = randomBoolean();
+        String node = internalCluster().startNode(Settings.builder()
+            .put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), writeDanglingIndices).build());
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
 
         logger.info("--> creating index");
@@ -60,6 +64,10 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             .put("index.number_of_replicas", 0)
         ).get();
         final String indexUUID = resolveIndex(indexName).getUUID();
+        if (writeDanglingIndices) {
+            assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
+                indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
+        }
 
         logger.info("--> restarting the node with node.data=false and node.master=false");
         IllegalStateException ex = expectThrows(IllegalStateException.class,
@@ -74,13 +82,19 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                             .build();
                     }
                 }));
-        assertThat(ex.getMessage(), containsString(indexUUID));
-        assertThat(ex.getMessage(),
-            startsWith("Node is started with "
-                + Node.NODE_DATA_SETTING.getKey()
-                + "=false and "
-                + Node.NODE_MASTER_SETTING.getKey()
-                + "=false, but has index metadata"));
+        if (writeDanglingIndices) {
+            assertThat(ex.getMessage(),
+                startsWith("Node is started with "
+                    + Node.NODE_DATA_SETTING.getKey()
+                    + "=false and "
+                    + Node.NODE_MASTER_SETTING.getKey()
+                    + "=false, but has index metadata"));
+        } else {
+            assertThat(ex.getMessage(),
+                startsWith("Node is started with "
+                    + Node.NODE_DATA_SETTING.getKey()
+                    + "=false, but has shard data"));
+        }
 
         logger.info("--> start the node again with node.data=true and node.master=true");
         internalCluster().startNode(dataPathSettings);
@@ -124,14 +138,14 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
 
     public void testFailsToStartIfDowngraded() {
         final IllegalStateException illegalStateException = expectThrowsOnRestart(dataPaths ->
-            NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(randomAlphaOfLength(10), NodeMetaDataTests.tooNewVersion()), dataPaths));
+            PersistedClusterStateService.overrideVersion(NodeMetaDataTests.tooNewVersion(), dataPaths));
         assertThat(illegalStateException.getMessage(),
             allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]")));
     }
 
     public void testFailsToStartIfUpgradedTooFar() {
         final IllegalStateException illegalStateException = expectThrowsOnRestart(dataPaths ->
-            NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(randomAlphaOfLength(10), NodeMetaDataTests.tooOldVersion()), dataPaths));
+            PersistedClusterStateService.overrideVersion(NodeMetaDataTests.tooOldVersion(), dataPaths));
         assertThat(illegalStateException.getMessage(),
             allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]")));
     }
@@ -191,8 +205,10 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             assertThat(ise.getMessage(), containsString("unexpected folder encountered during data folder upgrade"));
             Files.delete(badFolder);
 
-            final Path conflictingFolder = randomFrom(dataPaths).resolve("indices");
-            if (Files.exists(conflictingFolder) == false) {
+            final Path randomDataPath = randomFrom(dataPaths);
+            final Path conflictingFolder = randomDataPath.resolve("indices");
+            final Path sourceFolder = randomDataPath.resolve("nodes").resolve("0").resolve("indices");
+            if (Files.exists(sourceFolder) && Files.exists(conflictingFolder) == false) {
                 Files.createDirectories(conflictingFolder);
                 ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
                 assertThat(ise.getMessage(), containsString("target folder already exists during data folder upgrade"));
@@ -223,10 +239,15 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
 
-        final IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+            () -> PersistedClusterStateService.nodeMetaData(allDataPaths.stream().map(PathUtils::get).toArray(Path[]::new)));
+
+        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
+
+        illegalStateException = expectThrows(IllegalStateException.class,
             () -> internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), allDataPaths)));
 
-        assertThat(illegalStateException.getMessage(), containsString("belong to multiple nodes with IDs"));
+        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
 
         final List<String> node0DataPathsPlusOne = new ArrayList<>(node0DataPaths);
         node0DataPathsPlusOne.add(createTempDir().toString());

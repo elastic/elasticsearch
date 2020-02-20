@@ -10,8 +10,6 @@ dependencies {
   testCompile project(':client:rest-high-level')
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-
 forbiddenPatterns {
   exclude '**/system_key'
 }
@@ -99,8 +97,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
         jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
       }
-
-      javaHome = BuildParams.runtimeJavaHome
+      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
     }
   }
 

@@ -225,7 +225,12 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Long> getFieldCardinalityLimits() {
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
         return Collections.emptyMap();
     }
 
@@ -265,6 +270,17 @@ public class OutlierDetection implements DataFrameAnalysis {
         private boolean computeFeatureInfluence = true;
         private double outlierFraction = 0.05;
         private boolean standardizationEnabled = true;
+
+        public Builder() {}
+
+        public Builder(OutlierDetection other) {
+            this.nNeighbors = other.nNeighbors;
+            this.method = other.method;
+            this.featureInfluenceThreshold = other.featureInfluenceThreshold;
+            this.computeFeatureInfluence = other.computeFeatureInfluence;
+            this.outlierFraction = other.outlierFraction;
+            this.standardizationEnabled = other.standardizationEnabled;
+        }
 
         public Builder setNNeighbors(Integer nNeighbors) {
             this.nNeighbors = nNeighbors;

@@ -67,7 +67,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     public void testResolveWildcardsRegexs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text")
                         .addAlias(new Alias("my_alias"))
                         .addAlias(new Alias("an_alias"))
         );

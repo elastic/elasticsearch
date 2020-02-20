@@ -258,7 +258,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             return false;
         }
 
-        if (installingSomething.get() == true) {
+        if (installingSomething.get()) {
             logger.trace("already installing something, waiting for install to complete");
             return false;
         }

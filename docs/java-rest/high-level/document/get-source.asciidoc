@@ -1,0 +1,72 @@
+--
+:api: get-source
+:request: GetSourceRequest
+:response: GetSourceResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Source API
+
+This API helps to get only the `_source` field of a document.
+
+[id="{upid}-{api}-request"]
+==== Get Source Request
+
+A +{request}+ requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Index
+<2> Document id
+
+[id="{upid}-{api}-request-optional"]
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-optional]
+--------------------------------------------------
+<1> `FetchSourceContext` 's first argument `fetchSource` must be `true`, otherwise
+`ElasticsearchException` get thrown
+<2> Arguments of the context `excludes` and `includes` are optional
+(see examples in Get API documentation)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-routing]
+--------------------------------------------------
+<1> Routing value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-preference]
+--------------------------------------------------
+<1> Preference value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-realtime]
+--------------------------------------------------
+<1> Set realtime flag to `false` (`true` by default)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-refresh]
+--------------------------------------------------
+<1> Perform a refresh before retrieving the document (`false` by default)
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Source Response
+
+The returned +{response}+ contains the field `source` that represents the
+source of a document as a map.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

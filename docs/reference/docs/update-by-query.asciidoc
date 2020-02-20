@@ -59,7 +59,7 @@ When the versions match, the document is updated and the version number is incre
 If a document changes between the time that the snapshot is taken and 
 the update operation is processed, it results in a version conflict and the operation fails. 
 You can opt to count version conflicts instead of halting and returning by 
-setting `conflicts` to `proceeed`. 
+setting `conflicts` to `proceed`. 
 
 NOTE: Documents with a version equal to 0 cannot be updated using update by
 query because `internal` versioning does not support 0 as a valid

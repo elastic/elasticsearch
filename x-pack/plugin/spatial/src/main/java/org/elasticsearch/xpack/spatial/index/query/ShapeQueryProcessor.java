@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.XYLine;
 import org.apache.lucene.geo.XYPolygon;
@@ -13,6 +14,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Circle;
@@ -38,13 +40,13 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
 
     @Override
     public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        // CONTAINS queries are not yet supported by VECTOR strategy
-        if (relation == ShapeRelation.CONTAINS) {
-            throw new QueryShardException(context,
-                ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]");
-        }
         if (shape == null) {
             return new MatchNoDocsQuery();
+        }
+        // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
+        if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
+            throw new QueryShardException(context,
+                ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
         }
         // wrap geometry Query as a ConstantScoreQuery
         return new ConstantScoreQuery(shape.visit(new ShapeVisitor(context, fieldName, relation)));
@@ -76,12 +78,21 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
         }
 
         private void visit(BooleanQuery.Builder bqb, GeometryCollection<?> collection) {
+            BooleanClause.Occur occur;
+            if (relation == ShapeRelation.CONTAINS || relation == ShapeRelation.DISJOINT) {
+                // all shapes must be disjoint / must be contained in relation to the indexed shape.
+                occur = BooleanClause.Occur.MUST;
+            } else {
+                // at least one shape must intersect / contain the indexed shape.
+                occur = BooleanClause.Occur.SHOULD;
+            }
             for (Geometry shape : collection) {
                 if (shape instanceof MultiPoint) {
                     // Flatten multipoints
+                    // We do not support multi-point queries?
                     visit(bqb, (GeometryCollection<?>) shape);
                 } else {
-                    bqb.add(shape.visit(this), BooleanClause.Occur.SHOULD);
+                    bqb.add(shape.visit(this), occur);
                 }
             }
         }
@@ -128,7 +139,13 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
 
         @Override
         public Query visit(Point point) {
-            return XYShape.newBoxQuery(fieldName, relation.getLuceneRelation(),
+            ShapeField.QueryRelation luceneRelation = relation.getLuceneRelation();
+            if (luceneRelation == ShapeField.QueryRelation.CONTAINS) {
+                // contains and intersects are equivalent but the implementation of
+                // intersects is more efficient.
+                luceneRelation = ShapeField.QueryRelation.INTERSECTS;
+            }
+            return XYShape.newBoxQuery(fieldName, luceneRelation,
                 (float)point.getX(), (float)point.getX(), (float)point.getY(), (float)point.getY());
         }
 

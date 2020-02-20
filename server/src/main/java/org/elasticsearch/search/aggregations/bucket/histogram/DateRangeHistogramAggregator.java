@@ -67,10 +67,9 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     private final ExtendedBounds extendedBounds;
 
     private final LongHash bucketOrds;
-    private long offset;
 
     DateRangeHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding shardRounding,
-                                 long offset, BucketOrder order, boolean keyed,
+                                 BucketOrder order, boolean keyed,
                                  long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Range valuesSource,
                                  DocValueFormat formatter, SearchContext aggregationContext,
                                  Aggregator parent, List<PipelineAggregator> pipelineAggregators,
@@ -79,7 +78,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.rounding = rounding;
         this.shardRounding = shardRounding;
-        this.offset = offset;
         this.order = InternalOrder.validate(order, this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
@@ -126,8 +124,8 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Long to = (Long) range.getTo();
-                            final long startKey = offsetAwareRounding(shardRounding, from, offset);
-                            final long endKey = offsetAwareRounding(shardRounding, to, offset);
+                            final long startKey = shardRounding.round(from);
+                            final long endKey = shardRounding.round(to);
                             for (long  key = startKey > previousKey ? startKey : previousKey; key <= endKey;
                                  key = shardRounding.nextRoundingValue(key)) {
                                 if (key == previousKey) {
@@ -153,10 +151,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         };
     }
 
-    private long offsetAwareRounding(Rounding rounding, long value, long offset) {
-        return rounding.round(value - offset) + offset;
-    }
-
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
@@ -173,9 +167,9 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         // value source will be null for unmapped fields
         // Important: use `rounding` here, not `shardRounding`
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
+                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
                 : null;
-        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, formatter, keyed,
+        return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter, keyed,
                 pipelineAggregators(), metaData());
     }
 
@@ -184,8 +178,8 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
                 : null;
-        return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, offset, emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+        return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
+                keyed, pipelineAggregators(), metaData());
     }
 
     @Override

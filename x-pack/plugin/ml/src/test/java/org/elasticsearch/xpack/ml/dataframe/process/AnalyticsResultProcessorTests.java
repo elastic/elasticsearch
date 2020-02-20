@@ -20,9 +20,10 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -57,7 +58,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private AnalyticsProcess<AnalyticsResult> process;
     private DataFrameRowsJoiner dataFrameRowsJoiner;
-    private ProgressTracker progressTracker = new ProgressTracker();
+    private StatsHolder statsHolder = new StatsHolder();
     private TrainedModelProvider trainedModelProvider;
     private DataFrameAnalyticsAuditor auditor;
     private DataFrameAnalyticsConfig analyticsConfig;
@@ -100,7 +101,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
         verify(dataFrameRowsJoiner).close();
         Mockito.verifyNoMoreInteractions(dataFrameRowsJoiner);
-        assertThat(progressTracker.writingResultsPercent.get(), equalTo(100));
+        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(100));
     }
 
     public void testProcess_GivenRowResults() {
@@ -117,7 +118,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         inOrder.verify(dataFrameRowsJoiner).processRowResults(rowResults1);
         inOrder.verify(dataFrameRowsJoiner).processRowResults(rowResults2);
 
-        assertThat(progressTracker.writingResultsPercent.get(), equalTo(100));
+        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(100));
     }
 
     public void testProcess_GivenDataFrameRowsJoinerFails() {
@@ -139,7 +140,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         verify(auditor).error(eq(JOB_ID), auditCaptor.capture());
         assertThat(auditCaptor.getValue(), containsString("Error processing results; some failure"));
 
-        assertThat(progressTracker.writingResultsPercent.get(), equalTo(0));
+        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(0));
     }
 
     @SuppressWarnings("unchecked")
@@ -167,11 +168,11 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getLicenseLevel(), equalTo(License.OperationMode.PLATINUM));
         assertThat(storedModel.getModelId(), containsString(JOB_ID));
         assertThat(storedModel.getVersion(), equalTo(Version.CURRENT));
-        assertThat(storedModel.getCreatedBy(), equalTo("data-frame-analytics"));
+        assertThat(storedModel.getCreatedBy(), equalTo(XPackUser.NAME));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), equalTo(inferenceModel.build()));
-        assertThat(storedModel.getInput().getFieldNames(), equalTo(expectedFieldNames));
+        assertThat(storedModel.getInput().getFieldNames(), equalTo(Arrays.asList("bar", "baz")));
         assertThat(storedModel.getEstimatedHeapMemory(), equalTo(inferenceModel.build().ramBytesUsed()));
         assertThat(storedModel.getEstimatedOperations(), equalTo(inferenceModel.build().getTrainedModel().estimatedNumOperations()));
         Map<String, Object> metadata = storedModel.getMetadata();
@@ -211,7 +212,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor);
 
         assertThat(resultProcessor.getFailure(), startsWith("error processing results; error storing trained model with id [" + JOB_ID));
-        assertThat(progressTracker.writingResultsPercent.get(), equalTo(0));
+        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(0));
     }
 
     private void givenProcessResults(List<AnalyticsResult> results) {
@@ -231,6 +232,6 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private AnalyticsResultProcessor createResultProcessor(List<String> fieldNames) {
         return new AnalyticsResultProcessor(
-            analyticsConfig, dataFrameRowsJoiner, progressTracker, trainedModelProvider, auditor, fieldNames);
+            analyticsConfig, dataFrameRowsJoiner, statsHolder, trainedModelProvider, auditor, fieldNames);
     }
 }

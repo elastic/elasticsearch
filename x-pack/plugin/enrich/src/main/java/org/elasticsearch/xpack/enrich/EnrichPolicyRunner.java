@@ -295,7 +295,7 @@ public class EnrichPolicyRunner implements Runnable {
             .put("index.warmer.enabled", false)
             .build();
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
-        createEnrichIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, resolveEnrichMapping(policy));
+        createEnrichIndexRequest.mapping(resolveEnrichMapping(policy));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
         client.admin().indices().create(createEnrichIndexRequest, new ActionListener<>() {
             @Override

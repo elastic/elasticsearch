@@ -126,7 +126,7 @@ final class QueryAnalyzer {
         Result getResult() {
             List<Result> partialResults = new ArrayList<>();
             if (terms.size() > 0) {
-                partialResults.add(conjunction ? handleConjunction(terms) : handleDisjunction(terms, minimumShouldMatch));
+                partialResults.addAll(terms);
             }
             if (children.isEmpty() == false) {
                 List<Result> childResults = children.stream().map(ResultBuilder::getResult).collect(Collectors.toList());

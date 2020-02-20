@@ -19,17 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.FuncRefNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a function reference.
@@ -49,12 +48,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // do nothing
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (expected == null) {
             ref = null;
             actual = String.class;
@@ -67,14 +61,14 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (ref != null) {
-            methodWriter.writeDebugInfo(location);
-            methodWriter.invokeLambdaCall(ref);
-        } else {
-            // TODO: don't do this: its just to cutover :)
-            methodWriter.push((String)null);
-        }
+    FuncRefNode write(ClassNode classNode) {
+        FuncRefNode funcRefNode = new FuncRefNode();
+
+        funcRefNode.setLocation(location);
+        funcRefNode.setExpressionType(actual);
+        funcRefNode.setFuncRef(ref);
+
+        return funcRefNode;
     }
 
     @Override
@@ -83,8 +77,8 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    public Type[] getCaptures() {
-        return new Type[0]; // no captures
+    public List<Class<?>> getCaptures() {
+        return Collections.emptyList();
     }
 
     @Override

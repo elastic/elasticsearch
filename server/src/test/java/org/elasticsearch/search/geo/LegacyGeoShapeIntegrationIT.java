@@ -18,11 +18,14 @@
  */
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -32,6 +35,8 @@ import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import java.io.IOException;
 
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -46,26 +51,26 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
      */
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "quadtree")
                 .field("orientation", "left")
-                .endObject().endObject()
+                .endObject()
                 .endObject().endObject());
 
         // create index
-        assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName).setMapping(mapping));
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "quadtree")
                 .field("orientation", "right")
-                .endObject().endObject()
+                .endObject()
                 .endObject().endObject());
 
-        assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName+"2").setMapping(mapping));
         ensureGreen(idxName, idxName+"2");
 
         internalCluster().fullRestart();
@@ -74,7 +79,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
         // left orientation test
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
         IndexService indexService = indicesService.indexService(resolveIndex(idxName));
-        MappedFieldType fieldType = indexService.mapperService().fullName("location");
+        MappedFieldType fieldType = indexService.mapperService().fieldType("location");
         assertThat(fieldType, instanceOf(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class));
 
         LegacyGeoShapeFieldMapper.GeoShapeFieldType gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;
@@ -86,7 +91,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
         indexService = indicesService.indexService(resolveIndex((idxName+"2")));
-        fieldType = indexService.mapperService().fullName("location");
+        fieldType = indexService.mapperService().fieldType("location");
         assertThat(fieldType, instanceOf(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class));
 
         gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;
@@ -102,7 +107,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
+            .setMapping("shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -130,7 +135,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
      * Test that the indexed shape routing can be provided if it is required
      */
     public void testIndexShapeRouting() throws Exception {
-        String mapping = "{\n" +
+        String mapping = "{\"_doc\":{\n" +
             "    \"_routing\": {\n" +
             "      \"required\": true\n" +
             "    },\n" +
@@ -140,11 +145,11 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
             "        \"tree\" : \"quadtree\"\n" +
             "      }\n" +
             "    }\n" +
-            "  }";
+            "  }}";
 
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n" +
@@ -169,7 +174,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
     public void testLegacyCircle() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
+            .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
@@ -184,6 +189,53 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape",
             new Circle(30, 50, 77000))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+    }
+
+    public void testDisallowExpensiveQueries() throws InterruptedException, IOException {
+        try {
+            // create index
+            assertAcked(client().admin().indices().prepareCreate("test")
+                    .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
+            ensureGreen();
+
+            indexRandom(true, client().prepareIndex("test").setId("0").setSource(
+                    "shape", (ToXContent) (builder, params) -> {
+                        builder.startObject().field("type", "circle")
+                                .startArray("coordinates").value(30).value(50).endArray()
+                                .field("radius", "77km")
+                                .endObject();
+                        return builder;
+                    }));
+            refresh();
+
+            // Execute with search.allow_expensive_queries = null => default value = false => success
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape",
+                    new Circle(30, 50, 77000))).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+            // Set search.allow_expensive_queries to "false" => assert failure
+            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                    () -> client().prepareSearch("test").setQuery(geoShapeQuery("shape",
+                            new Circle(30, 50, 77000))).get());
+            assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
+                            "'search.allow_expensive_queries' is set to false.", e.getCause().getMessage());
+
+            // Set search.allow_expensive_queries to "true" => success
+            updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape",
+                    new Circle(30, 50, 77000))).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        } finally {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
     }
 
     private String findNodeName(String index) {

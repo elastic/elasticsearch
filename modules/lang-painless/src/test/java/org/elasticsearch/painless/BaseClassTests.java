@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,7 +65,7 @@ public class BaseClassTests extends ScriptTestCase {
 
     public abstract static class Gets {
 
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             Gets newInstance(String testString, int testInt, Map<String, Object> params);
         }
 
@@ -112,7 +111,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class NoArgs {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             NoArgs newInstance();
         }
 
@@ -127,10 +126,10 @@ public class BaseClassTests extends ScriptTestCase {
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs2", "doc", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("Variable [doc] is not defined.", e.getMessage());
+        assertEquals("variable [doc] is not defined", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs3", "_score", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("Variable [_score] is not defined.", e.getMessage());
+        assertEquals("variable [_score] is not defined", e.getMessage());
 
         String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings());
         assertThat(debug, containsString("ACONST_NULL"));
@@ -138,7 +137,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class OneArg {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             OneArg newInstance();
         }
 
@@ -155,7 +154,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class ArrayArg {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             ArrayArg newInstance();
         }
 
@@ -172,7 +171,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class PrimitiveArrayArg {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             PrimitiveArrayArg newInstance();
         }
 
@@ -189,7 +188,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class DefArrayArg {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             DefArrayArg newInstance();
         }
 
@@ -213,7 +212,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class ManyArgs {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             ManyArgs newInstance();
         }
 
@@ -252,7 +251,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class VarArgs {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             VarArgs newInstance();
         }
 
@@ -268,7 +267,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class DefaultMethods {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             DefaultMethods newInstance();
         }
 
@@ -302,7 +301,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class ReturnsVoid {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             ReturnsVoid newInstance();
         }
 
@@ -326,7 +325,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class ReturnsPrimitiveBoolean {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             ReturnsPrimitiveBoolean newInstance();
         }
 
@@ -392,7 +391,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class ReturnsPrimitiveInt {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             ReturnsPrimitiveInt newInstance();
         }
 
@@ -456,7 +455,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class ReturnsPrimitiveFloat {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             ReturnsPrimitiveFloat newInstance();
         }
 
@@ -505,7 +504,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
    public abstract static class ReturnsPrimitiveDouble {
-       public interface Factory extends ScriptFactory {
+       public interface Factory {
            ReturnsPrimitiveDouble newInstance();
        }
 
@@ -568,7 +567,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class NoArgsConstant {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             NoArgsConstant newInstance();
         }
 
@@ -585,7 +584,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class WrongArgsConstant {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             WrongArgsConstant newInstance();
         }
 
@@ -603,7 +602,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class WrongLengthOfArgConstant {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             WrongLengthOfArgConstant newInstance();
         }
 
@@ -620,7 +619,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class UnknownArgType {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             UnknownArgType newInstance();
         }
 
@@ -637,7 +636,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class UnknownReturnType {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             UnknownReturnType newInstance();
         }
 
@@ -654,7 +653,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class UnknownArgTypeInArray {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             UnknownArgTypeInArray newInstance();
         }
 
@@ -671,7 +670,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class TwoExecuteMethods {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             TwoExecuteMethods newInstance();
         }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -180,7 +181,7 @@ public class InferenceProcessorTests extends ESTestCase {
         String modelId = "model";
         Integer topNClasses = randomBoolean() ? null : randomIntBetween(1, 10);
 
-        Map<String, String> fieldMapping = new HashMap<>(3) {{
+        Map<String, String> fieldMapping = new HashMap<>(5) {{
             put("value1", "new_value1");
             put("value2", "new_value2");
             put("categorical", "new_categorical");
@@ -194,7 +195,7 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(topNClasses, null, null),
             fieldMapping);
 
-        Map<String, Object> source = new HashMap<>(3){{
+        Map<String, Object> source = new HashMap<>(5){{
             put("value1", 1);
             put("categorical", "foo");
             put("un_touched", "bar");
@@ -202,8 +203,46 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        Map<String, Object> expectedMap = new HashMap<>(2) {{
+        Map<String, Object> expectedMap = new HashMap<>(7) {{
             put("new_value1", 1);
+            put("value1", 1);
+            put("categorical", "foo");
+            put("new_categorical", "foo");
+            put("un_touched", "bar");
+        }};
+        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
+    }
+
+    public void testGenerateWithMappingNestedFields() {
+        String modelId = "model";
+        Integer topNClasses = randomBoolean() ? null : randomIntBetween(1, 10);
+
+        Map<String, String> fieldMapping = new HashMap<>(5) {{
+            put("value1.foo", "new_value1");
+            put("value2", "new_value2");
+            put("categorical.bar", "new_categorical");
+        }};
+
+        InferenceProcessor processor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "my_field",
+            modelId,
+            new ClassificationConfig(topNClasses, null, null),
+            fieldMapping);
+
+        Map<String, Object> source = new HashMap<>(5){{
+            put("value1", Collections.singletonMap("foo", 1));
+            put("categorical.bar", "foo");
+            put("un_touched", "bar");
+        }};
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        Map<String, Object> expectedMap = new HashMap<>(7) {{
+            put("new_value1", 1);
+            put("value1", Collections.singletonMap("foo", 1));
+            put("categorical.bar", "foo");
             put("new_categorical", "foo");
             put("un_touched", "bar");
         }};
@@ -253,4 +292,26 @@ public class InferenceProcessorTests extends ESTestCase {
         verify(auditor, times(1)).warning(eq("regression_model"), any(String.class));
     }
 
+    public void testMutateDocumentWithWarningResult() {
+        String targetField = "regression_value";
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "ml",
+            "regression_model",
+            RegressionConfig.EMPTY_PARAMS,
+            Collections.emptyMap());
+
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+            Collections.singletonList(new WarningInferenceResults("something broke")), true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.hasField(targetField), is(false));
+        assertThat(document.hasField("ml.warning"), is(true));
+        assertThat(document.hasField("ml.my_processor"), is(false));
+    }
 }

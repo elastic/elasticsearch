@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -61,7 +62,6 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -157,6 +157,7 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser());
         builtInMetadataMappers.put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
         builtInMetadataMappers.put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
+        builtInMetadataMappers.put(NestedPathFieldMapper.NAME, new NestedPathFieldMapper.TypeParser());
         builtInMetadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, new SeqNoFieldMapper.TypeParser());
         //_field_names must be added last so that it has a chance to see all the other mappers
@@ -238,7 +239,6 @@ public class IndicesModule extends AbstractModule {
     protected void configure() {
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
-        bind(SyncedFlushService.class).asEagerSingleton();
         bind(TransportResyncReplicationAction.class).asEagerSingleton();
         bind(PrimaryReplicaSyncer.class).asEagerSingleton();
         bind(RetentionLeaseSyncAction.class).asEagerSingleton();

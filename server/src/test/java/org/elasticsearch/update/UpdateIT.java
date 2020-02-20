@@ -493,7 +493,6 @@ public class UpdateIT extends ESIntegTestCase {
     public void testContextVariables() throws Exception {
         assertAcked(prepareCreate("test")
                         .addAlias(new Alias("alias"))
-                        .addMapping("type1")
         );
         ensureGreen();
 

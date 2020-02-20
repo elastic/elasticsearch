@@ -15,27 +15,29 @@ teardown:
       license.post:
         acknowledge: true
         body: |
-          {"license":{"uid":"6e57906b-a8d1-4c1f-acb7-73a16edc3934","type":"enterprise","issue_date_in_millis":1523456691721,"expiry_date_in_millis":1838816691721,"max_nodes":50,"issued_to":"rest-test","issuer":"elasticsearch","signature":"AAAABAAAAA03e8BZRVXaCV4CpPGRAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAZNhjABV6PRfa7P7sJgn70XCGoKtAVT75yU13JvKBd/UjD4TPhuZcztqZ/tcLEPxm/TSvGlogWmnw/Rw8xs8jMpBpKsJ+LOXjHhDdvXb2y7JJhCH8nlSEblMDRXysNvWpKe60Z/hb7hS4JynEUt0EBb6ji7BL42O07PNll1EGmkfsHazfs46iV91BG1VxXksI78XgWSaA0F/h7tvrNW9PTgsUaLo06InlQ8jA1dal90AoXp+MVDOHWQjVFZzUnO87/7lEb+VXt0IwchaW17ahihJqkCtGvKpWFwpuhx9xiFvkySN/g5LIVjYCvgBkiWExQ9p0Zzg3VoSlMBnVy0BWo=","start_date_in_millis":-1}}
+          {"license":{"uid":"6e57906b-a8d1-4c1f-acb7-73a16edc3934","type":"enterprise","issue_date_in_millis":1523456691721,"expiry_date_in_millis":1838816691721,"max_nodes":null,"max_resource_units":50,"issued_to":"rest-test","issuer":"elasticsearch","signature":"AAAABQAAAA0sKPJdf9T6DItbXVJKAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAKFCHrix7w/xPG14+wdhld1RmphDmXmHfL1xeuI33Ahr1mOUYZ30eR6GZuh7CnK8BQhfq+z63lgctJepWlvwDSgkOvXWLHrJun7YSCrzz1bism0ZHWw7Swb9DO7vePomVBo/Hm9+eX0pV4/cFQNMmbFaX11tqJZYBEO6sNASVAFL7A1ZcVoB2evweGU9pUQYvFvmyzzySf99miDo3NH0XYdownEdtoNgFfmqa3+koCP7onmRZ1h9jhsDOi30RX/DTDXQKW+XoREnOHCoOAJFxwip/c1qaQAOqp1H6+P20ZGr2sIPiU97OVEU9kulm+E+jgiVW3LwGheOXsUOd1B8Mp0=","start_date_in_millis":-1}}
 
   - match: { license_status:  "valid" }
 
   - do:
       license.get: {}
 
-  ## a license object has 11 attributes
-  - length: { license: 11 }
+  ## a v5 (enterprise) license object has 12 attributes
+  - length: { license: 12 }
 
   ## In 8.0, the enterprise license is always reports truthfully
   - match: { license.type: "enterprise" }
+  - match: { license.max_resource_units: 50 }
+  - match: { license.max_nodes: null }
 
   - do:
       warnings:
         - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
       license.get:
-        accept_enterprise: "true"
+        accept_enterprise: true
 
-  ## a license object has 11 attributes
-  - length: { license: 11 }
+  ## a v5 license object has 12 attributes
+  - length: { license: 12 }
 
   ## Always returns real type
   - match: { license.type: "enterprise" }
@@ -46,5 +48,5 @@ teardown:
       warnings:
         - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
       license.get:
-        accept_enterprise: "false"
+        accept_enterprise: false
 

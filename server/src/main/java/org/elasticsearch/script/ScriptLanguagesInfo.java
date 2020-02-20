@@ -98,7 +98,7 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     }
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<ScriptLanguagesInfo,Void> PARSER =
+    public static final ConstructingObjectParser<ScriptLanguagesInfo,Void> PARSER =
         new ConstructingObjectParser<>("script_languages_info", true,
             (a) -> new ScriptLanguagesInfo(
                 new HashSet<>((List<String>)a[0]),
@@ -107,7 +107,7 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
         );
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<Tuple<String,Set<String>>,Void> LANGUAGE_CONTEXT_PARSER =
+    private static final ConstructingObjectParser<Tuple<String,Set<String>>,Void> LANGUAGE_CONTEXT_PARSER =
         new ConstructingObjectParser<>("language_contexts", true,
             (m, name) -> new Tuple<>((String)m[0], Set.copyOf((List<String>)m[1]))
         );

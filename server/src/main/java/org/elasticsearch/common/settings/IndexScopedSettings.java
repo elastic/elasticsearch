@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -76,6 +77,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
             IndexMetaData.INDEX_PRIORITY_SETTING,
             IndexMetaData.INDEX_DATA_PATH_SETTING,
+            IndexMetaData.INDEX_HIDDEN_SETTING,
             IndexMetaData.INDEX_FORMAT_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
@@ -147,7 +149,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             FieldMapper.IGNORE_MALFORMED_SETTING,
             FieldMapper.COERCE_SETTING,
             Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
-            MapperService.INDEX_MAPPER_DYNAMIC_SETTING,
             MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
@@ -163,6 +164,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexSettings.DEFAULT_PIPELINE,
             IndexSettings.FINAL_PIPELINE,
             MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
+            IndexSettings.ON_HEAP_ID_TERMS_INDEX,
 
             // validate that built-in similarities don't get redefined
             Setting.groupSetting(
@@ -186,7 +188,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {
-        super(settings, metaData.getSettings(), other);
+        super(settings, metaData.getSettings(), other, Loggers.getLogger(IndexScopedSettings.class, metaData.getIndex()));
     }
 
     public IndexScopedSettings copy(Settings settings, IndexMetaData metaData) {

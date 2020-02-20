@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 
@@ -72,10 +73,10 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public static Tree buildRandomTree(List<String> featureNames, int depth) {
         Tree.Builder builder = Tree.builder();
-        int numFeatures = featureNames.size() - 1;
+        int maxFeatureIndex = featureNames.size() - 1;
         builder.setFeatureNames(featureNames);
 
-        TreeNode.Builder node = builder.addJunction(0, randomInt(numFeatures), true, randomDouble());
+        TreeNode.Builder node = builder.addJunction(0, randomInt(maxFeatureIndex), true, randomDouble());
         List<Integer> childNodes = List.of(node.getLeftChild(), node.getRightChild());
 
         for (int i = 0; i < depth -1; i++) {
@@ -86,21 +87,20 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                     builder.addLeaf(nodeId, randomDouble());
                 } else {
                     TreeNode.Builder childNode =
-                        builder.addJunction(nodeId, randomInt(numFeatures), true, randomDouble());
+                        builder.addJunction(nodeId, randomInt(maxFeatureIndex), true, randomDouble());
                     nextNodes.add(childNode.getLeftChild());
                     nextNodes.add(childNode.getRightChild());
                 }
             }
             childNodes = nextNodes;
         }
+        TargetType targetType = randomFrom(TargetType.values());
         List<String> categoryLabels = null;
-        if (randomBoolean()) {
+        if (randomBoolean() && targetType == TargetType.CLASSIFICATION) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
 
-        return builder.setTargetType(randomFrom(TargetType.values()))
-            .setClassificationLabels(categoryLabels)
-            .build();
+        return builder.setTargetType(targetType).setClassificationLabels(categoryLabels).build();
     }
 
     @Override
@@ -166,6 +166,58 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             put("bar", null);
         }};
         assertThat(0.1,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+    }
+
+    public void testInferNestedFields() {
+        // Build a tree with 2 nodes and 3 leaves using 2 features
+        // The leaves have unique values 0.1, 0.2, 0.3
+        Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
+        TreeNode.Builder rootNode = builder.addJunction(0, 0, true, 0.5);
+        builder.addLeaf(rootNode.getRightChild(), 0.3);
+        TreeNode.Builder leftChildNode = builder.addJunction(rootNode.getLeftChild(), 1, true, 0.8);
+        builder.addLeaf(leftChildNode.getLeftChild(), 0.1);
+        builder.addLeaf(leftChildNode.getRightChild(), 0.2);
+
+        List<String> featureNames = Arrays.asList("foo.baz", "bar.biz");
+        Tree tree = builder.setFeatureNames(featureNames).build();
+
+        // This feature vector should hit the right child of the root node
+        Map<String, Object> featureMap = new HashMap<>() {{
+            put("foo", new HashMap<>(){{
+                put("baz", 0.6);
+            }});
+            put("bar", new HashMap<>(){{
+                put("biz", 0.0);
+            }});
+        }};
+        assertThat(0.3,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+
+        // This should hit the left child of the left child of the root node
+        // i.e. it takes the path left, left
+        featureMap = new HashMap<>() {{
+            put("foo", new HashMap<>(){{
+                put("baz", 0.3);
+            }});
+            put("bar", new HashMap<>(){{
+                put("biz", 0.7);
+            }});
+        }};
+        assertThat(0.1,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+
+        // This should hit the right child of the left child of the root node
+        // i.e. it takes the path left, right
+        featureMap = new HashMap<>() {{
+            put("foo", new HashMap<>(){{
+                put("baz", 0.3);
+            }});
+            put("bar", new HashMap<>(){{
+                put("biz", 0.9);
+            }});
+        }};
+        assertThat(0.2,
             closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
     }
 
@@ -273,7 +325,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public void testTreeWithTargetTypeAndLabelsMismatch() {
         List<String> featureNames = Arrays.asList("foo", "bar");
-        String msg = "[target_type] should be [classification] if [classification_labels] is provided, and vice versa";
+        String msg = "[target_type] should be [classification] if [classification_labels] are provided";
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             Tree.builder()
                 .setRoot(TreeNode.builder(0)
@@ -286,23 +338,83 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                 .validate();
         });
         assertThat(ex.getMessage(), equalTo(msg));
-        ex = expectThrows(ElasticsearchException.class, () -> {
-            Tree.builder()
-                .setRoot(TreeNode.builder(0)
-                    .setLeftChild(1)
-                    .setSplitFeature(1)
-                    .setThreshold(randomDouble()))
-                .setFeatureNames(featureNames)
-                .setTargetType(TargetType.CLASSIFICATION)
-                .build()
-                .validate();
-        });
-        assertThat(ex.getMessage(), equalTo(msg));
     }
 
     public void testOperationsEstimations() {
         Tree tree = buildRandomTree(Arrays.asList("foo", "bar", "baz"), 5);
         assertThat(tree.estimatedNumOperations(), equalTo(7L));
+    }
+
+    public void testMaxFeatureIndex() {
+
+        int numFeatures = randomIntBetween(1, 15);
+        // We need a tree where every feature is used, choose a depth big enough to
+        // accommodate those non-leave nodes (leaf nodes don't have a feature index)
+        int depth = (int) Math.ceil(Math.log(numFeatures +1) / Math.log(2)) + 1;
+        List<String> featureNames = new ArrayList<>(numFeatures);
+        for (int i=0; i<numFeatures; i++) {
+            featureNames.add("feature" + i);
+        }
+
+        Tree.Builder builder = Tree.builder().setFeatureNames(featureNames);
+
+        // build a tree using feature indices 0..numFeatures -1
+        int featureIndex = 0;
+        TreeNode.Builder node = builder.addJunction(0, featureIndex++, true, randomDouble());
+        List<Integer> childNodes = List.of(node.getLeftChild(), node.getRightChild());
+
+        for (int i = 0; i < depth -1; i++) {
+            List<Integer> nextNodes = new ArrayList<>();
+            for (int nodeId : childNodes) {
+                if (i == depth -2) {
+                    builder.addLeaf(nodeId, randomDouble());
+                } else {
+                    TreeNode.Builder childNode =
+                            builder.addJunction(nodeId, featureIndex++ % numFeatures, true, randomDouble());
+                    nextNodes.add(childNode.getLeftChild());
+                    nextNodes.add(childNode.getRightChild());
+                }
+            }
+            childNodes = nextNodes;
+        }
+
+        Tree tree = builder.build();
+
+        assertEquals(numFeatures, tree.maxFeatureIndex() +1);
+    }
+
+    public void testMaxFeatureIndexSingleNodeTree() {
+        Tree tree = Tree.builder()
+                .setRoot(TreeNode.builder(0).setLeafValue(10.0))
+                .setFeatureNames(Collections.emptyList())
+                .build();
+
+        assertEquals(-1, tree.maxFeatureIndex());
+    }
+
+    public void testValidateGivenMissingFeatures() {
+        List<String> featureNames = Arrays.asList("foo", "bar", "baz");
+
+        // build a tree referencing a feature at index 3 which is not in the featureNames list
+        Tree.Builder builder = Tree.builder().setFeatureNames(featureNames);
+        builder.addJunction(0, 0, true, randomDouble());
+        builder.addJunction(1, 1, true, randomDouble());
+        builder.addJunction(2, 3, true, randomDouble());
+        builder.addLeaf(3, randomDouble());
+        builder.addLeaf(4, randomDouble());
+        builder.addLeaf(5, randomDouble());
+        builder.addLeaf(6, randomDouble());
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build().validate());
+        assertThat(e.getDetailedMessage(), containsString("feature index [3] is out of bounds for the [feature_names] array"));
+    }
+
+    public void testValidateGivenTreeWithNoFeatures() {
+        Tree.builder()
+                .setRoot(TreeNode.builder(0).setLeafValue(10.0))
+                .setFeatureNames(Collections.emptyList())
+                .build()
+                .validate();
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<? extends Object> values) {

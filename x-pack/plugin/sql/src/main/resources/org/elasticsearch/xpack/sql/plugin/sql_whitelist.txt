@@ -8,18 +8,19 @@
 
 #### Classes
 
-class org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape {
-
+class org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape {
 }
 
-
-class org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime {
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime {
 }
 
-class org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth {
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth {
 }
 
 class java.time.OffsetTime {
+}
+
+class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils {
 }
 
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
@@ -81,30 +82,30 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Number round(Number, Number)
   Number truncate(Number, Number)
   
-  Double abs(Number)
-  Double acos(Number)
-  Double asin(Number)
-  Double atan(Number)
-  Double cbrt(Number)
-  Double ceil(Number)
-  Double cos(Number)
-  Double cosh(Number)
-  Double cot(Number)
-  Double degrees(Number)
-  Double e(Number)
-  Double exp(Number)
-  Double expm1(Number)
-  Double floor(Number)
-  Double log(Number)
-  Double log10(Number)
-  Double pi(Number)
-  Double radians(Number)
-  Double random(Number)
-  Double sign(Number)
-  Double sin(Number)
-  Double sinh(Number)
-  Double sqrt(Number)
-  Double tan(Number)
+  Number abs(Number)
+  Number acos(Number)
+  Number asin(Number)
+  Number atan(Number)
+  Number cbrt(Number)
+  Number ceil(Number)
+  Number cos(Number)
+  Number cosh(Number)
+  Number cot(Number)
+  Number degrees(Number)
+  Number e(Number)
+  Number exp(Number)
+  Number expm1(Number)
+  Number floor(Number)
+  Number log(Number)
+  Number log10(Number)
+  Number pi(Number)
+  Number radians(Number)
+  Number random(Number)
+  Number sign(Number)
+  Number sin(Number)
+  Number sinh(Number)
+  Number sqrt(Number)
+  Number tan(Number)
   
 #
 # Date/Time functions 

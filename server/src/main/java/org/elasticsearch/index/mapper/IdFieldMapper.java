@@ -31,6 +31,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -45,7 +46,10 @@ import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -92,15 +96,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new IdFieldMapper(indexSettings, fieldType);
+            return new IdFieldMapper(indexSettings, Defaults.FIELD_TYPE);
         }
     }
 
@@ -201,6 +205,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
                             XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
                                 sortMode, nested);
                             return new SortField(getFieldName(), source, reverse);
+                        }
+
+                        @Override
+                        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
+                                Nested nested, SortOrder sortOrder, DocValueFormat format) {
+                            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
 
                         @Override

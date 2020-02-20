@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
 
@@ -56,7 +55,7 @@ public class RestTasksAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat/tasks"));
+        return List.of(new Route(GET, "/_cat/tasks"));
     }
 
     @Override

@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -25,9 +23,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateModelSnapshotAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestUpdateModelSnapshotAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -40,8 +35,7 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
             new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update",
                 POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update",
-                deprecationLogger)
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update")
         );
     }
 

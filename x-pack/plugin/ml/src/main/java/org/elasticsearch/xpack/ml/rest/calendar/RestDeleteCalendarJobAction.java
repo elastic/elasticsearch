@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.calendar;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -24,9 +22,6 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteCalendarJobAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestDeleteCalendarJobAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -39,7 +34,7 @@ public class RestDeleteCalendarJobAction extends BaseRestHandler {
             new ReplacedRoute(DELETE, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" +
                 Job.ID.getPreferredName() + "}",
                 DELETE, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" +
-                Job.ID.getPreferredName() + "}", deprecationLogger)
+                Job.ID.getPreferredName() + "}")
         );
     }
 

@@ -29,17 +29,15 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_ingest/pipeline"),
-            new Route(GET, "/_ingest/pipeline/{id}")));
+            new Route(GET, "/_ingest/pipeline/{id}"));
     }
 
     @Override

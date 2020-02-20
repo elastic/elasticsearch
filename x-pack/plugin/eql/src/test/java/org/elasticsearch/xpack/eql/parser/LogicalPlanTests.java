@@ -17,11 +17,11 @@ public class LogicalPlanTests extends ESTestCase {
 
     private final EqlParser parser = new EqlParser();
 
-    public Expression expr(String source) {
+    private Expression expr(String source) {
         return parser.createExpression(source);
     }
 
-    public Filter filter(Expression expr) {
+    private Filter filter(Expression expr) {
         return new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), expr);
     }
 

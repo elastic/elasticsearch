@@ -470,7 +470,7 @@ public class Node implements Closeable {
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptModule.getScriptService(), xContentRegistry, environment, nodeEnvironment,
-                                                 namedWriteableRegistry).stream())
+                                                 namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver()).stream())
                 .collect(Collectors.toList());
 
             ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
@@ -538,7 +538,8 @@ public class Node implements Closeable {
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
                 .filterPlugins(PersistentTaskPlugin.class).stream()
-                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule))
+                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule,
+                    clusterModule.getIndexNameExpressionResolver()))
                 .flatMap(List::stream)
                 .collect(toList());
 

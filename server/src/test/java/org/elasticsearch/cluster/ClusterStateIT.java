@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -214,15 +215,16 @@ public class ClusterStateIT extends ESIntegTestCase {
 
         @Override
         public Collection<Object> createComponents(
-                final Client client,
-                final ClusterService clusterService,
-                final ThreadPool threadPool,
-                final ResourceWatcherService resourceWatcherService,
-                final ScriptService scriptService,
-                final NamedXContentRegistry xContentRegistry,
-                final Environment environment,
-                final NodeEnvironment nodeEnvironment,
-                final NamedWriteableRegistry namedWriteableRegistry) {
+            final Client client,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final ResourceWatcherService resourceWatcherService,
+            final ScriptService scriptService,
+            final NamedXContentRegistry xContentRegistry,
+            final Environment environment,
+            final NodeEnvironment nodeEnvironment,
+            final NamedWriteableRegistry namedWriteableRegistry,
+            final IndexNameExpressionResolver indexNameExpressionResolver) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();
                 if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {

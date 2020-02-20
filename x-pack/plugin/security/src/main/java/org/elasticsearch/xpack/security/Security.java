@@ -385,9 +385,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         try {
-            return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry);
+            return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
+                expressionResolver);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -396,7 +398,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                        NamedXContentRegistry xContentRegistry) throws Exception {
+                                        NamedXContentRegistry xContentRegistry,
+                                        IndexNameExpressionResolver expressionResolver) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -506,7 +509,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors,
-            getLicenseState());
+            getLicenseState(), expressionResolver);
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions

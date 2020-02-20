@@ -52,7 +52,9 @@ The following upgrade paths are *not* supported:
 * 6.8 to 7.0.
 * 6.7 to 7.1.–{version}.
 
-In-place Downgrades from any version to an earlier version are not supported.  You can restore a Snapshot taken prior to an upgrade to a Cluster running the pre-upgrade version to workaround this limitation.
+In-place downgrades to earlier versions are not supported. To downgrade to an
+earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
+to the version upgrade.
 ====
 
 {es} can read indices created in the previous major version. If you

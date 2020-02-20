@@ -53,7 +53,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(SumAggregationBuilder.NAME,
            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            new SumAggregatorSupplier() {
+            new MetricAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name,
                                         ValuesSource valuesSource,
@@ -85,11 +85,11 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             SumAggregationBuilder.NAME);
 
-        if (aggregatorSupplier instanceof SumAggregatorSupplier == false) {
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected SumAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((SumAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent,
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent,
             pipelineAggregators, metaData);
     }
 }

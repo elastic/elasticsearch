@@ -257,6 +257,10 @@ between index size and a reasonable level of precision of 50m at the
 equator. This allows for indexing tens of millions of shapes without
 overly bloating the resulting index too much relative to the input size.
 
+[NOTE]
+Geo-shape queries on geo-shapes implemented with PrefixTrees will not be executed if
+<<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set to false.
+
 [[input-structure]]
 [float]
 ==== Input Structure

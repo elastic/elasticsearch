@@ -30,8 +30,8 @@ following settings:
 
 NOTE: <<number,Numeric fields>> don't support the `index_options` parameter any longer.
 
-<<mapping-index,Analyzed>> string fields use `positions` as the default, and
-all other fields use `docs` as the default.
+<<text,`text`>> fields use `positions` as the default, and all other fields use
+`docs` as the default.
 
 [source,console]
 --------------------------------------------------

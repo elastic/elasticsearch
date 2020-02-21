@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -675,6 +676,11 @@ public class RestHighLevelClientTests extends ESTestCase {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
         int expectedInternalAggregations = InternalAggregationTestCase.getDefaultNamedXContents().size();
         int expectedSuggestions = 3;
+
+        // Explicitly check for metrics from the analytics module because they aren't in InternalAggregationTestCase
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("string_stats")));
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("top_metrics")));
+
         assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -875,6 +881,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("ccr.") == false &&
                                 apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("transform.") == false &&
+                                apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we

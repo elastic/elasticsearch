@@ -209,19 +209,18 @@ final class Compiler {
     ScriptRoot compile(Loader loader, String name, String source, CompilerSettings settings) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
-        ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
+        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, root);
+        root.analyze(scriptRoot);
         ClassNode classNode = root.writeClass();
-        Map<String, Object> statics = classNode.write();
+        DefBootstrapInjectionPhase.phase(classNode);
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
+        byte[] bytes = classNode.write();
 
         try {
-            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, classNode.getBytes());
-            clazz.getField("$NAME").set(null, name);
-            clazz.getField("$SOURCE").set(null, source);
-            clazz.getField("$STATEMENTS").set(null, classNode.getStatements());
-            clazz.getField("$DEFINITION").set(null, painlessLookup);
+            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, bytes);
 
-            for (Map.Entry<String, Object> statik : statics.entrySet()) {
-                clazz.getField(statik.getKey()).set(null, statik.getValue());
+            for (Map.Entry<String, Object> staticConstant : scriptRoot.getStaticConstants().entrySet()) {
+                clazz.getField(staticConstant.getKey()).set(null, staticConstant.getValue());
             }
 
             return scriptRoot;
@@ -240,10 +239,12 @@ final class Compiler {
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, debugStream);
-        root.analyze(painlessLookup, settings);
+        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, root);
+        root.analyze(scriptRoot);
         ClassNode classNode = root.writeClass();
-        classNode.write();
+        DefBootstrapInjectionPhase.phase(classNode);
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
 
-        return classNode.getBytes();
+        return classNode.write();
     }
 }

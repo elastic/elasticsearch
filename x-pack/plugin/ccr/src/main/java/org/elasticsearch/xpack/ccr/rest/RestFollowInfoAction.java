@@ -15,14 +15,13 @@ import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestFollowInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/{index}/_ccr/info"));
+        return List.of(new Route(GET, "/{index}/_ccr/info"));
     }
 
     @Override

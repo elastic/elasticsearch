@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -27,22 +26,17 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder.COMPRESSION_FIELD;
+import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
 
-public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric,
+public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource,
     BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
 
-    private static final ObjectParser<BoxplotAggregationBuilder, Void> PARSER;
-
+    public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, BoxplotAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(BoxplotAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new BoxplotAggregationBuilder(aggregationName), null);
     }
 
     private double compression = 100.0;
@@ -98,7 +92,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
 
     @Override
     protected BoxplotAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                  ValuesSourceConfig<ValuesSource.Numeric> config,
+                                                  ValuesSourceConfig<ValuesSource> config,
                                                   AggregatorFactory parent,
                                                   AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new BoxplotAggregatorFactory(name, config, compression, queryShardContext, parent, subFactoriesBuilder, metaData);

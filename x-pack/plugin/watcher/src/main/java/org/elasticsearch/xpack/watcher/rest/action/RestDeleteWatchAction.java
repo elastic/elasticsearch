@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatch
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -29,7 +28,7 @@ public class RestDeleteWatchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_watcher/watch/{id}"));
+        return List.of(new Route(DELETE, "/_watcher/watch/{id}"));
     }
 
     @Override

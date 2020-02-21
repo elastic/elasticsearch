@@ -20,7 +20,6 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.rest.RestRequest.Method;
 
@@ -115,20 +114,14 @@ public interface RestHandler {
     class DeprecatedRoute extends Route {
 
         private final String deprecationMessage;
-        private final DeprecationLogger logger;
 
-        public DeprecatedRoute(Method method, String path, String deprecationMessage, DeprecationLogger logger) {
+        public DeprecatedRoute(Method method, String path, String deprecationMessage) {
             super(method, path);
             this.deprecationMessage = deprecationMessage;
-            this.logger = logger;
         }
 
         public String getDeprecationMessage() {
             return deprecationMessage;
-        }
-
-        public DeprecationLogger getLogger() {
-            return logger;
         }
     }
 
@@ -140,13 +133,11 @@ public interface RestHandler {
 
         private final String deprecatedPath;
         private final Method deprecatedMethod;
-        private final DeprecationLogger logger;
 
-        public ReplacedRoute(Method method, String path, Method deprecatedMethod, String deprecatedPath, DeprecationLogger logger) {
+        public ReplacedRoute(Method method, String path, Method deprecatedMethod, String deprecatedPath) {
             super(method, path);
             this.deprecatedMethod = deprecatedMethod;
             this.deprecatedPath = deprecatedPath;
-            this.logger = logger;
         }
 
         public String getDeprecatedPath() {
@@ -155,10 +146,6 @@ public interface RestHandler {
 
         public Method getDeprecatedMethod() {
             return deprecatedMethod;
-        }
-
-        public DeprecationLogger getLogger() {
-            return logger;
         }
     }
 }

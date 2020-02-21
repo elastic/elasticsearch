@@ -171,6 +171,8 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             for (TemplateRoleName templateRoleName : request.getRoleTemplates()) {
                 templateRoleName.getRoleNames(scriptService, new ExpressionModel());
             }
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException(e);
         }

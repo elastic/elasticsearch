@@ -56,7 +56,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -344,7 +343,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 snapshotRef = indexShard.acquireLastIndexCommit(true);
                 final IndexCommit indexCommit = snapshotRef.getIndexCommit();
                 repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-                    indexCommit, isSafeIndexCommit(indexShard, indexCommit), snapshotStatus, version, userMetadata,
+                    indexCommit, indexShard.getLastSyncedGlobalCheckpoint(), snapshotStatus, version, userMetadata,
                     ActionListener.runBefore(listener, snapshotRef::close));
             } catch (Exception e) {
                 IOUtils.close(snapshotRef);
@@ -353,19 +352,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    /**
-     * Checks whether the index commit is from a sequence number that is equal to the shards global and local checkpoint.
-     *
-     * @param indexShard  shard
-     * @param indexCommit index commit
-     * @return true if max sequence number in the index commit is equal to the shard's global and local checkpoint
-     */
-    private static boolean isSafeIndexCommit(IndexShard indexShard, IndexCommit indexCommit) throws IOException {
-        final long localCheckPoint = indexShard.getLocalCheckpoint();
-        return localCheckPoint == indexShard.getLastKnownGlobalCheckpoint()
-            && localCheckPoint == Long.parseLong(indexCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
     }
 
     /**

@@ -1586,7 +1586,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             // First inspect all known SegmentInfos instances to see if we already have an equivalent commit in the repository
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos =
-                findMatchingShardSnapshot(sequenceNum, historyUUID, snapshots);
+                findMatchingShardSnapshot(globalCheckpoint, sequenceNum, historyUUID, snapshots);
 
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles;
             int indexIncrementalFileCount = 0;

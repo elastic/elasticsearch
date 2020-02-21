@@ -25,6 +25,229 @@ index that make warmers not necessary anymore.
 
 See <<commands>>.
 
+[role="exclude",id="xpack-api"]	
+=== X-Pack APIs	
+
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>.	
+
+[role="exclude",id="ml-calendar-resource"]]	
+=== Calendar resources	
+
+See <<ml-get-calendar>> and	
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].	
+
+[role="exclude",id="ml-filter-resource"]	
+=== Filter resources	
+
+See <<ml-get-filter>> and	
+{ml-docs}/ml-rules.html[Machine learning custom rules].	
+
+[role="exclude",id="ml-event-resource"]	
+=== Scheduled event resources	
+
+See <<ml-get-calendar-event>> and	
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].	
+
+[role="exclude",id="index-apis"]	
+=== Index APIs	
+{es} index APIs are now documented in <<indices>>.	
+
+[role="exclude",id="search-request-docvalue-fields"]	
+=== Doc value fields parameter for request body search API	
+See <<request-body-search-docvalue-fields>>.	
+
+[role="exclude",id="search-request-explain"]	
+=== Explain parameter for request body search API	
+See <<request-body-search-explain>>.	
+
+[role="exclude",id="search-request-collapse"]	
+=== Collapse parameter for request body search API	
+See <<request-body-search-collapse>>.	
+
+[role="exclude",id="search-request-from-size"]	
+=== From and size parameters for request body search API	
+See <<request-body-search-from-size>>.	
+
+[role="exclude",id="search-request-highlighting"]	
+=== Highlight parameter for request body search API	
+See <<request-body-search-highlighting>>.	
+
+[role="exclude",id="search-request-index-boost"]	
+=== Index boost parameter for request body search API	
+See <<request-body-search-index-boost>>.	
+
+[role="exclude",id="search-request-inner-hits"]	
+=== Inner hits parameter for request body search API	
+See <<request-body-search-inner-hits>>.	
+
+[role="exclude",id="search-request-min-score"]	
+=== Minimum score parameter for request body search API	
+See <<request-body-search-min-score>>.	
+
+[role="exclude",id="search-request-named-queries-and-filters"]	
+=== Named query parameter for request body search API	
+See <<request-body-search-queries-and-filters>>.	
+
+[role="exclude",id="search-request-post-filter"]	
+=== Post filter parameter for request body search API	
+See <<request-body-search-post-filter>>.	
+
+[role="exclude",id="search-request-preference"]	
+=== Preference parameter for request body search API	
+See <<request-body-search-preference>>.	
+
+[role="exclude",id="search-request-query"]	
+=== Query parameter for request body search API	
+See <<request-body-search-query>>.	
+
+[role="exclude",id="search-request-rescore"]	
+=== Rescoring parameter for request body search API	
+See <<request-body-search-rescore>>.	
+
+[role="exclude",id="search-request-script-fields"]	
+=== Script fields parameter for request body search API	
+See <<request-body-search-script-fields>>.	
+
+[role="exclude",id="search-request-scroll"]	
+=== Scroll parameter for request body search API	
+See <<request-body-search-scroll>>.	
+
+[role="exclude",id="search-request-search-after"]	
+=== Search after parameter for request body search API	
+See <<request-body-search-search-after>>.	
+
+[role="exclude",id="search-request-search-type"]	
+=== Search type parameter for request body search API	
+See <<request-body-search-search-type>>.	
+
+[role="exclude",id="search-request-seq-no-primary-term"]	
+=== Sequence numbers and primary terms parameter for request body search API	
+See <<request-body-search-search-type>>.	
+
+[role="exclude",id="search-request-sort"]	
+=== Sort parameter for request body search API	
+See <<request-body-search-sort>>.	
+
+[role="exclude",id="search-request-source-filtering"]	
+=== Source filtering parameter for request body search API	
+See <<request-body-search-source-filtering>>.	
+
+[role="exclude",id="search-request-stored-fields"]	
+=== Stored fields parameter for request body search API	
+See <<request-body-search-stored-fields>>.	
+
+[role="exclude",id="search-request-track-total-hits"]	
+=== Track total hits parameter for request body search API	
+See <<request-body-search-track-total-hits>>.	
+
+[role="exclude",id="search-request-version"]	
+=== Version parameter for request body search API	
+See <<request-body-search-version>>.	
+
+[role="exclude",id="search-suggesters-term"]	
+=== Term suggester	
+See <<term-suggester>>.	
+
+[role="exclude",id="search-suggesters-phrase"]	
+=== Phrase suggester	
+See <<phrase-suggester>>.	
+
+[role="exclude",id="search-suggesters-completion"]	
+=== Completion suggester	
+See <<completion-suggester>>.	
+
+[role="exclude",id="suggester-context"]	
+=== Context suggester	
+See <<context-suggester>>.	
+
+[role="exclude",id="returning-suggesters-type"]	
+=== Return suggester type	
+See <<return-suggesters-type>>.	
+
+[role="exclude",id="search-profile-queries"]	
+=== Profiling queries	
+See <<profiling-queries>>.	
+
+[role="exclude",id="search-profile-aggregations"]	
+=== Profiling aggregations	
+See <<profiling-aggregations>>.	
+
+[role="exclude",id="search-profile-considerations"]	
+=== Profiling considerations	
+See <<profiling-considerations>>.	
+
+[role="exclude",id="_explain_analyze"]	
+=== Explain analyze API	
+See <<explain-analyze-api>>.	
+
+[role="exclude",id="indices-synced-flush"]	
+=== Synced flush API	
+See <<indices-synced-flush-api>>.	
+
+[role="exclude",id="_repositories"]	
+=== Snapshot repositories	
+See <<snapshots-repositories>>.	
+
+[role="exclude",id="_snapshot"]	
+=== Snapshot	
+See <<snapshots-take-snapshot>>.	
+
+[role="exclude",id="getting-started-explore"]	
+=== Exploring your cluster	
+See <<cat>>.	
+
+[role="exclude",id="getting-started-cluster-health"]	
+=== Cluster health	
+See <<cat-health>>.	
+
+[role="exclude", id="getting-started-list-indices"]	
+=== List all indices	
+See <<cat-indices>>.	
+
+[role="exclude", id="getting-started-create-index"]	
+=== Create an index	
+See <<indices-create-index>>.	
+
+[role="exclude", id="getting-started-query-document"]	
+=== Index and query a document	
+See <<getting-started-index>>.	
+
+[role="exclude", id="getting-started-delete-index"]	
+=== Delete an index	
+See <<indices-delete-index>>.	
+
+[role="exclude", id="getting-started-modify-data"]	
+== Modifying your data	
+See <<docs-update>>.	
+
+[role="exclude", id="indexing-replacing-documents"]	
+=== Indexing/replacing documents	
+See <<docs-index_>>.	
+
+[role="exclude", id="getting-started-explore-data"]	
+=== Exploring your data	
+See <<getting-started-search>>.	
+
+[role="exclude", id="getting-started-search-API"]	
+=== Search API	
+See <<getting-started-search>>.	
+
+[role="exclude", id="getting-started-conclusion"]	
+=== Conclusion	
+See <<getting-started-next-steps>>.	
+
+[role="exclude",id="ccs-reduction"]	
+=== {ccs-cap} reduction	
+See <<ccs-works>>.	
+
+[role="exclude",id="administer-elasticsearch"]	
+=== Administering {es}	
+See <<high-availability>>.	
+
+[role="exclude",id="slm-api"]	
+=== Snapshot lifecycle management API	
+See <<snapshot-lifecycle-management-api>>.
+
 [role="exclude",id="delete-data-frame-transform"]
 ===  Delete {transforms} API
 

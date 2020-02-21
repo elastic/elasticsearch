@@ -27,7 +27,7 @@ public class SamlFactory {
     private final SecureRandom random;
 
     public SamlFactory() {
-        SamlInit.initialize();
+        SamlUtils.initialize();
         builderFactory = XMLObjectProviderRegistrySupport.getBuilderFactory();
         random = new SecureRandom();
     }

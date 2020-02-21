@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
+import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
 import org.joda.time.ReadableDuration;
 
 import java.net.URI;
@@ -25,4 +26,6 @@ public interface SamlServiceProvider {
     }
 
     AttributeNames getAttributeNames();
+
+    ServiceProviderPrivileges getPrivileges();
 }

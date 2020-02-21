@@ -222,7 +222,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             return emptyList();
         }
 
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, TASK_THREAD_POOL_NAME, 4, 4, "transform.task_thread_pool");
+        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, TASK_THREAD_POOL_NAME, 4, 4, "transform.task_thread_pool",
+            false);
 
         return Collections.singletonList(indexing);
     }

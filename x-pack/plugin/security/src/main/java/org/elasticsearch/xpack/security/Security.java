@@ -970,7 +970,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         if (enabled) {
             return Collections.singletonList(
-                    new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool"));
+                    new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool",
+                        false));
         }
         return Collections.emptyList();
     }
@@ -1071,13 +1072,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new SystemIndexDescriptor(SECURITY_MAIN_ALIAS, "Contains Security configuration"),
             new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, "Contains Security configuration"),
             new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, "Contains Security configuration"),
 
             new SystemIndexDescriptor(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, "Contains auth token data"),
             new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7, "Contains auth token data")
-            ));
+        );
     }
 }

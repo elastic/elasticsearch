@@ -245,19 +245,24 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // stopping.
         PersistentTasksCustomMetaData tasks = clusterService().state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
-        UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest =
-            new UpdatePersistentTaskStatusAction.Request(task.getId(), task.getAllocationId(), DatafeedState.STOPPING);
-        PersistentTaskResponse updatePersistentTaskStatusResponse =
-            client().execute(UpdatePersistentTaskStatusAction.INSTANCE, updatePersistentTaskStatusRequest).actionGet();
-        assertNotNull(updatePersistentTaskStatusResponse.getTask());
 
-        // Confirm the datafeed state is now stopping - this may take a while to update in cluster state
-        assertBusy(() -> {
-            GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
-            GetDatafeedsStatsAction.Response datafeedStatsResponse =
-                client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
-            assertEquals(DatafeedState.STOPPING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
-        });
+        // It is possible that the datafeed has already detected the job failure and
+        // terminated itself. In this happens there is no task
+        if (task != null) {
+            UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest =
+                    new UpdatePersistentTaskStatusAction.Request(task.getId(), task.getAllocationId(), DatafeedState.STOPPING);
+            PersistentTaskResponse updatePersistentTaskStatusResponse =
+                    client().execute(UpdatePersistentTaskStatusAction.INSTANCE, updatePersistentTaskStatusRequest).actionGet();
+            assertNotNull(updatePersistentTaskStatusResponse.getTask());
+
+            // Confirm the datafeed state is now stopping - this may take a while to update in cluster state
+            assertBusy(() -> {
+                GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
+                GetDatafeedsStatsAction.Response datafeedStatsResponse =
+                        client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
+                assertEquals(DatafeedState.STOPPING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+            });
+        }
 
         // Stop the node running the failed job/stopping datafeed
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index

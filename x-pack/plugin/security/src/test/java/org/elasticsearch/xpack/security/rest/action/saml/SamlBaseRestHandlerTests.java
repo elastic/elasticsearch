@@ -26,7 +26,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SamlBaseRestHandlerTests extends ESTestCase {
 
     public void testSamlAvailableOnTrialAndPlatinum() {
-        final SamlBaseRestHandler handler = buildHandler(randomFrom(License.OperationMode.TRIAL, License.OperationMode.PLATINUM));
+        final SamlBaseRestHandler handler = buildHandler(randomFrom(
+            License.OperationMode.TRIAL, License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE));
         assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), Matchers.nullValue());
     }
 

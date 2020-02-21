@@ -486,8 +486,7 @@ public class XPackLicenseState {
      * license operation mode (i.e. it's free for all).
      */
     public synchronized boolean isEncryptedSnapshotAllowed() {
-        final Status currentStatus = status;
-        return currentStatus.active && isEncryptedSnapshotAllowedForOperationMode(currentStatus.mode);
+        return isAllowedByLicense(OperationMode.PLATINUM);
     }
 
     /**
@@ -676,10 +675,6 @@ public class XPackLicenseState {
     }
 
     public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
-    }
-
-    public static boolean isEncryptedSnapshotAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
     }
 

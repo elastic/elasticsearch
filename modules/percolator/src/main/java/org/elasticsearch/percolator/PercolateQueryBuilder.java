@@ -650,7 +650,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             @Override
             public IndexReader getIndexReader() {
-                // The reader that matters in this context is not the reader of the shard or
+                // The reader that matters in this context is not the reader of the shard but
                 // the reader of the MemoryIndex. We just use `null` for simplicity.
                 return null;
             }

@@ -355,7 +355,7 @@ public class DockerTests extends PackagingTestCase {
     public void test082CannotUseEnvVarsAndFiles() throws Exception {
         final String passwordFilename = "password.txt";
 
-        Files.writeString(tempDir.resolve(passwordFilename), "other_hunter2\n");
+        Files.write(tempDir.resolve(passwordFilename), "other_hunter2\n".getBytes(StandardCharsets.UTF_8));
 
         Map<String, String> envVars = new HashMap<>();
         envVars.put("ELASTIC_PASSWORD", "hunter2");
@@ -382,9 +382,10 @@ public class DockerTests extends PackagingTestCase {
     public void test083EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
         final String passwordFilename = "password.txt";
 
-        Files.writeString(tempDir.resolve(passwordFilename), "hunter2\n");
+        Files.write(tempDir.resolve(passwordFilename), "hunter2\n".getBytes(StandardCharsets.UTF_8));
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // Set invalid file permissions
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p660);

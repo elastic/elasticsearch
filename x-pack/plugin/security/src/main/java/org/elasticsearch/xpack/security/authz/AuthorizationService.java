@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -115,10 +116,11 @@ public class AuthorizationService {
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
                                 ThreadPool threadPool, AnonymousUser anonymousUser, @Nullable AuthorizationEngine authorizationEngine,
-                                Set<RequestInterceptor> requestInterceptors, XPackLicenseState licenseState) {
+                                Set<RequestInterceptor> requestInterceptors, XPackLicenseState licenseState,
+                                IndexNameExpressionResolver resolver) {
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;

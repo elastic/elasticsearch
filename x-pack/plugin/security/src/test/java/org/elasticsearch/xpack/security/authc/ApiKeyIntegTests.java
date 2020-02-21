@@ -804,11 +804,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return createApiKeys(headers, noOfApiKeys, expiration, clusterPrivileges);
     }
 
-    private List<CreateApiKeyResponse> createApiKeys(String user, String runAsUser,
+    private List<CreateApiKeyResponse> createApiKeys(String owningUser, String authenticatingUser,
         int noOfApiKeys, TimeValue expiration, String... clusterPrivileges) {
         final Map<String, String> headers = Map.of("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(runAsUser, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
-            "es-security-runas-user", user);
+            UsernamePasswordToken.basicAuthHeaderValue(authenticatingUser, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
+            "es-security-runas-user", owningUser);
         return createApiKeys(headers, noOfApiKeys, expiration, clusterPrivileges);
     }
 
@@ -829,6 +829,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return responses;
     }
 
+    /**
+     * Create an user in native realm who has run_as privilege. It allows the user to run-as
+     * the other user who has manage_own_api_key privilege. This user is to help ensure all
+     * API key security operations should respect the run-as authentication info.
+     *
+     * Note that the user with run_as privilege is created in native realm which is different
+     * from all other users (created in file realm). This is necessary for us to perform negative
+     * assertions when there are mismatching information, e.g. realm name, username.
+     */
     private void createUserWithRunAsRole() throws ExecutionException, InterruptedException {
         final PutUserRequest putUserRequest = new PutUserRequest();
         putUserRequest.username("user_with_run_as_role");

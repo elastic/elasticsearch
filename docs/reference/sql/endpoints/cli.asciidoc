@@ -48,8 +48,7 @@ The jar containing the SQL CLI is a stand alone Java application and
 the scripts just launch it. You can move it around to other machines
 without having to install Elasticsearch on them. Without the already
 provided script files, you can use a command similar to the following
-to start the SQL CLI. A Java version not earlier than the one used to 
-compile the SQL CLI Java files, needs to be installed to be able to run it:
+to start the SQL CLI:
 
 [source,bash]
 --------------------------------------------------
@@ -63,7 +62,7 @@ or
 $ ./java -cp [PATH_TO_CLI_JAR]/elasticsearch-sql-cli-[VERSION].jar org.elasticsearch.xpack.sql.cli.Cli https://some.server:9200
 --------------------------------------------------
 
-The jar name will be different for each Elasticsearch version, thus
-the generic `VERSION` specified in the example above. Also, if not running
-the command from the folder where the SQL CLI jar resides, you'd have
-to provide the full path, as well.
+The jar name will be different for each Elasticsearch version (for example `elasticsearch-sql-cli-7.3.2.jar`),
+thus the generic `VERSION` specified in the example above. Furthermore,
+if not running the command from the folder where the SQL CLI jar resides,
+you'd have to provide the full path, as well.

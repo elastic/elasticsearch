@@ -40,7 +40,7 @@ Defaults to `true`.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
---
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=include-defaults]

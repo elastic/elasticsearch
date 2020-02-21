@@ -41,12 +41,11 @@ public class PriorityComparatorTests extends ESTestCase {
 
     public void testPreferNewIndices() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards(mock(RoutingNodes.class));
-        final boolean primary = randomBoolean();
         List<ShardRouting> shardRoutings = Arrays.asList(
             TestShardRouting.newShardRouting("oldest", 0, null, null,
-                primary, ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")),
+                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")),
             TestShardRouting.newShardRouting("newest", 0, null, null,
-                primary, ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
+                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
         Collections.shuffle(shardRoutings, random());
         for (ShardRouting routing : shardRoutings) {
             shards.add(routing);
@@ -74,12 +73,11 @@ public class PriorityComparatorTests extends ESTestCase {
 
     public void testPreferPriorityIndices() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards(mock(RoutingNodes.class));
-        final boolean primary = randomBoolean();
         List<ShardRouting> shardRoutings = Arrays.asList(
             TestShardRouting.newShardRouting("oldest", 0, null, null,
-                primary, ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")),
+                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")),
             TestShardRouting.newShardRouting("newest", 0, null, null,
-                primary, ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
+                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
         Collections.shuffle(shardRoutings, random());
         for (ShardRouting routing : shardRoutings) {
             shards.add(routing);
@@ -137,25 +135,21 @@ public class PriorityComparatorTests extends ESTestCase {
         ShardRouting previous = null;
         for (ShardRouting routing : shards) {
             if (previous != null) {
-                if (routing.primary() == previous.primary()) {
-                    IndexMeta prevMeta = map.get(previous.getIndexName());
-                    IndexMeta currentMeta = map.get(routing.getIndexName());
-                    if (prevMeta.priority == currentMeta.priority) {
-                        if (prevMeta.creationDate == currentMeta.creationDate) {
-                            if (prevMeta.name.equals(currentMeta.name) == false) {
-                                assertTrue("indexName mismatch, expected:" + currentMeta.name + " after " + prevMeta.name + " " +
-                                    prevMeta.name.compareTo(currentMeta.name), prevMeta.name.compareTo(currentMeta.name) > 0);
-                            }
-                        } else {
-                            assertTrue("creationDate mismatch, expected:" + currentMeta.creationDate + " after " + prevMeta.creationDate,
-                                prevMeta.creationDate > currentMeta.creationDate);
+                IndexMeta prevMeta = map.get(previous.getIndexName());
+                IndexMeta currentMeta = map.get(routing.getIndexName());
+                if (prevMeta.priority == currentMeta.priority) {
+                    if (prevMeta.creationDate == currentMeta.creationDate) {
+                        if (prevMeta.name.equals(currentMeta.name) == false) {
+                            assertTrue("indexName mismatch, expected:" + currentMeta.name + " after " + prevMeta.name + " " +
+                                prevMeta.name.compareTo(currentMeta.name), prevMeta.name.compareTo(currentMeta.name) > 0);
                         }
                     } else {
-                        assertTrue("priority mismatch, expected:" + currentMeta.priority + " after " + prevMeta.priority,
-                            prevMeta.priority > currentMeta.priority);
+                        assertTrue("creationDate mismatch, expected:" + currentMeta.creationDate + " after " + prevMeta.creationDate,
+                            prevMeta.creationDate > currentMeta.creationDate);
                     }
                 } else {
-                    assertTrue("primaries should all be before replicas", previous.primary());
+                    assertTrue("priority mismatch, expected:" +  currentMeta.priority + " after " + prevMeta.priority,
+                        prevMeta.priority > currentMeta.priority);
                 }
             }
             previous = routing;

@@ -1,14 +1,16 @@
-package org.elasticsearch.gradle.test;
+package org.elasticsearch.gradle.docker;
+
+import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.gradle.test.DistroTestPlugin.deriveId;
-import static org.elasticsearch.gradle.test.DistroTestPlugin.parseOsRelease;
+import static org.elasticsearch.gradle.docker.DockerSupportService.deriveId;
+import static org.elasticsearch.gradle.docker.DockerSupportService.parseOsRelease;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class DistroTestPluginTests extends GradleIntegrationTestCase {
+public class DockerSupportServiceTests extends GradleIntegrationTestCase {
 
     public void testParseOsReleaseOnOracle() {
         final List<String> lines = List.of(

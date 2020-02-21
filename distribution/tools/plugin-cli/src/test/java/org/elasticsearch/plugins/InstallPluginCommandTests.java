@@ -1109,6 +1109,35 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("sha512 not found, falling back to sha1"));
     }
 
+    public void testMavenChecksumWithoutFilename() throws Exception {
+        String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
+        MessageDigest digest = MessageDigest.getInstance("SHA-512");
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".sha512", checksum(digest), null, (b, p) -> null);
+    }
+
+    public void testOfficialChecksumWithoutFilename() throws Exception {
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
+            + Build.CURRENT.getQualifiedVersion()
+            + ".zip";
+        MessageDigest digest = MessageDigest.getInstance("SHA-512");
+        UserException e = expectThrows(
+            UserException.class,
+            () -> assertInstallPluginFromUrl(
+                "analysis-icu",
+                "analysis-icu",
+                url,
+                null,
+                false,
+                ".sha512",
+                checksum(digest),
+                null,
+                (b, p) -> null
+            )
+        );
+        assertEquals(ExitCodes.IO_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
+    }
+
     public void testOfficialShaMissing() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()

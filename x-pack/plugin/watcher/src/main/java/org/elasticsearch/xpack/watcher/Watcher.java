@@ -249,7 +249,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -492,7 +493,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                             InternalWatchExecutor.THREAD_POOL_NAME,
                             getWatcherThreadPoolSize(settings),
                             1000,
-                            "xpack.watcher.thread_pool");
+                            "xpack.watcher.thread_pool",
+                            false);
             return Collections.singletonList(builder);
         }
         return Collections.emptyList();

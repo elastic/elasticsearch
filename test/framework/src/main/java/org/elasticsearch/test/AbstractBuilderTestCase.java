@@ -69,6 +69,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -353,7 +354,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
             AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), emptyList());
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
-            scriptService = scriptModule.getScriptService();
+            scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(idxSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,

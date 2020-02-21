@@ -67,14 +67,16 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
+                    new IndexNameExpressionResolver());
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
+                    new IndexNameExpressionResolver());
 
         assertThat(collector.shouldCollect(true), is(true));
     }

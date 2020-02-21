@@ -434,7 +434,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * {@link SortField}. This is needed for {@link SortField} that converts values from one type to another using
      * {@link FieldSortBuilder#setNumericType(String)} )} (e.g.: long to double).
      */
-    private static Function<byte[], Comparable> numericPointConverter(SortField sortField, NumberFieldType numberFieldType) {
+    private static Function<byte[], Comparable<?>> numericPointConverter(SortField sortField, NumberFieldType numberFieldType) {
         switch (IndexSortConfig.getSortFieldType(sortField)) {
             case LONG:
                 return v -> numberFieldType.parsePoint(v).longValue();
@@ -457,7 +457,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Return a {@link Function} that converts a serialized date point into a {@link Long} according to the provided
      * {@link NumericType}.
      */
-    private static Function<byte[], Comparable> datePointConverter(DateFieldType dateFieldType, String numericTypeStr) {
+    private static Function<byte[], Comparable<?>> datePointConverter(DateFieldType dateFieldType, String numericTypeStr) {
         if (numericTypeStr != null) {
             NumericType numericType = resolveNumericType(numericTypeStr);
             if (dateFieldType.resolution() == MILLISECONDS && numericType == NumericType.DATE_NANOSECONDS) {
@@ -491,7 +491,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             case INT:
             case DOUBLE:
             case FLOAT:
-                final Function<byte[], Comparable> converter;
+                final Function<byte[], Comparable<?>> converter;
                 if (fieldType instanceof NumberFieldType) {
                     converter = numericPointConverter(sortField, (NumberFieldType) fieldType);
                 } else if (fieldType instanceof DateFieldType) {
@@ -502,9 +502,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 if (PointValues.size(reader, fieldName) == 0) {
                     return null;
                 }
-                final Comparable min = converter.apply(PointValues.getMinPackedValue(reader, fieldName));
-                final Comparable max = converter.apply(PointValues.getMaxPackedValue(reader, fieldName));
-                return MinAndMax.newMinMax(min, max);
+                return extractMinAndMax(reader, fieldName, converter);
 
             case STRING:
             case STRING_VAL:
@@ -518,6 +516,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 break;
         }
         return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Comparable<T>> MinAndMax<T> extractMinAndMax(IndexReader reader, String fieldName,
+                                                              Function<byte[], Comparable<?>> converter) throws IOException {
+        final T min = (T)converter.apply(PointValues.getMinPackedValue(reader, fieldName));
+        final T max = (T)converter.apply(PointValues.getMaxPackedValue(reader, fieldName));
+        return MinAndMax.newMinMax(min, max);
     }
 
     /**
@@ -601,12 +607,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     private static final ObjectParser<FieldSortBuilder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
-        PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);
+        PARSER.declareField(FieldSortBuilder::missing, XContentParser::objectText,  MISSING, ValueType.VALUE);
         PARSER.declareString(FieldSortBuilder::unmappedType , UNMAPPED_TYPE);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
-        PARSER.declareString((b, v) -> b.setNumericType(v), NUMERIC_TYPE);
+        PARSER.declareString(FieldSortBuilder::setNumericType, NUMERIC_TYPE);
     }
 
     @Override

@@ -122,7 +122,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         return IntStream.range(0, shardsIts.size())
             .boxed()
             .sorted(shardComparator(shardsIts, minAndMaxes,  order))
-            .map(ord -> shardsIts.get(ord))
+            .map(shardsIts::get)
             .collect(Collectors.toList());
     }
 

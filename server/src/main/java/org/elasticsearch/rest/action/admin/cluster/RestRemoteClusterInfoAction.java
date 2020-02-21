@@ -28,14 +28,13 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public final class RestRemoteClusterInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "_remote/info"));
+        return List.of(new Route(GET, "_remote/info"));
     }
 
     @Override

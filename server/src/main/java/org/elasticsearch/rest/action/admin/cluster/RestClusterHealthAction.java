@@ -36,8 +36,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -45,8 +43,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_cluster/health"),
-            new Route(GET, "/_cluster/health/{index}")));
+        return List.of(new Route(GET, "/_cluster/health"),
+            new Route(GET, "/_cluster/health/{index}"));
     }
 
     @Override

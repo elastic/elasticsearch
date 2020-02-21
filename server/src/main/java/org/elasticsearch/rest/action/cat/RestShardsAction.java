@@ -56,16 +56,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_cat/shards"),
-            new Route(GET, "/_cat/shards/{index}")));
+        return List.of(new Route(GET, "/_cat/shards"),
+            new Route(GET, "/_cat/shards/{index}"));
     }
 
     @Override

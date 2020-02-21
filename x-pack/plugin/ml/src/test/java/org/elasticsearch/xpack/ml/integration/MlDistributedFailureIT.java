@@ -247,22 +247,24 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
 
         // It is possible that the datafeed has already detected the job failure and
-        // terminated itself. In this happens there is no task
-        if (task != null) {
-            UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest =
-                    new UpdatePersistentTaskStatusAction.Request(task.getId(), task.getAllocationId(), DatafeedState.STOPPING);
-            PersistentTaskResponse updatePersistentTaskStatusResponse =
-                    client().execute(UpdatePersistentTaskStatusAction.INSTANCE, updatePersistentTaskStatusRequest).actionGet();
-            assertNotNull(updatePersistentTaskStatusResponse.getTask());
+        // terminated itself. In this happens there is no persistent task to stop
+        assumeFalse("The datafeed task is null most likely because the datafeed detected the job had failed. " +
+                "This is expected to happen extremely rarely but the test cannot continue in these circumstances.", task == null);
 
-            // Confirm the datafeed state is now stopping - this may take a while to update in cluster state
-            assertBusy(() -> {
-                GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
-                GetDatafeedsStatsAction.Response datafeedStatsResponse =
-                        client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
-                assertEquals(DatafeedState.STOPPING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
-            });
-        }
+        UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest =
+                new UpdatePersistentTaskStatusAction.Request(task.getId(), task.getAllocationId(), DatafeedState.STOPPING);
+        PersistentTaskResponse updatePersistentTaskStatusResponse =
+                client().execute(UpdatePersistentTaskStatusAction.INSTANCE, updatePersistentTaskStatusRequest).actionGet();
+        assertNotNull(updatePersistentTaskStatusResponse.getTask());
+
+        // Confirm the datafeed state is now stopping - this may take a while to update in cluster state
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response datafeedStatsResponse =
+                    client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
+            assertEquals(DatafeedState.STOPPING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+        });
+
 
         // Stop the node running the failed job/stopping datafeed
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index

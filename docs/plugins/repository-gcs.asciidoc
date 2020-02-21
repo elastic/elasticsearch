@@ -254,6 +254,6 @@ The service account used to access the bucket must have the "Writer" access to t
 
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console].
 2. Select your project.
-3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser].
+3. Go to the https://console.cloud.google.com/storage/browser[Storage Browser].
 4. Select the bucket and "Edit bucket permission".
 5. The service account must be configured as a "User" with "Writer" access.

@@ -46,7 +46,10 @@ Specifies the field to which the inference prediction is written. Defaults to
 
 `num_top_feature_importance_values`::::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
+Specifies the maximum number of
+{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
+importance] values per document. By default, it is zero and no feature importance
+calculation occurs.
 
 [discrete]
 [[inference-processor-classification-opt]]
@@ -68,7 +71,10 @@ Specifies the field to which the top classes are written. Defaults to
 
 `num_top_feature_importance_values`::::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
+Specifies the maximum number of
+{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
+importance] values per document. By default, it is zero and no feature importance
+calculation occurs.
 
 [discrete]
 [[inference-processor-config-example]]

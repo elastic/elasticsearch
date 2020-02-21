@@ -53,7 +53,7 @@ import java.util.stream.Stream;
 
 public class BatchedShardExecutor {
 
-    private static final long MAX_EXECUTE_NANOS = TimeUnit.MILLISECONDS.toNanos(50);
+    private static final long MAX_EXECUTE_NANOS = TimeUnit.MILLISECONDS.toNanos(15);
     private static final String CLOSED_SHARD_MESSAGE = "Cannot perform operation, IndexShard is closed.";
 
     private static final Logger logger = LogManager.getLogger(BatchedShardExecutor.class);
@@ -206,16 +206,34 @@ public class BatchedShardExecutor {
 
         indexShard.afterWriteOperation();
 
+        ArrayList<ShardOp> completedOpsAlreadySynced = new ArrayList<>();
+        ArrayList<ShardOp> completedOpsNeedSync = new ArrayList<>();
         ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
         ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
         Translog.Location maxLocation = null;
 
+        Translog.Location syncedLocation = null;
+        try {
+            syncedLocation = indexShard.getTranslogLastSyncedLocation();
+        } catch (Exception e) {
+            // The Translog might have closed. Ignore.
+        }
+
         for (ShardOp indexedOp : completedOps) {
             Translog.Location location = indexedOp.locationToSync();
-            if (maxLocation == null) {
-                maxLocation = location;
-            } else if (location != null && location.compareTo(maxLocation) > 0) {
-                maxLocation = location;
+            if (location != null) {
+                if (syncedLocation == null || location.compareTo(syncedLocation) > 0) {
+                    completedOpsNeedSync.add(indexedOp);
+                    if (maxLocation == null) {
+                        maxLocation = location;
+                    } else if (location.compareTo(maxLocation) > 0) {
+                        maxLocation = location;
+                    }
+                } else {
+                    completedOpsAlreadySynced.add(indexedOp);
+                }
+            } else {
+                completedOpsAlreadySynced.add(indexedOp);
             }
 
             if (indexedOp.getRequest().getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
@@ -226,7 +244,9 @@ public class BatchedShardExecutor {
             }
         }
 
-        finishOperations(indexShard, maxLocation, completedOps, completedOpsWaitForRefresh, completedOpsForceRefresh);
+        onResponse(completedOpsAlreadySynced.stream().map(ShardOp::getFlushListener), null);
+
+        finishOperations(indexShard, maxLocation, completedOpsNeedSync, completedOpsWaitForRefresh, completedOpsForceRefresh);
     }
 
     private void finishOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> completedOps,

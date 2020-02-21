@@ -331,6 +331,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public Translog.Location getTranslogLastSyncedLocation() {
+        return new Translog.Location(0,0,0);
+    }
+
+    @Override
     public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
     }

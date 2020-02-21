@@ -967,6 +967,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
+    public Translog.Location getTranslogLastSyncedLocation() {
+        return getEngine().getTranslogLastSyncedLocation();
+    }
+
     public IndexingStats indexingStats() {
         Engine engine = getEngineOrNull();
         final boolean throttled;

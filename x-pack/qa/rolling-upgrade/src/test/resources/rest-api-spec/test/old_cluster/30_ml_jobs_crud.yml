@@ -8,9 +8,8 @@ setup:
           }
 
   - do:
-      cluster.health:
-        index: [".ml-state"]
-        wait_for_status: green
+      indices.refresh:
+        index: .ml-state*
 
 ---
 "Put job on the old cluster and post some data":

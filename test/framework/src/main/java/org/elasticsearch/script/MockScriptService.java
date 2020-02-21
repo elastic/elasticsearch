@@ -17,22 +17,26 @@
  * under the License.
  */
 
-group = 'org.elasticsearch.plugin'
+package org.elasticsearch.script;
 
-apply plugin: 'elasticsearch.esplugin'
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.MockNode;
+import org.elasticsearch.plugins.Plugin;
 
-esplugin {
-  name 'client-benchmark-noop-api'
-  description 'Stubbed out Elasticsearch actions that can be used for client-side benchmarking'
-  classname 'org.elasticsearch.plugin.noop.NoopPlugin'
+import java.util.Map;
+
+public class MockScriptService extends ScriptService {
+    /**
+     * Marker plugin used by {@link MockNode} to enable {@link MockScriptService}.
+     */
+    public static class TestPlugin extends Plugin {}
+
+    public MockScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
+        super(settings, engines, contexts);
+    }
+
+    @Override
+    boolean compilationLimitsEnabled() {
+        return false;
+    }
 }
-
-// Not published so no need to assemble
-assemble.enabled = false
-
-dependencyLicenses.enabled = false
-dependenciesInfo.enabled = false
-
-// no unit tests
-test.enabled = false
-integTest.enabled = false

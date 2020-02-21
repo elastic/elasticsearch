@@ -1173,6 +1173,94 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(5, actual.longValue());
     }
 
+    public void testPivotWithFilter() throws Exception {
+        String transformId = "filter_pivot";
+        String transformIndex = "filter_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = "{"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},"
+            + " \"frequency\": \"1s\","
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"top_ratings\": {"
+            + "       \"filter\": {"
+            + "         \"range\": {"
+            + "            \"stars\": {"
+            + "               \"gte\": 4 "
+            + "         } } } },"
+            + "     \"top_ratings_detail\": {"
+            + "       \"filter\": {"
+            + "         \"range\": {"
+            + "            \"stars\": {"
+            + "               \"gte\": 4"
+            + "         } } },"
+            + "         \"aggregations\": {"
+            + "            \"unique_count\": {"
+            + "               \"cardinality\": {"
+            + "                  \"field\": \"business_id\""
+            + "         } },"
+            + "            \"max\": {"
+            + "               \"max\": {"
+            + "                  \"field\": \"stars\""
+            + "         } },"
+            + "            \"min\": {"
+            + "               \"min\": {"
+            + "                  \"field\": \"stars\""
+            + "         } }"
+            + " } } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+        // get and check some users
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_ratings", searchResult)).get(0);
+        assertEquals(29, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_ratings_detail.min", searchResult)).get(0);
+        assertEquals(4, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_ratings_detail.max", searchResult)).get(0);
+        assertEquals(5, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_ratings_detail.unique_count", searchResult)).get(
+            0
+        );
+        assertEquals(4, actual.longValue());
+
+        searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_2");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_ratings", searchResult)).get(0);
+        assertEquals(19, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_ratings_detail.min", searchResult)).get(0);
+        assertEquals(4, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_ratings_detail.max", searchResult)).get(0);
+        assertEquals(5, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_ratings_detail.unique_count", searchResult)).get(
+            0
+        );
+        assertEquals(3, actual.longValue());
+    }
+
     private void createDateNanoIndex(String indexName, int numDocs) throws IOException {
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {

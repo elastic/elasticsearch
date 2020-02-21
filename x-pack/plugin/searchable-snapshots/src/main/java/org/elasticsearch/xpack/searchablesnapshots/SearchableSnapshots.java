@@ -92,7 +92,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             final NamedXContentRegistry xContentRegistry,
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry namedWriteableRegistry) {
+            final NamedWriteableRegistry registry,
+            final IndexNameExpressionResolver resolver) {
 
         final CacheService cacheService = new CacheService(settings);
         this.cacheService.set(cacheService);

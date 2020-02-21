@@ -29,7 +29,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -118,6 +117,8 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -1393,5 +1394,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);
+    }
+
+    protected static InetAddress randomIp(boolean v4) {
+        try {
+            if (v4) {
+                byte[] ipv4 = new byte[4];
+                random().nextBytes(ipv4);
+                return InetAddress.getByAddress(ipv4);
+            } else {
+                byte[] ipv6 = new byte[16];
+                random().nextBytes(ipv6);
+                return InetAddress.getByAddress(ipv6);
+            }
+        } catch (UnknownHostException e) {
+            throw new AssertionError();
+        }
     }
 }

@@ -105,7 +105,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.READ_TIMEOUT_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
             S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
-            S3ClientSettings.USE_PATH_STYLE_ACCESS);
+            S3ClientSettings.USE_PATH_STYLE_ACCESS,
+            S3ClientSettings.SIGNER_OVERRIDE,
+            S3ClientSettings.REGION);
     }
 
     @Override

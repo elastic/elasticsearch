@@ -28,7 +28,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -106,13 +105,7 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
                 occur = BooleanClause.Occur.SHOULD;
             }
             for (Geometry shape : collection) {
-                if (shape instanceof MultiPoint) {
-                    // Flatten multi-points
-                    // We do not support multi-point queries?
-                    visit(bqb, (GeometryCollection<?>) shape);
-                } else {
-                    bqb.add(shape.visit(this), occur);
-                }
+                bqb.add(shape.visit(this), occur);
             }
         }
 
@@ -139,8 +132,11 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
 
         @Override
         public Query visit(MultiPoint multiPoint) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.MULTIPOINT +
-                " queries");
+            double[][] points = new double[multiPoint.size()][2];
+            for (int i = 0; i < multiPoint.size(); i++) {
+                points[i] = new double[] {multiPoint.get(i).getLat(), multiPoint.get(i).getLon()};
+            }
+            return LatLonShape.newPointQuery(fieldName, relation.getLuceneRelation(), points);
         }
 
         @Override
@@ -161,8 +157,8 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
                 // intersects is more efficient.
                 luceneRelation = ShapeField.QueryRelation.INTERSECTS;
             }
-            return LatLonShape.newBoxQuery(fieldName, luceneRelation,
-                point.getY(), point.getY(), point.getX(), point.getX());
+            return LatLonShape.newPointQuery(fieldName, luceneRelation,
+                new double[] {point.getY(), point.getX()});
         }
 
         @Override

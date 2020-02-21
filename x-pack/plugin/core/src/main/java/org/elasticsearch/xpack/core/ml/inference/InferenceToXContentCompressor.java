@@ -35,9 +35,12 @@ import java.util.zip.GZIPOutputStream;
 public final class InferenceToXContentCompressor {
     private static final int BUFFER_SIZE = 4096;
     // Either 10% of the configured JVM heap, or 1 GB, which ever is smaller
-    private static final long MAX_INFLATED_BYTES = Math.min(
-        (long)((0.10) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()),
-        1_000_000_000); // 1 gb maximum
+//    private static final long MAX_INFLATED_BYTES = Math.min(
+//        (long)((0.10) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()),
+//        1_000_000_000); // 1 gb maximum
+
+
+    private static final long MAX_INFLATED_BYTES = 1_000_000_000;
 
     private InferenceToXContentCompressor() {}
 

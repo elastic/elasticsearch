@@ -84,8 +84,8 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_FA
 public class TrainedModelProvider {
 
     public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
-    private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
-    private static final String MODEL_RESOURCE_FILE_EXT = ".json";
+    public static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
+    public static final String MODEL_RESOURCE_FILE_EXT = ".json";
 
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;

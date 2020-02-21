@@ -8,10 +8,15 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.FilterStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,17 +28,21 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -354,6 +363,117 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
         assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
         assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+    }
+
+
+
+    public void testLargeModel() throws IOException {
+
+        FileInputStream file = new FileInputStream("/Users/dkyle/Development/inference/models/airbnb-ashville/trimmed_trainedmodel.json");
+        XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, file);
+
+        logger.info("loading model config");
+        TrainedModelConfig config = TrainedModelConfig.fromXContent(parser, true).build();
+        logger.info("expanding model config");
+        TrainedModelDefinition modelDef = config.ensureParsedDefinition(xContentRegistry()).getModelDefinition();
+        logger.info("inferring");
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            config.writeTo(output);
+            try (CountingStreamInput in = new CountingStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                TrainedModelConfig out = instanceReader().read(in);
+                logger.info("bytes read [{}]", in.byteCount);
+            }
+        }
+    }
+
+    public void testSmallModel() throws IOException {
+
+        FileInputStream file = new FileInputStream("/Users/dkyle/tmp/config.json");
+        XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, file);
+
+        logger.info("loading model config");
+        TrainedModelConfig config = TrainedModelConfig.fromXContent(parser, true).build();
+        logger.info("expanding model config");
+        TrainedModelDefinition modelDef = config.ensureParsedDefinition(xContentRegistry()).getModelDefinition();
+        logger.info("inferring");
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            config.writeTo(output);
+            try (CountingStreamInput in = new CountingStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                TrainedModelConfig out = instanceReader().read(in);
+                logger.info("bytes read [{}]", in.byteCount);
+            }
+        }
+    }
+
+
+    private static class CountingStreamInput extends NamedWriteableAwareStreamInput {
+
+        private int byteCount = 0;
+
+        protected CountingStreamInput(StreamInput delegate, NamedWriteableRegistry namedWriteableRegistry) {
+            super(delegate, namedWriteableRegistry);
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            byteCount++;
+            return delegate.readByte();
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) throws IOException {
+            byteCount += len;
+            delegate.readBytes(b, offset, len);
+        }
+
+        @Override
+        public short readShort() throws IOException {
+            byteCount +=2;
+            return delegate.readShort();
+        }
+
+        @Override
+        public int readInt() throws IOException {
+            byteCount +=4;
+            return delegate.readInt();
+        }
+
+        @Override
+        public long readLong() throws IOException {
+            byteCount +=8;
+            return delegate.readLong();
+        }
+
+        @Override
+        public int read() throws IOException {
+            int read = delegate.read();
+            byteCount += read < 0 ? 0 : 1;
+            return read;
+        }
+    }
+
+    private Map<String, Object> buildDoc() {
+        Map<String, Object> mm = new HashMap<>();
+
+        mm.put("listing.bed_type", "Real Bed");
+        mm.put("listing.longitude", -0.11732);
+        mm.put("listing.room_type", "Private room");
+        mm.put("listing.security_deposit", 350.00);
+        mm.put("listing.bedrooms", 1);
+        mm.put("day_of_month", 12);
+        mm.put("listing.accommodates", 4);
+        mm.put("listing.extra_people", 20.0);
+        mm.put("month", 3);
+        mm.put("listing.cleaning_fee", 50);
+        mm.put("listing.latitude", 51.46225);
+        mm.put("listing.zipcode", 28804);
+        mm.put("listing.bathrooms", 1);
+        mm.put("listing.beds", 1);
+        mm.put("day_of_week", 5);
+
+        return mm;
     }
 
 }

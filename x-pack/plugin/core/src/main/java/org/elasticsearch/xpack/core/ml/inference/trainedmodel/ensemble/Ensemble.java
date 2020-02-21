@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
@@ -46,6 +49,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 
 public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
+
+    private static final Logger logger = LogManager.getLogger(Ensemble.class);
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ensemble.class);
     // TODO should we have regression/classification sub-classes that accept the builder?
@@ -99,7 +104,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     private final List<String> classificationLabels;
     private final double[] classificationWeights;
 
-    Ensemble(List<String> featureNames,
+    public Ensemble(List<String> featureNames,
              List<TrainedModel> models,
              OutputAggregator outputAggregator,
              TargetType targetType,
@@ -394,6 +399,17 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             if (modelsAreOrdered == false && trainedModels != null && trainedModels.size() > 1) {
                 throw ExceptionsHelper.badRequestException("[trained_models] needs to be an array of objects");
             }
+
+            int totalNodes = 0;
+            logger.info("[{}] models", trainedModels.size());
+            for (TrainedModel model: trainedModels) {
+                Tree tree = (Tree)model;
+                logger.info("tree nodes [{}], features[{}]", tree.getNodes().size(), tree.getFeatureNames().size());
+                totalNodes += tree.getNodes().size();
+            }
+
+            logger.info("[{}] nodes", totalNodes);
+
             return new Ensemble(featureNames, trainedModels, outputAggregator, targetType, classificationLabels, classificationWeights);
         }
     }

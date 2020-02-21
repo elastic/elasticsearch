@@ -332,7 +332,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             return this;
         }
 
-        Integer getLeftChild() {
+        public Integer getLeftChild() {
             return leftChild;
         }
 
@@ -341,7 +341,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             return this;
         }
 
-        Integer getRightChild() {
+        public Integer getRightChild() {
             return rightChild;
         }
 

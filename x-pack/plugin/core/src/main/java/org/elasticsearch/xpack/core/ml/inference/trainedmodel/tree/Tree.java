@@ -119,6 +119,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return nodes;
     }
 
+    public List<String> getFeatureNames() {
+        return featureNames;
+    }
+
     @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
         if (config.isTargetTypeSupported(targetType) == false) {
@@ -422,7 +426,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
          * @param decisionThreshold The decision threshold
          * @return The created node
          */
-        TreeNode.Builder addJunction(int nodeIndex, int featureIndex, boolean isDefaultLeft, double decisionThreshold) {
+        public TreeNode.Builder addJunction(int nodeIndex, int featureIndex, boolean isDefaultLeft, double decisionThreshold) {
             int leftChild = numNodes++;
             int rightChild = numNodes++;
             nodes.ensureCapacity(nodeIndex + 1);
@@ -452,7 +456,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
          * @param value     The prediction value
          * @return this
          */
-        Tree.Builder addLeaf(int nodeIndex, double value) {
+        public Tree.Builder addLeaf(int nodeIndex, double value) {
             for (int i = nodes.size(); i < nodeIndex + 1; i++) {
                 nodes.add(null);
             }

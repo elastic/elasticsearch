@@ -108,7 +108,10 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(
             r -> trainedModelProvider.storeTrainedModel(trainedModelConfig, ActionListener.wrap(
-                storedConfig -> listener.onResponse(new PutTrainedModelAction.Response(trainedModelConfig)),
+                bool -> {
+                    TrainedModelConfig configToReturn = new TrainedModelConfig.Builder(trainedModelConfig).clearDefinition().build();
+                    listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
+                },
                 listener::onFailure
             )),
             listener::onFailure

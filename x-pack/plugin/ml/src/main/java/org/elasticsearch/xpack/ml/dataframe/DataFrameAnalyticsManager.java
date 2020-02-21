@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -58,13 +59,16 @@ public class DataFrameAnalyticsManager {
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final AnalyticsProcessManager processManager;
     private final DataFrameAnalyticsAuditor auditor;
+    private final IndexNameExpressionResolver expressionResolver;
 
     public DataFrameAnalyticsManager(NodeClient client, DataFrameAnalyticsConfigProvider configProvider,
-                                     AnalyticsProcessManager processManager, DataFrameAnalyticsAuditor auditor) {
+                                     AnalyticsProcessManager processManager, DataFrameAnalyticsAuditor auditor,
+                                     IndexNameExpressionResolver expressionResolver) {
         this.client = Objects.requireNonNull(client);
         this.configProvider = Objects.requireNonNull(configProvider);
         this.processManager = Objects.requireNonNull(processManager);
         this.auditor = Objects.requireNonNull(auditor);
+        this.expressionResolver = Objects.requireNonNull(expressionResolver);
     }
 
     public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState, ClusterState clusterState) {
@@ -104,7 +108,7 @@ public class DataFrameAnalyticsManager {
         );
 
         // Make sure the state index and alias exist
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasListener);
     }
 
     private void executeStartingJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {

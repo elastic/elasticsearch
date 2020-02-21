@@ -28,7 +28,8 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0,
     autoManageMasterNodes = false)
@@ -40,7 +41,8 @@ public class IndicesExistsIT extends ESIntegTestCase {
             .put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), 99).build();
         String node = internalCluster().startNode(settings);
 
-        assertThrows(client(node).admin().indices().prepareExists("test").setMasterNodeTimeout(TimeValue.timeValueSeconds(0)),
+        assertRequestBuilderThrows(
+            client(node).admin().indices().prepareExists("test").setMasterNodeTimeout(TimeValue.timeValueSeconds(0)),
             MasterNotDiscoveredException.class);
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node)); // shut down node so that test properly cleans up

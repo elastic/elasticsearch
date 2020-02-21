@@ -15,12 +15,12 @@ There are different file system implementations or _storage types_. By default,
 Elasticsearch will pick the best implementation based on the operating
 environment.
 
-This can be overridden for all indices by adding this to the
-`config/elasticsearch.yml` file:
+The storage type can also be explicitly set for all indices by configuring the
+store type in the `config/elasticsearch.yml` file:
 
 [source,yaml]
 ---------------------------------
-index.store.type: mmapfs
+index.store.type: hybridfs
 ---------------------------------
 
 It is a _static_ setting that can be set on a per-index basis at index
@@ -31,7 +31,7 @@ creation time:
 PUT /my_index
 {
   "settings": {
-    "index.store.type": "mmapfs"
+    "index.store.type": "hybridfs"
   }
 }
 ---------------------------------

@@ -89,7 +89,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             .put(buildEnvSettings(Settings.EMPTY))
             .put("xpack.security.authc.realms.dummy.test_realm.order", 1)
             .put("xpack.security.authc.token.enabled", true)
-            .put("xpack.security.authc.api_key.enabled", true)
+            .put("xpack.security.authc.api_key.enabled", false)
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
@@ -145,7 +145,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         authenticator.authenticateAndAttachToContext(request, future);
 
         assertThat(future.get(0, TimeUnit.MILLISECONDS), nullValue());
-        assertThat(SecondaryAuthentication.restoreFromContext(securityContext), nullValue());
+        assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
     }
 
     public void testAuthenticateTransportRequestFailsIfHeaderHasUnrecognizedCredentials() throws Exception {
@@ -171,7 +171,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString("credentials")));
 
-        assertThat(SecondaryAuthentication.restoreFromContext(securityContext), nullValue());
+        assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
     }
 
     public void testAuthenticateTransportRequestSucceedsWithBasicAuthentication() throws Exception {
@@ -186,7 +186,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             final RestRequest request = new FakeRestRequest();
             authenticator.authenticateAndAttachToContext(request, listener);
         });
-        assertThat(SecondaryAuthentication.restoreFromContext(securityContext), equalTo(secondaryAuthentication));
+        assertThat(SecondaryAuthentication.readFromContext(securityContext), equalTo(secondaryAuthentication));
     }
 
     private SecondaryAuthentication assertAuthenticateWithBasicAuthentication(Consumer<ActionListener<SecondaryAuthentication>> consumer)
@@ -230,7 +230,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             final RestRequest request = new FakeRestRequest();
             authenticator.authenticateAndAttachToContext(request, listener);
         });
-        assertThat(SecondaryAuthentication.restoreFromContext(securityContext), nullValue());
+        assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
     }
 
     private void assertAuthenticateWithIncorrectPassword(Consumer<ActionListener<SecondaryAuthentication>> consumer) {

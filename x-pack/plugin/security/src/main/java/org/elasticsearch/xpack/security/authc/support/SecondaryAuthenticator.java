@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 /**
  * Performs "secondary user authentication" (that is, a second user, _not_ second factor authentication).
  */
-public class SecondaryAuthenticator implements SecondaryAuthentication.Authenticator {
+public class SecondaryAuthenticator {
 
     /**
      * The term "Authorization" in the header value is to mimic the standard HTTP "Authorization" header
@@ -55,21 +55,25 @@ public class SecondaryAuthenticator implements SecondaryAuthentication.Authentic
      *                 If the secondary authentication credentials are found in the thread context, but fail to be authenticated, then
      *                 the failure is returned through {@link ActionListener#onFailure(Exception)}.
      */
-    @Override
     public void authenticate(String action, TransportRequest request, ActionListener<SecondaryAuthentication> listener) {
+        // We never want the secondary authentication to fallback to anonymous.
+        // Use cases for secondary authentication are far more likely to want to fall back to the primary authentication if no secondary
+        // auth is provided, so in that case we do no want to set anything in the context
         authenticate(authListener -> authenticationService.authenticate(action, request, false, authListener), listener);
     }
 
-  /**
+    /**
      * @param listener Handler for the {@link SecondaryAuthentication} object.
      *                 If the secondary authentication credentials do not exist the thread context, the
      *                 {@link ActionListener#onResponse(Object)} method is called with a {@code null} authentication value.
      *                 If the secondary authentication credentials are found in the thread context, but fail to be authenticated, then
      *                 the failure is returned through {@link ActionListener#onFailure(Exception)}.
      */
-  @Override
   public void authenticateAndAttachToContext(RestRequest request, ActionListener<SecondaryAuthentication> listener) {
       final ThreadContext threadContext = securityContext.getThreadContext();
+      // We never want the secondary authentication to fallback to anonymous.
+      // Use cases for secondary authentication are far more likely to want to fall back to the primary authentication if no secondary
+      // auth is provided, so in that case we do no want to set anything in the context
       authenticate(authListener -> authenticationService.authenticate(request, false, authListener),
           ActionListener.wrap(secondaryAuthentication -> {
                   if (secondaryAuthentication != null) {
@@ -121,7 +125,6 @@ public class SecondaryAuthenticator implements SecondaryAuthentication.Authentic
      *
      * @return {@code true} if a secondary authentication header exists in the thread context.
      */
-    @Override
     public boolean hasSecondaryAuthenticationHeader() {
         final String header = securityContext.getThreadContext().getHeader(SECONDARY_AUTH_HEADER_NAME);
         return Strings.isNullOrEmpty(header) == false;

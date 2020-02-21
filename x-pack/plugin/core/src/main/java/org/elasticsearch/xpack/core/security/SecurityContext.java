@@ -63,7 +63,7 @@ public class SecurityContext {
      */
     public SecondaryAuthentication getSecondaryAuthentication() {
         try {
-            return SecondaryAuthentication.restoreFromContext(this);
+            return SecondaryAuthentication.readFromContext(this);
         } catch (IOException e) {
             logger.error("failed to read secondary authentication", e);
             throw new UncheckedIOException(e);

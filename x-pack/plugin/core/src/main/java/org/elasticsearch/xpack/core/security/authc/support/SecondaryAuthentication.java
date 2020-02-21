@@ -6,11 +6,8 @@
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
@@ -27,16 +24,7 @@ import java.util.function.Function;
  */
 public class SecondaryAuthentication {
 
-    private static final String THREAD_CTX_KEY = "_xpack_security_2nd_authc";
-
-    public interface Authenticator {
-
-        void authenticate(String action, TransportRequest request, ActionListener<SecondaryAuthentication> listener);
-
-        void authenticateAndAttachToContext(RestRequest request, ActionListener<SecondaryAuthentication> listener);
-
-        boolean hasSecondaryAuthenticationHeader();
-    }
+    private static final String THREAD_CTX_KEY = "_xpack_security_secondary_authc";
 
     private final SecurityContext securityContext;
     private final Authentication authentication;
@@ -47,7 +35,7 @@ public class SecondaryAuthentication {
     }
 
     @Nullable
-    public static SecondaryAuthentication restoreFromContext(SecurityContext securityContext) throws IOException {
+    public static SecondaryAuthentication readFromContext(SecurityContext securityContext) throws IOException {
         final Authentication authentication = serializer().readFromContext(securityContext.getThreadContext());
         if (authentication == null) {
             return null;

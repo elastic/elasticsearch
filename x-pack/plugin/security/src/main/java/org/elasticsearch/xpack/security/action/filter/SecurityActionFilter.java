@@ -150,7 +150,6 @@ public class SecurityActionFilter implements ActionFilter {
          it to the action without an associated user (not via REST or transport - this is taken care of by
          the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
          here if a request is not associated with any other user.
-         Because we want to fallback to the SystemUser, we don't allow anonymous (AnonymousUser) requests.
          */
         final String securityAction = actionMapper.action(action, request);
         authcService.authenticate(securityAction, request, SystemUser.INSTANCE,

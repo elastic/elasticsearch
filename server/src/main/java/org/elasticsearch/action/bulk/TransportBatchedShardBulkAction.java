@@ -68,7 +68,7 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
                                            MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper,
                                            ActionFilters actionFilters) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, true, false);
+            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.SAME, true, false);
         this.batchedShardExecutor = new BatchedShardExecutor(clusterService, threadPool, updateHelper, mappingUpdatedAction);
     }
 

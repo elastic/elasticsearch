@@ -58,6 +58,10 @@ public class RestoreSnapshotStep extends AsyncActionStep {
         restoreSnapshotRequest.indices(indexName);
         restoreSnapshotRequest.renamePattern(indexName);
         restoreSnapshotRequest.renameReplacement(restoredIndexPrefix + indexName);
+        // we captured the index metadata when we took the snapshot. the index likely had the ILM execution state in the metadata.
+        // if we were to restore the lifecycle.name setting, the restored index would be captured by the ILM runner and, depending on what
+        // ILM execution state was captured at snapshot time, make it's way forward from _that_ step forward in the ILM policy.
+        // we'll re-set this setting on the restored index at a later step once we restored a deterministic execution state
         restoreSnapshotRequest.ignoreIndexSettings(LifecycleSettings.LIFECYCLE_NAME);
         restoreSnapshotRequest.includeAliases(false);
 

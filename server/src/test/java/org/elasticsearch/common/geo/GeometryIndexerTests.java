@@ -35,7 +35,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
-
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;

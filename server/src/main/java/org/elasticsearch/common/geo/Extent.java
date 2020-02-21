@@ -133,8 +133,8 @@ public class Extent {
                 negRight = 0;
                 break;
             case ALL_SET:
-                posRight = input.readVInt();
-                posLeft =  Math.toIntExact(posRight - input.readVLong());
+                posLeft = input.readVInt();
+                posRight =  Math.toIntExact(input.readVLong() + posLeft);
                 negRight = -input.readVInt();
                 negLeft = Math.toIntExact(negRight - input.readVLong());
                 break;
@@ -179,7 +179,7 @@ public class Extent {
                 output.writeVInt(-this.negLeft);
                 break;
             case ALL_SET:
-                output.writeVInt(this.posRight);
+                output.writeVInt(this.posLeft);
                 output.writeVLong((long) this.posRight - this.posLeft);
                 output.writeVInt(-this.negRight);
                 output.writeVLong((long) this.negRight - this.negLeft);

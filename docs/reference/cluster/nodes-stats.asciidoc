@@ -651,7 +651,7 @@ the node.
 Total amount of memory, in bytes, used by all version maps across all shards
 assigned to the node.
 
-`indices.segments.fixed_bit_set_memory`::
+`indices.segments.fixed_bit_set`::
 (<<byte-units,byte value>>)
 Total amount of memory used by fixed bit sets across all shards assigned to
 the node.

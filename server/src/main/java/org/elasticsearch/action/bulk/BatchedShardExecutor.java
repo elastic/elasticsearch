@@ -160,6 +160,10 @@ public class BatchedShardExecutor {
     private void performShardOperations(IndexShard indexShard, boolean isPrimary) {
         ShardId shardId = indexShard.shardId();
         ShardState shardState = this.shardState.get(shardId);
+        if (shardState == null) {
+            // The IndexShard has closed and the resources have been cleaned
+            return;
+        }
 
         ArrayList<ShardOp> completedOps = new ArrayList<>();
         try {

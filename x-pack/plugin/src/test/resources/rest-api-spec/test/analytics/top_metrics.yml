@@ -156,6 +156,10 @@
 
 ---
 "sort by keyword field fails":
+  - skip:
+      features: default_shards
+      reason: The failure message isn't predictable with more than one shard
+
   - do:
       bulk:
         index: test
@@ -239,6 +243,10 @@
 
 ---
 "sort by string script fails":
+  - skip:
+      features: default_shards
+      reason: The failure message isn't predictable with more than one shard
+
   - do:
       bulk:
         index: test

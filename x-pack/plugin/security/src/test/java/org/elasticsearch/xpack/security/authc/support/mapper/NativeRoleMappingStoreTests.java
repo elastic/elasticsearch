@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -208,6 +209,20 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final SecurityIndexManager.State greenIndexState = dummyState(ClusterHealthStatus.GREEN);
         store.onSecurityIndexStateChange(noIndexState, greenIndexState);
         assertEquals(0, numInvalidation.get());
+    }
+
+    public void testPutRoleMappingWillComputeRoleNamesBeforeSave() {
+        final PutRoleMappingRequest putRoleMappingRequest = mock(PutRoleMappingRequest.class);
+        final TemplateRoleName templateRoleName = mock(TemplateRoleName.class);
+        final ScriptService scriptService = mock(ScriptService.class);
+        when(putRoleMappingRequest.getRoleTemplates()).thenReturn(Collections.singletonList(templateRoleName));
+        doAnswer(invocationOnMock -> {
+            throw new IllegalArgumentException();
+        }).when(templateRoleName).getRoleNames(eq(scriptService), any());
+
+        final NativeRoleMappingStore nativeRoleMappingStore =
+            new NativeRoleMappingStore(Settings.EMPTY, mock(Client.class), mock(SecurityIndexManager.class), scriptService);
+        expectThrows(IllegalArgumentException.class, () -> nativeRoleMappingStore.putRoleMapping(putRoleMappingRequest, null));
     }
 
     private NativeRoleMappingStore buildRoleMappingStoreForInvalidationTesting(AtomicInteger invalidationCounter, boolean attachRealm) {

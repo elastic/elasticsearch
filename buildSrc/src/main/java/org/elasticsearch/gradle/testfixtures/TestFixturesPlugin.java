@@ -141,6 +141,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         maybeSkipTasks(tasks, dockerSupport, Test.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
         maybeSkipTasks(tasks, dockerSupport, TestingConventionsTasks.class);
+        maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.test.AntFixture"));
         maybeSkipTasks(tasks, dockerSupport, ComposeUp.class);
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);

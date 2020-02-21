@@ -1574,19 +1574,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
             // We only check the sequence number to see if the shard has changed if we know that the commit is safe,
             // otherwise we short-circuit things here by not reading the sequence number from the commit
-            final String localCheckpointString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
-            final long localCheckpoint;
+            final String maxSequenceNumString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
+            final long maxSequenceNum;
             final String historyUUID;
-            if (localCheckpointString == null) {
-                localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            if (maxSequenceNumString == null) {
+                maxSequenceNum = SequenceNumbers.UNASSIGNED_SEQ_NO;
                 historyUUID = "";
             } else {
-                localCheckpoint = Long.parseLong(userCommitData.get(SequenceNumbers.MAX_SEQ_NO));
+                maxSequenceNum = Long.parseLong(userCommitData.get(SequenceNumbers.MAX_SEQ_NO));
                 historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
             }
             // First inspect all known SegmentInfos instances to see if we already have an equivalent commit in the repository
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos =
-                findMatchingShardSnapshot(globalCheckpoint, localCheckpoint, historyUUID, snapshots);
+                findMatchingShardSnapshot(globalCheckpoint, maxSequenceNum, historyUUID, snapshots);
 
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles;
             int indexIncrementalFileCount = 0;
@@ -1755,14 +1755,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Nullable
-    private static List<BlobStoreIndexShardSnapshot.FileInfo> findMatchingShardSnapshot(long globalCheckpoint, long localCheckpoint,
+    private static List<BlobStoreIndexShardSnapshot.FileInfo> findMatchingShardSnapshot(long globalCheckpoint, long maxSequenceNum,
                                                                                         String historyUUID,
                                                                                         BlobStoreIndexShardSnapshots snapshots) {
-        if (localCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO || globalCheckpoint != localCheckpoint) {
+        if (maxSequenceNum == SequenceNumbers.UNASSIGNED_SEQ_NO || globalCheckpoint != maxSequenceNum) {
             return null;
         }
         for (SnapshotFiles snapshotFileSet : snapshots.snapshots()) {
-            if (snapshotFileSet.historyUUID().equals(historyUUID) && snapshotFileSet.globalCheckpoint() == localCheckpoint) {
+            if (snapshotFileSet.historyUUID().equals(historyUUID) && snapshotFileSet.globalCheckpoint() == maxSequenceNum) {
                 return snapshotFileSet.indexFiles();
             }
         }

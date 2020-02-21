@@ -68,7 +68,15 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        if (evaluate(ingestDocument)) {
+        final boolean matches;
+        try {
+            matches = evaluate(ingestDocument);
+        } catch (Exception e) {
+            handler.accept(null, e);
+            return;
+        }
+
+        if (matches) {
             final long startTimeInNanos = relativeTimeProvider.getAsLong();
             metric.preIngest();
             processor.execute(ingestDocument, (result, e) -> {

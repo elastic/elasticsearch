@@ -31,6 +31,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -143,6 +144,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ClusterService clusterService;
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
+    private final IndexNameExpressionResolver expressionResolver;
     private Supplier<Sort> indexSortSupplier;
 
     public IndexService(
@@ -169,7 +171,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             List<IndexingOperationListener> indexingOperationListeners,
             NamedWriteableRegistry namedWriteableRegistry,
             BooleanSupplier idFieldDataEnabled,
-            BooleanSupplier allowExpensiveQueries) {
+            BooleanSupplier allowExpensiveQueries,
+            IndexNameExpressionResolver expressionResolver) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -177,6 +180,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.similarityService = similarityService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
+        this.expressionResolver = expressionResolver;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
@@ -569,7 +573,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
     public QueryShardContext newQueryShardContext(int shardId, IndexSearcher searcher, LongSupplier nowInMillis, String clusterAlias) {
-        SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService);
+        final SearchIndexNameMatcher indexNameMatcher =
+            new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService, expressionResolver);
         return new QueryShardContext(
             shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
             similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,

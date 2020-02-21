@@ -118,7 +118,8 @@ public final class AnomalyDetectorsIndex {
      * Creates the .ml-state-000001 index (if necessary)
      * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */
-    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state, final ActionListener<Boolean> finalListener) {
+    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state, IndexNameExpressionResolver resolver,
+                                                           final ActionListener<Boolean> finalListener) {
 
         if (state.getMetaData().getAliasAndIndexLookup().containsKey(jobStateIndexWriteAlias())) {
             finalListener.onResponse(false);
@@ -143,8 +144,7 @@ public final class AnomalyDetectorsIndex {
             finalListener::onFailure
         );
 
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
-        String[] stateIndices = indexNameExpressionResolver.concreteIndexNames(state,
+        String[] stateIndices = resolver.concreteIndexNames(state,
             IndicesOptions.lenientExpandOpen(),
             jobStateIndexPattern());
         if (stateIndices.length > 0) {

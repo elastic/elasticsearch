@@ -10,6 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -133,7 +134,7 @@ public class SecurityTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
-            xContentRegistry());
+            xContentRegistry(), new IndexNameExpressionResolver());
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {

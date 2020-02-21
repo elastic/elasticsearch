@@ -227,7 +227,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         }
         Map<String, List<String>> snapshotsMap = new HashMap<>();
         Map<String, String> historyUUIDs = new HashMap<>();
-        Map<String, Long> sequenceNumbers = new HashMap<>();
+        Map<String, Long> globalCheckpoints = new HashMap<>();
         Map<String, FileInfo> files = new HashMap<>();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -271,7 +271,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                                     historyUUIDs.put(snapshot, parser.text());
                                 } else if (ParseFields.GLOBAL_CHECKPOINT.match(currentFieldName, parser.getDeprecationHandler())) {
                                     parser.nextToken();
-                                    sequenceNumbers.put(snapshot, parser.longValue());
+                                    globalCheckpoints.put(snapshot, parser.longValue());
                                 }
                             }
                         }
@@ -291,7 +291,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 fileInfosBuilder.add(fileInfo);
             }
             snapshots.add(new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder),
-                sequenceNumbers.getOrDefault(entry.getKey(), SequenceNumbers.UNASSIGNED_SEQ_NO),
+                globalCheckpoints.getOrDefault(entry.getKey(), SequenceNumbers.UNASSIGNED_SEQ_NO),
                 historyUUIDs.getOrDefault(entry.getKey(), "")));
         }
         return new BlobStoreIndexShardSnapshots(files, Collections.unmodifiableList(snapshots));

@@ -1566,19 +1566,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
             // We only check the sequence number to see if the shard has changed if we know that the commit is safe,
             // otherwise we short-circuit things here by not reading the sequence number from the commit
-            final String maxSequenceNumString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
-            final long maxSequenceNum;
+            final SequenceNumbers.CommitInfo seqNumInfo =
+                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(snapshotIndexCommit.getUserData().entrySet());
+            final long maxSeqNo;
             final String historyUUID;
-            if (maxSequenceNumString == null) {
-                maxSequenceNum = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                historyUUID = "";
-            } else {
-                maxSequenceNum = Long.parseLong(userCommitData.get(SequenceNumbers.MAX_SEQ_NO));
-                historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
-            }
+            maxSeqNo = seqNumInfo.maxSeqNo;
+            historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
             // First inspect all known SegmentInfos instances to see if we already have an equivalent commit in the repository
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos =
-                findMatchingShardSnapshot(globalCheckpoint, maxSequenceNum, historyUUID, snapshots);
+                findMatchingShardSnapshot(globalCheckpoint, maxSeqNo, historyUUID, snapshots);
 
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles;
             int indexIncrementalFileCount = 0;

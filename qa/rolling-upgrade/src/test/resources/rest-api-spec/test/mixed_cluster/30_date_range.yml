@@ -17,7 +17,6 @@
               time_frame:
                 gte: "2019-02-01T00:00+01:00"
                 lte: "2019-02-01T00:00+01:00"
-  - match: { hits.total: 2 }
 
 ---
 "Insert more docs to java index":
@@ -38,4 +37,3 @@
               time_frame:
                 gte: "2019-02-01T00:00+01:00"
                 lte: "2019-02-01T00:00+01:00"
-  - match: { hits.total: 2 }

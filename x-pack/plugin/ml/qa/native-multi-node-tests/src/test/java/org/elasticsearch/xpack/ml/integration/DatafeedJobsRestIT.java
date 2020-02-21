@@ -747,7 +747,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":0"));
 
         // There should be a notification saying that there was a problem extracting data
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
         Response notificationsResponse = client().performRequest(
                 new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
@@ -954,7 +954,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         startDatafeedAndWaitUntilStopped(datafeedId, BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS);
         waitUntilJobIsClosed(jobId);
         // There should be a notification saying that there was a problem extracting data
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
         Response notificationsResponse = client().performRequest(
             new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());

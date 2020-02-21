@@ -119,9 +119,6 @@ public class MetaDataCreateIndexService {
      */
     private static final CharacterRunAutomaton DOT_INDICES_EXCLUSIONS = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(
         ".watch-history-*",
-        ".ml-anomalies-*",
-        ".ml-notifications-*",
-        ".ml-annotations*",
         ".data-frame-notifications-*",
         ".transform-notifications-*"
     ));

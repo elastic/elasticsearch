@@ -3,6 +3,10 @@
 
 The store module allows you to control how index data is stored and accessed on disk.
 
+NOTE: This is a low-level setting. Some store implementations have poor
+concurrency or disable optimizations for heap memory usage. We recommend
+sticking to the defaults.
+
 [float]
 [[file-system]]
 === File system storage types
@@ -16,7 +20,7 @@ This can be overridden for all indices by adding this to the
 
 [source,yaml]
 ---------------------------------
-index.store.type: niofs
+index.store.type: mmapfs
 ---------------------------------
 
 It is a _static_ setting that can be set on a per-index basis at index
@@ -27,7 +31,7 @@ creation time:
 PUT /my_index
 {
   "settings": {
-    "index.store.type": "niofs"
+    "index.store.type": "mmapfs"
   }
 }
 ---------------------------------
@@ -47,15 +51,15 @@ supported systems but is subject to change.
 The Simple FS type is a straightforward implementation of file system
 storage (maps to Lucene `SimpleFsDirectory`) using a random access file.
 This implementation has poor concurrent performance (multiple threads
-will bottleneck). It is usually better to use the `niofs` when you need
-index persistence.
+will bottleneck) and disables some optimizations for heap memory usage.
 
 [[niofs]]`niofs`::
 
 The NIO FS type stores the shard index on the file system (maps to
 Lucene `NIOFSDirectory`) using NIO. It allows multiple threads to read
 from the same file concurrently. It is not recommended on Windows
-because of a bug in the SUN Java implementation.
+because of a bug in the SUN Java implementation and disables some
+optimizations for heap memory usage.
 
 [[mmapfs]]`mmapfs`::
 

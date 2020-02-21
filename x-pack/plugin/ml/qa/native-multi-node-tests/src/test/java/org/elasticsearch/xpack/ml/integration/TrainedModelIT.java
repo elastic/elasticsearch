@@ -93,6 +93,7 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage\""));
         assertThat(response, containsString("\"definition\""));
+        assertThat(response, not(containsString("\"compressed_definition\"")));
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",

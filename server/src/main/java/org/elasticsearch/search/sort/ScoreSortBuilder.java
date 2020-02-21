@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -99,6 +101,39 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
         } else {
             return SORT_SCORE_REVERSE;
         }
+    }
+
+    @Override
+    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
+        return new BucketedSort.ForFloats(context.bigArrays(), order, DocValueFormat.RAW) {
+            @Override
+            public boolean needsScores() { return true; }
+
+            @Override
+            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+                return new BucketedSort.ForFloats.Leaf() {
+                    private Scorable scorer;
+
+                    @Override
+                    public void setScorer(Scorable scorer) {
+                        this.scorer = scorer;
+                    }
+
+                    @Override
+                    protected boolean advanceExact(int doc) throws IOException {
+                        assert doc == scorer.docID() : "expected scorer to be on [" + doc + "] but was on [" + scorer.docID() + "]";
+                        /* We will never be called by documents that don't match the
+                         * query and they'll all have a score, thus `true`. */
+                        return true;
+                    }
+
+                    @Override
+                    protected float docValue() throws IOException {
+                        return scorer.score();
+                    }
+                };
+            }
+        };
     }
 
     @Override

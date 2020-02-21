@@ -33,7 +33,6 @@ public class FieldNode extends IRNode {
     private int modifiers;
     private Class<?> fieldType;
     private String name;
-    private Object instance;
 
     public void setModifiers(int modifiers) {
         this.modifiers = modifiers;
@@ -61,14 +60,6 @@ public class FieldNode extends IRNode {
 
     public String getName() {
         return name;
-    }
-
-    public void setInstance(Object instance) {
-        this.instance = instance;
-    }
-
-    public Object getInstance() {
-        return instance;
     }
 
     /* ---- end node data ---- */

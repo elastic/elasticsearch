@@ -251,9 +251,12 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             VersionConflictEngineException.class);
 
 
-        assertRequestBuilderThrows(client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(1), VersionConflictEngineException.class);
-        assertRequestBuilderThrows(client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(2), VersionConflictEngineException.class);
-        assertRequestBuilderThrows(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
@@ -280,12 +283,16 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(deleteResponse.getSeqNo(), equalTo(2L));
         assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
 
-        assertRequestBuilderThrows(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1), VersionConflictEngineException.class);
-        assertRequestBuilderThrows(client().prepareDelete("test", "1").setIfSeqNo(3).setIfPrimaryTerm(12), VersionConflictEngineException.class);
-        assertRequestBuilderThrows(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(3).setIfPrimaryTerm(12), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
 
         // the doc is deleted. Even when we hit the deleted seqNo, a conditional delete should fail.
-        assertRequestBuilderThrows(client().prepareDelete("test", "1").setIfSeqNo(2).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(2).setIfPrimaryTerm(1), VersionConflictEngineException.class);
     }
 
     public void testSimpleVersioningWithFlush() throws Exception {
@@ -300,13 +307,15 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(indexResponse.getSeqNo(), equalTo(1L));
 
         client().admin().indices().prepareFlush().execute().actionGet();
-        assertRequestBuilderThrows(client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(0).setIfPrimaryTerm(1),
+        assertRequestBuilderThrows(
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(0).setIfPrimaryTerm(1),
                 VersionConflictEngineException.class);
 
         assertRequestBuilderThrows(client().prepareIndex("test").setId("1").setCreate(true).setSource("field1", "value1_1"),
                 VersionConflictEngineException.class);
 
-        assertRequestBuilderThrows(client().prepareDelete("test", "1").setIfSeqNo(0).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(0).setIfPrimaryTerm(1), VersionConflictEngineException.class);
 
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareGet("test", "1").execute().actionGet().getVersion(), equalTo(2L));

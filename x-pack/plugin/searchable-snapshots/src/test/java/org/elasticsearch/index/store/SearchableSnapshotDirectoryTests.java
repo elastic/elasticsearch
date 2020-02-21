@@ -173,7 +173,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
                             assertThat(snapshotFieldInfo.getDocValuesType(), equalTo(fieldInfo.getDocValuesType()));
                             assertThat(snapshotFieldInfo.getDocValuesGen(), equalTo(fieldInfo.getDocValuesGen()));
-                            assertThat(snapshotFieldInfo.getPointDataDimensionCount(), equalTo(fieldInfo.getPointDataDimensionCount()));
+                            assertThat(snapshotFieldInfo.getPointDimensionCount(), equalTo(fieldInfo.getPointDimensionCount()));
                             assertThat(snapshotFieldInfo.getPointIndexDimensionCount(), equalTo(fieldInfo.getPointIndexDimensionCount()));
                             assertThat(snapshotFieldInfo.getPointNumBytes(), equalTo(fieldInfo.getPointNumBytes()));
 

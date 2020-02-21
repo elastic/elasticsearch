@@ -200,10 +200,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52607")
     public void testReadLargeBlobWithRetries() throws Exception {
         final int maxRetries = randomIntBetween(2, 10);
-        final CountDown countDown = new CountDown(maxRetries);
+        final AtomicInteger countDown = new AtomicInteger(maxRetries);
 
         // SDK reads in 2 MB chunks so we use twice that to simulate 2 chunks
         final byte[] bytes = randomBytes(1 << 22);
@@ -215,7 +214,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
             final int end = Integer.parseInt(range[1]);
             final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.min(end + 1, bytes.length));
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), chunk.length);
-            if (randomBoolean() && countDown.countDown() == false) {
+            if (randomBoolean() && countDown.decrementAndGet() >= 0) {
                 exchange.getResponseBody().write(chunk, 0, chunk.length - 1);
                 exchange.close();
                 return;

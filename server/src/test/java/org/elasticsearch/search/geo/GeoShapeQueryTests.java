@@ -206,23 +206,8 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testRandomGeoCollectionQuery() throws Exception {
-        boolean usePrefixTrees = randomBoolean();
         // Create a random geometry collection to index.
-        GeometryCollectionBuilder gcb;
-        if (usePrefixTrees) {
-            gcb = RandomShapeGenerator.createGeometryCollection(random());
-        } else {
-            // vector strategy does not yet support multipoint queries
-            gcb = new GeometryCollectionBuilder();
-            int numShapes = RandomNumbers.randomIntBetween(random(), 1, 4);
-            for (int i = 0; i < numShapes; ++i) {
-                ShapeBuilder shape;
-                do {
-                    shape = RandomShapeGenerator.createShape(random());
-                } while (shape instanceof MultiPointBuilder);
-                gcb.shape(shape);
-            }
-        }
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
 
         assumeTrue("Skipping the check for the polygon with a degenerated dimension",
@@ -234,10 +219,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         }
         gcb.shape(new PolygonBuilder(cb));
 
-        logger.info("Created Random GeometryCollection containing {} shapes using {} tree", gcb.numShapes(),
-            usePrefixTrees ? "geohash" : "quadtree");
+        logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        XContentBuilder mapping = createPrefixTreeMapping(usePrefixTrees ? "geohash" : "quadtree");
+        XContentBuilder mapping = createRandomMapping();
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         client().admin().indices().prepareCreate("test").addMapping("_doc",mapping).setSettings(settings).get();
         ensureGreen();
@@ -321,8 +305,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testGeometryCollectionRelations() throws Exception {
-        XContentBuilder mapping = createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.GEOHASH);
-
+        XContentBuilder mapping = createDefaultMapping();
         createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
 
         EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
@@ -441,13 +424,13 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testReusableBuilder() throws IOException {
         PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
-                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5)
-                        .coordinate(175, 5).close()));
+            .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
+            .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5)
+                .coordinate(175, 5).close()));
         assertUnmodified(polygon);
 
         LineStringBuilder linestring = new LineStringBuilder(new CoordinatesBuilder()
-                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
+            .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
         assertUnmodified(linestring);
     }
 
@@ -534,13 +517,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        if (randomBoolean()) {
-            client().admin().indices().prepareCreate("test").addMapping("type", "geo", "type=geo_shape")
-                .execute().actionGet();
-        } else {
-            client().admin().indices().prepareCreate("test").addMapping("type", "geo", "type=geo_shape,tree=quadtree")
-                .execute().actionGet();
-        }
+        XContentBuilder builder = createRandomMapping();
+        client().admin().indices().prepareCreate("test").addMapping("type", builder)
+            .execute().actionGet();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test", "type", "1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
@@ -696,13 +675,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        if (randomBoolean()) {
-            client().admin().indices().prepareCreate("test")
-                .addMapping("type", "geo", "type=geo_shape").get();
-        } else {
-            client().admin().indices().prepareCreate("test")
-                .addMapping("type", "geo", "type=geo_shape,tree=quadtree").get();
-        }
+        XContentBuilder builder = createRandomMapping();
+        client().admin().indices().prepareCreate("test")
+            .addMapping("type", builder).get();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test", "type", "1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();

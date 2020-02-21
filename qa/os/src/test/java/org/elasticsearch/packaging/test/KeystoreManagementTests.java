@@ -323,7 +323,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             String password = "password";
             String passwordFilename = "password.txt";
-            Files.writeString(tempDir.resolve(passwordFilename), password + "\n");
+            Files.write(tempDir.resolve(passwordFilename), (password + "\n").getBytes(StandardCharsets.UTF_8));
             Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
             Path dockerKeystore = installation.config("elasticsearch.keystore");
@@ -331,8 +331,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
             // restart ES with password and mounted keystore
-            Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore, tempDir, Path.of("/run/secrets"));
-            Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+            Map<Path, Path> volumes = new HashMap<>();
+            volumes.put(localKeystoreFile, dockerKeystore);
+            volumes.put(tempDir, Paths.get("/run/secrets"));
+
+            Map<String, String> envVars = new HashMap<>();
+            envVars.put("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
             runContainer(distribution(), volumes, envVars);
 

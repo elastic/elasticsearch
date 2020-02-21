@@ -1544,7 +1544,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, boolean isSafeCommit, IndexShardSnapshotStatus snapshotStatus,
+                              IndexCommit snapshotIndexCommit, long globalCheckpoint, IndexShardSnapshotStatus snapshotStatus,
                               Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
@@ -1574,7 +1574,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
             // We only check the sequence number to see if the shard has changed if we know that the commit is safe,
             // otherwise we short-circuit things here by not reading the sequence number from the commit
-            final String seqNumString = isSafeCommit ? userCommitData.get(SequenceNumbers.MAX_SEQ_NO) : null;
+            final String seqNumString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
             final long sequenceNum;
             final String historyUUID;
             if (seqNumString == null) {
@@ -1755,9 +1755,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Nullable
-    private static List<BlobStoreIndexShardSnapshot.FileInfo> findMatchingShardSnapshot(long sequenceNum, String historyUUID,
-                                                                                            BlobStoreIndexShardSnapshots snapshots) {
-        if (sequenceNum == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+    private static List<BlobStoreIndexShardSnapshot.FileInfo> findMatchingShardSnapshot(long globalCheckpoint, long sequenceNum,
+                                                                                        String historyUUID,
+                                                                                        BlobStoreIndexShardSnapshots snapshots) {
+        if (sequenceNum == SequenceNumbers.UNASSIGNED_SEQ_NO || globalCheckpoint != sequenceNum) {
             return null;
         }
         for (SnapshotFiles snapshotFileSet : snapshots.snapshots()) {

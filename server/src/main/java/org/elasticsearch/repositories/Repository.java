@@ -199,15 +199,14 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotId            snapshot id
      * @param indexId               id for the index being snapshotted
      * @param snapshotIndexCommit   commit point
-     * @param isSafeCommit          true if the passed index commit was taken when the shards local checkpoint was equal to its
-     *                              global checkpoint
+     * @param globalCheckpoint      the current global checkpoint of the shard
      * @param snapshotStatus        snapshot status
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
      * @param listener              listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       boolean isSafeCommit, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
+                       long globalCheckpoint, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
                        Map<String, Object> userMetadata, ActionListener<String> listener);
 
     /**

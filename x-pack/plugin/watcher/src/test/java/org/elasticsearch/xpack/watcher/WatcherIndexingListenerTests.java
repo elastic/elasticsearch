@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -73,6 +74,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class WatcherIndexingListenerTests extends ESTestCase {
 
     private WatcherIndexingListener listener;

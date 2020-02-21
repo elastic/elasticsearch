@@ -97,11 +97,17 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      *
      * @param shardId   The shard id object of the document being processed
      * @param operation The index operation
-     * @return          The index operation
+     * @param result    The result of the operation
      */
     @Override
-    public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+    public void postIndex(ShardId shardId, Engine.Index operation, Engine.IndexResult result) {
+
         if (isWatchDocument(shardId.getIndexName())) {
+            if (result.getResultType() == Engine.Result.Type.FAILURE) {
+                postIndex(shardId, operation, result.getFailure());
+                return;
+            }
+
             ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
             try {
                 Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON,
@@ -109,8 +115,8 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                 ShardAllocationConfiguration shardAllocationConfiguration = configuration.localShards.get(shardId);
                 if (shardAllocationConfiguration == null) {
                     logger.debug("no distributed watch execution info found for watch [{}] on shard [{}], got configuration for {}",
-                            watch.id(), shardId, configuration.localShards.keySet());
-                    return operation;
+                        watch.id(), shardId, configuration.localShards.keySet());
+                    return;
                 }
 
                 boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
@@ -128,21 +134,6 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Could not parse watch with id [{}]", e, operation.id());
             }
-
-        }
-
-        return operation;
-    }
-
-    /**
-     * In case of a document related failure (for example version conflict), then clean up resources for a watch
-     * in the trigger service.
-     */
-    @Override
-    public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
-        if (result.getResultType() == Engine.Result.Type.FAILURE) {
-            assert result.getFailure() != null;
-            postIndex(shardId, index, result.getFailure());
         }
     }
 
@@ -162,8 +153,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
         if (isWatchDocument(shardId.getIndexName())) {
-            logger.debug(() -> new ParameterizedMessage("removing watch [{}] from trigger", index.id()), ex);
-            triggerService.remove(index.id());
+            logger.debug(() -> new ParameterizedMessage("failed to add watch [{}] to trigger service", index.id()), ex);
         }
     }
 

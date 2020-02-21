@@ -158,6 +158,8 @@ or omit to search all indices.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
++
+Defaults to `true`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
   

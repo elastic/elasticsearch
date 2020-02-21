@@ -19,6 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -86,19 +87,20 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                                                 boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+                                                 Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
                         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures,
-                            repositoryStateId, includeGlobalState, clusterMetaData, userMetadata, writeShardGens, listener);
+                            repositoryStateId, includeGlobalState, clusterMetaData, userMetadata, repositoryMetaVersion, listener);
                     }
 
                     @Override
                     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus,
-                                              boolean writeShardGens, Map<String, Object> userMetadata, ActionListener<String> listener) {
+                                              Version repositoryMetaVersion, Map<String, Object> userMetadata,
+                                              ActionListener<String> listener) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
                         super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus,
-                            writeShardGens, userMetadata, listener);
+                            repositoryMetaVersion, userMetadata, listener);
                     }
 
                     @Override

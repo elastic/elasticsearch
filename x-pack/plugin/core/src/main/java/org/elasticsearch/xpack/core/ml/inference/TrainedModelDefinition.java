@@ -74,7 +74,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
 
     private final TrainedModel trainedModel;
     private final List<PreProcessor> preProcessors;
-    private volatile Map<String, String> decoderMap;
+    private Map<String, String> decoderMap;
 
     private TrainedModelDefinition(TrainedModel trainedModel, List<PreProcessor> preProcessors) {
         this.trainedModel = ExceptionsHelper.requireNonNull(trainedModel, TRAINED_MODEL);
@@ -137,10 +137,15 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         if (decoderMap != null) {
             return decoderMap;
         }
-        this.decoderMap = preProcessors.stream()
-            .map(PreProcessor::reverseLookup)
-            .collect(HashMap::new, Map::putAll, Map::putAll);
-        return decoderMap;
+        synchronized (this) {
+            if (decoderMap != null) {
+                return decoderMap;
+            }
+            this.decoderMap = preProcessors.stream()
+                .map(PreProcessor::reverseLookup)
+                .collect(HashMap::new, Map::putAll, Map::putAll);
+            return decoderMap;
+        }
     }
 
     @Override

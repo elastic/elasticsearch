@@ -238,7 +238,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver
     ) {
         if (enabled == false) {
             return emptyList();
@@ -285,7 +286,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        SettingsModule settingsModule
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
     ) {
         if (enabled == false) {
             return emptyList();
@@ -294,9 +296,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         // the transform services should have been created
         assert transformServices.get() != null;
 
-        return Collections.singletonList(
-            new TransformPersistentTasksExecutor(client, transformServices.get(), threadPool, clusterService, settingsModule.getSettings())
-        );
+        return Collections.singletonList(new TransformPersistentTasksExecutor(client, transformServices.get(), threadPool, clusterService,
+            settingsModule.getSettings(), expressionResolver));
     }
 
     @Override

@@ -56,7 +56,7 @@ dependencies {
     compile 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc
-  compile "com.nimbusds:oauth2-oidc-sdk:7.0"
+  compile "com.nimbusds:oauth2-oidc-sdk:7.0.2"
   compile "com.nimbusds:nimbus-jose-jwt:8.6"
   compile "com.nimbusds:lang-tag:1.4.4"
   compile "net.jcip:jcip-annotations:1.0"
@@ -81,7 +81,7 @@ dependencies {
   testCompile('org.apache.kerby:kerb-crypto:1.1.1')
   testCompile('org.apache.kerby:kerb-util:1.1.1')
   testCompile('org.apache.kerby:token-provider:1.1.1')
-  testCompile('com.nimbusds:nimbus-jose-jwt:8.2')
+  testCompile('com.nimbusds:nimbus-jose-jwt:8.6')
   testCompile('net.jcip:jcip-annotations:1.0')
   testCompile('org.apache.kerby:kerb-admin:1.1.1')
   testCompile('org.apache.kerby:kerb-server:1.1.1')

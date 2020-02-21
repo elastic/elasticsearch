@@ -32,6 +32,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -176,6 +178,12 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            // TODO: Should Index fields be aggregatable?  What even is an IndexField?
+            return CoreValuesSourceType.BYTES;
         }
     }
 

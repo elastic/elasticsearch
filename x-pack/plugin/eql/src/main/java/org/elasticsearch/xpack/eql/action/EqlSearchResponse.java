@@ -260,6 +260,14 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         public int hashCode() {
             return Objects.hash(joinKeys, events);
         }
+
+        public List<String> joinKeys() {
+            return joinKeys;
+        }
+
+        public List<SearchHit> events() {
+            return events;
+        }
     }
 
     // Count
@@ -344,6 +352,18 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @Override
         public int hashCode() {
             return Objects.hash(count, keys, percent);
+        }
+
+        public int count() {
+            return count;
+        }
+
+        public List<String> keys() {
+            return keys;
+        }
+
+        public float percent() {
+            return percent;
         }
     }
 
@@ -482,6 +502,22 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @Override
         public int hashCode() {
             return Objects.hash(events, sequences, counts, totalHits);
+        }
+
+        public List<SearchHit> events() {
+            return this.events;
+        }
+
+        public List<Sequence> sequences() {
+            return this.sequences;
+        }
+
+        public List<Count> counts() {
+            return this.counts;
+        }
+
+        public TotalHits totalHits() {
+            return this.totalHits;
         }
     }
 }

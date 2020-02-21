@@ -7,12 +7,9 @@
   "settings" : {
     "index" : {
       "auto_expand_replicas" : "0-1",
-      "hidden": true,
-      "lifecycle": {
-        "name": "state_index_ilm_policy",
-        "rollover_alias": ".ml-state-write"
-      }
+      "hidden": true
     }
+    ${xpack.ml.index.lifecycle.settings}
   },
   "mappings" : {
     "_doc": {
@@ -22,5 +19,5 @@
       "enabled": false
     }
   },
-  "aliases" : { }
+  "aliases" : {}
 }

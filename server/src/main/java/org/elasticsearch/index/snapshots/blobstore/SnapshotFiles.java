@@ -33,7 +33,7 @@ public class SnapshotFiles {
 
     private final List<FileInfo> indexFiles;
 
-    private final long sequenceNo;
+    private final long globalCheckpoint;
 
     private final String historyUUID;
 
@@ -52,17 +52,23 @@ public class SnapshotFiles {
      * @param snapshot   snapshot name
      * @param indexFiles index files
      */
-    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles, long sequenceNo, String historyUUID) {
+    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles, long globalCheckpoint, String historyUUID) {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
-        this.sequenceNo = sequenceNo;
+        this.globalCheckpoint = globalCheckpoint;
         this.historyUUID = historyUUID;
     }
 
-    public long sequenceNo() {
-        return sequenceNo;
+    /**
+     * Returns the shard's global checkpoint at the time the snapshot was taken
+     */
+    public long globalCheckpoint() {
+        return globalCheckpoint;
     }
 
+    /**
+     * Returns the shard's history uuid at the time the snapshot was taken.
+     */
     public String historyUUID() {
         return historyUUID;
     }

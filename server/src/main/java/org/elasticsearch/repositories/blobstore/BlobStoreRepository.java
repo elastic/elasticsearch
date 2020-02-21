@@ -1574,19 +1574,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
             // We only check the sequence number to see if the shard has changed if we know that the commit is safe,
             // otherwise we short-circuit things here by not reading the sequence number from the commit
-            final String seqNumString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
-            final long sequenceNum;
+            final String localCheckpointString = userCommitData.get(SequenceNumbers.MAX_SEQ_NO);
+            final long localCheckpoint;
             final String historyUUID;
-            if (seqNumString == null) {
-                sequenceNum = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            if (localCheckpointString == null) {
+                localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                 historyUUID = "";
             } else {
-                sequenceNum = Long.parseLong(userCommitData.get(SequenceNumbers.MAX_SEQ_NO));
+                localCheckpoint = Long.parseLong(userCommitData.get(SequenceNumbers.MAX_SEQ_NO));
                 historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
             }
             // First inspect all known SegmentInfos instances to see if we already have an equivalent commit in the repository
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos =
-                findMatchingShardSnapshot(globalCheckpoint, sequenceNum, historyUUID, snapshots);
+                findMatchingShardSnapshot(globalCheckpoint, localCheckpoint, historyUUID, snapshots);
 
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles;
             int indexIncrementalFileCount = 0;
@@ -1688,7 +1688,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
                 List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
-                newSnapshotsList.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), sequenceNum, historyUUID));
+                newSnapshotsList.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), globalCheckpoint, historyUUID));
                 for (SnapshotFiles point : snapshots) {
                     newSnapshotsList.add(point);
                 }
@@ -1755,14 +1755,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Nullable
-    private static List<BlobStoreIndexShardSnapshot.FileInfo> findMatchingShardSnapshot(long globalCheckpoint, long sequenceNum,
+    private static List<BlobStoreIndexShardSnapshot.FileInfo> findMatchingShardSnapshot(long globalCheckpoint, long localCheckpoint,
                                                                                         String historyUUID,
                                                                                         BlobStoreIndexShardSnapshots snapshots) {
-        if (sequenceNum == SequenceNumbers.UNASSIGNED_SEQ_NO || globalCheckpoint != sequenceNum) {
+        if (localCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO || globalCheckpoint != localCheckpoint) {
             return null;
         }
         for (SnapshotFiles snapshotFileSet : snapshots.snapshots()) {
-            if (snapshotFileSet.historyUUID().equals(historyUUID) && snapshotFileSet.sequenceNo() == sequenceNum) {
+            if (snapshotFileSet.historyUUID().equals(historyUUID) && snapshotFileSet.globalCheckpoint() == localCheckpoint) {
                 return snapshotFileSet.indexFiles();
             }
         }

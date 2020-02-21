@@ -136,7 +136,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
 
     static final class ParseFields {
         static final ParseField FILES = new ParseField("files");
-        static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
+        static final ParseField GLOBAL_CHECKPOINT = new ParseField("global_checkpoint");
         static final ParseField HISTORY_UUID = new ParseField("history_uuid");
         static final ParseField SNAPSHOTS = new ParseField("snapshots");
     }
@@ -210,8 +210,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 builder.value(fileInfo.name());
             }
             builder.endArray();
-            if (snapshot.sequenceNo() > SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                builder.field(ParseFields.SEQUENCE_NUM.getPreferredName(), snapshot.sequenceNo());
+            if (snapshot.globalCheckpoint() > SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                builder.field(ParseFields.GLOBAL_CHECKPOINT.getPreferredName(), snapshot.globalCheckpoint());
                 builder.field(ParseFields.HISTORY_UUID.getPreferredName(), snapshot.historyUUID());
             }
             builder.endObject();
@@ -269,7 +269,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                                 } else if (ParseFields.HISTORY_UUID.match(currentFieldName, parser.getDeprecationHandler())) {
                                     parser.nextToken();
                                     historyUUIDs.put(snapshot, parser.text());
-                                } else if (ParseFields.SEQUENCE_NUM.match(currentFieldName, parser.getDeprecationHandler())) {
+                                } else if (ParseFields.GLOBAL_CHECKPOINT.match(currentFieldName, parser.getDeprecationHandler())) {
                                     parser.nextToken();
                                     sequenceNumbers.put(snapshot, parser.longValue());
                                 }

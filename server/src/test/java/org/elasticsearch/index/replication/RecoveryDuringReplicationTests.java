@@ -77,6 +77,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -378,7 +379,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testResyncAfterPrimaryPromotion() throws Exception {
-        // TODO: check translog trimming functionality once rollback is implemented in Lucene (ES trimming is done)
         Map<String, String> mappings =
             Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
@@ -446,7 +446,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     assertThat(source.source.utf8ToString(), is("{ \"f\": \"normal\"}"));
                 }
             }
-            assertThat(translogOperations, is(initialDocs + extraDocs));
+            assertThat(translogOperations, either(equalTo(initialDocs + extraDocs)).or(equalTo(task.getResyncedOperations())));
         }
     }
 

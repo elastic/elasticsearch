@@ -19,15 +19,18 @@
 
 package org.elasticsearch.cluster.metadata;
 
-public class IndexNameExpressionResolverExpressionsIterationTests extends IndexNameExpressionResolverTests {
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 
-    protected IndexNameExpressionResolver getIndexNameExpressionResolver() {
-        return new IndexNameExpressionResolver(null) {
-            @Override
-            boolean iterateIndexAliases(int indexAliasesSize, int resolvedExpressionsSize) {
-                return false;
-            }
-        };
-    }
+import java.util.List;
+
+public interface ExpressionResolver {
+
+    /**
+     * Resolves the list of expressions into other expressions if possible (possible concrete indices and aliases, but
+     * that isn't required). The provided implementations can also be left untouched.
+     *
+     * @return a new list with expressions based on the provided expressions
+     */
+    List<String> resolve(Context context, List<String> expressions);
 
 }

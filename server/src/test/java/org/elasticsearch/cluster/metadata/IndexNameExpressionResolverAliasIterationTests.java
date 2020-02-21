@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.metadata;
 public class IndexNameExpressionResolverAliasIterationTests extends IndexNameExpressionResolverTests {
 
     protected IndexNameExpressionResolver getIndexNameExpressionResolver() {
-        return new IndexNameExpressionResolver() {
+        return new IndexNameExpressionResolver(null) {
             @Override
             boolean iterateIndexAliases(int indexAliasesSize, int resolvedExpressionsSize) {
                 return true;

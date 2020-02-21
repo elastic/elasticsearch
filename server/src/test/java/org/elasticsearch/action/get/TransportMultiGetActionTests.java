@@ -29,8 +29,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.TestIndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -221,7 +221,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             new TaskId(randomLong() + ":" + randomLong()), emptyMap());
     }
 
-    static class Resolver extends IndexNameExpressionResolver {
+    static class Resolver extends TestIndexNameExpressionResolver {
 
         @Override
         public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {

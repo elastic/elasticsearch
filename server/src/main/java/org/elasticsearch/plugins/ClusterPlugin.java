@@ -19,15 +19,16 @@
 
 package org.elasticsearch.plugins;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.function.Supplier;
-
+import org.elasticsearch.cluster.metadata.ExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * An extension point for {@link Plugin} implementations to customer behavior of cluster management.
@@ -65,4 +66,13 @@ public interface ClusterPlugin {
     default void onNodeStarted() {
     }
 
+    /**
+     * Returns the {@link ExpressionResolver} responsible for wildcard resolution of index and
+     * alias names.
+     *
+     * @return The resolver for wildcards implemented by this Plugin or {@code null}
+     */
+    default ExpressionResolver getWildcardExpressionResolver() {
+        return null;
+    }
 }

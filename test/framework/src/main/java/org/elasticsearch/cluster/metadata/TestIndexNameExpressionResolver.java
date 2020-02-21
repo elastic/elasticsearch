@@ -19,15 +19,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
-public class IndexNameExpressionResolverExpressionsIterationTests extends IndexNameExpressionResolverTests {
+public class TestIndexNameExpressionResolver extends IndexNameExpressionResolver {
 
-    protected IndexNameExpressionResolver getIndexNameExpressionResolver() {
-        return new IndexNameExpressionResolver(null) {
-            @Override
-            boolean iterateIndexAliases(int indexAliasesSize, int resolvedExpressionsSize) {
-                return false;
-            }
-        };
+    public TestIndexNameExpressionResolver() {
+        super(null);
     }
-
 }

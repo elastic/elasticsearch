@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.metadata.ExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -56,7 +57,11 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
@@ -165,6 +170,42 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testShardsAllocatorFactoryNull() {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "bad").build();
         expectThrows(NullPointerException.class, () -> newClusterModuleWithShardsAllocator(settings, "bad", () -> null));
+    }
+
+    public void testRegisterCustomWildcardExpressionResolver() {
+        final String replacement = randomAlphaOfLengthBetween(2, 8);
+        final ExpressionResolver custom =
+            (context, expressions) -> expressions.size() == 1 && expressions.get(0).equals("*") ? List.of(replacement) : expressions;
+        final ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService, List.of(
+            new ClusterPlugin() {
+                @Override
+                public ExpressionResolver getWildcardExpressionResolver() {
+                    return custom;
+                }
+            }
+        ), clusterInfoService);
+        assertThat(module.getIndexNameExpressionResolver().resolveExpressions(ClusterState.EMPTY_STATE, "*"),
+            equalTo(Set.of(replacement)));
+    }
+
+    public void testRegisterMultipleCustomWildcardExpressionResolver() {
+        final ExpressionResolver custom = (context, expressions) -> expressions;
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> new ClusterModule(Settings.EMPTY, clusterService, List.of(
+                new ClusterPlugin() {
+                    @Override
+                    public ExpressionResolver getWildcardExpressionResolver() {
+                        return custom;
+                    }
+                },
+                new ClusterPlugin() {
+                    @Override
+                    public ExpressionResolver getWildcardExpressionResolver() {
+                        return custom;
+                    }
+                }
+            ), clusterInfoService));
+        assertThat(iae.getMessage(), is("Cannot have more than one plugin implement a wildcard expression resolver"));
     }
 
     // makes sure that the allocation deciders are setup in the correct order, such that the

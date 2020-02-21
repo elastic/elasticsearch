@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.TestIndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -1059,7 +1060,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String repo = "repo";
         final AdminClient admin = client().admin();
 
-        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver();
+        final IndexNameExpressionResolver nameExpressionResolver = new TestIndexNameExpressionResolver();
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");

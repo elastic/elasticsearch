@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -55,6 +56,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -83,6 +85,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Configures classes and services that affect the entire cluster.
@@ -107,8 +110,23 @@ public class ClusterModule extends AbstractModule {
         this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver();
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(resolveWildcardExpressionResolver(clusterPlugins));
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService);
+    }
+
+    @Nullable
+    private static ExpressionResolver resolveWildcardExpressionResolver(List<ClusterPlugin> clusterPlugins) {
+        List<ExpressionResolver> wildcardExpressionResolvers = clusterPlugins.stream()
+            .map(ClusterPlugin::getWildcardExpressionResolver)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        if (wildcardExpressionResolvers.size() == 1) {
+            return wildcardExpressionResolvers.get(0);
+        }
+        if (wildcardExpressionResolvers.size() > 1) {
+            throw new IllegalArgumentException("Cannot have more than one plugin implement a wildcard expression resolver");
+        }
+        return null;
     }
 
     public static List<Entry> getNamedWriteables() {

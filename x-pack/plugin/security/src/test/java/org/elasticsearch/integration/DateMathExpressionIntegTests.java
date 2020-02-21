@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.TestIndexNameExpressionResolver;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -59,7 +59,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
 
     public void testDateMathExpressionsCanBeAuthorized() throws Exception {
         final String expression = "<datemath-{now/M}>";
-        final String expectedIndexName = new IndexNameExpressionResolver().resolveDateMathExpression(expression);
+        final String expectedIndexName = new TestIndexNameExpressionResolver().resolveDateMathExpression(expression);
         final boolean refeshOnOperation = randomBoolean();
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue("user1", USERS_PASSWD)));
 

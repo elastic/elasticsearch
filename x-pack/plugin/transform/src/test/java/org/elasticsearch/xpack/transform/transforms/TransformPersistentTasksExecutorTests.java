@@ -11,8 +11,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.TestIndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -149,7 +149,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             mock(ThreadPool.class),
             clusterService,
             Settings.EMPTY,
-            new IndexNameExpressionResolver()
+            new TestIndexNameExpressionResolver()
         );
 
         assertThat(
@@ -173,7 +173,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         ClusterState cs = csBuilder.build();
         assertEquals(0,
-            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, new IndexNameExpressionResolver()).size());
+            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, new TestIndexNameExpressionResolver()).size());
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
@@ -198,7 +198,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
         List<String> result =
-            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(csBuilder.build(), new IndexNameExpressionResolver());
+            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(csBuilder.build(), new TestIndexNameExpressionResolver());
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
     }

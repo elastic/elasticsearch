@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.DateMathExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -62,8 +62,6 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
     private static final ParseField RETENTION = new ParseField("retention");
-    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
-        new IndexNameExpressionResolver.DateMathExpressionResolver();
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
@@ -240,7 +238,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
      * still result in unique snapshot names.
      */
     public String generateSnapshotName(Context context) {
-        List<String> candidates = DATE_MATH_RESOLVER.resolve(context, Collections.singletonList(this.name));
+        List<String> candidates = DateMathExpressionResolver.INSTANCE.resolve(context, Collections.singletonList(this.name));
         if (candidates.size() != 1) {
             throw new IllegalStateException("resolving snapshot name " + this.name + " generated more than one candidate: " + candidates);
         }

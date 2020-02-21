@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.TestIndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -200,7 +201,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         });
     }
 
-    static class Resolver extends IndexNameExpressionResolver {
+    static class Resolver extends TestIndexNameExpressionResolver {
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();

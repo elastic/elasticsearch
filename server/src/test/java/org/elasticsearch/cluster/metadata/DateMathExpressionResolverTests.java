@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -41,7 +40,7 @@ import static org.joda.time.DateTimeZone.UTC;
 
 public class DateMathExpressionResolverTests extends ESTestCase {
 
-    private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver();
+    private final DateMathExpressionResolver expressionResolver = DateMathExpressionResolver.INSTANCE;
     private final Context context = new Context(
             ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand()
     );

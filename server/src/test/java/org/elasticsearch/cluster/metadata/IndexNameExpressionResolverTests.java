@@ -64,7 +64,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     private IndexNameExpressionResolver indexNameExpressionResolver;
 
     protected IndexNameExpressionResolver getIndexNameExpressionResolver() {
-        return new IndexNameExpressionResolver();
+        return new IndexNameExpressionResolver(null);
     }
 
     @Override

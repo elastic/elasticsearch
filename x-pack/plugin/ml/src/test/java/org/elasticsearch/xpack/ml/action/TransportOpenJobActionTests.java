@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.TestIndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -91,7 +92,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
     }
 
     public void testVerifyIndicesPrimaryShardsAreActive() {
-        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        final IndexNameExpressionResolver resolver = new TestIndexNameExpressionResolver();
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metaData, routingTable);
@@ -105,7 +106,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver indexNameExpressionResolver = new TestIndexNameExpressionResolver();
         String indexToRemove = randomFrom(indexNameExpressionResolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
             TransportOpenJobAction.indicesOfInterest(".ml-anomalies-shared")));
         if (randomBoolean()) {
@@ -156,7 +157,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
                 Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-                new IndexNameExpressionResolver());
+                new TestIndexNameExpressionResolver());
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
         assertEquals(TransportOpenJobAction.AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
@@ -182,7 +183,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
             settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-            new IndexNameExpressionResolver());
+            new TestIndexNameExpressionResolver());
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("unavailable_index_with_lazy_node");
         params.setJob(mock(Job.class));
@@ -209,7 +210,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
             settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-            new IndexNameExpressionResolver());
+            new TestIndexNameExpressionResolver());
 
         Job job = mock(Job.class);
         when(job.allowLazyOpen()).thenReturn(true);

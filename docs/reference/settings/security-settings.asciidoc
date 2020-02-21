@@ -487,7 +487,7 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 You cannot use this setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs11]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.keystore.password`::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
@@ -752,7 +752,7 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 You cannot use this setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs11]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.truststore.password`::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]

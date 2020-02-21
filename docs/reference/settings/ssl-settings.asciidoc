@@ -105,8 +105,7 @@ PKCS#12 files are configured in the same way as Java keystore files:
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 +{ssl-prefix}.ssl.keystore.type+::
-Set this to `PKCS12` to indicate that the keystore is a PKCS#12 file.
-//TBD: Should this occurrence use the ssl-keystore-type-pkcs11 or ssl-keystore-type-pkcs12 definition and default values?
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 +{ssl-prefix}.ssl.keystore.password+::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
@@ -144,7 +143,7 @@ via the following settings:
 
 +{ssl-prefix}.keystore.type+::
 Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a keystore.
-//TBD: Is the default value `jks` per ssl-keystore-type-pkcs11 definition?
+//TBD: Is the default value `jks`?
 
 +{ssl-prefix}.truststore.type+::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]

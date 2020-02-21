@@ -42,7 +42,6 @@ tag::ssl-key-pem[]
 Path to a PEM encoded file containing the private key.
 //TBD: You cannot use this setting and `ssl.keystore.path` at the same time.
 end::ssl-key-pem[]
-//TBD: Is it correct that this setting only applies to PEM files or can it support other types?
 
 tag::ssl-key-passphrase[]
 The passphrase that is used to decrypt the private key. Since the key might not
@@ -75,12 +74,6 @@ tag::ssl-keystore-secure-password[]
 The password for the keystore.
 //TBD: You cannot use this setting and `ssl.keystore.password` at the same time.
 end::ssl-keystore-secure-password[]
-
-tag::ssl-keystore-type-pkcs11[]
-The format of the keystore file. For the Java keystore format, use `jks`. For
-PKCS#12 files, use `PKCS12`. For a PKCS#11 token, use `PKCS11`. The default is
-`jks`.
-end::ssl-keystore-type-pkcs11[]
 
 tag::ssl-keystore-type-pkcs12[]
 The format of the keystore file. It must be either `jks` or `PKCS12`. If the

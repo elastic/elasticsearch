@@ -157,8 +157,8 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsAction
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.TransportBatchedShardBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.explain.ExplainAction;
@@ -510,7 +510,7 @@ public class ActionModule extends AbstractModule {
         actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class);
         actions.register(TransportShardMultiGetAction.TYPE, TransportShardMultiGetAction.class);
         actions.register(BulkAction.INSTANCE, TransportBulkAction.class);
-        actions.register(TransportShardBulkAction.TYPE, TransportShardBulkAction.class);
+        actions.register(TransportBatchedShardBulkAction.TYPE, TransportBatchedShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);

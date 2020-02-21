@@ -360,7 +360,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final Exception failure = executionResult.getFailure().getCause();
                 final MessageSupplier messageSupplier = () -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
                     context.getPrimary().shardId(), opType.getLowercase(), docWriteRequest);
-                if (TransportShardBulkAction.isConflictException(failure)) {
+                if (isConflictException(failure)) {
                     logger.trace(messageSupplier, failure);
                 } else {
                     logger.debug(messageSupplier, failure);

@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -29,36 +30,38 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 public class BatchedShardExecutor {
 
-    // TODO: Consider some type of time slice for indexing
-    private static final int MAX_PERFORM_OPS = 10;
+    private static final long MAX_EXECUTE_NANOS = TimeUnit.MILLISECONDS.toNanos(50);
+    private static final String CLOSED_SHARD_MESSAGE = "Cannot perform operation, IndexShard is closed.";
 
     private static final Logger logger = LogManager.getLogger(BatchedShardExecutor.class);
 
     private final CheckedBiFunction<PrimaryOp, Runnable, Boolean, Exception> primaryOpHandler;
     private final CheckedFunction<ReplicaOp, Boolean, Exception> replicaOpHandler;
     private final ThreadPool threadPool;
-    private final int maxWriteThreads;
+    private final int numberOfWriteThreads;
 
     private final ConcurrentHashMap<ShardId, ShardState> shardState = new ConcurrentHashMap<>();
 
@@ -73,10 +76,10 @@ public class BatchedShardExecutor {
         this.primaryOpHandler = primaryOpHandler;
         this.replicaOpHandler = replicaOpHandler;
         this.threadPool = threadPool;
-        this.maxWriteThreads = threadPool.info(ThreadPool.Names.WRITE).getMax();
+        this.numberOfWriteThreads = threadPool.info(ThreadPool.Names.WRITE).getMax();
     }
 
-    public void primary(BulkShardRequest request, IndexShard primary, ActionListener<BulkShardResponse> writeListener,
+    public void primary(BulkShardRequest request, IndexShard primary, ActionListener<WriteResult> writeListener,
                         ActionListener<FlushResult> flushListener) {
         PrimaryOp shardOp = new PrimaryOp(request, primary, writeListener, flushListener);
         enqueueAndSchedule(shardOp, true, true);
@@ -96,7 +99,13 @@ public class BatchedShardExecutor {
         ShardId shardId = shardOp.getIndexShard().shardId();
         ShardState shardState = getOrCreateShardState(shardId);
         if (shardState.attemptPreIndexedEnqueue(shardOp, allowReject)) {
-            maybeSchedule(shardOp.getIndexShard(), shardState, isPrimary);
+            // If the ShardState was closed after we enqueued, attempt to remove our operation and finish it
+            // to ensure that it does not get lost.
+            if (shardState.isClosed() && shardState.remove(shardOp)) {
+                onFailure(Stream.of(shardOp.getWriteListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
+            } else {
+                maybeSchedule(shardOp.getIndexShard(), shardState, isPrimary);
+            }
         } else {
             throw new EsRejectedExecutionException("rejected execution of shard operation", false);
         }
@@ -105,7 +114,7 @@ public class BatchedShardExecutor {
     private ShardState getOrCreateShardState(ShardId shardId) {
         ShardState queue = shardState.get(shardId);
         if (queue == null) {
-            ShardState createdQueue = new ShardState(maxWriteThreads);
+            ShardState createdQueue = new ShardState(numberOfWriteThreads);
             ShardState previous = shardState.putIfAbsent(shardId, createdQueue);
             queue = Objects.requireNonNullElse(previous, createdQueue);
         }
@@ -152,11 +161,13 @@ public class BatchedShardExecutor {
         ShardId shardId = indexShard.shardId();
         ShardState shardState = this.shardState.get(shardId);
 
-        ArrayList<ShardOp> completedOps = new ArrayList<>(MAX_PERFORM_OPS);
+        ArrayList<ShardOp> completedOps = new ArrayList<>();
         try {
             int opsIndexed = 0;
             ShardOp shardOp;
-            while (++opsIndexed <= MAX_PERFORM_OPS && (shardOp = shardState.pollPreIndexed()) != null) {
+            long startNanos = System.nanoTime();
+            long nanosSpentExecuting = 0;
+            while ((nanosSpentExecuting < MAX_EXECUTE_NANOS) && (shardOp = shardState.pollPreIndexed()) != null) {
                 boolean opCompleted = false;
                 try {
                     if (isPrimary) {
@@ -169,6 +180,11 @@ public class BatchedShardExecutor {
                 } catch (Exception e) {
                     onFailure(Stream.of(shardOp.getWriteListener()), e);
                 } finally {
+                    ++opsIndexed;
+                    // Update nanosSpentExecuting every 8 operations
+                    if ((opsIndexed & (8 - 1)) == 0) {
+                        nanosSpentExecuting = System.nanoTime() - startNanos;
+                    }
                     if (opCompleted) {
                         completedOps.add(shardOp);
                     }
@@ -176,6 +192,7 @@ public class BatchedShardExecutor {
             }
         } finally {
             finishOperations(indexShard, completedOps);
+            cleanupIfShardClosed(indexShard);
         }
     }
 
@@ -186,7 +203,7 @@ public class BatchedShardExecutor {
         indexShard.afterWriteOperation();
 
         ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
-        boolean forceRefresh = false;
+        ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
         Translog.Location maxLocation = null;
 
         for (ShardOp indexedOp : completedOps) {
@@ -200,16 +217,16 @@ public class BatchedShardExecutor {
             if (indexedOp.getRequest().getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
                 completedOpsWaitForRefresh.add(indexedOp);
             } else if (indexedOp.getRequest().getRefreshPolicy() == WriteRequest.RefreshPolicy.IMMEDIATE) {
-                completedOpsWaitForRefresh.add(indexedOp);
-                forceRefresh = true;
+                completedOpsForceRefresh.add(indexedOp);
+                indexedOp.getFlushListener().setForcedRefresh(true);
             }
         }
 
-        finishOperations(indexShard, maxLocation, completedOps, completedOpsWaitForRefresh, forceRefresh);
+        finishOperations(indexShard, maxLocation, completedOps, completedOpsWaitForRefresh, completedOpsForceRefresh);
     }
 
     private void finishOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> completedOps,
-                                  ArrayList<ShardOp> completedOpsWaitForRefresh, boolean forceRefresh) {
+                                  ArrayList<ShardOp> completedOpsWaitForRefresh, ArrayList<ShardOp> completedOpsForceRefresh) {
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST && maxLocation != null) {
             syncOperations(indexShard, maxLocation, completedOps);
         } else {
@@ -226,8 +243,11 @@ public class BatchedShardExecutor {
             }
         }
 
-        if (refreshed.get() == false && forceRefresh) {
-            forceRefresh(indexShard);
+        if (completedOpsForceRefresh.isEmpty() == false) {
+            if (refreshed.get() == false) {
+                forceRefresh(indexShard);
+            }
+            onResponse(completedOpsForceRefresh.stream().map(ShardOp::getFlushListener), null);
         }
     }
 
@@ -268,6 +288,23 @@ public class BatchedShardExecutor {
             indexShard.refresh("refresh_flag_index");
         } catch (Exception ex) {
             logger.warn("exception while forcing immediate refresh for shard operation", ex);
+        }
+    }
+
+    private void cleanupIfShardClosed(IndexShard indexShard) {
+        if (indexShard.state() == IndexShardState.CLOSED) {
+            ShardState removed = shardState.remove(indexShard.shardId());
+            // If we did not successfully remove the ShardState, another thread did and will handling the
+            // closing.
+            if (removed != null) {
+                removed.close();
+                ShardOp shardOp;
+                ArrayList<ActionListener<Void>> writeListeners = new ArrayList<>();
+                while ((shardOp = removed.pollPreIndexed()) != null) {
+                    writeListeners.add(shardOp.getWriteListener());
+                }
+                onFailure(writeListeners.stream(), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
+            }
         }
     }
 
@@ -314,12 +351,13 @@ public class BatchedShardExecutor {
 
     static class ShardState {
 
-        private static final int MAX_QUEUED = 200;
+        private static final int MAX_QUEUED = 400;
 
         private final int maxScheduledTasks;
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
         private final Semaphore scheduleTaskSemaphore;
+        private volatile boolean isClosed = false;
 
         private ShardState(int maxScheduledTasks) {
             scheduleTaskSemaphore = new Semaphore(maxScheduledTasks);
@@ -334,6 +372,14 @@ public class BatchedShardExecutor {
                 preIndexedQueue.add(shardOp);
                 return true;
             }
+        }
+
+        private boolean remove(ShardOp shardOp) {
+            if (preIndexedQueue.remove(shardOp)) {
+                pendingOps.getAndDecrement();
+                return true;
+            }
+            return false;
         }
 
         private ShardOp pollPreIndexed() {
@@ -359,17 +405,33 @@ public class BatchedShardExecutor {
         int scheduledTasks() {
             return maxScheduledTasks - scheduleTaskSemaphore.availablePermits();
         }
+
+        boolean isClosed() {
+            return isClosed;
+        }
+
+        void close() {
+            isClosed = true;
+        }
     }
 
-    public static class Result<R> {
+    public static class WriteResult {
 
-        private final R response;
+        @Nullable
+        private final BulkShardRequest replicaRequest;
+        private final BulkShardResponse response;
 
-        public Result(R response) {
+
+        public WriteResult(BulkShardRequest replicaRequest, BulkShardResponse response) {
+            this.replicaRequest = replicaRequest;
             this.response = response;
         }
 
-        public R getResponse() {
+        public BulkShardRequest getReplicaRequest() {
+            return replicaRequest;
+        }
+
+        public BulkShardResponse getResponse() {
             return response;
         }
     }
@@ -382,7 +444,7 @@ public class BatchedShardExecutor {
             this.forcedRefresh = forcedRefresh;
         }
 
-        public boolean isForcedRefresh() {
+        public boolean forcedRefresh() {
             return forcedRefresh;
         }
     }
@@ -455,14 +517,14 @@ public class BatchedShardExecutor {
         private final BulkPrimaryExecutionContext context;
         private final ActionListener<Void> writeListener;
 
-        public PrimaryOp(BulkShardRequest request, IndexShard indexShard, ActionListener<BulkShardResponse> writeListener,
+        public PrimaryOp(BulkShardRequest request, IndexShard indexShard, ActionListener<WriteResult> writeListener,
                          ActionListener<FlushResult> flushListener) {
             super(request, indexShard, flushListener);
             this.context = new BulkPrimaryExecutionContext(request, indexShard);
             this.writeListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
-                    writeListener.onResponse(context.buildShardResponse());
+                    writeListener.onResponse(new WriteResult(context.getBulkShardRequest(), context.buildShardResponse()));
                 }
 
                 @Override

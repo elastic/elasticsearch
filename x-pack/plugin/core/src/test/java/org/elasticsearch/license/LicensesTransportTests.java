@@ -187,7 +187,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         assertThat(deleteLicenseResponse.isAcknowledged(), equalTo(true));
         // get licenses (expected no licenses)
         getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertNull(getLicenseResponse.license());
+        assertTrue(License.LicenseType.isBasic(getLicenseResponse.license().type()));
     }
 
     public void testLicenseIsRejectWhenStartDateLaterThanNow() throws Exception {

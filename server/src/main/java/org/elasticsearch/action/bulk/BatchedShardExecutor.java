@@ -195,7 +195,9 @@ public class BatchedShardExecutor {
                 }
             }
         } finally {
-            finishOperations(indexShard, completedOps);
+            if (completedOps.isEmpty() == false) {
+                finishOperations(indexShard, completedOps);
+            }
             cleanupIfShardClosed(indexShard);
         }
     }
@@ -210,8 +212,8 @@ public class BatchedShardExecutor {
         ArrayList<ShardOp> completedOpsNeedSync = new ArrayList<>();
         ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
         ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
-        Translog.Location maxLocation = null;
 
+        Translog.Location maxLocation = null;
         Translog.Location syncedLocation = null;
         try {
             syncedLocation = indexShard.getTranslogLastSyncedLocation();
@@ -224,13 +226,13 @@ public class BatchedShardExecutor {
             if (location != null) {
                 if (syncedLocation == null || location.compareTo(syncedLocation) > 0) {
                     completedOpsNeedSync.add(indexedOp);
-                    if (maxLocation == null) {
-                        maxLocation = location;
-                    } else if (location.compareTo(maxLocation) > 0) {
-                        maxLocation = location;
-                    }
                 } else {
                     completedOpsAlreadySynced.add(indexedOp);
+                }
+                if (maxLocation == null) {
+                    maxLocation = location;
+                } else if (location.compareTo(maxLocation) > 0) {
+                    maxLocation = location;
                 }
             } else {
                 completedOpsAlreadySynced.add(indexedOp);
@@ -249,12 +251,12 @@ public class BatchedShardExecutor {
         finishOperations(indexShard, maxLocation, completedOpsNeedSync, completedOpsWaitForRefresh, completedOpsForceRefresh);
     }
 
-    private void finishOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> completedOps,
+    private void finishOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> completedOpsNeedSync,
                                   ArrayList<ShardOp> completedOpsWaitForRefresh, ArrayList<ShardOp> completedOpsForceRefresh) {
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST && maxLocation != null) {
-            syncOperations(indexShard, maxLocation, completedOps);
+            syncOperations(indexShard, maxLocation, completedOpsNeedSync);
         } else {
-            onResponse(completedOps.stream().map(ShardOp::getFlushListener), null);
+            onResponse(completedOpsNeedSync.stream().map(ShardOp::getFlushListener), null);
         }
 
         AtomicBoolean refreshed = new AtomicBoolean(false);

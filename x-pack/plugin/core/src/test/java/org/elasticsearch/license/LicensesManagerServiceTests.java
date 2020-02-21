@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -126,10 +125,10 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     private void removeAndAckSignedLicenses(final LicenseService licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
-        licenseService.removeLicense(new DeleteLicenseRequest(), new ActionListener<ClusterStateUpdateResponse>() {
+        licenseService.removeLicense(new DeleteLicenseRequest(), new ActionListener<PostStartBasicResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                if (clusterStateUpdateResponse.isAcknowledged()) {
+            public void onResponse(PostStartBasicResponse postStartBasicResponse) {
+                if (postStartBasicResponse.isAcknowledged()) {
                     success.set(true);
                 }
                 latch.countDown();

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -342,22 +341,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Remove license from the cluster state metadata
      */
-    public void removeLicense(final DeleteLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void removeLicense(final DeleteLicenseRequest request, final ActionListener<PostStartBasicResponse> listener) {
+        final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
         clusterService.submitStateUpdateTask("delete license",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    final StartBasicClusterTask startBasicClusterTask =
-                        new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock,
-                            new PostStartBasicRequest().acknowledge(true), null);
-                    return startBasicClusterTask.execute(currentState);
-                }
-            });
+            new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, startBasicRequest, listener));
     }
 
     public License getLicense() {

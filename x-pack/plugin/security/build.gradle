@@ -457,12 +457,12 @@ thirdPartyAudit.ignoreMissingClasses(
   'javax.xml.bind.JAXBException',
   'javax.xml.bind.Unmarshaller',
   'javax.xml.bind.UnmarshallerHandler',
-  'javax.activation.ActivationDataFlavor',
-  'javax.activation.DataContentHandler',
-  'javax.activation.DataHandler',
-  'javax.activation.DataSource',
-  'javax.activation.FileDataSource',
-  'javax.activation.FileTypeMap'
+  // Optional dependencies of oauth2-oidc-sdl
+  'com.nimbusds.common.contenttype.ContentType',
+  'javax.mail.internet.AddressException',
+  'javax.mail.internet.ContentType',
+  'javax.mail.internet.InternetAddress',
+  'javax.mail.internet.ParameterList'
 )
 
 

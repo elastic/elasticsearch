@@ -51,7 +51,7 @@ xpack.security.http.ssl.enabled: true
 xpack.security.http.ssl.keystore.path: "http.p12"
 --------------------------------------------------
 
-If the certificates are in PEM format:
+If you have certificates in PEM format:
 
 [source, yaml]
 --------------------------------------------------

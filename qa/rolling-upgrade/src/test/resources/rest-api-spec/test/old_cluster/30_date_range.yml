@@ -52,14 +52,14 @@
             "properties":
               "time_frame":
                 "type": "date_range"
-                "format": "YYYY-MM-dd"
+                "format": "xxxx-ww-ee"
 
   - do:
       bulk:
         refresh: true
         body:
           - '{"index": {"_index": "joda_for_range"}}'
-          - '{"time_frame": {"gte": "2020-01-01", "lte" : "2020-01-03"}}'
+          - '{"time_frame": {"gte": "2020-01-01", "lte" : "2020-03-01"}}'
 
   - do:
       search:

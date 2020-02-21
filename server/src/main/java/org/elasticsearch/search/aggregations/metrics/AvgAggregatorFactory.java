@@ -48,7 +48,7 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(SumAggregationBuilder.NAME,
+        valuesSourceRegistry.register(AvgAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new MetricAggregatorSupplier() {
                 @Override

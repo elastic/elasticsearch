@@ -55,6 +55,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -100,6 +101,7 @@ import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
@@ -142,10 +144,12 @@ public class JobResultsProvider {
 
     private final Client client;
     private final Settings settings;
+    private final IndexNameExpressionResolver resolver;
 
-    public JobResultsProvider(Client client, Settings settings) {
+    public JobResultsProvider(Client client, Settings settings, IndexNameExpressionResolver resolver) {
         this.client = Objects.requireNonNull(client);
         this.settings = settings;
+        this.resolver = resolver;
     }
 
     /**
@@ -262,7 +266,6 @@ public class JobResultsProvider {
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
         if (state.getMetaData().hasAlias(tempIndexName)) {
-            IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
             String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
 
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
@@ -277,7 +280,7 @@ public class JobResultsProvider {
         }
         final String indexName = tempIndexName;
 
-        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
+        ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
                     .addAlias(indexName, readAliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
                     .addAlias(indexName, writeAliasName).request();
@@ -291,52 +294,49 @@ public class JobResultsProvider {
         if (!state.getMetaData().hasIndex(indexName)) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-            // This assumes the requested mapping will be merged with mappings from the template,
-            // and may need to be revisited if template merging is ever refactored
-            try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(termFields)) {
-                createIndexRequest.mapping(termFieldsMapping);
-            }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(
-                            r -> createAliasListener.onResponse(r.isAcknowledged()),
+                            // Add the term field mappings and alias.  The complication is that the state at the
+                            // beginning of the operation doesn't have any knowledge of the index, as it's only
+                            // just been created.  So we need yet another operation to get the mappings for it.
+                            r -> getLatestIndexMappingsAndAddTerms(indexName, termFields, indexAndMappingsListener),
                             e -> {
                                 // Possible that the index was created while the request was executing,
                                 // so we need to handle that possibility
                                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                                    LOGGER.info("Index already exists");
-                                    // Add the term field mappings and alias.  The complication is that the state at the
-                                    // beginning of the operation doesn't have any knowledge of the index, as it's only
-                                    // just been created.  So we need yet another operation to get the mappings for it.
-                                    getLatestIndexMappings(indexName, ActionListener.wrap(
-                                        response -> {
-                                            // Expect one index.  If this is not the case then it means the
-                                            // index has been deleted almost immediately after being created, and this is
-                                            // so unlikely that it's reasonable to fail the whole operation.
-                                            MappingMetaData typeMappings = response.getMappings().iterator().next().value;
-                                            addTermsAndAliases(typeMappings, indexName, termFields, createAliasListener);
-                                        },
-                                        finalListener::onFailure
-                                    ));
+                                    LOGGER.info("Index [{}] already exists", indexName);
+                                    getLatestIndexMappingsAndAddTerms(indexName, termFields, indexAndMappingsListener);
                                 } else {
                                     finalListener.onFailure(e);
                                 }
                             }
                     ), client.admin().indices()::create);
         } else {
-            MappingMetaData mapping = state.metaData().index(indexName).mapping();
-            addTermsAndAliases(mapping, indexName, termFields, createAliasListener);
+            MappingMetaData indexMappings = state.metaData().index(indexName).mapping();
+            addTermsMapping(indexMappings, indexName, termFields, indexAndMappingsListener);
         }
     }
 
-    private void getLatestIndexMappings(final String indexName, final ActionListener<GetMappingsResponse> listener) {
+    private void getLatestIndexMappingsAndAddTerms(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
+
+        ActionListener<GetMappingsResponse> getMappingsListener = ActionListener.wrap(
+            getMappingsResponse -> {
+                // Expect one index.  If this is not the case then it means the
+                // index has been deleted almost immediately after being created, and this is
+                // so unlikely that it's reasonable to fail the whole operation.
+                MappingMetaData indexMappings = getMappingsResponse.getMappings().iterator().next().value;
+                addTermsMapping(indexMappings, indexName, termFields, listener);
+            },
+            listener::onFailure
+        );
 
         GetMappingsRequest getMappingsRequest = client.admin().indices().prepareGetMappings(indexName).request();
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getMappingsRequest, listener,
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getMappingsRequest, getMappingsListener,
             client.admin().indices()::getMappings);
     }
 
-    private void addTermsAndAliases(final MappingMetaData mapping, final String indexName, final Collection<String> termFields,
-                                    final ActionListener<Boolean> listener) {
+    private void addTermsMapping(MappingMetaData mapping, String indexName, Collection<String> termFields,
+                                 ActionListener<Boolean> listener) {
         long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
 
         if (violatedFieldCountLimit(termFields.size(), fieldCountLimit, mapping)) {
@@ -376,8 +376,9 @@ public class JobResultsProvider {
 
     private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields,
                                                   ActionListener<Boolean> listener) {
-        // Put the whole mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
+
+        try (XContentBuilder termFieldsMapping = JsonXContent.contentBuilder()) {
+            createTermFieldsMapping(termFieldsMapping, termFields);
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
@@ -394,6 +395,19 @@ public class JobResultsProvider {
         } catch (IOException e) {
             listener.onFailure(e);
         }
+    }
+
+    // Visible for testing
+    static void createTermFieldsMapping(XContentBuilder builder, Collection<String> termFields) throws IOException {
+        builder.startObject();
+        builder.startObject("properties");
+        for (String fieldName : termFields) {
+            if (ReservedFieldNames.isValidFieldName(fieldName)) {
+                builder.startObject(fieldName).field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD).endObject();
+            }
+        }
+        builder.endObject();
+        builder.endObject();
     }
 
     /**

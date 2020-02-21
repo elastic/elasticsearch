@@ -64,6 +64,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
     private static final String LEGACY_INDEX_WITHOUT_SUFFIX = TEST_INDEX_PREFIX;
     private static final String FIRST_CONCRETE_INDEX = "test-000001";
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+
     private ThreadPool threadPool;
     private IndicesAdminClient indicesAdminClient;
     private AdminClient adminClient;

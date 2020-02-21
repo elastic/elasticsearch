@@ -81,9 +81,13 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
     public void testXContentRoundTripWithAllFields() throws Exception {
         final List<X509Credential> credentials = readCredentials();
-        final List<X509Certificate> certificates = randomSubsetOf(randomIntBetween(1, credentials.size()), credentials).stream()
+        final List<X509Certificate> certificates = credentials.stream()
             .map(X509Credential::getEntityCertificate)
             .collect(Collectors.toUnmodifiableList());
+        final List<X509Certificate> spCertificates = randomSubsetOf(certificates);
+        final List<X509Certificate> idpCertificates = randomSubsetOf(certificates);
+        final List<X509Certificate> idpMetadataCertificates = randomSubsetOf(certificates);
+
         final SamlServiceProviderDocument doc1 = new SamlServiceProviderDocument();
         doc1.setDocId(randomAlphaOfLength(16));
         doc1.setName(randomAlphaOfLengthBetween(8, 12));
@@ -91,9 +95,11 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         doc1.setAcs("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
         doc1.setCreatedMillis(System.currentTimeMillis() - randomIntBetween(100_000, 1_000_000));
         doc1.setLastModifiedMillis(System.currentTimeMillis() - randomIntBetween(1_000, 100_000));
-        doc1.setNameIdFormat(randomFrom(NameID.TRANSIENT, NameID.PERSISTENT, NameID.EMAIL));
+        doc1.setNameIdFormats(randomSubsetOf(List.of(NameID.TRANSIENT, NameID.PERSISTENT, NameID.EMAIL)));
         doc1.setAuthenticationExpiryMillis(randomLongBetween(100, 5_000_000));
-        doc1.setX509SigningCertificates(certificates);
+        doc1.certificates.setServiceProviderX509SigningCertificates(spCertificates);
+        doc1.certificates.setIdentityProviderX509SigningCertificates(idpCertificates);
+        doc1.certificates.setIdentityProviderX509MetadataSigningCertificates(idpMetadataCertificates);
 
         doc1.privileges.setApplication(randomAlphaOfLengthBetween(6, 24));
         doc1.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));

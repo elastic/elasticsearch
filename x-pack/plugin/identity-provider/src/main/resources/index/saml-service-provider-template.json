@@ -47,9 +47,6 @@
         "authn_expiry_ms": {
           "type": "long"
         },
-        "signing_cert": {
-          "type": "text"
-        },
         "privileges": {
           "type": "object",
           "properties": {
@@ -82,6 +79,20 @@
             },
             "groups": {
               "type": "keyword"
+            }
+          }
+        },
+        "certificates": {
+          "type": "object",
+          "properties": {
+            "sp_signing": {
+              "type": "text"
+            },
+            "idp_signing": {
+              "type": "text"
+            },
+            "idp_metadata": {
+              "type": "text"
             }
           }
         }

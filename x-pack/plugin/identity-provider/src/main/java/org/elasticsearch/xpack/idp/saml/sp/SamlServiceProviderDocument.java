@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -125,6 +126,105 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         }
     }
 
+    public static class Certificates {
+        public List<String> serviceProviderSigning = List.of();
+        public List<String> identityProviderSigning = List.of();
+        public List<String> identityProviderMetadataSigning = List.of();
+
+        public void setServiceProviderSigning(Collection<String> serviceProviderSigning) {
+            this.serviceProviderSigning = serviceProviderSigning == null ? List.of() : List.copyOf(serviceProviderSigning);
+        }
+
+        public void setIdentityProviderSigning(Collection<String> identityProviderSigning) {
+            this.identityProviderSigning = identityProviderSigning == null ? List.of() : List.copyOf(identityProviderSigning);
+        }
+
+        public void setIdentityProviderMetadataSigning(Collection<String> identityProviderMetadataSigning) {
+            this.identityProviderMetadataSigning
+                = identityProviderMetadataSigning == null ? List.of() : List.copyOf(identityProviderMetadataSigning);
+        }
+
+        public void setServiceProviderX509SigningCertificates(Collection<X509Certificate> certificates) {
+            this.serviceProviderSigning = encodeCertificates(certificates);
+        }
+
+        public List<X509Certificate> getServiceProviderX509SigningCertificates() {
+            return decodeCertificates(this.serviceProviderSigning);
+        }
+
+        public void setIdentityProviderX509SigningCertificates(Collection<X509Certificate> certificates) {
+            this.identityProviderSigning = encodeCertificates(certificates);
+        }
+
+        public List<X509Certificate> getIdentityProviderX509SigningCertificates() {
+            return decodeCertificates(this.identityProviderSigning);
+        }
+
+        public void setIdentityProviderX509MetadataSigningCertificates(Collection<X509Certificate> certificates) {
+            this.identityProviderMetadataSigning = encodeCertificates(certificates);
+        }
+
+        public List<X509Certificate> getIdentityProviderX509MetadataSigningCertificates() {
+            return decodeCertificates(this.identityProviderMetadataSigning);
+        }
+
+        private List<String> encodeCertificates(Collection<X509Certificate> certificates) {
+            return certificates == null ? List.of() : certificates.stream()
+                .map(cert -> {
+                    try {
+                        return cert.getEncoded();
+                    } catch (CertificateEncodingException e) {
+                        throw new ElasticsearchException("Cannot read certificate", e);
+                    }
+                })
+                .map(Base64.getEncoder()::encodeToString)
+                .collect(Collectors.toUnmodifiableList());
+        }
+
+        private List<X509Certificate> decodeCertificates(List<String> encodedCertificates) {
+            if (encodedCertificates == null || encodedCertificates.isEmpty()) {
+                return List.of();
+            }
+            return encodedCertificates.stream().map(this::decodeCertificate).collect(Collectors.toUnmodifiableList());
+        }
+
+        private X509Certificate decodeCertificate(String base64Cert) {
+            final byte[] bytes = base64Cert.getBytes(StandardCharsets.UTF_8);
+            try (InputStream stream = new ByteArrayInputStream(bytes)) {
+                final List<Certificate> certificates = CertParsingUtils.readCertificates(Base64.getDecoder().wrap(stream));
+                if (certificates.size() == 1) {
+                    final Certificate certificate = certificates.get(0);
+                    if (certificate instanceof X509Certificate) {
+                        return (X509Certificate) certificate;
+                    } else {
+                        throw new ElasticsearchException("Certificate ({}) is not a X.509 certificate", certificate.getClass());
+                    }
+                } else {
+                    throw new ElasticsearchException("Expected a single certificate, but found {}", certificates.size());
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } catch (CertificateException e) {
+                throw new ElasticsearchException("Cannot parse certificate(s)", e);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Certificates that = (Certificates) o;
+            return Objects.equals(serviceProviderSigning, that.serviceProviderSigning) &&
+                Objects.equals(identityProviderSigning, that.identityProviderSigning) &&
+                Objects.equals(identityProviderMetadataSigning, that.identityProviderMetadataSigning);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(serviceProviderSigning, identityProviderSigning, identityProviderMetadataSigning);
+        }
+    }
+
     public String docId;
 
     public String name;
@@ -138,15 +238,14 @@ public class SamlServiceProviderDocument implements ToXContentObject {
     public Instant lastModified;
 
     @Nullable
-    public String nameIdFormat;
+    public Set<String> nameIdFormats = Set.of();
 
     @Nullable
     public Long authenticationExpiryMillis;
 
-    public List<String> signingCertificates = List.of();
-
     public final Privileges privileges = new Privileges();
     public final AttributeNames attributeNames = new AttributeNames();
+    public final Certificates certificates = new Certificates();
 
     public String getDocId() {
         return docId;
@@ -180,8 +279,8 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         this.lastModified = Instant.ofEpochMilli(millis);
     }
 
-    public void setNameIdFormat(String nameIdFormat) {
-        this.nameIdFormat = nameIdFormat;
+    public void setNameIdFormats(Collection<String> nameIdFormats) {
+        this.nameIdFormats = nameIdFormats == null ? Set.of() : Set.copyOf(nameIdFormats);
     }
 
     public void setAuthenticationExpiryMillis(Long authenticationExpiryMillis) {
@@ -196,51 +295,6 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         return Duration.millis(this.authenticationExpiryMillis);
     }
 
-    public void setSigningCertificates(Collection<String> signingCertificates) {
-        this.signingCertificates = signingCertificates == null ? List.of() : List.copyOf(signingCertificates);
-    }
-
-    public void setX509SigningCertificates(Collection<X509Certificate> certificates) throws CertificateEncodingException {
-        this.signingCertificates = certificates == null ? List.of() : certificates.stream()
-            .map(cert -> {
-                try {
-                    return cert.getEncoded();
-                } catch (CertificateEncodingException e) {
-                    throw new ElasticsearchException("Cannot read certificate", e);
-                }
-            })
-            .map(Base64.getEncoder()::encodeToString)
-            .collect(Collectors.toUnmodifiableList());
-    }
-
-    public List<X509Certificate> getX509SigningCertificates() {
-        if (this.signingCertificates == null || this.signingCertificates.isEmpty()) {
-            return List.of();
-        }
-        return this.signingCertificates.stream().map(this::toX509Certificate).collect(Collectors.toUnmodifiableList());
-    }
-
-    private X509Certificate toX509Certificate(String base64Cert) {
-        final byte[] bytes = base64Cert.getBytes(StandardCharsets.UTF_8);
-        try (InputStream stream = new ByteArrayInputStream(bytes)) {
-            final List<Certificate> certificates = CertParsingUtils.readCertificates(Base64.getDecoder().wrap(stream));
-            if (certificates.size() == 1) {
-                final Certificate certificate = certificates.get(0);
-                if (certificate instanceof X509Certificate) {
-                    return (X509Certificate) certificate;
-                } else {
-                    throw new ElasticsearchException("Certificate ({}) is not a X.509 certificate", certificate.getClass());
-                }
-            } else {
-                throw new ElasticsearchException("Expected a single certificate, but found {}", certificates.size());
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (CertificateException e) {
-            throw new ElasticsearchException("Cannot parse certificate(s)", e);
-        }
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -253,23 +307,24 @@ public class SamlServiceProviderDocument implements ToXContentObject {
             Objects.equals(enabled, that.enabled) &&
             Objects.equals(created, that.created) &&
             Objects.equals(lastModified, that.lastModified) &&
-            Objects.equals(nameIdFormat, that.nameIdFormat) &&
+            Objects.equals(nameIdFormats, that.nameIdFormats) &&
             Objects.equals(authenticationExpiryMillis, that.authenticationExpiryMillis) &&
-            Objects.equals(signingCertificates, that.signingCertificates) &&
+            Objects.equals(certificates, that.certificates) &&
             Objects.equals(privileges, that.privileges) &&
             Objects.equals(attributeNames, that.attributeNames);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(docId, name, entityId, acs, enabled, created, lastModified, nameIdFormat, authenticationExpiryMillis,
-            signingCertificates, privileges, attributeNames);
+        return Objects.hash(docId, name, entityId, acs, enabled, created, lastModified, nameIdFormats, authenticationExpiryMillis,
+            certificates, privileges, attributeNames);
     }
 
     private static final ObjectParser<SamlServiceProviderDocument, SamlServiceProviderDocument> DOC_PARSER
         = new ObjectParser<>("service_provider_doc", true, SamlServiceProviderDocument::new);
     private static final ObjectParser<Privileges, Void> PRIVILEGES_PARSER = new ObjectParser<>("service_provider_priv", true, null);
     private static final ObjectParser<AttributeNames, Void> ATTRIBUTES_PARSER = new ObjectParser<>("service_provider_attr", true, null);
+    private static final ObjectParser<Certificates, Void> CERTIFICATES_PARSER = new ObjectParser<>("service_provider_cert", true, null);
 
     private static final BiConsumer<SamlServiceProviderDocument, Object> NULL_CONSUMER = (doc, obj) -> {
     };
@@ -281,12 +336,10 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         DOC_PARSER.declareBoolean(SamlServiceProviderDocument::setEnabled, Fields.ENABLED);
         DOC_PARSER.declareLong(SamlServiceProviderDocument::setCreatedMillis, Fields.CREATED_DATE);
         DOC_PARSER.declareLong(SamlServiceProviderDocument::setLastModifiedMillis, Fields.LAST_MODIFIED);
-        DOC_PARSER.declareStringOrNull(SamlServiceProviderDocument::setNameIdFormat, Fields.NAME_ID);
-        // Using a method reference here angers some compilers
+        DOC_PARSER.declareStringArray(SamlServiceProviderDocument::setNameIdFormats, Fields.NAME_ID);
         DOC_PARSER.declareField(SamlServiceProviderDocument::setAuthenticationExpiryMillis,
             parser -> parser.currentToken() == XContentParser.Token.VALUE_NULL ? null : parser.longValue(),
             Fields.AUTHN_EXPIRY, ObjectParser.ValueType.LONG_OR_NULL);
-        DOC_PARSER.declareStringArray(SamlServiceProviderDocument::setSigningCertificates, Fields.SIGNING_CERT);
 
         DOC_PARSER.declareObject(NULL_CONSUMER, (parser, doc) -> PRIVILEGES_PARSER.parse(parser, doc.privileges, null), Fields.PRIVILEGES);
         PRIVILEGES_PARSER.declareStringOrNull(Privileges::setApplication, Fields.Privileges.APPLICATION);
@@ -301,6 +354,11 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setEmail, Fields.Attributes.EMAIL);
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setName, Fields.Attributes.NAME);
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setGroups, Fields.Attributes.GROUPS);
+
+        DOC_PARSER.declareObject(NULL_CONSUMER, (p, doc) -> CERTIFICATES_PARSER.parse(p, doc.certificates, null), Fields.CERTIFICATES);
+        CERTIFICATES_PARSER.declareStringArray(Certificates::setServiceProviderSigning, Fields.Certificates.SP_SIGNING);
+        CERTIFICATES_PARSER.declareStringArray(Certificates::setIdentityProviderSigning, Fields.Certificates.IDP_SIGNING);
+        CERTIFICATES_PARSER.declareStringArray(Certificates::setIdentityProviderMetadataSigning, Fields.Certificates.IDP_METADATA);
     }
 
     public static SamlServiceProviderDocument fromXContent(String docId, XContentParser parser) throws IOException {
@@ -351,9 +409,8 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         builder.field(Fields.ENABLED.getPreferredName(), enabled);
         builder.field(Fields.CREATED_DATE.getPreferredName(), created == null ? null : created.toEpochMilli());
         builder.field(Fields.LAST_MODIFIED.getPreferredName(), lastModified == null ? null : lastModified.toEpochMilli());
-        builder.field(Fields.NAME_ID.getPreferredName(), nameIdFormat);
+        builder.field(Fields.NAME_ID.getPreferredName(), nameIdFormats == null ? List.of() : nameIdFormats);
         builder.field(Fields.AUTHN_EXPIRY.getPreferredName(), authenticationExpiryMillis);
-        builder.field(Fields.SIGNING_CERT.getPreferredName(), signingCertificates == null ? List.of() : signingCertificates);
 
         builder.startObject(Fields.PRIVILEGES.getPreferredName());
         builder.field(Fields.Privileges.APPLICATION.getPreferredName(), privileges.application);
@@ -369,6 +426,12 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         builder.field(Fields.Attributes.GROUPS.getPreferredName(), attributeNames.groups);
         builder.endObject();
 
+        builder.startObject(Fields.CERTIFICATES.getPreferredName());
+        builder.field(Fields.Certificates.SP_SIGNING.getPreferredName(), certificates.serviceProviderSigning);
+        builder.field(Fields.Certificates.IDP_SIGNING.getPreferredName(), certificates.identityProviderSigning);
+        builder.field(Fields.Certificates.IDP_METADATA.getPreferredName(), certificates.identityProviderMetadataSigning);
+        builder.endObject();
+
         return builder.endObject();
     }
 
@@ -379,13 +442,13 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         ParseField ENABLED = new ParseField("enabled");
         ParseField NAME_ID = new ParseField("name_id_format");
         ParseField AUTHN_EXPIRY = new ParseField("authn_expiry_ms");
-        ParseField SIGNING_CERT = new ParseField("signing_cert");
 
         ParseField CREATED_DATE = new ParseField("created");
         ParseField LAST_MODIFIED = new ParseField("last_modified");
 
         ParseField PRIVILEGES = new ParseField("privileges");
         ParseField ATTRIBUTES = new ParseField("attributes");
+        ParseField CERTIFICATES = new ParseField("certificates");
 
         interface Privileges {
             ParseField APPLICATION = new ParseField("application");
@@ -399,6 +462,12 @@ public class SamlServiceProviderDocument implements ToXContentObject {
             ParseField EMAIL = new ParseField("email");
             ParseField NAME = new ParseField("name");
             ParseField GROUPS = new ParseField("groups");
+        }
+
+        interface Certificates {
+            ParseField SP_SIGNING = new ParseField("sp_signing");
+            ParseField IDP_SIGNING = new ParseField("idp_signing");
+            ParseField IDP_METADATA = new ParseField("idp_metadata");
         }
     }
 }

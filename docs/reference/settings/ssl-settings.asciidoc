@@ -85,7 +85,7 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 +{ssl-prefix}.ssl.truststore.path+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path-jks]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 +{ssl-prefix}.ssl.truststore.password+::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]

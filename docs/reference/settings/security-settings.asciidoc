@@ -502,7 +502,7 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 `ssl.truststore.path`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path-jks]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 +
 You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
@@ -761,7 +761,7 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `ssl.truststore.path`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path-jks]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 +
 You cannot use this setting and `ssl.certificate_authorities` at the same time.
 

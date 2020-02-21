@@ -128,10 +128,6 @@ either a Java keystore (jks) or a PKCS#12 file.
 //TBD: You cannot use this setting and `ssl.certificate_authorities` at the same time.
 end::ssl-truststore-path[]
 
-tag::ssl-truststore-path-jks[]
-The path for the Java keystore file that contains the certificates to trust.
-end::ssl-truststore-path-jks[]
-
 tag::ssl-truststore-secure-password[]
 Password for the truststore.
 //TBD: You cannot use this setting and `ssl.truststore.password` at the same time.

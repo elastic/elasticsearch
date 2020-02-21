@@ -184,7 +184,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             ActionListener.wrap(
                 updatedTask -> {
                     auditor.info(getParams().getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE, state));
-                    LOGGER.info("[{}] Successfully update task state to [{}]", getParams().getId(), state);
+                    LOGGER.info("[{}] Successfully updated task state to [{}] with reason [{}]", getParams().getId(), state, reason);
                 },
                 e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}] with reason [{}]",
                     getParams().getId(), state, reason), e)

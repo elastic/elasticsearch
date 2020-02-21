@@ -92,6 +92,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
@@ -600,8 +601,13 @@ public class Node implements Closeable {
             );
             injector = modules.createInjector();
 
-            // TODO hack around circular dependencies problems in AllocationService
-            clusterModule.setExistingShardsAllocators(injector, pluginsService.filterPlugins(ClusterPlugin.class));
+            // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
+            // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it
+            // completes we trigger another reroute to try the allocation again. This means there is a circular dependency: the allocation
+            // service needs access to the existing shards allocators (e.g. the GatewayAllocator) which need to be able to trigger a
+            // reroute, which needs to call into the allocation service. We close the loop here:
+            clusterModule.setExistingShardsAllocators(
+                injector.getInstance(GatewayAllocator.class), pluginsService.filterPlugins(ClusterPlugin.class));
 
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)

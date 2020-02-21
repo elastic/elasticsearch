@@ -254,16 +254,13 @@ public class ClusterModule extends AbstractModule {
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
 
-    public void setExistingShardsAllocators(Injector injector, List<ClusterPlugin> clusterPlugins) {
-        final Settings settings = clusterService.getSettings();
-        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-
+    public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator, List<ClusterPlugin> clusterPlugins) {
         final Map<String, ExistingShardsAllocator> existingShardsAllocators = new HashMap<>();
-        existingShardsAllocators.put(GatewayAllocator.ALLOCATOR_NAME, injector.getInstance(GatewayAllocator.class));
+        existingShardsAllocators.put(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator);
 
         for (ClusterPlugin clusterPlugin : clusterPlugins) {
             for (Map.Entry<String, ExistingShardsAllocator> existingShardsAllocatorEntry
-                : clusterPlugin.getExistingShardsAllocators(settings, clusterSettings).entrySet()) {
+                : clusterPlugin.getExistingShardsAllocators().entrySet()) {
                 final String allocatorName = existingShardsAllocatorEntry.getKey();
                 if (existingShardsAllocators.put(allocatorName, existingShardsAllocatorEntry.getValue()) != null) {
                     throw new IllegalArgumentException("ExistingShardsAllocator [" + allocatorName + "] already defined");

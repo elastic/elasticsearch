@@ -64,7 +64,7 @@ public interface ClusterPlugin {
      * Return {@link ExistingShardsAllocator} implementations added by this plugin, which will run instead of the default
      * {@link org.elasticsearch.gateway.GatewayAllocator}.
      */
-    default Map<String, ExistingShardsAllocator> getExistingShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
+    default Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
         return Collections.emptyMap();
     }
 

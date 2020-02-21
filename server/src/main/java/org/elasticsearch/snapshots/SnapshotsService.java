@@ -124,6 +124,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
 
+    public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = Version.V_8_0_0;
+
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
@@ -1443,7 +1445,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @return true if version supports {@link ShardGenerations}
      */
     public static boolean useIndexGenerations(Version repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(Version.V_8_0_0);
+        return repositoryMetaVersion.onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION);
     }
 
     /**

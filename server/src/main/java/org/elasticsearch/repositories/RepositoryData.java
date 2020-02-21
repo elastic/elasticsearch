@@ -207,13 +207,13 @@ public final class RepositoryData {
      */
     public Map<IndexId, String> indexMetaDataToRemoveAfterRemovingSnapshot(SnapshotId snapshotId) {
         Collection<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotId);
-        final Set<String> allIdentifiers = indexMetaDataGenerations.lookup.entrySet().stream()
+        final Set<String> allRemainingIdentifiers = indexMetaDataGenerations.lookup.entrySet().stream()
             .filter(e -> e.getKey().equals(snapshotId) == false).flatMap(e -> e.getValue().values().stream())
             .map(indexMetaDataGenerations::getIndexMetaBlobId).collect(Collectors.toSet());
         final Map<IndexId, String> toRemove = new HashMap<>();
         for (IndexId indexId : indicesForSnapshot) {
             final String identifier = indexMetaDataGenerations.indexMetaBlobId(snapshotId, indexId);
-            if (allIdentifiers.contains(identifier) == false) {
+            if (allRemainingIdentifiers.contains(identifier) == false) {
                 final String prev = toRemove.put(indexId, identifier);
                 assert prev == null : "Saw double entry [" + prev + "][" + identifier + "]";
             }
@@ -465,12 +465,12 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endObject();
-        if (shouldWriteShardGens) {
+        if (shouldWriteIndexGens) {
+            builder.field(MIN_VERSION, SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION.toString());
+            builder.field(INDEX_METADATA_IDENTIFIERS, indexMetaDataGenerations.identifiers);
+        } else if (shouldWriteShardGens) {
             // Add min version field to make it impossible for older ES versions to deserialize this object
             builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
-        }
-        if (shouldWriteIndexGens) {
-            builder.field(INDEX_METADATA_IDENTIFIERS, indexMetaDataGenerations.identifiers);
         }
         builder.endObject();
         return builder;

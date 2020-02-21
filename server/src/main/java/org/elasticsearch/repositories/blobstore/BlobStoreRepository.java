@@ -1192,7 +1192,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 try (StreamOutput tmp = CompressorFactory.COMPRESSOR.streamOutput(out);
                      XContentBuilder builder = XContentFactory.jsonBuilder(tmp)) {
-                    updated.snapshotsToXContent(builder, true);
+                    updated.snapshotsToXContent(builder, Version.CURRENT);
                 }
                 serialized = out.bytes();
                 final int len = serialized.length();

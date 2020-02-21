@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -502,24 +500,13 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         }
         Query query = null;
         MappedFieldType mapper = context.fieldMapper(this.fieldName);
-        if (mapper != null) {
-            DateMathParser forcedDateParser = getForceDateParser();
-            query = mapper.rangeQuery(
-                    from, to, includeLower, includeUpper,
-                    relation, timeZone, forcedDateParser, context);
-        } else {
-            if (timeZone != null) {
-                throw new QueryShardException(context, "[range] time_zone can not be applied to non unmapped field ["
-                        + fieldName + "]");
-            }
+        if (mapper == null) {
+            throw new IllegalStateException("Rewrite first");
         }
-
-        if (query == null) {
-            query = new TermRangeQuery(this.fieldName,
-                    BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to),
-                    includeLower, includeUpper);
-        }
-        return query;
+        DateMathParser forcedDateParser = getForceDateParser();
+        return mapper.rangeQuery(
+                from, to, includeLower, includeUpper,
+                relation, timeZone, forcedDateParser, context);
     }
 
     @Override

@@ -489,7 +489,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 // since rewrites might happen on a network thread.
                 Query query = fieldType.termsQuery(values, context);
                 if (query instanceof MatchAllDocsQuery) {
-                    return new MatchAllQueryBuilder().queryName(queryName).boost(boost);
+                    return new MatchAllQueryBuilder();
                 } else if (query instanceof MatchNoDocsQuery) {
                     return new MatchNoneQueryBuilder();
                 } else {

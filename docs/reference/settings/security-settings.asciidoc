@@ -521,7 +521,7 @@ in the middle attacks and certificate forgery.
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols-1]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the LDAP server. 
@@ -774,7 +774,7 @@ in the middle attacks and certificate forgery.
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols-1]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the Active Directory server.
@@ -1188,7 +1188,7 @@ Controls the verification of certificates.
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols-1]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
@@ -1465,7 +1465,7 @@ Controls the verification of certificates.
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols-2]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]

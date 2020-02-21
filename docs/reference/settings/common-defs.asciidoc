@@ -106,16 +106,6 @@ or `SSLv3`. See <<fips-140-compliance>>.
 
 --
 end::ssl-supported-protocols[]
-//TBD: Are these three different definitions for supported protocols valid?
-tag::ssl-supported-protocols-1[]
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
-end::ssl-supported-protocols-1[]
-
-tag::ssl-supported-protocols-2[]
-Specifies the supported protocols for TLS/SSL. If the JVM supports TLSv1.3, the 
-defaults is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is
-`TLSv1.2,TLSv1.1`.
-end::ssl-supported-protocols-2[]
 
 tag::ssl-truststore-password[]
 The password for the truststore.

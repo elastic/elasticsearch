@@ -24,9 +24,10 @@ public class RegressionConfigTests extends AbstractSerializingTestCase<Regressio
     }
 
     public void testFromMap() {
-        RegressionConfig expected = new RegressionConfig("foo");
+        RegressionConfig expected = new RegressionConfig("foo", 3);
         Map<String, Object> config = new HashMap<String, Object>(){{
             put(RegressionConfig.RESULTS_FIELD.getPreferredName(), "foo");
+            put(RegressionConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), 3);
         }};
         assertThat(RegressionConfig.fromMap(config), equalTo(expected));
     }

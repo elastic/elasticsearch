@@ -118,13 +118,15 @@ public class AllocationService {
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
             clusterInfoService.getClusterInfo(), currentNanoTime());
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
-        final List<ShardRouting> sortedStartedShards = new ArrayList<>(startedShards);
-        Collections.sort(sortedStartedShards, Comparator.comparing(ShardRouting::primary));
-        applyStartedShards(allocation, sortedStartedShards);
-        existingShardsAllocators.values().forEach(allocator -> allocator.applyStartedShards(allocation, sortedStartedShards));
+        startedShards = new ArrayList<>(startedShards);
+        Collections.sort(startedShards, Comparator.comparing(ShardRouting::primary));
+        applyStartedShards(allocation, startedShards);
+        for (final ExistingShardsAllocator allocator : existingShardsAllocators.values()) {
+            allocator.applyStartedShards(allocation, startedShards);
+        }
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
         String startedShardsAsString
-            = firstListElementsToCommaDelimitedString(sortedStartedShards, s -> s.shardId().toString(), logger.isDebugEnabled());
+            = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString(), logger.isDebugEnabled());
         return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
@@ -453,7 +455,6 @@ public class AllocationService {
             existingShardsAllocator.afterPrimariesBeforeReplicas(allocation);
         }
 
-        // afterPrimariesBeforeReplicas may add more unassigned shards so we need a new iterator
         final RoutingNodes.UnassignedShards.UnassignedIterator replicaIterator = allocation.routingNodes().unassigned().iterator();
         while (replicaIterator.hasNext()) {
             final ShardRouting shardRouting = replicaIterator.next();

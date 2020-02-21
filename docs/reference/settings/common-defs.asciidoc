@@ -84,7 +84,7 @@ end::ssl-keystore-type-pkcs11[]
 
 tag::ssl-keystore-type-pkcs12[]
 The format of the keystore file. It must be either `jks` or `PKCS12`. If the
-keystore path ends in ".p12", ".pfx", or "pkcs12", this setting defaults 
+keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults 
 to `PKCS12`. Otherwise, it defaults to `jks`.
 end::ssl-keystore-type-pkcs12[]
 
@@ -164,4 +164,3 @@ production clusters is strongly discouraged.
 +
 The default value is `full`.
 end::ssl-verification-mode-values[]
-

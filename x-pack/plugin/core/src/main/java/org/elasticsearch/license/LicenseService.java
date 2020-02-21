@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -340,29 +339,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Remove license from the cluster state metadata
      */
-    public void removeLicense(final DeleteLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void removeLicense(final DeleteLicenseRequest request, final ActionListener<PostStartBasicResponse> listener) {
+        final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
         clusterService.submitStateUpdateTask("delete license",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    MetaData metaData = currentState.metaData();
-                    final LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
-                    if (currentLicenses.getLicense() != LicensesMetaData.LICENSE_TOMBSTONE) {
-                        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                        LicensesMetaData newMetadata = new LicensesMetaData(LicensesMetaData.LICENSE_TOMBSTONE,
-                            currentLicenses.getMostRecentTrialVersion());
-                        mdBuilder.putCustom(LicensesMetaData.TYPE, newMetadata);
-                        return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                    } else {
-                        return currentState;
-                    }
-                }
-            });
+            new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, startBasicRequest, listener));
     }
 
     public License getLicense() {

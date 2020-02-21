@@ -33,8 +33,6 @@ esplugin {
   hasClientJar = true
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-
 dependencies {
   // network stack
   compile "io.netty:netty-buffer:${versions.netty}"

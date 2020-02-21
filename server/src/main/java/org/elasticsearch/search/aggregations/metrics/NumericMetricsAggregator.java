@@ -41,6 +41,14 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         }
 
         public abstract double metric(long owningBucketOrd);
+
+        @Override
+        public void validateSortPathKey(String key) {
+            if (key != null && false == "value".equals(key)) {
+                throw new IllegalArgumentException("Ordering on a single-value metrics aggregation can only be done on its value. " +
+                        "Either drop the key (a la \"" + name() + "\") or change it to \"value\" (a la \"" + name() + ".value\")");
+            }
+        }
     }
 
     public abstract static class MultiValue extends NumericMetricsAggregator {
@@ -53,5 +61,16 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         public abstract boolean hasMetric(String name);
 
         public abstract double metric(String name, long owningBucketOrd);
+
+        @Override
+        public void validateSortPathKey(String key) {
+            if (key == null) {
+                throw new IllegalArgumentException("When ordering on a multi-value metrics aggregation a metric name must be specified.");
+            }
+            if (false == hasMetric(key)) {
+                throw new IllegalArgumentException(
+                        "Unknown metric name [" + key + "] on multi-value metrics aggregation [" + name() + "]");
+            }
+        }
     }
 }

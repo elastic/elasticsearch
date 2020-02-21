@@ -53,6 +53,13 @@ compile the SQL CLI Java files, needs to be installed to be able to run it:
 
 [source,bash]
 --------------------------------------------------
+$ ./java -jar [PATH_TO_CLI_JAR]/elasticsearch-sql-cli-[VERSION].jar https://some.server:9200
+--------------------------------------------------
+
+or
+
+[source,bash]
+--------------------------------------------------
 $ ./java -cp [PATH_TO_CLI_JAR]/elasticsearch-sql-cli-[VERSION].jar org.elasticsearch.xpack.sql.cli.Cli https://some.server:9200
 --------------------------------------------------
 

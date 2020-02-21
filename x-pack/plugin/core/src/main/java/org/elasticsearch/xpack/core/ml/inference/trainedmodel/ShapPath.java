@@ -10,27 +10,28 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
  * Ported from https://github.com/elastic/ml-cpp/blob/master/include/maths/CTreeShapFeatureImportance.h Path struct
  */
 public class ShapPath  {
-    private static final double DBL_EPSILON = Math.ulp(1.0);
+    private static final double DBL_EPSILON = Double.MIN_VALUE;
 
     private final PathElement[] pathElements;
     private final double[] scale;
-    private int currFraction;
-    private int currScale;
+    private final int elementAndScaleOffset;
 
-    public ShapPath(ShapPath path, int nextIndex) {
-        this.currFraction = path.currFraction + nextIndex;
-        this.currScale = path.currScale + nextIndex;
-        this.pathElements = path.pathElements;
-        this.scale = path.scale;
+    public ShapPath(ShapPath parentPath, int nextIndex) {
+        this.elementAndScaleOffset = parentPath.elementAndScaleOffset + nextIndex;
+        this.pathElements = parentPath.pathElements;
+        this.scale = parentPath.scale;
         for (int i = 0; i < nextIndex; i++) {
-            pathElements[currFraction + i] = new PathElement(path.getElement(i));
-            scale[currScale + i] = path.getScale(i);
+            pathElements[elementAndScaleOffset + i].featureIndex = parentPath.getElement(i).featureIndex;
+            pathElements[elementAndScaleOffset + i].fractionZeros = parentPath.getElement(i).fractionZeros;
+            pathElements[elementAndScaleOffset + i].fractionOnes = parentPath.getElement(i).fractionOnes;
+            scale[elementAndScaleOffset + i] = parentPath.getScale(i);
         }
     }
 
     public ShapPath(PathElement[] elements, double[] scale) {
         this.pathElements = elements;
         this.scale = scale;
+        this.elementAndScaleOffset = 0;
     }
 
     // Update binomial coefficients to be able to compute Equation (2) from the paper.  In particular,
@@ -115,54 +116,47 @@ public class ShapPath  {
     }
 
     private void setValues(int index, double fractionOnes, double fractionZeros, int featureIndex) {
-        pathElements[index + currFraction].fractionOnes = fractionOnes;
-        pathElements[index + currFraction].fractionZeros = fractionZeros;
-        pathElements[index + currFraction].featureIndex = featureIndex;
+        pathElements[index + elementAndScaleOffset].fractionOnes = fractionOnes;
+        pathElements[index + elementAndScaleOffset].fractionZeros = fractionZeros;
+        pathElements[index + elementAndScaleOffset].featureIndex = featureIndex;
     }
 
     private double getScale(int offset) {
-        return scale[offset + currScale];
+        return scale[offset + elementAndScaleOffset];
     }
 
     private void setScale(int offset, double value) {
-        scale[offset + currScale] = value;
+        scale[offset + elementAndScaleOffset] = value;
     }
 
     public double fractionOnes(int pathIndex) {
-        return pathElements[pathIndex + currFraction].fractionOnes;
+        return pathElements[pathIndex + elementAndScaleOffset].fractionOnes;
     }
 
     public double fractionZeros(int pathIndex) {
-        return pathElements[pathIndex + currFraction].fractionZeros;
+        return pathElements[pathIndex + elementAndScaleOffset].fractionZeros;
     }
 
     public int findFeatureIndex(int splitFeature, int nextIndex) {
-        for (int i = currFraction; i < currFraction + nextIndex; i++) {
+        for (int i = elementAndScaleOffset; i < elementAndScaleOffset + nextIndex; i++) {
             if (pathElements[i].featureIndex == splitFeature) {
-                return i - currFraction;
+                return i - elementAndScaleOffset;
             }
         }
         return -1;
     }
 
     public int featureIndex(int pathIndex) {
-        return pathElements[pathIndex + currFraction].featureIndex;
+        return pathElements[pathIndex + elementAndScaleOffset].featureIndex;
     }
 
     private PathElement getElement(int offset) {
-        return pathElements[offset + currFraction];
+        return pathElements[offset + elementAndScaleOffset];
     }
 
-    public final static class PathElement {
-        double fractionOnes = 1.0;
-        double fractionZeros = 1.0;
-        int featureIndex = -1;
-        public PathElement() {}
-
-        public PathElement(PathElement element) {
-            this.featureIndex  = element.featureIndex;
-            this.fractionOnes  = element.fractionOnes;
-            this.fractionZeros = element.fractionZeros;
-        }
+    public static final class PathElement {
+        private double fractionOnes = 1.0;
+        private double fractionZeros = 1.0;
+        private int featureIndex = -1;
     }
 }

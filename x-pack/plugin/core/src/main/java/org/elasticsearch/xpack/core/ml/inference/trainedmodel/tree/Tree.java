@@ -285,8 +285,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         calculateNodeEstimatesIfNeeded();
         double[] featureImportance = new double[fieldValues.size()];
         int arrSize = ((this.maxDepth + 1) * (this.maxDepth + 2))/2;
-        ShapPath.PathElement[] elements = Collections.nCopies(arrSize, new ShapPath.PathElement())
-            .toArray(new ShapPath.PathElement[0]);
+        ShapPath.PathElement[] elements = new ShapPath.PathElement[arrSize];
+        for (int i = 0; i < arrSize; i++) {
+            elements[i] = new ShapPath.PathElement();
+        }
         double[] scale = new double[arrSize];
         ShapPath initialPath = new ShapPath(elements, scale);
         shapRecursive(fieldValues, this.nodeEstimates, initialPath, 0, 1.0, 1.0, -1, featureImportance, 0);

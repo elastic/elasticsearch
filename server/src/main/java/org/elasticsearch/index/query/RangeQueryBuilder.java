@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -430,21 +429,23 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     // Overridable for testing only
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-        // If the context is null we are not on the shard and cannot
-        // rewrite so just pretend there is an intersection so that the rewrite is a noop
-        if (shardContext == null || shardContext.getIndexReader() == null) {
-            return MappedFieldType.Relation.INTERSECTS;
-        }
-        final MapperService mapperService = shardContext.getMapperService();
-        final MappedFieldType fieldType = mapperService.fieldType(fieldName);
-        if (fieldType == null) {
-            // no field means we have no values
-            return MappedFieldType.Relation.DISJOINT;
-        } else {
+        if (shardContext != null) {
+            final MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
+            if (fieldType == null) {
+                return MappedFieldType.Relation.DISJOINT;
+            }
+            if (shardContext.getIndexReader() == null) {
+                // No reader, this may happen e.g. for percolator queries.
+                return MappedFieldType.Relation.INTERSECTS;
+            }
+
             DateMathParser dateMathParser = getForceDateParser();
             return fieldType.isFieldWithinQuery(shardContext.getIndexReader(), from, to, includeLower,
                     includeUpper, timeZone, dateMathParser, queryRewriteContext);
         }
+
+        // Not on the shard, we have no way to know what the relation is.
+        return MappedFieldType.Relation.INTERSECTS;
     }
 
     @Override
@@ -498,7 +499,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 return ExistsQueryBuilder.newFilter(context, fieldName);
             }
         }
-        Query query = null;
         MappedFieldType mapper = context.fieldMapper(this.fieldName);
         if (mapper == null) {
             throw new IllegalStateException("Rewrite first");

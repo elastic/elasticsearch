@@ -23,7 +23,7 @@ public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCas
     }
 
     public void testBootstrapCheckFailureOnPremiumLicense() throws Exception {
-        final OperationMode mode = randomFrom(OperationMode.PLATINUM, OperationMode.GOLD, OperationMode.STANDARD);
+        final OperationMode mode = randomFrom(OperationMode.ENTERPRISE, OperationMode.PLATINUM, OperationMode.GOLD, OperationMode.STANDARD);
         final Settings.Builder settings = Settings.builder();
         if (randomBoolean()) {
             // randomise between default-false & explicit-false
@@ -43,7 +43,7 @@ public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCas
     }
 
     public void testBootstrapCheckSucceedsWithTlsEnabledOnPremiumLicense() throws Exception {
-        final OperationMode mode = randomFrom(OperationMode.PLATINUM, OperationMode.GOLD, OperationMode.STANDARD);
+        final OperationMode mode = randomFrom(OperationMode.ENTERPRISE, OperationMode.PLATINUM, OperationMode.GOLD, OperationMode.STANDARD);
         final Settings.Builder settings = Settings.builder().put("xpack.security.transport.ssl.enabled", true);
         final BootstrapCheck.BootstrapCheckResult result = runBootstrapCheck(mode, settings);
         assertSuccess(result);

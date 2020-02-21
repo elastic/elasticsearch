@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import java.io.Closeable;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
+import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -77,32 +79,78 @@ public abstract class ChainingInputStream extends InputStream {
     /**
      * Returns a new {@link ChainingInputStream} that concatenates the bytes to be read from the first
      * input stream with the bytes from the second input stream. The stream arguments must support
-     * {@code mark} and {@code reset}.
+     * the {@code mark} and {@code reset} operations; otherwise use {@link SequenceInputStream}.
      *
-     * @param firstComponentSupplier  the input stream supplying the first bytes of the returned {@link ChainingInputStream}
-     * @param secondComponentSupplier the input stream supplying the bytes after the {@code first} input stream has been exhausted (and
-     *                                closed)
+     * @param first the input stream supplying the first bytes of the returned {@link ChainingInputStream}
+     * @param second the input stream supplying the bytes after the {@code first} input stream has been exhausted
      */
-    public static InputStream chain(Supplier<InputStream> firstComponentSupplier, Supplier<InputStream> secondComponentSupplier) {
-        Objects.requireNonNull(firstComponentSupplier);
-        Objects.requireNonNull(secondComponentSupplier);
-        final int FIRST_TAG = 1;
-        final int SECOND_TAG = 2;
-        return new ChainingInputStream() {
+    public static InputStream chain(InputStream first, InputStream second) {
+        if (false == Objects.requireNonNull(first).markSupported()) {
+            throw new IllegalArgumentException("The first component input stream does not support mark");
+        }
+        if (false == Objects.requireNonNull(second).markSupported()) {
+            throw new IllegalArgumentException("The second component input stream does not support mark");
+        }
+        final InputStream firstComponent = new FilterInputStream(first) {
             @Override
-            InputStream nextComponent(InputStream currentComponentIn) {
+            public void close() {
+                // silence close
+                // "first" can be reused, and the {@code ChainingInputStream} eagerly closes components after every use
+                // "first" is closed when the returned {@code ChainingInputStream} is closed
+            }
+        };
+        final InputStream secondComponent = new FilterInputStream(second) {
+            @Override
+            public void close() {
+                // silence close
+                // "second" can be reused, and the {@code ChainingInputStream} eagerly closes components after every use
+                // "second" is closed when the returned {@code ChainingInputStream} is closed
+            }
+        };
+        // be sure to remember the start of components because they might be reused
+        firstComponent.mark(Integer.MAX_VALUE);
+        secondComponent.mark(Integer.MAX_VALUE);
+
+        return new ChainingInputStream() {
+
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
                 if (currentComponentIn == null) {
-                    return new TaggedFilterInputStream(Objects.requireNonNull(firstComponentSupplier.get(),
-                            "First component supplier returned null. Return the empty stream instead."), FIRST_TAG);
-                } else if (false == currentComponentIn instanceof TaggedFilterInputStream) {
-                    throw new IllegalStateException("Unexpected component input stream");
-                } else if (((TaggedFilterInputStream) currentComponentIn).getTag() == FIRST_TAG) {
-                    return new TaggedFilterInputStream(Objects.requireNonNull(secondComponentSupplier.get(),
-                            "Second component supplier returned null. Return the empty stream instead."), SECOND_TAG);
-                } else if (((TaggedFilterInputStream) currentComponentIn).getTag() == SECOND_TAG) {
+                    // when returning the next component, start from its beginning
+                    firstComponent.reset();
+                    return firstComponent;
+                } else if (currentComponentIn == firstComponent) {
+                    // when returning the next component, start from its beginning
+                    secondComponent.reset();
+                    return secondComponent;
+                } else if (currentComponentIn == secondComponent) {
                     return null;
                 } else {
                     throw new IllegalStateException("Unexpected component input stream");
+                }
+            }
+
+            @Override
+            public void close() throws IOException {
+                IOException IOExceptions = null;
+                try {
+                    super.close();
+                } catch (IOException e) {
+                    IOExceptions = e;
+                }
+                for (Closeable closeable : Arrays.asList(first, second)) {
+                    try {
+                        closeable.close();
+                    } catch (IOException e) {
+                        if (IOExceptions != null) {
+                            IOExceptions.addSuppressed(e);
+                        } else {
+                            IOExceptions = e;
+                        }
+                    }
+                }
+                if (IOExceptions != null) {
+                    throw IOExceptions;
                 }
             }
         };
@@ -408,17 +456,4 @@ public abstract class ChainingInputStream extends InputStream {
         return true;
     }
 
-    private static class TaggedFilterInputStream extends FilterInputStream {
-
-        final int tag;
-
-        TaggedFilterInputStream(InputStream in, int tag) {
-            super(in);
-            this.tag = tag;
-        }
-
-        public int getTag() {
-            return tag;
-        }
-    }
 }

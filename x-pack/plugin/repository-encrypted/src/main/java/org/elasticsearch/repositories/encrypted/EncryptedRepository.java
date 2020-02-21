@@ -596,8 +596,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
             final long encryptedBlobSize = (long) MetadataIdentifier.byteLength() +
                     EncryptionPacketsInputStream.getEncryptionLength(blobSize, PACKET_LENGTH_IN_BYTES);
             try (InputStream encryptedInputStream =
-                         ChainingInputStream.chain(() -> new ByteArrayInputStream(metadataIdentifier.asByteArray()),
-                                 () -> new EncryptionPacketsInputStream(inputStream, dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES))) {
+                         ChainingInputStream.chain(new ByteArrayInputStream(metadataIdentifier.asByteArray()),
+                                 new EncryptionPacketsInputStream(inputStream, dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES))) {
                 delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
             }
         }

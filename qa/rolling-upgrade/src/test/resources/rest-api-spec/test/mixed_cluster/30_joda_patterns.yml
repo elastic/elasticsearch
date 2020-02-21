@@ -1,4 +1,0 @@
----
-"Info":
-  - do:         {info: {}}
-  - is_true:    name

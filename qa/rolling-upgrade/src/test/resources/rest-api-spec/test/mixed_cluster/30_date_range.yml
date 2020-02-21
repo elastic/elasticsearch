@@ -1,5 +1,5 @@
 ---
-"Verify that we can find results with joda style pattern":
+"Insert more docs to joda index":
   - do:
       bulk:
         refresh: true
@@ -17,10 +17,10 @@
               time_frame:
                 gte: "2019-02-01T00:00+01:00"
                 lte: "2019-02-01T00:00+01:00"
-  - match: { hits.total: 3 }
+  - match: { hits.total: 2 }
 
 ---
-"Verify that we can find results with java style pattern":
+"Insert more docs to java index":
   - do:
       bulk:
         refresh: true
@@ -38,4 +38,4 @@
               time_frame:
                 gte: "2019-02-01T00:00+01:00"
                 lte: "2019-02-01T00:00+01:00"
-  - match: { hits.total: 3 }
+  - match: { hits.total: 2 }

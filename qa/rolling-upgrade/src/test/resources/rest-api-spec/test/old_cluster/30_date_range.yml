@@ -7,22 +7,25 @@
 
   - do:
       warnings:
-      - "Use of 'x' (week-based-year) will change to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier."
+        - "Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier."
       indices.create:
         index: joda_for_range
         body:
+          settings:
+            index:
+              number_of_replicas: 2
           mappings:
               "properties":
                 "time_frame":
                   "type": "date_range"
-                  "format": "xxxx-ww-ee"
+                  "format": "YYYY-MM-dd'T'HH:mmZZ"
 
   - do:
       bulk:
         refresh: true
         body:
           - '{"index": {"_index": "joda_for_range"}}'
-          - '{"time_frame": {"gte": "2019-01-01", "lte" : "2019-03-1"}}'
+          - '{"time_frame": {"gte": "2019-01-01T00:00+01:00", "lte" : "2019-03-11T00:00+01:00"}}'
 
   - do:
       search:
@@ -32,8 +35,8 @@
           query:
             range:
               time_frame:
-                gte: "2019-02-01"
-                lte: "2019-02-01"
+                gte: "2019-02-01T00:00+01:00"
+                lte: "2019-02-01T00:00+01:00"
   - match: { hits.total: 1 }
 
 ---
@@ -44,22 +47,25 @@
       reason: change of warning message
   - do:
       warnings:
-        - "'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset. Prefix your date format with '8' to use the new specifier."
+        - "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year. Prefix your date format with '8' to use the new specifier."
       indices.create:
         index: joda_for_range
         body:
+          settings:
+            index:
+              number_of_replicas: 2
           mappings:
             "properties":
               "time_frame":
                 "type": "date_range"
-                "format": "xxxx-ww-ee"
+                "format": "YYYY-MM-dd'T'HH:mmZZ"
 
   - do:
       bulk:
         refresh: true
         body:
           - '{"index": {"_index": "joda_for_range"}}'
-          - '{"time_frame": {"gte": "2020-01-01", "lte" : "2020-03-01"}}'
+          - '{"time_frame": {"gte": "2020-01-01T00:00+01:00", "lte" : "2020-03-01T00:00+01:00"}}'
 
   - do:
       search:
@@ -69,8 +75,8 @@
           query:
             range:
               time_frame:
-                gte: "2020-01-02"
-                lte: "2020-01-02"
+                gte: "2020-01-02T00:00+01:00"
+                lte: "2020-01-02T00:00+01:00"
   - match: { hits.total: 1 }
 
 ---
@@ -82,18 +88,21 @@
       indices.create:
         index: java_for_range
         body:
+          settings:
+            index:
+              number_of_replicas: 2
           mappings:
             "properties":
               "time_frame":
                 "type": "date_range"
-                "format": "8YYYY-ww-ee"
+                "format": "8yyyy-MM-dd'T'HH:mmXXX"
 
   - do:
       bulk:
         refresh: true
         body:
           - '{"index": {"_index": "java_for_range"}}'
-          - '{"time_frame": {"gte": "2019-01-01", "lte" : "2019-03-01"}}'
+          - '{"time_frame": {"gte": "2019-01-01T00:00+01:00", "lte" : "2019-03-01T00:00+01:00"}}'
 
   - do:
       search:
@@ -103,8 +112,8 @@
           query:
             range:
               time_frame:
-                gte: "2019-02-01"
-                lte: "2019-02-01"
+                gte: "2019-02-01T00:00+01:00"
+                lte: "2019-02-01T00:00+01:00"
   - match: { hits.total: 1 }
 
 

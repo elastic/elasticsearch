@@ -25,11 +25,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * A {@link BucketCollector} that records collected doc IDs and buckets and
@@ -122,15 +120,6 @@ public abstract class DeferringBucketCollector extends BucketCollector {
                     "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
         }
 
-        @Override
-        public Aggregator resolveSortPath(PathElement next, Iterator<PathElement> path) {
-            return in.resolveSortPath(next, path);
-        }
-
-        @Override
-        public void validateSortPathKey(String key) {
-            in.validateSortPathKey(key);
-        }
     }
 
 }

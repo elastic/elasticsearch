@@ -24,12 +24,10 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 public class ProfilingAggregator extends Aggregator {
 
@@ -70,16 +68,6 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public Aggregator subAggregator(String name) {
         return delegate.subAggregator(name);
-    }
-
-    @Override
-    public Aggregator resolveSortPath(PathElement next, Iterator<PathElement> path) {
-        return delegate.resolveSortPath(next, path);
-    }
-
-    @Override
-    public void validateSortPathKey(String key) {
-        delegate.validateSortPathKey(key);
     }
 
     @Override

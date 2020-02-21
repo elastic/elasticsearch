@@ -28,11 +28,9 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * An Aggregator.
@@ -92,53 +90,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Return the sub aggregator with the provided name.
      */
     public abstract Aggregator subAggregator(String name);
-
-    /**
-     * Resolve the next step of the sort path as though this aggregation
-     * supported sorting. This is usually the "first step" when resolving
-     * a sort path because most aggs that support sorting their buckets
-     * aren't valid in the middle of a sort path.
-     * <p>
-     * For example, the {@code terms} aggs supports sorting its buckets, but
-     * that sort path itself can't contain a different {@code terms}
-     * aggregation.
-     */
-    public final Aggregator resolveSortPathOnValidAgg(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
-        Aggregator n = subAggregator(next.name);
-        if (n == null) {
-            throw new IllegalArgumentException("The provided aggregation [" + next + "] either does not exist, or is "
-                    + "a pipeline aggregation and cannot be used to sort the buckets.");
-        }
-        if (false == path.hasNext()) {
-            return n;
-        }
-        if (next.key != null) {
-            throw new IllegalArgumentException("Key only allowed on last aggregation path element but got [" + next + "]");
-        }
-        return n.resolveSortPath(path.next(), path);
-    }
-
-    /**
-     * Resolve a sort path to the target.
-     * <p>
-     * The default implementation throws an exception but we override it on aggregations that support sorting.
-     */
-    public Aggregator resolveSortPath(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
-        throw new IllegalArgumentException("Buckets can only be sorted on a sub-aggregator path " +
-                "that is built out of zero or more single-bucket aggregations within the path and a final " +
-                "single-bucket or a metrics aggregation at the path end. [" + name() + "] is not single-bucket.");
-    }
-
-    /**
-     * Validates the "key" portion of a sort on this aggregation.
-     * <p>
-     * The default implementation throws an exception but we override it on aggregations that support sorting.
-     */
-    public void validateSortPathKey(String key) {
-        throw new IllegalArgumentException("Buckets can only be sorted on a sub-aggregator path " +
-                "that is built out of zero or more single-bucket aggregations within the path and a final " +
-                "single-bucket or a metrics aggregation at the path end.");
-    }
 
     /**
      * Build an aggregation for data that has been collected into {@code bucket}.

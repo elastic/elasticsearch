@@ -167,14 +167,8 @@ public class NativeRoleMappingStore implements UserRoleMapper {
      */
     public void putRoleMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) {
         // Validate all templates before storing the role mapping
-        try {
-            for (TemplateRoleName templateRoleName : request.getRoleTemplates()) {
-                templateRoleName.getRoleNames(scriptService, new ExpressionModel());
-            }
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalArgumentException(e);
+        for (TemplateRoleName templateRoleName : request.getRoleTemplates()) {
+            templateRoleName.validate(scriptService);
         }
         modifyMapping(request.getName(), this::innerPutMapping, request, listener);
     }

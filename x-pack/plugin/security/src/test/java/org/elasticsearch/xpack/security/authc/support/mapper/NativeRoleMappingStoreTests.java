@@ -211,14 +211,14 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         assertEquals(0, numInvalidation.get());
     }
 
-    public void testPutRoleMappingWillComputeRoleNamesBeforeSave() {
+    public void testPutRoleMappingWillValidateTemplateRoleNamesBeforeSave() {
         final PutRoleMappingRequest putRoleMappingRequest = mock(PutRoleMappingRequest.class);
         final TemplateRoleName templateRoleName = mock(TemplateRoleName.class);
         final ScriptService scriptService = mock(ScriptService.class);
         when(putRoleMappingRequest.getRoleTemplates()).thenReturn(Collections.singletonList(templateRoleName));
         doAnswer(invocationOnMock -> {
             throw new IllegalArgumentException();
-        }).when(templateRoleName).getRoleNames(eq(scriptService), any());
+        }).when(templateRoleName).validate(scriptService);
 
         final NativeRoleMappingStore nativeRoleMappingStore =
             new NativeRoleMappingStore(Settings.EMPTY, mock(Client.class), mock(SecurityIndexManager.class), scriptService);

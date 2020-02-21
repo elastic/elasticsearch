@@ -26,6 +26,12 @@ public final class MustacheTemplateEvaluator {
     }
 
     public static String evaluate(ScriptService scriptService, XContentParser parser, Map<String, Object> extraParams) throws IOException {
+        TemplateScript compiledTemplate = compile(scriptService, parser, extraParams);
+        return compiledTemplate.execute();
+    }
+
+    public static TemplateScript compile(ScriptService scriptService, XContentParser parser, Map<String, Object> extraParams) throws
+        IOException {
         Script script = Script.parse(parser);
         // Add the user details to the params
         Map<String, Object> params = new HashMap<>();
@@ -36,7 +42,6 @@ public final class MustacheTemplateEvaluator {
         // Always enforce mustache script lang:
         script = new Script(script.getType(), script.getType() == ScriptType.STORED ? null : "mustache", script.getIdOrCode(),
                 script.getOptions(), params);
-        TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
-        return compiledTemplate.execute();
+        return scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
     }
 }

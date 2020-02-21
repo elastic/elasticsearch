@@ -359,7 +359,7 @@ public class XPackLicenseState {
     }
 
     /**
-     * Return true if the feature is allowed by all active, i.e. no-expired licenses, false otherwise.
+     * Checks that the cluster has a valid licence of any level.
      * @see #isActive()
      */
     public boolean allowForAllLicenses() {
@@ -380,23 +380,14 @@ public class XPackLicenseState {
         return isAllowedBySecurityAndLicense(OperationMode.BASIC, false, true);
     }
 
-    /**
-     * @return true if IP filtering should be enabled
-     */
     public boolean isIpFilteringAllowed() {
         return isAllowedBySecurityAndLicense(OperationMode.GOLD, false, true);
     }
 
-    /**
-     * @return true if auditing should be enabled
-     */
     public boolean isAuditingAllowed() {
         return isAllowedBySecurityAndLicense(OperationMode.GOLD, false, true);
     }
 
-    /**
-     * Stats and health API calls are always allowed as long as there is an active license.
-     */
     public boolean isStatsAndHealthAllowed() {
         return allowForAllLicenses();
     }
@@ -452,29 +443,26 @@ public class XPackLicenseState {
         });
     }
 
-    /**
-     * @return whether custom role providers are allowed based on the license {@link OperationMode}
-     */
     public boolean isCustomRoleProvidersAllowed() {
         return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true, true);
     }
 
     /**
-     * @return whether the Elasticsearch {@code TokenService} is allowed based on the license {@link OperationMode}
+     * Whether the Elasticsearch {@code TokenService} is allowed
      */
     public boolean isTokenServiceAllowed() {
         return isAllowedBySecurityAndLicense(OperationMode.GOLD, false, true);
     }
 
     /**
-     * @return whether the Elasticsearch {@code ApiKeyService} is allowed based on the current node/cluster state
+     * Whether the Elasticsearch {@code ApiKeyService} is allowed
      */
     public boolean isApiKeyServiceAllowed() {
         return isAllowedBySecurityAndLicense(OperationMode.MISSING, false, true);
     }
 
     /**
-     * @return whether "authorization_realms" are allowed based on the license {@link OperationMode}
+     * Whether "authorization_realms" is allowed
      * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
      */
     public boolean isAuthorizationRealmAllowed() {
@@ -482,29 +470,17 @@ public class XPackLicenseState {
     }
 
     /**
-     * @return whether a custom authorization engine is allowed based on the license {@link OperationMode}
+     * Whether a custom authorization engine is allowed
      * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
      */
     public boolean isAuthorizationEngineAllowed() {
         return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true, true);
     }
 
-    /**
-     * Determine if Watcher is available based on the current license.
-     * <p>
-     * Watcher is available if the license is active (hasn't expired) and of one of the following types:
-     * <ul>
-     * <li>{@link OperationMode#STANDARD} or higher</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     */
     public boolean isWatcherAllowed() {
         return isAllowedByLicense(OperationMode.STANDARD);
     }
 
-    /**
-     * Monitoring is always available as long as there is an active license
-     */
     public boolean isMonitoringAllowed() {
         return allowForAllLicenses();
     }
@@ -532,30 +508,10 @@ public class XPackLicenseState {
         return isAllowedByLicense(OperationMode.STANDARD, false, true);
     }
 
-    /**
-     * Determine if Graph Exploration should be enabled.
-     * <p>
-     * Exploration is only disabled when the license has expired or if the mode is not:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM} or higher</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     */
     public boolean isGraphAllowed() {
         return isAllowedByLicense(OperationMode.PLATINUM);
     }
 
-    /**
-     * Determine if Machine Learning should be enabled.
-     * <p>
-     * Machine Learning is only disabled when the license has expired or if the
-     * mode is not:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM} or higher</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     *         {@code false}.
-     */
     public boolean isMachineLearningAllowed() {
         return isAllowedByLicense(OperationMode.PLATINUM);
     }
@@ -564,9 +520,6 @@ public class XPackLicenseState {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
     }
 
-    /**
-     * Transform is always available as long as there is an active license
-     */
     public boolean isTransformAllowed() {
         return allowForAllLicenses();
     }
@@ -580,118 +533,66 @@ public class XPackLicenseState {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
     }
 
-    /**
-     * Rollup is always allowed as long as there is an active license
-     */
     public boolean isRollupAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * Voting only node functionality is always allowed as long as there is an active license
-     */
     public boolean isVotingOnlyAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * Logstash is allowed as long as there is an active license of type TRIAL, STANDARD or higher
-     */
     public boolean isLogstashAllowed() {
         return isAllowedByLicense(OperationMode.STANDARD);
     }
 
-    /**
-     * Beats is allowed as long as there is an active license of type TRIAL, STANDARD or higher.
-     */
     public boolean isBeatsAllowed() {
         return isAllowedByLicense(OperationMode.STANDARD);
     }
 
-    /**
-     * Deprecation APIs are always allowed as long as there is an active license
-     */
     public boolean isDeprecationAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * Upgrade API is always allowed as long as there is an active license.
-     */
     public boolean isUpgradeAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * Index Lifecycle API is always allowed as long as there is an active license.
-     */
     public boolean isIndexLifecycleAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * Enrich processor and related APIs are always allowed as long as there is an active license.
-     */
     public boolean isEnrichAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * EQL support is always allowed as long as there is an active license.
-     */
     public boolean isEqlAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * SQL support is always allowed as long as there is an active license.
-     */
     public boolean isSqlAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * Determine if JDBC support should be enabled.
-     * <p>
-     *  JDBC is available only in for {@link OperationMode#PLATINUM} or higher and {@link OperationMode#TRIAL} licences
-     */
     public boolean isJdbcAllowed() {
         return isAllowedByLicense(OperationMode.PLATINUM);
     }
 
-    /**
-     * Support for flattened object fields is always allowed as long as there is an active license.
-     */
     public boolean isFlattenedAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * Vectors support is always allowed as long as there is an active license.
-     */
     public boolean isVectorsAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * Determine if ODBC support should be enabled.
-     * <p>
-     * ODBC is available only in for {@link OperationMode#PLATINUM} or higher and {@link OperationMode#TRIAL} licences
-     */
     public boolean isOdbcAllowed() {
         return isAllowedByLicense(OperationMode.PLATINUM);
     }
 
-    /**
-     * Spatial features are always allowed as long as there is an active license
-     */
     public boolean isSpatialAllowed() {
         return allowForAllLicenses();
     }
 
-    /**
-     * Datascience is always available as long as there is an active license
-     */
     public boolean isDataScienceAllowed() {
         return allowForAllLicenses();
     }
@@ -754,15 +655,7 @@ public class XPackLicenseState {
     }
 
     /**
-     * Determine if cross-cluster replication should be enabled.
-     * <p>
-     * Cross-cluster replication is only disabled when the license has expired or if the mode is not:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM} or higher</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     *
-     * @return true is the license is compatible, otherwise false
+     * Determine if cross-cluster replication is allowed
      */
     public boolean isCcrAllowed() {
         return isAllowedByLicense(OperationMode.PLATINUM);

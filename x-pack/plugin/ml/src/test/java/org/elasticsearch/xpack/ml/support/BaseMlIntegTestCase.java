@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
@@ -97,8 +98,12 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateMachineLearning.class, CommonAnalysisPlugin.class,
-                ReindexPlugin.class);
+        return Arrays.asList(
+            LocalStateMachineLearning.class,
+            CommonAnalysisPlugin.class,
+            ReindexPlugin.class,
+            // ILM is required for .ml-state template index settings
+            IndexLifecycle.class);
     }
 
     @Override

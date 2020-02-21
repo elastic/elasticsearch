@@ -589,8 +589,8 @@ public class AllocationService {
             final List<NodeAllocationResult> nodeAllocationResults = new ArrayList<>(allocation.nodes().getSize());
             for (DiscoveryNode discoveryNode : allocation.nodes()) {
                 nodeAllocationResults.add(new NodeAllocationResult(discoveryNode, null, allocation.decision(Decision.NO,
-                    "allocator_plugin", "finding the valid shard copies for this shard requires an allocator called [%s] but that " +
-                        "allocator was not found; perhaps the corresponding plugin is not installed",
+                    "allocator_plugin", "finding the previous copies of this shard requires an allocator called [%s] but " +
+                        "that allocator was not found; perhaps the corresponding plugin is not installed",
                     allocatorName)));
             }
             return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, nodeAllocationResults);

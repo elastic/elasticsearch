@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -54,6 +55,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus.DECIDERS_NO;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
@@ -220,6 +222,51 @@ public class AllocationServiceTests extends ESTestCase {
         assertThat(routingTable3.index("invalid").shardsWithState(ShardRoutingState.STARTED), empty());
     }
 
+    public void testExplainsNonAllocationOfShardWithUnknownAllocator() {
+        final AllocationService allocationService = new AllocationService(null, null, null);
+        allocationService.setExistingShardsAllocators(
+            Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
+
+        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        nodesBuilder.add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT));
+        nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT));
+
+        final MetaData.Builder metaData = MetaData.builder().put(indexMetadata("index", Settings.builder()
+            .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "unknown")));
+
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsRecovery(metaData.get("index"));
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodesBuilder)
+            .metaData(metaData)
+            .routingTable(routingTableBuilder.build())
+            .build();
+
+        final RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
+            clusterState.getRoutingNodes(), clusterState, ClusterInfo.EMPTY, 0L);
+        allocation.setDebugMode(randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+
+        final ShardAllocationDecision shardAllocationDecision
+            = allocationService.explainShardAllocation(clusterState.routingTable().index("index").shard(0).primaryShard(), allocation);
+
+        assertTrue(shardAllocationDecision.isDecisionTaken());
+        assertThat(shardAllocationDecision.getAllocateDecision().getAllocationStatus(),
+            equalTo(UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY));
+        assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+            equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+        assertThat(shardAllocationDecision.getAllocateDecision().getExplanation(), equalTo("cannot allocate because a previous copy of " +
+            "the primary shard existed but can no longer be found on the nodes in the cluster"));
+
+        for (NodeAllocationResult nodeAllocationResult : shardAllocationDecision.getAllocateDecision().nodeDecisions) {
+            assertThat(nodeAllocationResult.getNodeDecision(), equalTo(AllocationDecision.NO));
+            assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
+            assertThat(nodeAllocationResult.getCanAllocateDecision().label(), equalTo("allocator_plugin"));
+            assertThat(nodeAllocationResult.getCanAllocateDecision().getExplanation(), equalTo("finding the previous copies of this " +
+                "shard requires an allocator called [unknown] but that allocator was not found; perhaps the corresponding plugin is " +
+                "not installed"));
+        }
+    }
+
     private static final String FAKE_IN_SYNC_ALLOCATION_ID = "_in_sync_"; // so we can allocate primaries anywhere
 
     private static IndexMetaData.Builder indexMetadata(String name, Settings.Builder settings) {
@@ -274,7 +321,7 @@ public class AllocationServiceTests extends ESTestCase {
             }
 
             return throttled ? AllocateUnassignedDecision.throttle(null)
-                : AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, null);
+                : AllocateUnassignedDecision.no(DECIDERS_NO, null);
         }
 
         @Override

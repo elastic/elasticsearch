@@ -830,13 +830,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     /**
-     * Create an user in native realm who has run_as privilege. It allows the user to run-as
-     * the other user who has manage_own_api_key privilege. This user is to help ensure all
-     * API key security operations should respect the run-as authentication info.
-     *
-     * Note that the user with run_as privilege is created in native realm which is different
-     * from all other users (created in file realm). This is necessary for us to perform negative
-     * assertions when there are mismatching information, e.g. realm name, username.
+     * In order to have negative tests for realm name mismatch, user_with_run_as_role
+     * needs to be created in a different realm other than file (which is handled by configureUsers()).
+     * This new helper method creates the user in the native realm.
      */
     private void createUserWithRunAsRole() throws ExecutionException, InterruptedException {
         final PutUserRequest putUserRequest = new PutUserRequest();

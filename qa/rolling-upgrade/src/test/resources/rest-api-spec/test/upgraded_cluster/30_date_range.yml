@@ -9,8 +9,8 @@
           query:
             range:
               time_frame:
-                gte: "2019-12-01"
-                lte: "2020-01-02"
+                gte: "2019-02-01"
+                lte: "2019-02-01"
   - match: { hits.total: 1 }
 
 ---
@@ -26,8 +26,8 @@
           query:
             range:
               time_frame:
-                gte: "2019-12-01"
-                lte: "2020-01-02"
+                gte: "2019-02-01"
+                lte: "2019-02-01"
   - match: { hits.total: 1 }
 
 

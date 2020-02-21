@@ -7,7 +7,7 @@
 
   - do:
       warnings:
-      - "Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier."
+      - "Use of 'x' (week-based-year) will change to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier."
       indices.create:
         index: joda_for_range
         body:
@@ -15,14 +15,14 @@
               "properties":
                 "time_frame":
                   "type": "date_range"
-                  "format": "YYYY-MM-dd"
+                  "format": "xxxx-ww-ee"
 
   - do:
       bulk:
         refresh: true
         body:
           - '{"index": {"_index": "joda_for_range"}}'
-          - '{"time_frame": {"gte": "2019-12-31", "lte" : "2020-01-03"}}'
+          - '{"time_frame": {"gte": "2019-01-01", "lte" : "2019-03-1"}}'
 
   - do:
       search:
@@ -32,8 +32,8 @@
           query:
             range:
               time_frame:
-                gte: "2019-12-01"
-                lte: "2020-01-02"
+                gte: "2019-02-01"
+                lte: "2019-02-01"
   - match: { hits.total: 1 }
 
 ---
@@ -44,7 +44,7 @@
       reason: change of warning message
   - do:
       warnings:
-        - "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year. Prefix your date format with '8' to use the new specifier."
+        - "'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset. Prefix your date format with '8' to use the new specifier."
       indices.create:
         index: joda_for_range
         body:
@@ -69,7 +69,7 @@
           query:
             range:
               time_frame:
-                gte: "2019-12-01"
+                gte: "2020-01-02"
                 lte: "2020-01-02"
   - match: { hits.total: 1 }
 
@@ -86,14 +86,14 @@
             "properties":
               "time_frame":
                 "type": "date_range"
-                "format": "8yyyy-MM-dd"
+                "format": "8YYYY-ww-ee"
 
   - do:
       bulk:
         refresh: true
         body:
           - '{"index": {"_index": "java_for_range"}}'
-          - '{"time_frame": {"gte": "2020-01-01", "lte" : "2020-01-03"}}'
+          - '{"time_frame": {"gte": "2019-01-01", "lte" : "2019-03-01"}}'
 
   - do:
       search:
@@ -103,8 +103,8 @@
           query:
             range:
               time_frame:
-                gte: "2019-12-01"
-                lte: "2020-01-02"
+                gte: "2019-02-01"
+                lte: "2019-02-01"
   - match: { hits.total: 1 }
 
 

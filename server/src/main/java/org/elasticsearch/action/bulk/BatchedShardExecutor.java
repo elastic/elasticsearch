@@ -37,7 +37,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -64,7 +63,7 @@ public class BatchedShardExecutor {
     private final ThreadPool threadPool;
     private final int numberOfWriteThreads;
 
-    private final ConcurrentHashMap<ShardId, ShardState> shardState = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<IndexShard, ShardState> shardState = new ConcurrentHashMap<>();
 
 
     public BatchedShardExecutor(ClusterService clusterService, ThreadPool threadPool, UpdateHelper updateHelper,
@@ -83,22 +82,22 @@ public class BatchedShardExecutor {
     public void primary(BulkShardRequest request, IndexShard primary, ActionListener<WriteResult> writeListener,
                         ActionListener<FlushResult> flushListener) {
         PrimaryOp shardOp = new PrimaryOp(request, primary, writeListener, flushListener);
-        enqueueAndSchedule(shardOp, true, true);
+        enqueueAndSchedule(shardOp, true);
     }
 
-    public void replica(BulkShardRequest request, IndexShard primary, ActionListener<Void> writeListener,
+    public void replica(BulkShardRequest request, IndexShard replica, ActionListener<Void> writeListener,
                         ActionListener<FlushResult> flushListener) {
-        ReplicaOp shardOp = new ReplicaOp(request, primary, writeListener, flushListener);
-        enqueueAndSchedule(shardOp, false, true);
+        ReplicaOp shardOp = new ReplicaOp(request, replica, writeListener, flushListener);
+        enqueueAndSchedule(shardOp, true);
     }
 
-    ShardState getShardState(ShardId shardId) {
-        return shardState.get(shardId);
+    ShardState getShardState(IndexShard indexShard) {
+        return shardState.get(indexShard);
     }
 
-    private void enqueueAndSchedule(ShardOp shardOp, boolean isPrimary, boolean allowReject) {
-        ShardId shardId = shardOp.getIndexShard().shardId();
-        ShardState shardState = getOrCreateShardState(shardId, isPrimary);
+    private void enqueueAndSchedule(ShardOp shardOp, boolean allowReject) {
+        IndexShard indexShard = shardOp.getIndexShard();
+        ShardState shardState = getOrCreateShardState(indexShard);
         if (shardState.attemptPreIndexedEnqueue(shardOp, allowReject)) {
             // If the ShardState was closed after we enqueued, attempt to remove our operation and finish it
             // to ensure that it does not get lost.
@@ -112,11 +111,11 @@ public class BatchedShardExecutor {
         }
     }
 
-    private ShardState getOrCreateShardState(ShardId shardId, boolean isPrimary) {
-        ShardState queue = shardState.get(shardId);
+    private ShardState getOrCreateShardState(IndexShard indexShard) {
+        ShardState queue = shardState.get(indexShard);
         if (queue == null) {
-            ShardState createdQueue = new ShardState(isPrimary, numberOfWriteThreads);
-            ShardState previous = shardState.putIfAbsent(shardId, createdQueue);
+            ShardState createdQueue = new ShardState(numberOfWriteThreads);
+            ShardState previous = shardState.putIfAbsent(indexShard, createdQueue);
             queue = Objects.requireNonNullElse(previous, createdQueue);
         }
         return queue;
@@ -159,8 +158,7 @@ public class BatchedShardExecutor {
     }
 
     private void performShardOperations(IndexShard indexShard) {
-        ShardId shardId = indexShard.shardId();
-        ShardState shardState = this.shardState.get(shardId);
+        ShardState shardState = this.shardState.get(indexShard);
         if (shardState == null) {
             // The IndexShard has closed and the resources have been cleaned
             return;
@@ -177,9 +175,9 @@ public class BatchedShardExecutor {
             while (continueExecuting && (shardOp = shardState.pollPreIndexed()) != null) {
                 boolean opCompleted = false;
                 try {
-                    if (shardState.isPrimary()) {
+                    if (shardOp instanceof PrimaryOp) {
                         PrimaryOp primaryOp = (PrimaryOp) shardOp;
-                        Runnable rescheduler = () -> enqueueAndSchedule(primaryOp, true, false);
+                        Runnable rescheduler = () -> enqueueAndSchedule(primaryOp, false);
                         opCompleted = primaryOpHandler.apply(primaryOp, rescheduler);
                     } else {
                         opCompleted = replicaOpHandler.apply((ReplicaOp) shardOp);
@@ -377,7 +375,7 @@ public class BatchedShardExecutor {
 
     private void cleanupIfShardClosed(IndexShard indexShard) {
         if (indexShard.state() == IndexShardState.CLOSED) {
-            ShardState removed = shardState.remove(indexShard.shardId());
+            ShardState removed = shardState.remove(indexShard);
             // If we did not successfully remove the ShardState, another thread did and will handling the
             // closing.
             if (removed != null) {
@@ -440,20 +438,14 @@ public class BatchedShardExecutor {
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
         private final ConcurrentLinkedQueue<ShardOp> postIndexedQueue = new ConcurrentLinkedQueue<>();
-        private final boolean isPrimary;
         private final int maxScheduledTasks;
         private final Semaphore scheduleTaskSemaphore;
         private final AtomicBoolean syncLock = new AtomicBoolean(false);
         private volatile boolean isClosed = false;
 
-        private ShardState(boolean isPrimary, int maxScheduledTasks) {
-            this.isPrimary = isPrimary;
+        private ShardState(int maxScheduledTasks) {
             this.maxScheduledTasks = maxScheduledTasks;
             this.scheduleTaskSemaphore = new Semaphore(maxScheduledTasks);
-        }
-
-        public boolean isPrimary() {
-            return isPrimary;
         }
 
         private boolean attemptPreIndexedEnqueue(ShardOp shardOp, boolean allowReject) {

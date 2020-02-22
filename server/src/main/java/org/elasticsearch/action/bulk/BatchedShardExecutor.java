@@ -53,7 +53,8 @@ import java.util.stream.Stream;
 
 public class BatchedShardExecutor {
 
-    private static final long MAX_EXECUTE_NANOS = TimeUnit.MILLISECONDS.toNanos(15);
+    private static final long SYNC_SCHEDULE_INTERVAL_NANOS = TimeUnit.MILLISECONDS.toNanos(5);
+    private static final long MAX_EXECUTE_NANOS = TimeUnit.MILLISECONDS.toNanos(25);
     private static final String CLOSED_SHARD_MESSAGE = "Cannot perform operation, IndexShard is closed.";
 
     private static final Logger logger = LogManager.getLogger(BatchedShardExecutor.class);
@@ -149,7 +150,7 @@ public class BatchedShardExecutor {
 
                 @Override
                 public void onAfter() {
-                    if (shardState.preIndexedQueue.isEmpty() == false) {
+                    if (shardState.preIndexedQueue.isEmpty() == false || shardState.postIndexedQueue.isEmpty() == false) {
                         maybeSchedule(indexShard, shardState, isPrimary);
                     }
                 }
@@ -167,11 +168,13 @@ public class BatchedShardExecutor {
 
         ArrayList<ShardOp> completedOps = new ArrayList<>();
         try {
-            int opsIndexed = 0;
             ShardOp shardOp;
+            int opsExecuted = 0;
             long startNanos = System.nanoTime();
+            long lastSyncCheckNanos = 0;
             long nanosSpentExecuting = 0;
-            while ((nanosSpentExecuting < MAX_EXECUTE_NANOS) && (shardOp = shardState.pollPreIndexed()) != null) {
+            boolean continueExecuting = true;
+            while (continueExecuting && (shardOp = shardState.pollPreIndexed()) != null) {
                 boolean opCompleted = false;
                 try {
                     if (isPrimary) {
@@ -184,58 +187,112 @@ public class BatchedShardExecutor {
                 } catch (Exception e) {
                     onFailure(Stream.of(shardOp.getWriteListener()), e);
                 } finally {
-                    ++opsIndexed;
-                    // Update nanosSpentExecuting every 8 operations
-                    if ((opsIndexed & (8 - 1)) == 0) {
-                        nanosSpentExecuting = System.nanoTime() - startNanos;
-                    }
+                    ++opsExecuted;
                     if (opCompleted) {
+                        shardState.postIndexedEnqueue(shardOp);
                         completedOps.add(shardOp);
+
+                        // Complete the write listener
+                        onResponse(Stream.of(shardOp.getWriteListener()), null);
+                        indexShard.afterWriteOperation();
+                    }
+
+                    // Update nanosSpentExecuting every 8 operations
+                    if ((opsExecuted & (8 - 1)) == 0) {
+                        nanosSpentExecuting = System.nanoTime() - startNanos;
+                        if ((nanosSpentExecuting - lastSyncCheckNanos) > SYNC_SCHEDULE_INTERVAL_NANOS) {
+                            lastSyncCheckNanos = nanosSpentExecuting;
+                            boolean performedSyncs = maybeExecuteSync(indexShard, shardState);
+                            if (performedSyncs) {
+                                continueExecuting = false;
+                            }
+                        }
+                        if (nanosSpentExecuting >= MAX_EXECUTE_NANOS) {
+                            continueExecuting = false;
+                        }
                     }
                 }
             }
         } finally {
             if (completedOps.isEmpty() == false) {
-                finishOperations(indexShard, completedOps);
+                performRefreshes(indexShard, completedOps);
             }
+            maybeExecuteSync(indexShard, shardState);
             cleanupIfShardClosed(indexShard);
         }
     }
 
-    private void finishOperations(IndexShard indexShard, ArrayList<ShardOp> completedOps) {
-        // Notify the write listeners
-        onResponse(completedOps.stream().map(ShardOp::getWriteListener), null);
+    private boolean maybeExecuteSync(IndexShard indexShard, ShardState shardState) {
+        if (shardState.shouldStartSyncing()) {
+            try {
+                ArrayList<ShardOp> completedOpsAlreadySynced = new ArrayList<>();
+                ArrayList<ShardOp> completedOpsNeedSync = new ArrayList<>();
+                while (true) {
+                    Translog.Location maxLocation = null;
+                    Translog.Location syncedLocation = null;
+                    try {
+                        syncedLocation = indexShard.getTranslogLastSyncedLocation();
+                    } catch (Exception e) {
+                        // The Translog might have closed. Ignore.
+                    }
 
-        indexShard.afterWriteOperation();
+                    ShardOp indexedOp;
+                    int opsToHandle = 0;
+                    while ((indexedOp = shardState.pollPostIndexed()) != null) {
+                        ++opsToHandle;
+                        Translog.Location location = indexedOp.locationToSync();
+                        if (location != null) {
+                            if (syncedLocation == null || location.compareTo(syncedLocation) > 0) {
+                                completedOpsNeedSync.add(indexedOp);
+                                if (maxLocation == null) {
+                                    maxLocation = location;
+                                } else if (location.compareTo(maxLocation) > 0) {
+                                    maxLocation = location;
+                                }
+                            } else {
+                                completedOpsAlreadySynced.add(indexedOp);
+                            }
+                        } else {
+                            completedOpsAlreadySynced.add(indexedOp);
+                        }
+                    }
 
-        ArrayList<ShardOp> completedOpsAlreadySynced = new ArrayList<>();
-        ArrayList<ShardOp> completedOpsNeedSync = new ArrayList<>();
+                    if (opsToHandle == 0) {
+                        break;
+                    }
+
+                    onResponse(completedOpsAlreadySynced.stream().map(ShardOp::getFlushListener), null);
+
+                    if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST && maxLocation != null) {
+                        syncOperations(indexShard, maxLocation, completedOpsNeedSync);
+                    } else {
+                        onResponse(completedOpsNeedSync.stream().map(ShardOp::getFlushListener), null);
+                    }
+
+                    completedOpsAlreadySynced.clear();
+                    completedOpsNeedSync.clear();
+                }
+            } finally {
+                shardState.markDoneSyncing();
+            }
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private void performRefreshes(IndexShard indexShard, ArrayList<ShardOp> completedOps) {
         ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
         ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
 
         Translog.Location maxLocation = null;
-        Translog.Location syncedLocation = null;
-        try {
-            syncedLocation = indexShard.getTranslogLastSyncedLocation();
-        } catch (Exception e) {
-            // The Translog might have closed. Ignore.
-        }
 
         for (ShardOp indexedOp : completedOps) {
             Translog.Location location = indexedOp.locationToSync();
-            if (location != null) {
-                if (syncedLocation == null || location.compareTo(syncedLocation) > 0) {
-                    completedOpsNeedSync.add(indexedOp);
-                } else {
-                    completedOpsAlreadySynced.add(indexedOp);
-                }
-                if (maxLocation == null) {
-                    maxLocation = location;
-                } else if (location.compareTo(maxLocation) > 0) {
-                    maxLocation = location;
-                }
-            } else {
-                completedOpsAlreadySynced.add(indexedOp);
+            if (maxLocation == null) {
+                maxLocation = location;
+            } else if (location != null && location.compareTo(maxLocation) > 0) {
+                maxLocation = location;
             }
 
             if (indexedOp.getRequest().getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
@@ -246,19 +303,11 @@ public class BatchedShardExecutor {
             }
         }
 
-        onResponse(completedOpsAlreadySynced.stream().map(ShardOp::getFlushListener), null);
-
-        finishOperations(indexShard, maxLocation, completedOpsNeedSync, completedOpsWaitForRefresh, completedOpsForceRefresh);
+        finishOperations(indexShard, maxLocation, completedOpsWaitForRefresh, completedOpsForceRefresh);
     }
 
-    private void finishOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> completedOpsNeedSync,
-                                  ArrayList<ShardOp> completedOpsWaitForRefresh, ArrayList<ShardOp> completedOpsForceRefresh) {
-        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST && maxLocation != null) {
-            syncOperations(indexShard, maxLocation, completedOpsNeedSync);
-        } else {
-            onResponse(completedOpsNeedSync.stream().map(ShardOp::getFlushListener), null);
-        }
-
+    private void finishOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> completedOpsWaitForRefresh,
+                                  ArrayList<ShardOp> completedOpsForceRefresh) {
         AtomicBoolean refreshed = new AtomicBoolean(false);
         if (completedOpsWaitForRefresh.isEmpty() == false) {
             if (maxLocation != null) {
@@ -382,7 +431,9 @@ public class BatchedShardExecutor {
         private final int maxScheduledTasks;
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedQueue<ShardOp> postIndexedQueue = new ConcurrentLinkedQueue<>();
         private final Semaphore scheduleTaskSemaphore;
+        private final AtomicBoolean syncLock = new AtomicBoolean(false);
         private volatile boolean isClosed = false;
 
         private ShardState(int maxScheduledTasks) {
@@ -414,6 +465,23 @@ public class BatchedShardExecutor {
                 pendingOps.getAndDecrement();
             }
             return operation;
+        }
+
+        private void postIndexedEnqueue(ShardOp shardOp) {
+            postIndexedQueue.add(shardOp);
+        }
+
+        private ShardOp pollPostIndexed() {
+            return postIndexedQueue.poll();
+        }
+
+        private boolean shouldStartSyncing() {
+            return syncLock.get() == false && syncLock.compareAndSet(false, true);
+        }
+
+        private void markDoneSyncing() {
+            assert syncLock.get();
+            syncLock.set(false);
         }
 
         private boolean shouldScheduleWriteTask() {

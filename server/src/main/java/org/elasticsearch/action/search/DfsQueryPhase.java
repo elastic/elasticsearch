@@ -19,7 +19,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -43,13 +42,15 @@ import java.util.function.Function;
 final class DfsQueryPhase extends SearchPhase {
     private final ArraySearchPhaseResults<SearchPhaseResult> queryResult;
     private final SearchPhaseController searchPhaseController;
-    private final AtomicArray<DfsSearchResult> dfsSearchResults;
+    private final List<DfsSearchResult> searchResults;
+    private final AggregatedDfs dfs;
     private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
 
-    DfsQueryPhase(AtomicArray<DfsSearchResult> dfsSearchResults,
+    DfsQueryPhase(List<DfsSearchResult> searchResults,
+                  AggregatedDfs dfs,
                   SearchPhaseController searchPhaseController,
                   Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
                   SearchPhaseContext context) {
@@ -57,7 +58,8 @@ final class DfsQueryPhase extends SearchPhase {
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = searchPhaseController.newSearchPhaseResults(progressListener, context.getRequest(), context.getNumShards());
         this.searchPhaseController = searchPhaseController;
-        this.dfsSearchResults = dfsSearchResults;
+        this.searchResults = searchResults;
+        this.dfs = dfs;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
@@ -67,18 +69,16 @@ final class DfsQueryPhase extends SearchPhase {
     public void run() throws IOException {
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
-        final List<DfsSearchResult> resultList = dfsSearchResults.asList();
-        final AggregatedDfs dfs = searchPhaseController.aggregateDfs(resultList);
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(queryResult::consumeResult,
-            resultList.size(),
+            searchResults.size(),
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
         final SearchSourceBuilder sourceBuilder = context.getRequest().source();
-        progressListener.notifyListShards(progressListener.searchShards(resultList), sourceBuilder == null || sourceBuilder.size() != 0);
-        for (final DfsSearchResult dfsResult : resultList) {
+        progressListener.notifyListShards(progressListener.searchShards(searchResults), sourceBuilder == null || sourceBuilder.size() != 0);
+        for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(searchShardTarget.getOriginalIndices(),
-                    dfsResult.getRequestId(), dfs);
+                    dfsResult.getRequestId(), dfsResult.getShardSearchRequest(), dfs);
             final int shardIndex = dfsResult.getShardIndex();
             searchTransportService.sendExecuteQuery(connection, querySearchRequest, context.getTask(),
                 new SearchActionListener<QuerySearchResult>(searchShardTarget, shardIndex) {

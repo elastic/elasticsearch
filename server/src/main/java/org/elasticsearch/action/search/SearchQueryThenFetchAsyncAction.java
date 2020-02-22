@@ -70,6 +70,6 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
-        return new FetchSearchPhase(results, searchPhaseController, context);
+        return new FetchSearchPhase(results, searchPhaseController, null, context);
     }
 }

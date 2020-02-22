@@ -23,9 +23,13 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -46,9 +50,6 @@ public class ShardFetchRequest extends TransportRequest {
     private int size;
 
     private ScoreDoc lastEmittedDoc;
-
-    public ShardFetchRequest() {
-    }
 
     public ShardFetchRequest(long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
         this.id = id;
@@ -120,4 +121,18 @@ public class ShardFetchRequest extends TransportRequest {
         return "id[" + id + "], size[" + size + "], lastEmittedDoc[" + lastEmittedDoc + "]";
     }
 
+    @Nullable
+    public ShardSearchRequest getShardSearchRequest() {
+        return null;
+    }
+
+    @Nullable
+    public RescoreDocIds getRescoreDocIds() {
+        return null;
+    }
+
+    @Nullable
+    public AggregatedDfs getAggregatedDfs() {
+        return null;
+    }
 }

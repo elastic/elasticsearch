@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -282,6 +283,10 @@ public class SearchTransportService {
         }
     }
 
+    static boolean keepStatesInContext(Version version) {
+        return version.before(Version.V_8_0_0);
+    }
+
     public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
         transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ScrollFreeContextRequest::new,
             (request, channel, task) -> {
@@ -306,7 +311,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
             (request, channel, task) ->
-                searchService.executeDfsPhase(request, (SearchShardTask) task,
+                searchService.executeDfsPhase(request, keepStatesInContext(channel.getVersion()), (SearchShardTask) task,
                     new ChannelActionListener<>(channel, DFS_ACTION_NAME, request))
         );
 
@@ -314,7 +319,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchShardTask) task,
+                searchService.executeQueryPhase(request, keepStatesInContext(channel.getVersion()), (SearchShardTask) task,
                     new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request));
             });
         TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME,

@@ -139,6 +139,7 @@ final class DefaultSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private SearchContextHighlight highlight;
     private SuggestionSearchContext suggest;
+    private List<RescoreContext> rescore;
     private Profilers profilers;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
@@ -156,8 +157,8 @@ final class DefaultSearchContext extends SearchContext {
         this.shardTarget = shardTarget;
         // SearchContexts use a BigArrays that can circuit break
         this.bigArrays = bigArrays.withCircuitBreaking();
-        this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget);
-        this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget);
+        this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget, request);
+        this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget, request);
         this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
@@ -165,7 +166,6 @@ final class DefaultSearchContext extends SearchContext {
         final Engine.Searcher engineSearcher = readerContext.engineSearcher();
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy());
-        searcher.setAggregatedDfs(readerContext.aggregatedDfs());
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), this.searcher,
@@ -204,7 +204,7 @@ final class DefaultSearchContext extends SearchContext {
                             + "]. Scroll batch sizes cost as much memory as result windows so they are controlled by the ["
                             + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() + "] index level setting.");
         }
-        if (rescore().isEmpty() == false) {
+        if (rescore != null) {
             if (sort != null) {
                 throw new IllegalArgumentException("Cannot use [sort] option in conjunction with [rescore].");
             }
@@ -328,7 +328,6 @@ final class DefaultSearchContext extends SearchContext {
         return readerContext.scrollContext();
     }
 
-
     @Override
     public SearchContextAggregations aggregations() {
         return aggregations;
@@ -374,7 +373,18 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public List<RescoreContext> rescore() {
-        return readerContext.rescore();
+        if (rescore == null) {
+            return List.of();
+        }
+        return rescore;
+    }
+
+    @Override
+    public void addRescore(RescoreContext rescore) {
+        if (this.rescore == null) {
+            this.rescore = new ArrayList<>();
+        }
+        this.rescore.add(rescore);
     }
 
     @Override

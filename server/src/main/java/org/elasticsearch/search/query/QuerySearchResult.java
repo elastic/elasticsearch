@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -82,10 +84,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
     }
 
-    public QuerySearchResult(long id, SearchShardTarget shardTarget) {
+    public QuerySearchResult(long id, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.requestId = id;
         setSearchShardTarget(shardTarget);
         isNull = false;
+        setShardSearchRequest(shardSearchRequest);
     }
 
     private QuerySearchResult(boolean isNull) {
@@ -336,6 +339,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasProfileResults = profileShardResults != null;
         serviceTimeEWMA = in.readZLong();
         nodeQueueSize = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+            setRescoreDocIds(new RescoreDocIds(in));
+        }
     }
 
     @Override
@@ -388,6 +395,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(getShardSearchRequest());
+            getRescoreDocIds().writeTo(out);
+        }
     }
 
     public TotalHits getTotalHits() {

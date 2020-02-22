@@ -98,31 +98,31 @@ public class BatchedShardExecutor {
 
     private void enqueueAndSchedule(ShardOp shardOp, boolean isPrimary, boolean allowReject) {
         ShardId shardId = shardOp.getIndexShard().shardId();
-        ShardState shardState = getOrCreateShardState(shardId);
+        ShardState shardState = getOrCreateShardState(shardId, isPrimary);
         if (shardState.attemptPreIndexedEnqueue(shardOp, allowReject)) {
             // If the ShardState was closed after we enqueued, attempt to remove our operation and finish it
             // to ensure that it does not get lost.
             if (shardState.isClosed() && shardState.remove(shardOp)) {
                 onFailure(Stream.of(shardOp.getWriteListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
             } else {
-                maybeSchedule(shardOp.getIndexShard(), shardState, isPrimary);
+                maybeSchedule(shardOp.getIndexShard(), shardState);
             }
         } else {
             throw new EsRejectedExecutionException("rejected execution of shard operation", false);
         }
     }
 
-    private ShardState getOrCreateShardState(ShardId shardId) {
+    private ShardState getOrCreateShardState(ShardId shardId, boolean isPrimary) {
         ShardState queue = shardState.get(shardId);
         if (queue == null) {
-            ShardState createdQueue = new ShardState(numberOfWriteThreads);
+            ShardState createdQueue = new ShardState(isPrimary, numberOfWriteThreads);
             ShardState previous = shardState.putIfAbsent(shardId, createdQueue);
             queue = Objects.requireNonNullElse(previous, createdQueue);
         }
         return queue;
     }
 
-    private void maybeSchedule(IndexShard indexShard, ShardState shardState, boolean isPrimary) {
+    private void maybeSchedule(IndexShard indexShard, ShardState shardState) {
         if (shardState.shouldScheduleWriteTask()) {
             threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
@@ -135,7 +135,7 @@ public class BatchedShardExecutor {
                 @Override
                 protected void doRun() {
                     shardState.markTaskStarted();
-                    performShardOperations(indexShard, isPrimary);
+                    performShardOperations(indexShard);
                 }
 
                 @Override
@@ -151,14 +151,14 @@ public class BatchedShardExecutor {
                 @Override
                 public void onAfter() {
                     if (shardState.preIndexedQueue.isEmpty() == false || shardState.postIndexedQueue.isEmpty() == false) {
-                        maybeSchedule(indexShard, shardState, isPrimary);
+                        maybeSchedule(indexShard, shardState);
                     }
                 }
             });
         }
     }
 
-    private void performShardOperations(IndexShard indexShard, boolean isPrimary) {
+    private void performShardOperations(IndexShard indexShard) {
         ShardId shardId = indexShard.shardId();
         ShardState shardState = this.shardState.get(shardId);
         if (shardState == null) {
@@ -177,7 +177,7 @@ public class BatchedShardExecutor {
             while (continueExecuting && (shardOp = shardState.pollPreIndexed()) != null) {
                 boolean opCompleted = false;
                 try {
-                    if (isPrimary) {
+                    if (shardState.isPrimary()) {
                         PrimaryOp primaryOp = (PrimaryOp) shardOp;
                         Runnable rescheduler = () -> enqueueAndSchedule(primaryOp, true, false);
                         opCompleted = primaryOpHandler.apply(primaryOp, rescheduler);
@@ -437,17 +437,23 @@ public class BatchedShardExecutor {
 
         private static final int MAX_QUEUED = 400;
 
-        private final int maxScheduledTasks;
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
         private final ConcurrentLinkedQueue<ShardOp> postIndexedQueue = new ConcurrentLinkedQueue<>();
+        private final boolean isPrimary;
+        private final int maxScheduledTasks;
         private final Semaphore scheduleTaskSemaphore;
         private final AtomicBoolean syncLock = new AtomicBoolean(false);
         private volatile boolean isClosed = false;
 
-        private ShardState(int maxScheduledTasks) {
-            scheduleTaskSemaphore = new Semaphore(maxScheduledTasks);
+        private ShardState(boolean isPrimary, int maxScheduledTasks) {
+            this.isPrimary = isPrimary;
             this.maxScheduledTasks = maxScheduledTasks;
+            this.scheduleTaskSemaphore = new Semaphore(maxScheduledTasks);
+        }
+
+        public boolean isPrimary() {
+            return isPrimary;
         }
 
         private boolean attemptPreIndexedEnqueue(ShardOp shardOp, boolean allowReject) {

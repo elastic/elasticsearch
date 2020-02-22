@@ -164,7 +164,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject(queryField).field("type", "percolator").endObject().endObject()
                 .endObject().endObject());
         mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
-        fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper("type").mappers().getMapper(queryField);
+        fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper().mappers().getMapper(queryField);
         fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
 
         queries = new ArrayList<>();
@@ -197,7 +197,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         Collections.sort(intValues);
 
-        MappedFieldType intFieldType = mapperService.fullName("int_field");
+        MappedFieldType intFieldType = mapperService.fieldType("int_field");
 
         List<Supplier<Query>> queryFunctions = new ArrayList<>();
         queryFunctions.add(MatchNoDocsQuery::new);
@@ -329,7 +329,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         stringValues.add("value2");
         stringValues.add("value3");
 
-        MappedFieldType intFieldType = mapperService.fullName("int_field");
+        MappedFieldType intFieldType = mapperService.fieldType("int_field");
         List<int[]> ranges = new ArrayList<>();
         ranges.add(new int[]{-5, 5});
         ranges.add(new int[]{0, 10});

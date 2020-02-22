@@ -1,15 +1,12 @@
 [[search]]
-= Search APIs
-
-[partintro]
---
+== Search APIs
 
 Most search APIs are <<search-multi-index,multi-index>>, with the
 exception of the <<search-explain>> endpoints.
 
 [float]
 [[search-routing]]
-== Routing
+=== Routing
 
 When executing a search, Elasticsearch will pick the "best" copy of the data
 based on the <<search-adaptive-replica,adaptive replica selection>> formula.
@@ -17,22 +14,21 @@ Which shards will be searched on can also be controlled by providing the
 `routing` parameter. For example, when indexing tweets, the routing value can be
 the user name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_doc?routing=kimchy
 {
     "user" : "kimchy",
-    "postDate" : "2009-11-15T14:12:12",
+    "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 In such a case, if we want to search only on the tweets for a specific
 user, we can specify it as the routing, resulting in the search hitting
 only the relevant shard:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_search?routing=kimchy
 {
@@ -50,7 +46,6 @@ POST /twitter/_search?routing=kimchy
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The routing parameter can be multi valued represented as a comma
@@ -59,7 +54,7 @@ the routing values match to.
 
 [float]
 [[search-adaptive-replica]]
-== Adaptive Replica Selection
+=== Adaptive Replica Selection
 
 By default, Elasticsearch will use what is called adaptive replica selection.
 This allows the coordinating node to send the request to the copy deemed "best"
@@ -73,7 +68,7 @@ based on a number of criteria:
 This can be turned off by changing the dynamic cluster setting
 `cluster.routing.use_adaptive_replica_selection` from `true` to `false`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -82,7 +77,6 @@ PUT /_cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 If adaptive replica selection is turned off, searches are sent to the
 index/indices shards in a round robin fashion between all copies of the data
@@ -90,7 +84,7 @@ index/indices shards in a round robin fashion between all copies of the data
 
 [float]
 [[stats-groups]]
-== Stats Groups
+=== Stats Groups
 
 A search can be associated with stats groups, which maintains a
 statistics aggregation per group. It can later be retrieved using the
@@ -98,7 +92,7 @@ statistics aggregation per group. It can later be retrieved using the
 specifically. For example, here is a search body request that associate
 the request with two different groups:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -108,12 +102,11 @@ POST /_search
     "stats" : ["group1", "group2"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
 [[global-search-timeout]]
-== Global Search Timeout
+=== Global Search Timeout
 
 Individual searches can have a timeout as part of the
 <<search-request-body>>. Since search requests can originate from many
@@ -130,20 +123,17 @@ Setting this value to `-1` resets the global search timeout to no timeout.
 
 [float]
 [[global-search-cancellation]]
-== Search Cancellation
+=== Search Cancellation
 
 Searches can be cancelled using standard <<task-cancellation,task cancellation>>
-mechanism. By default, a running search only checks if it is cancelled or
-not on segment boundaries, therefore the cancellation can be delayed by large
-segments. The search cancellation responsiveness can be improved by setting
-the dynamic cluster-level setting `search.low_level_cancellation` to `true`.
-However, it comes with an additional overhead of more frequent cancellation
-checks that can be noticeable on large fast running search queries. Changing this
-setting only affects the searches that start after the change is made.
+mechanism and are also automatically cancelled when the http connection used to
+perform the request is closed by the client. It is fundamental that the http
+client sending requests closes connections whenever requests time out or are
+aborted.
 
 [float]
 [[search-concurrency-and-parallelism]]
-== Search concurrency and parallelism
+=== Search concurrency and parallelism
 
 By default Elasticsearch doesn't reject any search requests based on the number
 of shards the request hits. While Elasticsearch will optimize the search
@@ -159,8 +149,6 @@ for the request. This parameter should be used to protect a single request from
 overloading a cluster (e.g., a default request will hit all indices in a cluster
 which could cause shard request rejections if the number of shards per node is
 high). This default value is `5`.
-
---
 
 include::search/search.asciidoc[]
 

@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,17 +27,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutCalendarAction extends StreamableResponseActionType<PutCalendarAction.Response> {
+public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
     public static final PutCalendarAction INSTANCE = new PutCalendarAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/put";
 
     private PutCalendarAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -58,6 +53,11 @@ public class PutCalendarAction extends StreamableResponseActionType<PutCalendarA
 
         public Request() {
 
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calendar = new Calendar(in);
         }
 
         public Request(Calendar calendar) {
@@ -87,12 +87,6 @@ public class PutCalendarAction extends StreamableResponseActionType<PutCalendarA
                         validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendar = new Calendar(in);
         }
 
         @Override
@@ -136,7 +130,9 @@ public class PutCalendarAction extends StreamableResponseActionType<PutCalendarA
 
         private Calendar calendar;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            calendar = new Calendar(in);
         }
 
         public Response(Calendar calendar) {
@@ -144,15 +140,7 @@ public class PutCalendarAction extends StreamableResponseActionType<PutCalendarA
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendar = new Calendar(in);
-
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             calendar.writeTo(out);
         }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -135,7 +136,7 @@ public class Realms implements Iterable<Realm> {
 
         final List<Realm> allowedRealms = this.asList();
         // Shortcut for the typical case, all the configured realms are allowed
-        if (allowedRealms.equals(this.realms.size())) {
+        if (allowedRealms.equals(this.realms)) {
             return Collections.emptyList();
         }
 
@@ -184,6 +185,8 @@ public class Realms implements Iterable<Realm> {
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
         List<String> kerberosRealmNames = new ArrayList<>();
+        Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
+        Map<Integer, Set<String>> orderToRealmName = new HashMap<>();
         for (RealmConfig.RealmIdentifier identifier: realmsSettings.keySet()) {
             Realm.Factory factory = factories.get(identifier.getType());
             if (factory == null) {
@@ -213,8 +216,15 @@ public class Realms implements Iterable<Realm> {
                         "configured");
                 }
             }
-            realms.add(factory.create(config));
+            Realm realm = factory.create(config);
+            nameToRealmIdentifier.computeIfAbsent(realm.name(), k ->
+                new HashSet<>()).add(RealmSettings.realmSettingPrefix(realm.type()) + realm.name());
+            orderToRealmName.computeIfAbsent(realm.order(), k -> new HashSet<>())
+                .add(realm.name());
+            realms.add(realm);
         }
+
+        checkUniqueOrders(orderToRealmName);
 
         if (!realms.isEmpty()) {
             Collections.sort(realms);
@@ -224,6 +234,13 @@ public class Realms implements Iterable<Realm> {
         }
         // always add built in first!
         realms.add(0, reservedRealm);
+        String duplicateRealms = nameToRealmIdentifier.entrySet().stream()
+            .filter(entry -> entry.getValue().size() > 1)
+            .map(entry -> entry.getKey() + ": " + entry.getValue())
+            .collect(Collectors.joining("; "));
+        if (Strings.hasText(duplicateRealms)) {
+            throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateRealms + "");
+        }
         return realms;
     }
 
@@ -293,15 +310,34 @@ public class Realms implements Iterable<Realm> {
     private void addNativeRealms(List<Realm> realms) throws Exception {
         Realm.Factory fileRealm = factories.get(FileRealmSettings.TYPE);
         if (fileRealm != null) {
+            var realmIdentifier = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE);
             realms.add(fileRealm.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE),
-                    settings, env, threadContext)));
+                realmIdentifier,
+                ensureOrderSetting(settings, realmIdentifier, Integer.MIN_VALUE + 1),
+                env, threadContext)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
         if (indexRealmFactory != null) {
+            var realmIdentifier = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE);
             realms.add(indexRealmFactory.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE),
-                    settings, env, threadContext)));
+                realmIdentifier,
+                ensureOrderSetting(settings, realmIdentifier, Integer.MIN_VALUE + 2),
+                env, threadContext)));
+        }
+    }
+
+    private Settings ensureOrderSetting(Settings settings, RealmConfig.RealmIdentifier realmIdentifier, int order) {
+        String orderSettingKey = RealmSettings.realmSettingPrefix(realmIdentifier) + "order";
+        return Settings.builder().put(settings).put(orderSettingKey, order).build();
+    }
+
+    private void checkUniqueOrders(Map<Integer, Set<String>> orderToRealmName) {
+        String duplicateOrders = orderToRealmName.entrySet().stream()
+            .filter(entry -> entry.getValue().size() > 1)
+            .map(entry -> entry.getKey() + ": " + entry.getValue())
+            .collect(Collectors.joining("; "));
+        if (Strings.hasText(duplicateOrders)) {
+            throw new IllegalArgumentException("Found multiple realms configured with the same order: " + duplicateOrders);
         }
     }
 

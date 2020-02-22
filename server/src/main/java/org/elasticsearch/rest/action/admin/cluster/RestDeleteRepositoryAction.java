@@ -21,13 +21,12 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.client.Requests.deleteRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -36,9 +35,10 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * Unregisters a repository
  */
 public class RestDeleteRepositoryAction extends BaseRestHandler {
-    public RestDeleteRepositoryAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(DELETE, "/_snapshot/{repository}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(DELETE, "/_snapshot/{repository}"));
     }
 
     @Override

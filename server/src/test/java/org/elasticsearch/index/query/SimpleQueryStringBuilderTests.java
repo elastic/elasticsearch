@@ -27,7 +27,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -42,7 +41,6 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -262,7 +260,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
      * actual functionality of query parsing.
      */
     @Override
-    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
 
         if (queryBuilder.value().isEmpty()) {
@@ -411,15 +409,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             }
             assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());
         }
-    }
-
-    public void testIndexMetaField() throws IOException {
-        QueryShardContext shardContext = createShardContext();
-        SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder(getIndex().getName());
-        simpleQueryStringBuilder.field("_index");
-        Query query = simpleQueryStringBuilder.toQuery(shardContext);
-        assertThat(query, notNullValue());
-        assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 
     public void testExpandedTerms() throws Exception {

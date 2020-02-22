@@ -4,29 +4,26 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
-    testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
 }
 
 task restTest(type: RestIntegTestTask) {
-    mustRunAfter(precommit)
+  mustRunAfter(precommit)
 }
 
 testClusters.restTest {
-    distribution = 'default'
-    // Disable assertions in FollowingEngineAssertions, otherwise an AssertionError is thrown before
-    // indexing a document directly in a follower index. In a rest test we like to test the exception
-    // that is thrown in production when indexing a document directly in a follower index.
-    jvmArgs '-da:org.elasticsearch.xpack.ccr.index.engine.FollowingEngineAssertions'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    // TODO: reduce the need for superuser here
-    user username:'ccr-user', password: 'ccr-user-password', role: 'superuser'
+  testDistribution = 'DEFAULT'
+  // Disable assertions in FollowingEngineAssertions, otherwise an AssertionError is thrown before
+  // indexing a document directly in a follower index. In a rest test we like to test the exception
+  // that is thrown in production when indexing a document directly in a follower index.
+  jvmArgs '-da:org.elasticsearch.xpack.ccr.index.engine.FollowingEngineAssertions'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  // TODO: reduce the need for superuser here
+  user username: 'ccr-user', password: 'ccr-user-password', role: 'superuser'
 }
 
 check.dependsOn restTest

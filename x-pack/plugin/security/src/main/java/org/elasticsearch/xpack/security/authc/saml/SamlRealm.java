@@ -10,8 +10,6 @@ import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 import org.apache.http.client.HttpClient;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.Logger;
@@ -52,7 +50,7 @@ import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
@@ -218,7 +216,7 @@ public final class SamlRealm extends Realm implements Releasable {
         this.idpDescriptor = idpDescriptor;
         this.serviceProvider = spConfiguration;
 
-        this.nameIdPolicy = new SamlAuthnRequestBuilder.NameIDPolicySettings(require(config, NAMEID_FORMAT),
+        this.nameIdPolicy = new SamlAuthnRequestBuilder.NameIDPolicySettings(config.getSetting(NAMEID_FORMAT),
                 config.getSetting(NAMEID_ALLOW_CREATE), config.getSetting(NAMEID_SP_QUALIFIER));
         this.forceAuthn = config.getSetting(FORCE_AUTHN, () -> null);
         this.useSingleLogout = config.getSetting(IDP_SINGLE_LOGOUT);
@@ -384,6 +382,14 @@ public final class SamlRealm extends Realm implements Releasable {
         return token instanceof SamlToken;
     }
 
+    private boolean isTokenForRealm(SamlToken samlToken) {
+        if (samlToken.getAuthenticatingRealm() == null) {
+            return true;
+        } else {
+            return samlToken.getAuthenticatingRealm().equals(this.name());
+        }
+    }
+
     /**
      * Always returns {@code null} as there is no support for reading a SAML token out of a request
      *
@@ -396,7 +402,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult> listener) {
-        if (authenticationToken instanceof SamlToken) {
+        if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
             try {
                 final SamlToken token = (SamlToken) authenticationToken;
                 final SamlAttributes attributes = authenticator.authenticate(token);
@@ -530,8 +536,7 @@ public final class SamlRealm extends Realm implements Releasable {
         // ssl setup
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-        boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
-        HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+        final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         builder.setSSLSocketFactory(factory);
 
@@ -721,7 +726,7 @@ public final class SamlRealm extends Realm implements Releasable {
             try {
                 onChange.run();
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("An error occurred while reloading file {}", file), e);
+                logger.warn(new ParameterizedMessage("An error occurred while reloading file [{}]", file), e);
             }
         }
     }

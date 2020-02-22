@@ -20,7 +20,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class SearchTemplateAction extends ActionType<SearchTemplateResponse> {
 
@@ -28,11 +27,6 @@ public class SearchTemplateAction extends ActionType<SearchTemplateResponse> {
     public static final String NAME = "indices:data/read/search/template";
 
     private SearchTemplateAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<SearchTemplateResponse> getResponseReader() {
-        return SearchTemplateResponse::new;
+        super(NAME, SearchTemplateResponse::new);
     }
 }

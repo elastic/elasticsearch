@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -71,6 +72,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -93,6 +95,11 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
 
     private static final Logger logger = LogManager.getLogger(Coordinator.class);
+
+    // the timeout before emitting an info log about a slow-running publication
+    public static final Setting<TimeValue> PUBLISH_INFO_TIMEOUT_SETTING =
+        Setting.timeSetting("cluster.publish.info_timeout",
+            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     // the timeout for the publication of each value
     public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
@@ -121,6 +128,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final ElectionSchedulerFactory electionSchedulerFactory;
     private final SeedHostsResolver configuredHostsResolver;
     private final TimeValue publishTimeout;
+    private final TimeValue publishInfoTimeout;
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
     private final FollowersChecker followersChecker;
@@ -156,7 +164,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.masterService = masterService;
         this.allocationService = allocationService;
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
-        this.singleNodeDiscovery = DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings));
+        this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators,
@@ -167,6 +175,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
+        this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy);
@@ -442,23 +451,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode());
+        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
+            final ClusterState stateForJoinValidation = getStateForMasterService();
 
-        final ClusterState stateForJoinValidation = getStateForMasterService();
-
-        if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
-            onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
-            if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
-                // we do this in a couple of places including the cluster update thread. This one here is really just best effort
-                // to ensure we fail as fast as possible.
-                JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
-                    stateForJoinValidation.getNodes().getMinNodeVersion());
+            if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+                onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
+                if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                    // we do this in a couple of places including the cluster update thread. This one here is really just best effort
+                    // to ensure we fail as fast as possible.
+                    JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
+                        stateForJoinValidation.getNodes().getMinNodeVersion());
+                }
+                sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
+            } else {
+                processJoinRequest(joinRequest, joinCallback);
             }
-            sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
-
-        } else {
-            processJoinRequest(joinRequest, joinCallback);
-        }
+        }, joinCallback::onFailure));
     }
 
     // package private for tests
@@ -695,7 +703,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     @Override
-    protected void doClose() {
+    protected void doClose() throws IOException {
+        final CoordinationState coordinationState = this.coordinationState.get();
+        if (coordinationState != null) {
+            // This looks like a race that might leak an unclosed CoordinationState if it's created while execution is here, but this method
+            // is synchronized on AbstractLifecycleComponent#lifestyle, as is the doStart() method that creates the CoordinationState, so
+            // it's all ok.
+            synchronized (mutex) {
+                coordinationState.close();
+            }
+        }
     }
 
     public void invariant() {
@@ -852,11 +869,23 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     ClusterState improveConfiguration(ClusterState clusterState) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
+        // exclude any nodes whose ID is in the voting config exclusions list ...
+        final Stream<String> excludedNodeIds = clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId);
+        // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
+        // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
+        // the logging much harder to follow.
+        final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+            .filter(n -> n.isMasterNode() == false
+                && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
+                || clusterState.getLastCommittedConfiguration().getNodeIds().contains(n.getId())))
+            .map(DiscoveryNode::getId);
+
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-            .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
+            .filter(DiscoveryNode::isMasterNode).filter(coordinationState.get()::containsJoinVoteFor).collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
-            clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId).collect(Collectors.toSet()),
+            Stream.concat(masterIneligibleNodeIdsInVotingConfig, excludedNodeIds).collect(Collectors.toSet()),
             getLocalNode(), clusterState.getLastAcceptedConfiguration());
+
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
             return ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
@@ -894,9 +923,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    // for tests
-    boolean hasJoinVoteFrom(DiscoveryNode node) {
-        return coordinationState.get().containsJoinVoteFor(node);
+    // exposed for tests
+    boolean missingJoinVoteFrom(DiscoveryNode node) {
+        return node.isMasterNode() && coordinationState.get().containsJoinVoteFor(node) == false;
     }
 
     private void handleJoin(Join join) {
@@ -905,13 +934,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             if (coordinationState.get().electionWon()) {
                 // If we have already won the election then the actual join does not matter for election purposes, so swallow any exception
-                final boolean isNewJoin = handleJoinIgnoringExceptions(join);
+                final boolean isNewJoinFromMasterEligibleNode = handleJoinIgnoringExceptions(join);
 
                 // If we haven't completely finished becoming master then there's already a publication scheduled which will, in turn,
                 // schedule a reconfiguration if needed. It's benign to schedule a reconfiguration anyway, but it might fail if it wins the
                 // race against the election-winning publication and log a big error message, which we can prevent by checking this here:
                 final boolean establishedAsMaster = mode == Mode.LEADER && getLastAcceptedState().term() == getCurrentTerm();
-                if (isNewJoin && establishedAsMaster && publicationInProgress() == false) {
+                if (isNewJoinFromMasterEligibleNode && establishedAsMaster && publicationInProgress() == false) {
                     scheduleReconfigurationIfNeeded();
                 }
             } else {
@@ -1188,7 +1217,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final AckListener ackListener;
         private final ActionListener<Void> publishListener;
         private final PublicationTransportHandler.PublicationContext publicationContext;
-        private final Scheduler.ScheduledCancellable scheduledCancellable;
+
+        @Nullable // if using single-node discovery
+        private final Scheduler.ScheduledCancellable timeoutHandler;
+        private final Scheduler.Cancellable infoTimeoutHandler;
 
         // We may not have accepted our own state before receiving a join from another node, causing its join to be rejected (we cannot
         // safely accept a join whose last-accepted term/version is ahead of ours), so store them up and process them at the end.
@@ -1229,7 +1261,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.localNodeAckEvent = localNodeAckEvent;
             this.ackListener = ackListener;
             this.publishListener = publishListener;
-            this.scheduledCancellable = transportService.getThreadPool().schedule(new Runnable() {
+
+            this.timeoutHandler = singleNodeDiscovery ? null : transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
                     synchronized (mutex) {
@@ -1242,6 +1275,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     return "scheduled timeout for " + CoordinatorPublication.this;
                 }
             }, publishTimeout, Names.GENERIC);
+
+            this.infoTimeoutHandler = transportService.getThreadPool().schedule(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (mutex) {
+                        logIncompleteNodes(Level.INFO);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "scheduled timeout for reporting on " + CoordinatorPublication.this;
+                }
+            }, publishInfoTimeout, Names.GENERIC);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {
@@ -1283,7 +1330,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 synchronized (mutex) {
                                     removePublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
                                 }
-                                scheduledCancellable.cancel();
+                                cancelTimeoutHandlers();
                                 ackListener.onNodeAck(getLocalNode(), e);
                                 publishListener.onFailure(e);
                             }
@@ -1328,8 +1375,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                         }
                                     }
                                     lagDetector.startLagDetector(publishRequest.getAcceptedState().version());
+                                    logIncompleteNodes(Level.WARN);
                                 }
-                                scheduledCancellable.cancel();
+                                cancelTimeoutHandlers();
                                 ackListener.onNodeAck(getLocalNode(), null);
                                 publishListener.onResponse(null);
                             }
@@ -1340,7 +1388,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 public void onFailure(Exception e) {
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                     removePublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
-                    scheduledCancellable.cancel();
+                    cancelTimeoutHandlers();
 
                     final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException("publication failed", e);
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
@@ -1349,8 +1397,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             }, EsExecutors.newDirectExecutorService(), transportService.getThreadPool().getThreadContext());
         }
 
+        private void cancelTimeoutHandlers() {
+            if (timeoutHandler != null) {
+                timeoutHandler.cancel();
+            }
+            infoTimeoutHandler.cancel();
+        }
+
         private void handleAssociatedJoin(Join join) {
-            if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
+            if (join.getTerm() == getCurrentTerm() && missingJoinVoteFrom(join.getSourceNode())) {
                 logger.trace("handling {}", join);
                 handleJoin(join);
             }
@@ -1388,7 +1443,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // The remote node did not include a join vote in its publish response. We do not persist joins, so it could be that the remote
             // node voted for us and then rebooted, or it could be that it voted for a different node in this term. If we don't have a copy
             // of a join from this node then we assume the latter and bump our term to obtain a vote from this node.
-            if (hasJoinVoteFrom(discoveryNode) == false) {
+            if (missingJoinVoteFrom(discoveryNode)) {
                 final long term = publishRequest.getAcceptedState().term();
                 logger.debug("onMissingJoin: no join vote from {}, bumping term to exceed {}", discoveryNode, term);
                 updateMaxTermSeen(term + 1);

@@ -1,5 +1,5 @@
 [[query-dsl-multi-term-rewrite]]
-== `rewrite` Parameter
+== `rewrite` parameter
 
 WARNING: This parameter is for expert users only. Changing the value of
 this parameter can impact search performance and relevance.

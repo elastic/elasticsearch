@@ -1,4 +1,3 @@
-
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 
@@ -11,11 +10,8 @@ subprojects { Project subproj ->
     }
   }
   plugins.withType(TestClustersPlugin).whenPluginAdded {
-    afterEvaluate {
-      // We need to delay this so it's not overwritten in RestIntegTestTask 
-      testClusters.all {
-        distribution = System.getProperty('tests.distribution', 'oss').toUpperCase()
-      }
+    testClusters.all {
+      testDistribution = System.getProperty('tests.distribution', 'oss').toUpperCase()
     }
   }
 }

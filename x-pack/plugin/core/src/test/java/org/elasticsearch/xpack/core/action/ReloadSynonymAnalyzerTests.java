@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -42,6 +43,140 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testSynonymsUpdateable() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
+        Path synonymsFile = setupSynonymsFile(synonymsFileName, "foo, baz");
+
+        final String indexName = "test";
+        final String synonymAnalyzerName = "synonym_analyzer";
+        final String synonymGraphAnalyzerName = "synonym_graph_analyzer";
+        assertAcked(client().admin().indices().prepareCreate(indexName)
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
+                        .put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "standard")
+                        .putList("analysis.analyzer." + synonymAnalyzerName + ".filter", "lowercase", "synonym_filter")
+                        .put("analysis.analyzer." + synonymGraphAnalyzerName + ".tokenizer", "standard")
+                        .putList("analysis.analyzer." + synonymGraphAnalyzerName + ".filter", "lowercase", "synonym_graph_filter")
+                        .put("analysis.filter.synonym_filter.type", "synonym")
+                        .put("analysis.filter.synonym_filter.updateable", "true")
+                        .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
+                        .put("analysis.filter.synonym_graph_filter.type", "synonym_graph")
+                        .put("analysis.filter.synonym_graph_filter.updateable", "true")
+                        .put("analysis.filter.synonym_graph_filter.synonyms_path", synonymsFileName))
+                .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
+
+        client().prepareIndex(indexName).setId("1").setSource("field", "Foo").get();
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
+
+        SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
+        assertHitCount(response, 1L);
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
+        assertHitCount(response, 0L);
+
+        {
+            for (String analyzerName : new String[] { synonymAnalyzerName, synonymGraphAnalyzerName }) {
+                Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName).get();
+                assertEquals(2, analyzeResponse.getTokens().size());
+                Set<String> tokens = new HashSet<>();
+                analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
+                assertTrue(tokens.contains("foo"));
+                assertTrue(tokens.contains("baz"));
+            }
+        }
+
+        // now update synonyms file and trigger reloading
+        try (PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+            out.println("foo, baz, buzz");
+        }
+        ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
+                .actionGet();
+        assertNoFailures(reloadResponse);
+        Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
+        assertEquals(2, reloadedAnalyzers.size());
+        assertTrue(reloadedAnalyzers.contains(synonymAnalyzerName));
+        assertTrue(reloadedAnalyzers.contains(synonymGraphAnalyzerName));
+
+        {
+            for (String analyzerName : new String[] { synonymAnalyzerName, synonymGraphAnalyzerName }) {
+                Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName).get();
+                assertEquals(3, analyzeResponse.getTokens().size());
+                Set<String> tokens = new HashSet<>();
+                analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
+                assertTrue(tokens.contains("foo"));
+                assertTrue(tokens.contains("baz"));
+                assertTrue(tokens.contains("buzz"));
+            }
+        }
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
+        assertHitCount(response, 1L);
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
+        assertHitCount(response, 1L);
+    }
+
+    public void testSynonymsInMultiplexerUpdateable() throws FileNotFoundException, IOException {
+        String synonymsFileName = "synonyms.txt";
+        Path synonymsFile = setupSynonymsFile(synonymsFileName, "foo, baz");
+
+        final String indexName = "test";
+        final String synonymAnalyzerName = "synonym_in_multiplexer_analyzer";
+        assertAcked(client().admin().indices().prepareCreate(indexName)
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
+                        .put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "whitespace")
+                        .putList("analysis.analyzer." + synonymAnalyzerName + ".filter", "my_multiplexer")
+                        .put("analysis.filter.synonym_filter.type", "synonym")
+                        .put("analysis.filter.synonym_filter.updateable", "true")
+                        .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
+                        .put("analysis.filter.my_multiplexer.type", "multiplexer")
+                        .putList("analysis.filter.my_multiplexer.filters", "synonym_filter"))
+                .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
+
+        client().prepareIndex(indexName).setId("1").setSource("field", "foo").get();
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
+
+        SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
+        assertHitCount(response, 1L);
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
+        assertHitCount(response, 0L);
+
+        Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(synonymAnalyzerName).get();
+        assertEquals(2, analyzeResponse.getTokens().size());
+        final Set<String> tokens = new HashSet<>();
+        analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
+        assertTrue(tokens.contains("foo"));
+        assertTrue(tokens.contains("baz"));
+
+        // now update synonyms file and trigger reloading
+        try (PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+            out.println("foo, baz, buzz");
+        }
+        ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
+                .actionGet();
+        assertNoFailures(reloadResponse);
+        Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
+        assertEquals(1, reloadedAnalyzers.size());
+        assertTrue(reloadedAnalyzers.contains(synonymAnalyzerName));
+
+        analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(synonymAnalyzerName).get();
+        assertEquals(3, analyzeResponse.getTokens().size());
+        tokens.clear();
+        analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
+        assertTrue(tokens.contains("foo"));
+        assertTrue(tokens.contains("baz"));
+        assertTrue(tokens.contains("buzz"));
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
+        assertHitCount(response, 1L);
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
+        assertHitCount(response, 1L);
+    }
+
+    public void testUpdateableSynonymsRejectedAtIndexTime() throws FileNotFoundException, IOException {
+        String synonymsFileName = "synonyms.txt";
+        setupSynonymsFile(synonymsFileName, "foo, baz");
         Path configDir = node().getEnvironment().configFile();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
@@ -57,51 +192,53 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
         final String indexName = "test";
         final String analyzerName = "my_synonym_analyzer";
-        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-                .put("index.number_of_shards", 5)
-                .put("index.number_of_replicas", 0)
-                .put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
-                .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "my_synonym_filter")
-                .put("analysis.filter.my_synonym_filter.type", "synonym")
-                .put("analysis.filter.my_synonym_filter.updateable", "true")
-                .put("analysis.filter.my_synonym_filter.synonyms_path", synonymsFileName))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + analyzerName));
 
-        client().prepareIndex(indexName, "_doc", "1").setSource("field", "Foo").get();
-        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
+        MapperException ex = expectThrows(MapperException.class,
+                () -> client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
+                        .put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
+                        .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "synonym_filter")
+                        .put("analysis.filter.synonym_filter.type", "synonym")
+                        .put("analysis.filter.synonym_filter.updateable", "true")
+                        .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName))
+                        .setMapping("field", "type=text,analyzer=" + analyzerName).get());
 
-        SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-        assertHitCount(response, 1L);
-        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
-        assertHitCount(response, 0L);
-        Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName).get();
-        assertEquals(2, analyzeResponse.getTokens().size());
-        assertEquals("foo", analyzeResponse.getTokens().get(0).getTerm());
-        assertEquals("baz", analyzeResponse.getTokens().get(1).getTerm());
+        assertEquals("Failed to parse mapping: analyzer [my_synonym_analyzer] "
+                + "contains filters [synonym_filter] that are not allowed to run in all mode.", ex.getMessage());
 
-        // now update synonyms file and trigger reloading
+        // same for synonym filters in multiplexer chain
+        ex = expectThrows(MapperException.class,
+                () -> client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
+                        .put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
+                        .putList("analysis.analyzer." + analyzerName + ".filter", "my_multiplexer")
+                        .put("analysis.filter.synonym_filter.type", "synonym")
+                        .put("analysis.filter.synonym_filter.updateable", "true")
+                        .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
+                        .put("analysis.filter.my_multiplexer.type", "multiplexer")
+                        .putList("analysis.filter.my_multiplexer.filters", "synonym_filter"))
+                        .setMapping("field", "type=text,analyzer=" + analyzerName).get());
+
+        assertEquals("Failed to parse mapping: analyzer [my_synonym_analyzer] "
+                + "contains filters [my_multiplexer] that are not allowed to run in all mode.", ex.getMessage());
+    }
+
+    private Path setupSynonymsFile(String synonymsFileName, String content) throws IOException {
+        Path configDir = node().getEnvironment().configFile();
+        if (Files.exists(configDir) == false) {
+            Files.createDirectory(configDir);
+        }
+        Path synonymsFile = configDir.resolve(synonymsFileName);
+        if (Files.exists(synonymsFile) == false) {
+            Files.createFile(synonymsFile);
+        }
         try (PrintWriter out = new PrintWriter(
                 new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
-            out.println("foo, baz, buzz");
+            out.println(content);
         }
-        ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
-                .actionGet();
-        assertNoFailures(reloadResponse);
-        Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
-        assertEquals(1, reloadedAnalyzers.size());
-        assertTrue(reloadedAnalyzers.contains(analyzerName));
-
-        analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "Foo").setAnalyzer(analyzerName).get();
-        assertEquals(3, analyzeResponse.getTokens().size());
-        Set<String> tokens = new HashSet<>();
-        analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
-        assertTrue(tokens.contains("foo"));
-        assertTrue(tokens.contains("baz"));
-        assertTrue(tokens.contains("buzz"));
-
-        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-        assertHitCount(response, 1L);
-        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
-        assertHitCount(response, 1L);
+        return synonymsFile;
     }
+
 }

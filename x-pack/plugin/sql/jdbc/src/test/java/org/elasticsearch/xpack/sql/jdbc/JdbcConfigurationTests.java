@@ -5,11 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.SslConfig;
+import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -87,17 +91,17 @@ public class JdbcConfigurationTests extends ESTestCase {
         JdbcConfiguration ci = ci("jdbc:es://test?ssl=true");
         assertThat(ci.baseUri().toString(), is("https://test:9200/"));
     }
-    
+
     public void testHttpWithSSLEnabledFromPropertyAndDisabledFromProtocol() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://http://test?ssl=true");
         assertThat(ci.baseUri().toString(), is("https://test:9200/"));
     }
-    
+
     public void testHttpWithSSLEnabledFromProtocol() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://https://test:9200");
         assertThat(ci.baseUri().toString(), is("https://test:9200/"));
     }
-    
+
     public void testHttpWithSSLEnabledFromProtocolAndProperty() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://https://test:9200?ssl=true");
         assertThat(ci.baseUri().toString(), is("https://test:9200/"));
@@ -107,49 +111,49 @@ public class JdbcConfigurationTests extends ESTestCase {
         JdbcConfiguration ci = ci("jdbc:es://test?ssl=false");
         assertThat(ci.baseUri().toString(), is("http://test:9200/"));
     }
-    
+
     public void testHttpWithSSLDisabledFromPropertyAndProtocol() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://http://test?ssl=false");
         assertThat(ci.baseUri().toString(), is("http://test:9200/"));
     }
-    
+
     public void testHttpWithSSLDisabledFromPropertyAndEnabledFromProtocol() throws Exception {
         Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://https://test?ssl=false"));
         assertEquals("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties", e.getMessage());
     }
-    
+
     public void testValidatePropertiesDefault() {
         Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://test:9200?pagee.size=12"));
         assertEquals("Unknown parameter [pagee.size]; did you mean [page.size]", e.getMessage());
-        
+
         e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://test:9200?foo=bar"));
         assertEquals("Unknown parameter [foo]; did you mean [ssl]", e.getMessage());
     }
-    
+
     public void testValidateProperties() {
         Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://test:9200?pagee.size=12&validate.properties=true"));
         assertEquals("Unknown parameter [pagee.size]; did you mean [page.size]", e.getMessage());
-        
+
         e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://test:9200?&validate.properties=true&something=some_value"));
         assertEquals("Unknown parameter [something]; did you mean []", e.getMessage());
-        
+
         Properties properties  = new Properties();
         properties.setProperty(PROPERTIES_VALIDATION, "true");
         e = expectThrows(JdbcSQLException.class, () -> JdbcConfiguration.create("jdbc:es://test:9200?something=some_value", properties, 0));
         assertEquals("Unknown parameter [something]; did you mean []", e.getMessage());
     }
-    
+
     public void testNoPropertiesValidation() throws SQLException {
         JdbcConfiguration ci = ci("jdbc:es://test:9200?pagee.size=12&validate.properties=false");
         assertEquals(false, ci.validateProperties());
-        
+
         // URL properties test
         long queryTimeout = randomNonNegativeLong();
         long connectTimeout = randomNonNegativeLong();
         long networkTimeout = randomNonNegativeLong();
         long pageTimeout = randomNonNegativeLong();
         int pageSize = randomIntBetween(0, Integer.MAX_VALUE);
-        
+
         ci = ci("jdbc:es://test:9200?validate.properties=false&something=some_value&query.timeout=" + queryTimeout + "&connect.timeout="
                 + connectTimeout + "&network.timeout=" + networkTimeout + "&page.timeout=" + pageTimeout + "&page.size=" + pageSize);
         assertEquals(false, ci.validateProperties());
@@ -158,7 +162,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertEquals(networkTimeout, ci.networkTimeout());
         assertEquals(pageTimeout, ci.pageTimeout());
         assertEquals(pageSize, ci.pageSize());
-        
+
         // Properties test
         Properties properties  = new Properties();
         properties.setProperty(PROPERTIES_VALIDATION, "false");
@@ -167,7 +171,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         properties.put(CONNECT_TIMEOUT, Long.toString(connectTimeout));
         properties.put(NETWORK_TIMEOUT, Long.toString(networkTimeout));
         properties.put(PAGE_SIZE, Integer.toString(pageSize));
-        
+
         // also putting validate.properties in URL to be overriden by the properties value
         ci = JdbcConfiguration.create("jdbc:es://test:9200?validate.properties=true&something=some_value", properties, 0);
         assertEquals(false, ci.validateProperties());
@@ -203,37 +207,37 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testSSLPropertiesInUrl() throws Exception {
         Map<String, String> urlPropMap = sslProperties();
-        
+
         Properties allProps = new Properties();
         allProps.putAll(urlPropMap);
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
-        
+
         assertSslConfig(allProps, ci("jdbc:es://test?" + sslUrlProps.toString()).sslConfig());
     }
-    
+
     public void testSSLPropertiesInUrlAndProperties() throws Exception {
         Map<String, String> urlPropMap = new HashMap<>(4);
         urlPropMap.put("ssl", "false");
         urlPropMap.put("ssl.protocol", "SSLv3");
         urlPropMap.put("ssl.keystore.location", "/abc/xyz");
         urlPropMap.put("ssl.keystore.pass", "mypass");
-        
+
         Map<String, String> propMap = new HashMap<>(4);
         propMap.put("ssl.keystore.type", "PKCS12");
         propMap.put("ssl.truststore.location", "/foo/bar");
         propMap.put("ssl.truststore.pass", "anotherpass");
         propMap.put("ssl.truststore.type", "jks");
-        
+
         Properties props = new Properties();
         props.putAll(propMap);
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
-        
+
         Properties allProps = new Properties();
         allProps.putAll(urlPropMap);
         allProps.putAll(propMap);
         assertSslConfig(allProps, JdbcConfiguration.create("jdbc:es://test?" + sslUrlProps.toString(), props, 0).sslConfig());
     }
-    
+
     public void testSSLPropertiesOverride() throws Exception {
         Map<String, String> urlPropMap = sslProperties();
         Map<String, String> propMap = new HashMap<>(8);
@@ -245,28 +249,35 @@ public class JdbcConfigurationTests extends ESTestCase {
         propMap.put("ssl.truststore.location", "/baz");
         propMap.put("ssl.truststore.pass", "different_anotherpass");
         propMap.put("ssl.truststore.type", "PKCS11");
-        
+
         Properties props = new Properties();
         props.putAll(propMap);
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
         assertSslConfig(props, JdbcConfiguration.create("jdbc:es://test?" + sslUrlProps.toString(), props, 0).sslConfig());
     }
-    
+
+    @SuppressForbidden(reason = "JDBC drivers allows logging to Sys.out")
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41557")
     public void testDriverConfigurationWithSSLInURL() {
         Map<String, String> urlPropMap = sslProperties();
-        
-        Properties allProps = new Properties();
-        allProps.putAll(urlPropMap);
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
-        
+
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            DriverManager.setLogWriter(new java.io.PrintWriter(System.out));
+            return null;
+        });
+
         try {
             DriverManager.getDriver("jdbc:es://test?" + sslUrlProps);
         } catch (SQLException sqle) {
             fail("Driver registration should have been successful. Error: " + sqle);
         }
     }
-    
+
     public void testTyposInSslConfigInUrl(){
         assertJdbcSqlExceptionFromUrl("ssl.protocl", "ssl.protocol");
         assertJdbcSqlExceptionFromUrl("sssl", "ssl");
@@ -277,7 +288,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertJdbcSqlExceptionFromUrl("ssl.tuststore.pass", "ssl.truststore.pass");
         assertJdbcSqlExceptionFromUrl("ssl.ruststore.type", "ssl.truststore.type");
     }
-    
+
     public void testTyposInSslConfigInProperties() {
         assertJdbcSqlExceptionFromProperties("ssl.protocl", "ssl.protocol");
         assertJdbcSqlExceptionFromProperties("sssl", "ssl");
@@ -288,7 +299,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertJdbcSqlExceptionFromProperties("ssl.tuststore.pass", "ssl.truststore.pass");
         assertJdbcSqlExceptionFromProperties("ssl.ruststore.type", "ssl.truststore.type");
     }
-    
+
     static Map<String, String> sslProperties() {
         Map<String, String> sslPropertiesMap = new HashMap<>(8);
         // always using "false" so that the SSLContext doesn't actually start verifying the keystore and trustore
@@ -301,31 +312,31 @@ public class JdbcConfigurationTests extends ESTestCase {
         sslPropertiesMap.put("ssl.truststore.location", "/foo/bar");
         sslPropertiesMap.put("ssl.truststore.pass", "anotherpass");
         sslPropertiesMap.put("ssl.truststore.type", "jks");
-        
+
         return sslPropertiesMap;
     }
-    
+
     static void assertSslConfig(Properties allProperties, SslConfig sslConfig) throws URISyntaxException {
         // because SslConfig doesn't expose its internal properties (and it shouldn't),
         // we compare a newly created SslConfig with the one from the JdbcConfiguration with the equals() method
         SslConfig mockSslConfig = new SslConfig(allProperties, new URI("http://test:9200/"));
         assertEquals(mockSslConfig, sslConfig);
     }
-    
+
     private void assertJdbcSqlExceptionFromUrl(String wrongSetting, String correctSetting) {
         String url = "jdbc:es://test?" + wrongSetting + "=foo";
         assertJdbcSqlException(wrongSetting, correctSetting, url, null);
     }
-    
+
     private void assertJdbcSqlExceptionFromProperties(String wrongSetting, String correctSetting) {
         String url = "jdbc:es://test";
         Properties props = new Properties();
         props.put(wrongSetting, correctSetting);
         assertJdbcSqlException(wrongSetting, correctSetting, url, props);
     }
-    
+
     private void assertJdbcSqlException(String wrongSetting, String correctSetting, String url, Properties props) {
-        JdbcSQLException ex = expectThrows(JdbcSQLException.class, 
+        JdbcSQLException ex = expectThrows(JdbcSQLException.class,
                 () -> JdbcConfiguration.create(url, props, 0));
         assertEquals("Unknown parameter [" + wrongSetting + "]; did you mean [" + correctSetting + "]", ex.getMessage());
     }

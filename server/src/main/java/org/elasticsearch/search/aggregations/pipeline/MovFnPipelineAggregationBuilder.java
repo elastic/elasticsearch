@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,8 +40,8 @@ import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
@@ -48,35 +49,32 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovFnPipelineAggregationBuilder> {
     public static final String NAME = "moving_fn";
     private static final ParseField WINDOW = new ParseField("window");
+    private static final ParseField SHIFT = new ParseField("shift");
 
     private final Script script;
     private final String bucketsPathString;
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
     private int window;
+    private int shift;
 
-    private static final Function<String, ConstructingObjectParser<MovFnPipelineAggregationBuilder, Void>> PARSER
-        = name -> {
-
-        ConstructingObjectParser<MovFnPipelineAggregationBuilder, Void> parser = new ConstructingObjectParser<>(
-            MovFnPipelineAggregationBuilder.NAME,
-            false,
-            o -> new MovFnPipelineAggregationBuilder(name, (String) o[0], (Script) o[1], (int)o[2]));
-
-        parser.declareString(ConstructingObjectParser.constructorArg(), BUCKETS_PATH_FIELD);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
+    public static final ConstructingObjectParser<MovFnPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+            NAME, false,
+            (args, name) -> new MovFnPipelineAggregationBuilder(name, (String) args[0], (Script) args[1], (int)args[2]));
+    static {
+        PARSER.declareString(constructorArg(), BUCKETS_PATH_FIELD);
+        PARSER.declareField(constructorArg(),
             (p, c) -> Script.parse(p), Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
-        parser.declareInt(ConstructingObjectParser.constructorArg(), WINDOW);
+        PARSER.declareInt(constructorArg(), WINDOW);
 
-        parser.declareString(MovFnPipelineAggregationBuilder::format, FORMAT);
-        parser.declareField(MovFnPipelineAggregationBuilder::gapPolicy, p -> {
+        PARSER.declareInt(MovFnPipelineAggregationBuilder::setShift, SHIFT);
+        PARSER.declareString(MovFnPipelineAggregationBuilder::format, FORMAT);
+        PARSER.declareField(MovFnPipelineAggregationBuilder::gapPolicy, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, GAP_POLICY, ObjectParser.ValueType.STRING);
-
-        return parser;
     };
 
 
@@ -97,6 +95,11 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            shift = in.readInt();
+        } else {
+            shift = 0;
+        }
     }
 
     @Override
@@ -106,6 +109,9 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
         out.writeInt(window);
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+            out.writeInt(shift);
+        }
     }
 
     /**
@@ -168,9 +174,13 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         this.window = window;
     }
 
+    public void setShift(int shift) {
+        this.shift = shift;
+    }
+
     @Override
     public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
-                           Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
+                           Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (window <= 0) {
             throw new IllegalArgumentException("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
         }
@@ -180,7 +190,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
 
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new MovFnPipelineAggregator(name, bucketsPathString, script, window, formatter(), gapPolicy, metaData);
+        return new MovFnPipelineAggregator(name, bucketsPathString, script, window, shift, formatter(), gapPolicy, metaData);
     }
 
     @Override
@@ -192,11 +202,8 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         }
         builder.field(GAP_POLICY.getPreferredName(), gapPolicy.getName());
         builder.field(WINDOW.getPreferredName(), window);
+        builder.field(SHIFT.getPreferredName(), shift);
         return builder;
-    }
-
-    public static MovFnPipelineAggregationBuilder parse(String aggName, XContentParser parser) {
-        return PARSER.apply(aggName).apply(parser, null);
     }
 
     /**
@@ -211,7 +218,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
                 String aggName = parser.currentName();
                 parser.nextToken(); // "moving_fn"
                 parser.nextToken(); // start_object
-                return PARSER.apply(aggName).apply(parser, null);
+                return PARSER.apply(parser, aggName);
             }
         }
 
@@ -225,7 +232,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), bucketsPathString, script, format, gapPolicy, window);
+        return Objects.hash(super.hashCode(), bucketsPathString, script, format, gapPolicy, window, shift);
     }
 
     @Override
@@ -238,7 +245,8 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
             && Objects.equals(script, other.script)
             && Objects.equals(format, other.format)
             && Objects.equals(gapPolicy, other.gapPolicy)
-            && Objects.equals(window, other.window);
+            && Objects.equals(window, other.window)
+            && Objects.equals(shift, other.shift);
     }
 
     @Override

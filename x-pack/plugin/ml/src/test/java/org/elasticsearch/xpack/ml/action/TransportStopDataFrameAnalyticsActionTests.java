@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -26,6 +27,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
 
     public void testFindAnalyticsToStop_GivenOneFailedTaskAndNotForce() {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addAnalyticsTask(tasksBuilder, "starting", "foo-node", null);
         addAnalyticsTask(tasksBuilder, "started", "foo-node", DataFrameAnalyticsState.STARTED);
         addAnalyticsTask(tasksBuilder, "reindexing", "foo-node", DataFrameAnalyticsState.REINDEXING);
         addAnalyticsTask(tasksBuilder, "analyzing", "foo-node", DataFrameAnalyticsState.ANALYZING);
@@ -33,7 +35,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
         addAnalyticsTask(tasksBuilder, "stopped", "foo-node", DataFrameAnalyticsState.STOPPED);
         addAnalyticsTask(tasksBuilder, "failed", "foo-node", DataFrameAnalyticsState.FAILED);
 
-        Set<String> ids = new HashSet<>(Arrays.asList("started", "reindexing", "analyzing", "stopping", "stopped", "failed"));
+        Set<String> ids = new HashSet<>(Arrays.asList("starting", "started", "reindexing", "analyzing", "stopping", "stopped", "failed"));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> TransportStopDataFrameAnalyticsAction.findAnalyticsToStop(tasksBuilder.build(), ids, false));
@@ -58,6 +60,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
 
     public void testFindAnalyticsToStop_GivenFailedTaskAndForce() {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addAnalyticsTask(tasksBuilder, "starting", "foo-node", null);
         addAnalyticsTask(tasksBuilder, "started", "foo-node", DataFrameAnalyticsState.STARTED);
         addAnalyticsTask(tasksBuilder, "reindexing", "foo-node", DataFrameAnalyticsState.REINDEXING);
         addAnalyticsTask(tasksBuilder, "analyzing", "foo-node", DataFrameAnalyticsState.ANALYZING);
@@ -65,21 +68,27 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
         addAnalyticsTask(tasksBuilder, "stopped", "foo-node", DataFrameAnalyticsState.STOPPED);
         addAnalyticsTask(tasksBuilder, "failed", "foo-node", DataFrameAnalyticsState.FAILED);
 
-        Set<String> ids = new HashSet<>(Arrays.asList("started", "reindexing", "analyzing", "stopping", "stopped", "failed"));
+        Set<String> ids = new HashSet<>(Arrays.asList("starting", "started", "reindexing", "analyzing", "stopping", "stopped", "failed"));
 
         Set<String> analyticsToStop = TransportStopDataFrameAnalyticsAction.findAnalyticsToStop(tasksBuilder.build(), ids, true);
 
-        assertThat(analyticsToStop, containsInAnyOrder("started", "reindexing", "analyzing", "failed"));
+        assertThat(analyticsToStop, containsInAnyOrder("starting", "started", "reindexing", "analyzing", "failed"));
     }
 
     private static void addAnalyticsTask(PersistentTasksCustomMetaData.Builder builder, String analyticsId, String nodeId,
                                          DataFrameAnalyticsState state) {
+        addAnalyticsTask(builder, analyticsId, nodeId, state, false);
+    }
+
+    private static void addAnalyticsTask(PersistentTasksCustomMetaData.Builder builder, String analyticsId, String nodeId,
+                                         DataFrameAnalyticsState state, boolean allowLazyStart) {
         builder.addTask(MlTasks.dataFrameAnalyticsTaskId(analyticsId), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, Collections.emptyList(), allowLazyStart),
             new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
 
-        builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(analyticsId),
-            new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId(), null));
-
+        if (state != null) {
+            builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(analyticsId),
+                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId(), null));
+        }
     }
 }

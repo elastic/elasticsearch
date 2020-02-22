@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -24,7 +25,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -37,7 +37,6 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     public static final String NO_VERTICES_ERROR_MESSAGE = "Graph explore hop must have at least one VertexRequest";
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
-    private String[] types = Strings.EMPTY_ARRAY;
     private String routing;
     private TimeValue timeout;
 
@@ -96,29 +95,32 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return this;
     }
 
-    /**
-     * The document types to execute the explore against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public String[] types() {
-        return this.types;
-    }
+    public GraphExploreRequest(StreamInput in) throws IOException {
+        super(in);
 
-    /**
-     * The document types to execute the explore request against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public GraphExploreRequest types(String... types) {
-        this.types = types;
-        return this;
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String[] types = in.readStringArray();
+            assert types.length == 0;
+        }
+        routing = in.readOptionalString();
+        timeout = in.readOptionalTimeValue();
+        sampleSize = in.readInt();
+        sampleDiversityField = in.readOptionalString();
+        maxDocsPerDiversityValue = in.readInt();
+
+        useSignificance = in.readBoolean();
+        returnDetailedInfo = in.readBoolean();
+
+        int numHops = in.readInt();
+        Hop parentHop = null;
+        for (int i = 0; i < numHops; i++) {
+            Hop hop = new Hop(parentHop);
+            hop.readFrom(in);
+            hops.add(hop);
+            parentHop = hop;
+        }
     }
 
     public String routing() {
@@ -144,7 +146,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * operations involved in each hop are limited to the remaining time
      * available but can still overrun due to the nature of their "best efforts"
      * timeout support. When a timeout occurs partial results are returned.
-     * 
+     *
      * @param timeout
      *            a {@link TimeValue} object which determines the maximum length
      *            of time to spend exploring
@@ -163,38 +165,13 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        types = in.readStringArray();
-        routing = in.readOptionalString();
-        timeout = in.readOptionalTimeValue();
-        sampleSize = in.readInt();
-        sampleDiversityField = in.readOptionalString();
-        maxDocsPerDiversityValue = in.readInt();
-
-        useSignificance = in.readBoolean();
-        returnDetailedInfo = in.readBoolean();
-
-        int numHops = in.readInt();
-        Hop parentHop = null;
-        for (int i = 0; i < numHops; i++) {
-            Hop hop = new Hop(parentHop);
-            hop.readFrom(in);
-            hops.add(hop);
-            parentHop = hop;
-        }
-
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         out.writeOptionalString(routing);
         out.writeOptionalTimeValue(timeout);
 
@@ -205,15 +182,14 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         out.writeBoolean(useSignificance);
         out.writeBoolean(returnDetailedInfo);
         out.writeInt(hops.size());
-        for (Iterator<Hop> iterator = hops.iterator(); iterator.hasNext();) {
-            Hop hop = iterator.next();
+        for (Hop hop : hops) {
             hop.writeTo(out);
         }
     }
 
     @Override
     public String toString() {
-        return "graph explore [" + Arrays.toString(indices) + "][" + Arrays.toString(types) + "]";
+        return "graph explore [" + Arrays.toString(indices) + "]";
     }
 
     /**
@@ -229,7 +205,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * better with smaller samples as there are less look-ups required for
      * background frequencies of terms found in the documents
      * </p>
-     * 
+     *
      * @param maxNumberOfDocsPerHop
      *            shard-level sample size in documents
      */
@@ -270,7 +246,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * default value is true which means terms are selected based on
      * significance (see the {@link SignificantTerms} aggregation) rather than
      * popularity (using the {@link TermsAggregator}).
-     * 
+     *
      * @param value
      *            true if the significant_terms algorithm should be used.
      */
@@ -285,7 +261,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     /**
      * Return detailed information about vertex frequencies as part of JSON
      * results - defaults to false
-     * 
+     *
      * @param value
      *            true if detailed information is required in JSON responses
      */
@@ -301,7 +277,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * Add a stage in the graph exploration. Each hop represents a stage of
      * querying elasticsearch to identify terms which can then be connnected to
      * other terms in a subsequent hop.
-     * 
+     *
      * @param guidingQuery
      *            optional choice of query which influences which documents are
      *            considered in this stage
@@ -366,7 +342,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        
+
         builder.startObject("controls");
         {
             if (sampleSize != SamplerAggregationBuilder.DEFAULT_SHARD_SAMPLE_SIZE) {

@@ -6,6 +6,7 @@
     "number_of_replicas" : 0,
     "auto_expand_replicas" : "0-1",
     "index.priority": 1000,
+    "index.refresh_interval": "1s",
     "index.format": 6,
     "analysis" : {
       "filter" : {
@@ -192,6 +193,9 @@
               "dynamic" : false
             },
             "realm" : {
+              "type" : "keyword"
+            },
+            "realm_type" : {
               "type" : "keyword"
             }
           }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.support;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -178,13 +180,21 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static DatafeedConfig createDatafeed(String datafeedId, String jobId, List<String> indices) {
-        return createDatafeedBuilder(datafeedId, jobId, indices).build();
+        return createDatafeed(datafeedId, jobId, indices, TimeValue.timeValueSeconds(1));
+    }
+
+    public static DatafeedConfig createDatafeed(String datafeedId, String jobId, List<String> indices, TimeValue frequency) {
+        return createDatafeedBuilder(datafeedId, jobId, indices, frequency).build();
     }
 
     public static DatafeedConfig.Builder createDatafeedBuilder(String datafeedId, String jobId, List<String> indices) {
+        return createDatafeedBuilder(datafeedId, jobId, indices, TimeValue.timeValueSeconds(1));
+    }
+
+    public static DatafeedConfig.Builder createDatafeedBuilder(String datafeedId, String jobId, List<String> indices, TimeValue frequency) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setQueryDelay(TimeValue.timeValueSeconds(1));
-        builder.setFrequency(TimeValue.timeValueSeconds(1));
+        builder.setFrequency(frequency);
         builder.setIndices(indices);
         return builder;
     }
@@ -209,7 +219,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         int maxDelta = (int) (end - start - 1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest(index, "type");
+            IndexRequest indexRequest = new IndexRequest(index);
             long timestamp = start + randomIntBetween(0, maxDelta);
             assert timestamp >= start && timestamp < end;
             indexRequest.source("time", timestamp);
@@ -305,24 +315,24 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
-            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
+            // This usually takes a lot less than 90 seconds, but has been observed to be very slow occasionally
+            // in CI and a 90 second timeout will avoid the cost of investigating these intermittent failures.
+            // See https://github.com/elastic/elasticsearch/issues/48511
+            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(90L));
             logger.info("Closing jobs using [{}]", MetaData.ALL);
-            CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest)
-                    .get();
+            CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest).get();
             assertTrue(response.isClosed());
         } catch (Exception e1) {
             try {
                 CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
                 closeRequest.setForce(true);
                 closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
-                CloseJobAction.Response response =
-                        client.execute(CloseJobAction.INSTANCE, closeRequest).get();
+                CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());
             } catch (Exception e2) {
                 logger.warn("Force-closing jobs failed.", e2);
             }
-            throw new RuntimeException("Had to resort to force-closing job, something went wrong?",
-                    e1);
+            throw new RuntimeException("Had to resort to force-closing job, something went wrong?", e1);
         }
 
         for (final Job job : jobs.results()) {
@@ -374,5 +384,14 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             jobNode.set(jobStats.getNode().getName());
         });
         return jobNode.get();
+    }
+
+    /**
+     * Sets delayed allocation to 0 to make sure we have tests are not delayed
+      */
+    protected void setMlIndicesDelayedNodeLeftTimeoutToZero() {
+        client().admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")
+            .settings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build()))
+            .actionGet();
     }
 }

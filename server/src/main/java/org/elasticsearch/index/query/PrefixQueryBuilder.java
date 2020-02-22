@@ -168,6 +168,19 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     public String getWriteableName() {
         return NAME;
     }
+    
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if ("_index".equals(fieldName)) {
+            // Special-case optimisation for canMatch phase:  
+            // We can skip querying this shard if the index name doesn't match the value of this query on the "_index" field.
+            QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+            if (shardContext != null && shardContext.indexMatches(value + "*") == false) {
+                return new MatchNoneQueryBuilder();
+            }            
+        }
+        return super.doRewrite(queryRewriteContext);
+    }    
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {

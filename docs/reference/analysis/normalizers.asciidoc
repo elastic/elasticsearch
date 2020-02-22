@@ -21,7 +21,7 @@ to get one is by building a custom one. Custom normalizers take a list of char
 <<analysis-charfilters, character filters>> and a list of
 <<analysis-tokenfilters,token filters>>.
 
-[source,js]
+[source,console]
 --------------------------------
 PUT index
 {
@@ -55,4 +55,3 @@ PUT index
   }
 }
 --------------------------------
-// CONSOLE

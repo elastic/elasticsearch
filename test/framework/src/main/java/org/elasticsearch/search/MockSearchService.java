@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -68,14 +69,14 @@ public class MockSearchService extends SearchService {
 
     public MockSearchService(ClusterService clusterService,
             IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
-            BigArrays bigArrays, FetchPhase fetchPhase) {
-        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, null);
+            BigArrays bigArrays, FetchPhase fetchPhase, CircuitBreakerService circuitBreakerService) {
+        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, null, circuitBreakerService);
     }
 
     @Override
     protected void putContext(SearchContext context) {
-        super.putContext(context);
         addActiveContext(context);
+        super.putContext(context);
     }
 
     @Override

@@ -41,7 +41,8 @@ setup:
           {
             "source": {
               "index": "index-source",
-              "query": {"term" : { "user" : "Kimchy" }}
+              "query": {"term" : { "user" : "Kimchy" }},
+              "_source": [ "obj1.*", "obj2.*" ]
             },
             "dest": {
               "index": "index-dest"
@@ -53,7 +54,13 @@ setup:
   - match: { source.index: ["index-source"] }
   - match: { source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { dest.index: "index-dest" }
-  - match: { analysis: {"outlier_detection":{}} }
+  - match: { analysis: {
+    "outlier_detection":{
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }}
   - match: { analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
   - is_true: create_time
   - is_true: version
@@ -66,7 +73,13 @@ setup:
   - match: { data_frame_analytics.0.source.index: ["index-source"] }
   - match: { data_frame_analytics.0.source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { data_frame_analytics.0.dest.index: "index-dest" }
-  - match: { data_frame_analytics.0.analysis: {"outlier_detection":{}} }
+  - match: { data_frame_analytics.0.analysis: {
+    "outlier_detection":{
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }}
   - match: { data_frame_analytics.0.analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
   - is_true: data_frame_analytics.0.create_time
   - is_true: data_frame_analytics.0.version
@@ -74,7 +87,7 @@ setup:
 ---
 "Test put config with security headers in the body":
   - do:
-      catch: /unknown field \[headers\], parser not found/
+      catch: /unknown field \[headers\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_header"
         body:  >
@@ -94,7 +107,7 @@ setup:
 "Test put config with create_time in the body":
 
   - do:
-      catch: /unknown field \[create_time\], parser not found/
+      catch: /unknown field \[create_time\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_create_time"
         body: >
@@ -113,7 +126,7 @@ setup:
 "Test put config with version in the body":
 
   - do:
-      catch: /unknown field \[version\], parser not found/
+      catch: /unknown field \[version\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_version"
         body: >
@@ -148,7 +161,13 @@ setup:
   - match: { source.index: ["index-source"] }
   - match: { source.query: {"match_all" : {} } }
   - match: { dest.index: "index-dest" }
-  - match: { analysis: {"outlier_detection":{}} }
+  - match: { analysis: {
+    "outlier_detection":{
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }}
   - is_true: create_time
   - is_true: version
 
@@ -170,7 +189,10 @@ setup:
               "outlier_detection":{
                 "n_neighbors": 5,
                 "method": "lof",
-                "feature_influence_threshold": 0.0
+                "feature_influence_threshold": 0.0,
+                "compute_feature_influence": false,
+                "outlier_fraction": 0.95,
+                "standardization_enabled": false
               }
             }
           }
@@ -178,9 +200,16 @@ setup:
   - match: { source.index: ["index-source"] }
   - match: { source.query: {"match_all" : {} } }
   - match: { dest.index: "index-dest" }
-  - match: { analysis.outlier_detection.n_neighbors: 5 }
-  - match: { analysis.outlier_detection.method: "lof" }
-  - match: { analysis.outlier_detection.feature_influence_threshold: 0.0 }
+  - match: { analysis: {
+    "outlier_detection":{
+      "n_neighbors": 5,
+      "method": "lof",
+      "feature_influence_threshold": 0.0,
+      "compute_feature_influence": false,
+      "outlier_fraction": 0.95,
+      "standardization_enabled": false
+    }
+  }}
   - is_true: create_time
   - is_true: version
 
@@ -240,6 +269,24 @@ setup:
           }
 
 ---
+"Test put config given dest index contains uppercase chars":
+
+  - do:
+      catch: /.*Validation Failed.* Destination index \[Foo\] must be lowercase;.*/
+      ml.put_data_frame_analytics:
+        id: "config-given-dest-index-uppercase"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "Foo"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
 "Test put config with pattern dest index name":
 
   - do:
@@ -261,7 +308,7 @@ setup:
 "Test put config with missing concrete source index":
 
   - do:
-      catch: /No index matches source index \[missing]/
+      catch: /.*Validation Failed.* no such index \[missing\]/
       ml.put_data_frame_analytics:
         id: "config-with-missing-concrete-source-index"
         body: >
@@ -279,7 +326,6 @@ setup:
 "Test put config with missing wildcard source index":
 
   - do:
-      catch: /No index matches source index \[missing\*\]/
       ml.put_data_frame_analytics:
         id: "config-with-missing-wildcard-source-index"
         body: >
@@ -292,12 +338,13 @@ setup:
             },
             "analysis": {"outlier_detection":{}}
           }
+  - match: { id: "config-with-missing-wildcard-source-index" }
 
 ---
 "Test put config with dest index same as source index":
 
   - do:
-      catch: /Destination index \[index-source\] must not be included in source index \[index-source\]/
+      catch: /.*Validation Failed.* Destination index \[index-source\] is included in source expression \[index-source\]/
       ml.put_data_frame_analytics:
         id: "config-with-same-source-dest-index"
         body: >
@@ -333,7 +380,7 @@ setup:
         name: multiple-dest-index
 
   - do:
-      catch: /Destination index \[multiple-dest-index\] should match a single index; matches \[multiple-dest-index-[12], multiple-dest-index-[12]\]/
+      catch: /.*Validation Failed.* no write index is defined for alias \[multiple-dest-index\].*/
       ml.put_data_frame_analytics:
         id: "config-with-dest-index-matching-multiple-indices"
         body: >
@@ -360,7 +407,7 @@ setup:
         name: dest-alias
 
   - do:
-      catch: /Destination index \[dest-alias\], which is an alias for \[another-source-index\], must not be included in source index \[another-source-index\]/
+      catch: /.*Validation Failed.* Destination index \[another-source-index\] is included in source expression \[another-source-index\]/
       ml.put_data_frame_analytics:
         id: "config-with-dest-index-included-in-source-via-alias"
         body: >
@@ -375,10 +422,28 @@ setup:
           }
 
 ---
+"Test put config with remote source index":
+
+  - do:
+      catch: /.*Validation Failed.* remote source indices are not supported/
+      ml.put_data_frame_analytics:
+        id: "config-with-missing-concrete-source-index"
+        body: >
+          {
+            "source": {
+              "index": "remote_cluster:foo"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
 "Test put config with unknown top level field":
 
   - do:
-      catch: /unknown field \[unknown_field\], parser not found/
+      catch: /unknown field \[unknown_field\]/
       ml.put_data_frame_analytics:
         id: "unknown_field"
         body: >
@@ -607,7 +672,11 @@ setup:
             "dest": {
               "index": "index-bar_dest"
             },
-            "analysis": {"outlier_detection":{}}
+            "analysis": {
+              "regression":{
+                "dependent_variable": "to_predict"
+              }
+            }
           }
   - match: { id: "bar" }
 
@@ -768,7 +837,11 @@ setup:
             "dest": {
               "index": "index-bar_dest"
             },
-            "analysis": {"outlier_detection":{}}
+            "analysis": {
+              "regression":{
+                "dependent_variable": "to_predict"
+              }
+            }
           }
   - match: { id: "bar" }
 
@@ -776,6 +849,7 @@ setup:
       ml.get_data_frame_analytics_stats:
         id: "*"
   - match: { count: 3 }
+  - length: { data_frame_analytics : 3 }
   - match: { data_frame_analytics.0.id: "bar" }
   - match: { data_frame_analytics.0.state: "stopped" }
   - match: { data_frame_analytics.1.id: "foo-1" }
@@ -787,6 +861,7 @@ setup:
       ml.get_data_frame_analytics_stats:
         id: "foo-*"
   - match: { count: 2 }
+  - length: { data_frame_analytics : 2 }
   - match: { data_frame_analytics.0.id: "foo-1" }
   - match: { data_frame_analytics.0.state: "stopped" }
   - match: { data_frame_analytics.1.id: "foo-2" }
@@ -796,20 +871,23 @@ setup:
       ml.get_data_frame_analytics_stats:
         id: "bar"
   - match: { count: 1 }
+  - length: { data_frame_analytics : 1 }
   - match: { data_frame_analytics.0.id: "bar" }
   - match: { data_frame_analytics.0.state: "stopped" }
 
   - do:
       ml.get_data_frame_analytics_stats:
         from: 2
-  - match: { count: 1 }
+  - match: { count: 3 }
+  - length: { data_frame_analytics : 1 }
   - match: { data_frame_analytics.0.id: "foo-2" }
   - match: { data_frame_analytics.0.state: "stopped" }
 
   - do:
       ml.get_data_frame_analytics_stats:
         size: 2
-  - match: { count: 2 }
+  - match: { count: 3 }
+  - length: { data_frame_analytics : 2 }
   - match: { data_frame_analytics.0.id: "bar" }
   - match: { data_frame_analytics.0.state: "stopped" }
   - match: { data_frame_analytics.1.id: "foo-1" }
@@ -819,7 +897,8 @@ setup:
       ml.get_data_frame_analytics_stats:
         from: 1
         size: 1
-  - match: { count: 1 }
+  - match: { count: 3 }
+  - length: { data_frame_analytics : 1 }
   - match: { data_frame_analytics.0.id: "foo-1" }
   - match: { data_frame_analytics.0.state: "stopped" }
 
@@ -857,6 +936,85 @@ setup:
       catch: missing
       ml.delete_data_frame_analytics:
         id: "missing_config"
+
+---
+"Test delete given config and state documents":
+  - skip:
+      features: headers
+  - do:
+      ml.put_data_frame_analytics:
+        id: "delete_foo"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"regression":{
+                "dependent_variable": "to_predict"
+            }}
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state-000001
+        id: "delete_foo_regression_state#1"
+        body: >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state-000001
+        id: "data_frame_analytics-delete_foo-progress"
+        body: >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: .ml-state*
+
+  - do:
+      search:
+        index: .ml-state*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "data_frame_analytics-delete_foo-progress"
+                    - "delete_foo_regression_state#1"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      ml.delete_data_frame_analytics:
+        id: "delete_foo"
+  - match: { acknowledged: true }
+
+  - do:
+      search:
+        index: .ml-state*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "data_frame_analytics-delete_foo-progress"
+                    - "delete_foo_regression_state#1"
+  - match: { hits.total.value: 0 }
 
 ---
 "Test max model memory limit":
@@ -910,7 +1068,13 @@ setup:
   - match: { source.index: ["index-source"] }
   - match: { source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { dest.index: "index-dest" }
-  - match: { analysis: {"outlier_detection":{}} }
+  - match: { analysis: {
+    "outlier_detection":{
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }}
   - match: { analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
   - match: { model_memory_limit: "20mb" }
 
@@ -924,3 +1088,835 @@ setup:
             xpack.ml.max_model_memory_limit: null
   - match: {transient: {}}
 
+---
+"Test put outlier_detection given n_neighbors is negative":
+
+  - do:
+      catch: /\[n_neighbors\] must be a positive integer/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-n_neighbors"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "n_neighbors": -1
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given n_neighbors is zero":
+
+  - do:
+      catch: /\[n_neighbors\] must be a positive integer/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-zero-n_neighbors"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "n_neighbors": 0
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given feature_influence_threshold is negative":
+
+  - do:
+      catch: /\[feature_influence_threshold\] must be in \[0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-feature_influence_threshold"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "feature_influence_threshold": -0.001
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given feature_influence_threshold is greater than one":
+
+  - do:
+      catch: /\[feature_influence_threshold\] must be in \[0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-feature_influence_threshold"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "feature_influence_threshold": 1.001
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given outlier_fraction is negative":
+
+  - do:
+      catch: /\[outlier_fraction\] must be in \[0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-outlier_fraction"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "outlier_fraction": -0.001
+              }
+            }
+          }
+
+---
+"Test put outlier_detection given outlier_fraction is greater than one":
+
+  - do:
+      catch: /\[outlier_fraction\] must be in \[0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "outlier_detection-with-negative-outlier_fraction"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "outlier_fraction": 1.001
+              }
+            }
+          }
+
+---
+"Test put regression given dependent_variable is not defined":
+
+  - do:
+      catch: /parse_exception/
+      ml.put_data_frame_analytics:
+        id: "regression-without-dependent-variable"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {}
+            }
+          }
+
+---
+"Test put regression given negative lambda":
+
+  - do:
+      catch: /\[lambda\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "regression-negative-lambda"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "lambda": -1.0
+              }
+            }
+          }
+
+---
+"Test put regression given negative gamma":
+
+  - do:
+      catch: /\[gamma\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "regression-negative-gamma"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "gamma": -1.0
+              }
+            }
+          }
+
+---
+"Test put regression given eta less than 1e-3":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "regression-eta-greater-less-than-valid"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "eta": 0.0009
+              }
+            }
+          }
+
+---
+"Test put regression given eta greater than one":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "regression-eta-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "eta": 1.00001
+              }
+            }
+          }
+
+---
+"Test put regression given maximum_number_trees is zero":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "regression-maximum-number-trees-is-zero"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 0
+              }
+            }
+          }
+
+---
+"Test put regression given maximum_number_trees is greater than 2k":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "regression-maximum-number-trees-greater-than-2k"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 2001
+              }
+            }
+          }
+
+---
+"Test put regression given feature_bag_fraction is negative":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "regression-feature-bag-fraction-is-negative"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": -0.0001
+              }
+            }
+          }
+
+---
+"Test put regression given feature_bag_fraction is greater than one":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "regression-feature-bag-fraction-is-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": 1.0001
+              }
+            }
+          }
+
+---
+"Test put regression given training_percent is less than one":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "regression-training-percent-is-less-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "training_percent": 0.999
+              }
+            }
+          }
+
+---
+"Test put regression given training_percent is greater than hundred":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "regression-training-percent-is-greater-than-hundred"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "training_percent": 100.1
+              }
+            }
+          }
+
+---
+"Test put regression given valid":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "valid-regression"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "lambda": 3.14,
+                "gamma": 0.42,
+                "eta": 0.5,
+                "maximum_number_trees": 400,
+                "feature_bag_fraction": 0.3,
+                "training_percent": 60.3,
+                "randomize_seed": 42
+              }
+            }
+          }
+  - match: { id: "valid-regression" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "regression":{
+      "dependent_variable": "foo",
+      "lambda": 3.14,
+      "gamma": 0.42,
+      "eta": 0.5,
+      "maximum_number_trees": 400,
+      "feature_bag_fraction": 0.3,
+      "prediction_field_name": "foo_prediction",
+      "training_percent": 60.3,
+      "randomize_seed": 42
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put classification given dependent_variable is not defined":
+
+  - do:
+      catch: /parse_exception/
+      ml.put_data_frame_analytics:
+        id: "classification-without-dependent-variable"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {}
+            }
+          }
+
+---
+"Test put classification given negative lambda":
+
+  - do:
+      catch: /\[lambda\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "classification-negative-lambda"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "lambda": -1.0
+              }
+            }
+          }
+
+---
+"Test put classification given negative gamma":
+
+  - do:
+      catch: /\[gamma\] must be a non-negative double/
+      ml.put_data_frame_analytics:
+        id: "classification-negative-gamma"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "gamma": -1.0
+              }
+            }
+          }
+
+---
+"Test put classification given eta less than 1e-3":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-eta-greater-less-than-valid"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "eta": 0.0009
+              }
+            }
+          }
+
+---
+"Test put classification given eta greater than one":
+
+  - do:
+      catch: /\[eta\] must be a double in \[0.001, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-eta-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "eta": 1.00001
+              }
+            }
+          }
+
+---
+"Test put classification given maximum_number_trees is zero":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-maximum-number-trees-is-zero"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 0
+              }
+            }
+          }
+
+---
+"Test put classification given maximum_number_trees is greater than 2k":
+
+  - do:
+      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-maximum-number-trees-greater-than-2k"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 2001
+              }
+            }
+          }
+
+---
+"Test put classification given feature_bag_fraction is negative":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-feature-bag-fraction-is-negative"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": -0.0001
+              }
+            }
+          }
+
+---
+"Test put classification given feature_bag_fraction is greater than one":
+
+  - do:
+      catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
+      ml.put_data_frame_analytics:
+        id: "classification-feature-bag-fraction-is-greater-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "feature_bag_fraction": 1.0001
+              }
+            }
+          }
+
+---
+"Test put classification given num_top_classes is less than zero":
+
+  - do:
+      catch: /\[num_top_classes\] must be an integer in \[0, 1000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-less-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "num_top_classes": -1
+              }
+            }
+          }
+
+---
+"Test put classification given num_top_classes is greater than 1k":
+
+  - do:
+      catch: /\[num_top_classes\] must be an integer in \[0, 1000\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-greater-than-hundred"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "num_top_classes": 1001
+              }
+            }
+          }
+
+---
+"Test put classification given training_percent is less than one":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-less-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "training_percent": 0.999
+              }
+            }
+          }
+
+---
+"Test put classification given training_percent is greater than hundred":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "classification-training-percent-is-greater-than-hundred"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "training_percent": 100.1
+              }
+            }
+          }
+
+---
+"Test put classification given valid":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "valid-classification"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "lambda": 3.14,
+                "gamma": 0.42,
+                "eta": 0.5,
+                "maximum_number_trees": 400,
+                "feature_bag_fraction": 0.3,
+                "training_percent": 60.3,
+                "randomize_seed": 24
+              }
+            }
+          }
+  - match: { id: "valid-classification" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "classification":{
+      "dependent_variable": "foo",
+      "lambda": 3.14,
+      "gamma": 0.42,
+      "eta": 0.5,
+      "maximum_number_trees": 400,
+      "feature_bag_fraction": 0.3,
+      "prediction_field_name": "foo_prediction",
+      "training_percent": 60.3,
+      "randomize_seed": 24,
+      "num_top_classes": 2
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put with description":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "with-description"
+        body: >
+          {
+            "description": "This is a described config",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "randomize_seed": 42
+              }
+            }
+          }
+  - match: { id: "with-description" }
+  - match: { description: "This is a described config" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "regression":{
+      "dependent_variable": "foo",
+      "prediction_field_name": "foo_prediction",
+      "training_percent": 100.0,
+      "randomize_seed": 42
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put config given analyzed_fields include field excluded by source":
+
+  - do:
+      catch: /field \[excluded\] is included in \[analyzed_fields\] but not in \[source._source\]/
+      ml.put_data_frame_analytics:
+        id: "analyzed_fields-include-field-excluded-by-source"
+        body: >
+          {
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }},
+              "_source": {
+                "excludes": ["excluded"]
+              }
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "analyzed_fields": {
+              "includes": ["excluded"]
+            }
+          }

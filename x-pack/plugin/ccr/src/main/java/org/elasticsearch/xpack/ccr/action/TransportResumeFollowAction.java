@@ -108,11 +108,6 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(ResumeFollowAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
@@ -394,8 +389,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
             IndexSettings.MAX_TOKEN_COUNT_SETTING,
             IndexSettings.MAX_SLICES_PER_SCROLL,
-            IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
             IndexSettings.DEFAULT_PIPELINE,
+            IndexSettings.FINAL_PIPELINE,
             IndexSettings.INDEX_SEARCH_THROTTLED,
             IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
             IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
@@ -403,8 +398,10 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
             IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
+            IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_GC_DELETES_SETTING,
             IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
+            IndexSettings.ON_HEAP_ID_TERMS_INDEX,
             IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
             BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,

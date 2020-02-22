@@ -52,10 +52,6 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 /**
  * Aggregation for adjacency matrices.
  *
- * TODO the aggregation produces a sparse response but in the
- * computation it uses a non-sparse structure (an array of Bits
- * objects). This could be changed to a sparse structure in future.
- *
  */
 public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
@@ -143,51 +139,38 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         this.totalNumKeys = keys.length + totalNumIntersections;
     }
 
-    private static class BitsIntersector implements Bits {
-        Bits a;
-        Bits b;
-
-        BitsIntersector(Bits a, Bits b) {
-            super();
-            this.a = a;
-            this.b = b;
-        }
-
-        @Override
-        public boolean get(int index) {
-            return a.get(index) && b.get(index);
-        }
-
-        @Override
-        public int length() {
-            return Math.min(a.length(), b.length());
-        }
-
-    }
-
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         // no need to provide deleted docs to the filter
-        final Bits[] bits = new Bits[filters.length + totalNumIntersections];
+        final Bits[] bits = new Bits[filters.length];
         for (int i = 0; i < filters.length; ++i) {
             bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorerSupplier(ctx));
         }
-        // Add extra Bits for intersections
-        int pos = filters.length;
-        for (int i = 0; i < filters.length; i++) {
-            for (int j = i + 1; j < filters.length; j++) {
-                bits[pos++] = new BitsIntersector(bits[i], bits[j]);
-            }
-        }
-        assert pos == bits.length;
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                // Check each of the provided filters
                 for (int i = 0; i < bits.length; i++) {
                     if (bits[i].get(doc)) {
                         collectBucket(sub, doc, bucketOrd(bucket, i));
                     }
                 }
+                // Check all the possible intersections of the provided filters
+                int pos = filters.length;
+                for (int i = 0; i < filters.length; i++) {
+                    if (bits[i].get(doc)) {
+                        for (int j = i + 1; j < filters.length; j++) {
+                            if (bits[j].get(doc)) {
+                                collectBucket(sub, doc, bucketOrd(bucket, pos));
+                            }
+                            pos++;
+                        }
+                    } else {
+                        // Skip checks on all the other filters given one half of the pairing failed
+                        pos += (filters.length - (i + 1));
+                    }                    
+                }
+                assert pos == bits.length + totalNumIntersections;
             }
         };
     }

@@ -51,6 +51,8 @@ include::settings/audit-settings.asciidoc[]
 
 include::settings/ccr-settings.asciidoc[]
 
+include::settings/data-frames-settings.asciidoc[]
+
 include::settings/ilm-settings.asciidoc[]
 
 include::settings/license-settings.asciidoc[]
@@ -76,3 +78,5 @@ include::setup/starting.asciidoc[]
 include::setup/stopping.asciidoc[]
 
 include::setup/add-nodes.asciidoc[]
+
+include::setup/restart-cluster.asciidoc[]

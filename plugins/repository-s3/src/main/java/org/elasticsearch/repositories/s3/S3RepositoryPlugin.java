@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -30,7 +31,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.security.AccessController;
@@ -76,17 +76,17 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     // proxy method for testing
-    protected S3Repository createRepository(final RepositoryMetaData metadata,
-                                            final Settings settings,
-                                            final NamedXContentRegistry registry, final ThreadPool threadPool) {
-        return new S3Repository(metadata, settings, registry, service, threadPool);
+    protected S3Repository createRepository(
+        final RepositoryMetaData metadata,
+        final NamedXContentRegistry registry,
+        final ClusterService clusterService) {
+        return new S3Repository(metadata, registry, service, clusterService);
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
-                                                           final ThreadPool threadPool) {
-        return Collections.singletonMap(S3Repository.TYPE,
-            metadata -> createRepository(metadata, env.settings(), registry, threadPool));
+                                                           final ClusterService clusterService) {
+        return Collections.singletonMap(S3Repository.TYPE, metadata -> createRepository(metadata, registry, clusterService));
     }
 
     @Override
@@ -105,8 +105,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.READ_TIMEOUT_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
             S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
-            S3Repository.ACCESS_KEY_SETTING,
-            S3Repository.SECRET_KEY_SETTING);
+            S3ClientSettings.USE_PATH_STYLE_ACCESS,
+            S3ClientSettings.SIGNER_OVERRIDE,
+            S3ClientSettings.REGION);
     }
 
     @Override

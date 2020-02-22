@@ -56,7 +56,8 @@ class TestWithDependenciesPlugin implements Plugin<Project> {
 
     private static addPluginResources(Project project, Project pluginProject) {
         String outputDir = "${project.buildDir}/generated-resources/${pluginProject.name}"
-        String taskName = ClusterFormationTasks.pluginTaskName("copy", pluginProject.name, "Metadata")
+        String camelName = pluginProject.name.replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
+        String taskName = "copy" + camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1) + "Metadata"
         Copy copyPluginMetadata = project.tasks.create(taskName, Copy.class)
         copyPluginMetadata.into(outputDir)
         copyPluginMetadata.from(pluginProject.tasks.pluginProperties)

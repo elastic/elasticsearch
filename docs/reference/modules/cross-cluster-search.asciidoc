@@ -1,18 +1,27 @@
+[chapter]
 [[modules-cross-cluster-search]]
-== {ccs-cap}
+= Search across clusters
 
-The _{ccs}_ feature allows any node to act as a federated client across
-multiple clusters. A {ccs} node won't join the remote cluster, instead
-it connects to a remote cluster in a light fashion in order to execute
-federated search requests. For details on communication and compatibility
-between different clusters, see <<modules-remote-clusters>>.
+*{ccs-cap}* lets you run a single search request against one or more
+<<modules-remote-clusters,remote clusters>>. For example, you can use a {ccs} to
+filter and analyze log data stored on clusters in different data centers.
+
+IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
 
 [float]
-=== Using {ccs}
+[[ccs-example]]
+== {ccs-cap} examples
 
-{ccs-cap} requires <<modules-remote-clusters,configuring remote clusters>>.
+[float]
+[[ccs-remote-cluster-setup]]
+=== Remote cluster setup
 
-[source,js]
+To perform a {ccs}, you must have at least one remote cluster configured.
+
+The following <<cluster-update-settings,cluster update settings>> API request
+adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
+
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
@@ -39,15 +48,17 @@ PUT _cluster/settings
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[setup:host]
-// TEST[s/127.0.0.1:9300/\${transport_host}/]
+// TEST[s/127.0.0.1:930\d+/\${transport_host}/]
 
-To search the `twitter` index on remote cluster `cluster_one` the index name
-must be prefixed with the alias of the remote cluster followed by the `:`
-character:
+[float]
+[[ccs-search-remote-cluster]]
+=== Search a single remote cluster
 
-[source,js]
+The following <<search,search>> API request searches the
+`twitter` index on a single remote cluster, `cluster_one`.
+
+[source,console]
 --------------------------------------------------
 GET /cluster_one:twitter/_search
 {
@@ -58,11 +69,12 @@ GET /cluster_one:twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[setup:twitter]
 
-[source,js]
+The API returns the following response:
+
+[source,console-result]
 --------------------------------------------------
 {
   "took": 150,
@@ -86,8 +98,7 @@ GET /cluster_one:twitter/_search
     "max_score": 1,
     "hits": [
       {
-        "_index": "cluster_one:twitter",
-        "_type": "_doc",
+        "_index": "cluster_one:twitter", <1>
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -105,12 +116,22 @@ GET /cluster_one:twitter/_search
 // TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 
+<1> The search response body includes the name of the remote cluster in the
+`_index` parameter.
 
-Indices with the same name on different clusters can also be searched:
+[float]
+[[ccs-search-multi-remote-cluster]]
+=== Search multiple remote clusters
 
-[source,js]
+The following <<search,search>> API request searches the `twitter` index on
+three clusters:
+
+* Your local cluster
+* Two remote clusters, `cluster_one` and `cluster_two`
+
+[source,console]
 --------------------------------------------------
-GET /cluster_one:twitter,twitter/_search
+GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
 {
   "query": {
     "match": {
@@ -119,41 +140,36 @@ GET /cluster_one:twitter,twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-Search results are disambiguated the same way as the indices are disambiguated in the request.
-Indices with same names are treated as different indices when results are merged. All results
-retrieved from an index located in a remote cluster are prefixed with their corresponding
-cluster alias:
+The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 150,
   "timed_out": false,
-  "num_reduce_phases": 3,
+  "num_reduce_phases": 4,
   "_shards": {
-    "total": 2,
-    "successful": 2,
+    "total": 3,
+    "successful": 3,
     "failed": 0,
     "skipped": 0
   },
   "_clusters": {
-    "total": 2,
-    "successful": 2,
+    "total": 3,
+    "successful": 3,
     "skipped": 0
   },
   "hits": {
     "total" : {
-        "value": 2,
+        "value": 3,
         "relation": "eq"
     },
     "max_score": 1,
     "hits": [
       {
-        "_index": "twitter",
-        "_type": "_doc",
+        "_index": "twitter", <1>
         "_id": "0",
         "_score": 2,
         "_source": {
@@ -164,8 +180,18 @@ cluster alias:
         }
       },
       {
-        "_index": "cluster_one:twitter",
-        "_type": "_doc",
+        "_index": "cluster_one:twitter", <2>
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
+        }
+      },
+      {
+        "_index": "cluster_two:twitter", <3>
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -184,134 +210,153 @@ cluster alias:
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 // TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
 
+<1> This document's `_index` parameter doesn't include a cluster name. This
+means the document came from the local cluster.
+<2> This document came from `cluster_one`.
+<3> This document came from `cluster_two`.
+
 [float]
-=== Skipping disconnected clusters
+[[skip-unavailable-clusters]]
+== Skip unavailable clusters
 
-By default, all remote clusters that are searched via {ccs} need to be
-available when the search request is executed. Otherwise, the whole request
-fails; even if some of the clusters are available, no search results are
-returned. You can use the boolean `skip_unavailable` setting to make remote
-clusters optional. By default, it is set to `false`.
+By default, a {ccs} returns an error if *any* cluster in the request is
+unavailable.
 
-[source,js]
+To skip an unavailable cluster during a {ccs}, set the
+<<skip-unavailable,`skip_unavailable`>> cluster setting to `true`.
+
+The following <<cluster-update-settings,cluster update settings>> API request
+changes `cluster_two`'s `skip_unavailable` setting to `true`.
+
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
   "persistent": {
-    "cluster.remote.cluster_two.skip_unavailable": true <1>
+    "cluster.remote.cluster_two.skip_unavailable": true
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[continued]
-<1> `cluster_two` is made optional
 
-[source,js]
---------------------------------------------------
-GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
-{
-  "query": {
-    "match": {
-      "user": "kimchy"
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-<1> Search against the `twitter` index in `cluster_one`, `cluster_two` and also locally
+If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
+include matching documents from that cluster in the final results.
 
-[source,js]
---------------------------------------------------
-{
-  "took": 150,
-  "timed_out": false,
-  "num_reduce_phases": 3,
-  "_shards": {
-    "total": 2,
-    "successful": 2,
-    "failed": 0,
-    "skipped": 0
-  },
-  "_clusters": { <1>
-    "total": 3,
-    "successful": 2,
-    "skipped": 1
-  },
-  "hits": {
-    "total" : {
-        "value": 2,
-        "relation": "eq"
-    },
-    "max_score": 1,
-    "hits": [
-      {
-        "_index": "twitter",
-        "_type": "_doc",
-        "_id": "0",
-        "_score": 2,
-        "_source": {
-          "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
-          "message": "trying out Elasticsearch",
-          "likes": 0
-        }
-      },
-      {
-        "_index": "cluster_one:twitter",
-        "_type": "_doc",
-        "_id": "0",
-        "_score": 1,
-        "_source": {
-          "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
-          "message": "trying out Elasticsearch",
-          "likes": 0
-        }
-      }
-    ]
-  }
-}
---------------------------------------------------
-// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
-// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
-// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
-// TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
-<1> The `clusters` section indicates that one cluster was unavailable and got skipped
+[discrete]
+[[ccs-works]]
+== How {ccs} works
+
+include::./remote-clusters.asciidoc[tag=how-remote-clusters-work]
+
+[discrete]
+[[ccs-gateway-seed-nodes]]
+=== Selecting gateway and seed nodes
+
+Gateway and seed nodes need to be accessible from the local cluster via your
+network.
+
+By default, any master-ineligible node can act as a gateway node. If wanted,
+you can define the gateway nodes for a cluster by setting
+`cluster.remote.node.attr.gateway` to `true`.
+
+For {ccs}, we recommend you use gateway nodes that are capable of serving as
+<<coordinating-node,coordinating nodes>> for search requests. If
+wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
+
+[discrete]
+[[ccs-network-delays]]
+=== How {ccs} handles network delays
+
+Because {ccs} involves sending requests to remote clusters, any network delays
+can impact search speed. To avoid slow searches, {ccs} offers two options for
+handling network delays:
+
+<<ccs-min-roundtrips,Minimize network roundtrips>>::
+By default, {es} reduces the number of network roundtrips between remote
+clusters. This reduces the impact of network delays on search speed. However,
+{es} can't reduce network roundtrips for large search requests, such as those
+including a <<request-body-search-scroll, scroll>> or
+<<request-body-search-inner-hits,inner hits>>.
++
+See <<ccs-min-roundtrips>> to learn how this option works.
+
+<<ccs-unmin-roundtrips, Don't minimize network roundtrips>>::
+For search requests that include a scroll or inner hits, {es} sends multiple
+outgoing and ingoing requests to each remote cluster. You can also choose this
+option by setting the <<search,search>> API's
+<<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> parameter to `false`.
+While typically slower, this approach may work well for networks with low
+latency.
++
+See <<ccs-unmin-roundtrips>> to learn how this option works.
 
 [float]
-[[ccs-reduction]]
-=== {ccs-cap} reduction phase
+[[ccs-min-roundtrips]]
+==== Minimize network roundtrips
 
-{ccs-cap} (CCS) requests can be executed in two ways:
+Here's how {ccs} works when you minimize network roundtrips.
 
-- the CCS coordinating node minimizes network round-trips by sending one search
-request to each cluster. Each cluster performs the search independently,
-reducing and fetching results. Once the CCS node has received all the
-responses, it performs another reduction and returns the relevant results back
-to the user. This strategy is beneficial when there is network latency between
-the CCS coordinating node and the remote clusters involved, which is typically
-the case. A single request is sent to each remote cluster, at the cost of
-retrieving `from` + `size` already fetched results. This is the default
-strategy, used whenever possible. In case a scroll is provided, or inner hits
-are requested as part of field collapsing, this strategy is not supported hence
-network round-trips cannot be minimized and the following strategy is used
-instead.
+. You send a {ccs} request to your local cluster. A coordinating node in that
+cluster receives and parses the request.
++
+image:images/ccs/ccs-min-roundtrip-client-request.svg[]
 
-- the CCS coordinating node sends a <<search-shards,search shards>> request to
-each remote cluster, in order to collect information about their corresponding
-remote indices involved in the search request and the shards where their data
-is located. Once each cluster has responded to such request, the search
-executes as if all shards were part of the same cluster. The coordinating node
-sends one request to each shard involved, each shard executes the query and
-returns its own results which are then reduced (and fetched, depending on the
-<<search-request-search-type, search type>>) by the CCS coordinating node.
-This strategy may be beneficial whenever there is very low network latency
-between the CCS coordinating node and the remote clusters involved, as it
-treats all shards the same, at the cost of sending many requests to each remote
-cluster, which is problematic in presence of network latency.
+. The coordinating node sends a single search request to each cluster, including
+the local cluster. Each cluster performs the search request independently,
+applying its own cluster-level settings to the request.
++
+image:images/ccs/ccs-min-roundtrip-cluster-search.svg[]
 
-The <<search-request-body, search API>> supports the `ccs_minimize_roundtrips`
-parameter, which defaults to `true` and can be set to `false` in case
-minimizing network round-trips is not desirable.
+. Each remote cluster sends its search results back to the coordinating node.
++
+image:images/ccs/ccs-min-roundtrip-cluster-results.svg[]
 
+. After collecting results from each cluster, the coordinating node returns the
+final results in the {ccs} response.
++
+image:images/ccs/ccs-min-roundtrip-client-response.svg[]
+
+[float]
+[[ccs-unmin-roundtrips]]
+==== Don't minimize network roundtrips
+
+Here's how {ccs} works when you don't minimize network roundtrips.
+
+. You send a {ccs} request to your local cluster. A coordinating node in that
+cluster receives and parses the request.
++
+image:images/ccs/ccs-min-roundtrip-client-request.svg[]
+
+. The coordinating node sends a <<search-shards,search shards>> API request to
+each remote cluster.
++
+image:images/ccs/ccs-min-roundtrip-cluster-search.svg[]
+
+. Each remote cluster sends its response back to the coordinating node.
+This response contains information about the indices and shards the {ccs}
+request will be executed on.
++
+image:images/ccs/ccs-min-roundtrip-cluster-results.svg[]
+
+. The coordinating node sends a search request to each shard, including those in
+its own cluster. Each shard performs the search request independently.
++
+[WARNING]
+====
+When network roundtrips aren't minimized, the search is executed as if all data
+were in the coordinating node's cluster. We recommend updating cluster-level
+settings that limit searches, such as `action.search.shard_count.limit`,
+`pre_filter_shard_size`, and `max_concurrent_shard_requests`, to account for
+this. If these limits are too low, the search may be rejected.
+====
++
+image:images/ccs/ccs-dont-min-roundtrip-shard-search.svg[]
+
+. Each shard sends its search results back to the coordinating node.
++
+image:images/ccs/ccs-dont-min-roundtrip-shard-results.svg[]
+
+. After collecting results from each cluster, the coordinating node returns the
+final results in the {ccs} response.
++
+image:images/ccs/ccs-min-roundtrip-client-response.svg[]

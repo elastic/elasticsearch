@@ -9,13 +9,14 @@ dependencies {
 }
 
 testClusters.integTest {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.ssl.diagnose.trust', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.transport.ssl.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'

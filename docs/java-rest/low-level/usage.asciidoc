@@ -224,7 +224,7 @@ Once the `RestClient` has been created, requests can be sent by calling either
 will block the calling thread and return the `Response` when the request is
 successful or throw an exception if it fails. `performRequestAsync` is
 asynchronous and accepts a `ResponseListener` argument that it calls with a
-`Response` when the request is successful or with an `Exception` if it4 fails.
+`Response` when the request is successful or with an `Exception` if it fails.
 
 This is synchronous:
 
@@ -328,6 +328,28 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-async-examp
 <1> Process the returned response
 <2> Handle the returned exception, due to communication error or a response
 with status code that indicates an error
+
+==== Cancelling asynchronous requests
+
+The `performRequestAsync` method returns a `Cancellable` that exposes a single
+public method called `cancel`. Such method can be called to cancel the on-going
+request. Cancelling a request will result in aborting the http request through
+the underlying http client. On the server side, this does not automatically
+translate to the execution of that request being cancelled, which needs to be
+specifically implemented in the API itself.
+
+The use of the `Cancellable` instance is optional and you can safely ignore this
+if you don't need it. A typical usecase for this would be using this together with 
+frameworks like Rx Java or the Kotlin's `suspendCancellableCoRoutine`. Cancelling
+no longer needed requests is a good way to avoid putting unnecessary 
+load on Elasticsearch.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-async-cancel]
+--------------------------------------------------
+<1> Process the returned response, in case it was ready before the request got cancelled
+<2> Handle the returned exception, which will most likely be a `CancellationException` as the request got cancelled
 
 [[java-rest-low-usage-responses]]
 === Reading responses

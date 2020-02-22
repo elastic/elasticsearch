@@ -30,7 +30,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
@@ -44,6 +44,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +53,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
@@ -59,9 +62,11 @@ import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NettyAllocator;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
+import java.net.SocketOption;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -71,6 +76,9 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEAD
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_COUNT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_INTERVAL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS;
@@ -138,12 +146,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     private final int maxCompositeBufferComponents;
 
-    protected volatile ServerBootstrap serverBootstrap;
+    private volatile ServerBootstrap serverBootstrap;
 
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
-                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
-        Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
+                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
+        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
@@ -176,13 +184,44 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
             serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                 HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-            serverBootstrap.channel(NioServerSocketChannel.class);
+
+            // NettyAllocator will return the channel type designed to work with the configuredAllocator
+            serverBootstrap.channel(NettyAllocator.getServerChannelType());
+
+            // Set the allocators for both the server channel and the child channels created
+            serverBootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
+            serverBootstrap.childOption(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
             serverBootstrap.childHandler(configureServerChannelHandler());
             serverBootstrap.handler(new ServerChannelExceptionHandler(this));
 
             serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
             serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
+
+            if (SETTING_HTTP_TCP_KEEP_ALIVE.get(settings)) {
+                // Netty logs a warning if it can't set the option, so try this only on supported platforms
+                if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
+                    if (SETTING_HTTP_TCP_KEEP_IDLE.get(settings) >= 0) {
+                        final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
+                        if (keepIdleOption != null) {
+                            serverBootstrap.childOption(NioChannelOption.of(keepIdleOption), SETTING_HTTP_TCP_KEEP_IDLE.get(settings));
+                        }
+                    }
+                    if (SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings) >= 0) {
+                        final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
+                        if (keepIntervalOption != null) {
+                            serverBootstrap.childOption(NioChannelOption.of(keepIntervalOption),
+                                SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings));
+                        }
+                    }
+                    if (SETTING_HTTP_TCP_KEEP_COUNT.get(settings) >= 0) {
+                        final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
+                        if (keepCountOption != null) {
+                            serverBootstrap.childOption(NioChannelOption.of(keepCountOption), SETTING_HTTP_TCP_KEEP_COUNT.get(settings));
+                        }
+                    }
+                }
+            }
 
             final ByteSizeValue tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
             if (tcpSendBufferSize.getBytes() > 0) {

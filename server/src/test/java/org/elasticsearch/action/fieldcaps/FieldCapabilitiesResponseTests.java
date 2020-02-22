@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,12 +30,7 @@ import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 
-
-public class FieldCapabilitiesResponseTests extends AbstractStreamableTestCase<FieldCapabilitiesResponse> {
-    @Override
-    protected FieldCapabilitiesResponse createBlankInstance() {
-        return new FieldCapabilitiesResponse();
-    }
+public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
     protected FieldCapabilitiesResponse createTestInstance() {
@@ -47,16 +43,39 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableTestCase<F
         return new FieldCapabilitiesResponse(responses);
     }
 
+    @Override
+    protected Writeable.Reader<FieldCapabilitiesResponse> instanceReader() {
+        return FieldCapabilitiesResponse::new;
+    }
+
     private FieldCapabilitiesIndexResponse createRandomIndexResponse() {
-        Map<String, FieldCapabilities> responses = new HashMap<>();
+        Map<String, IndexFieldCapabilities> responses = new HashMap<>();
 
         String[] fields = generateRandomStringArray(5, 10, false, true);
         assertNotNull(fields);
 
         for (String field : fields) {
-            responses.put(field, FieldCapabilitiesTests.randomFieldCaps(field));
+            responses.put(field, randomFieldCaps(field));
         }
         return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses);
+    }
+
+    private static IndexFieldCapabilities randomFieldCaps(String fieldName) {
+        Map<String, String> meta;
+        switch (randomInt(2)) {
+            case 0:
+                meta = Collections.emptyMap();
+                break;
+            case 1:
+                meta = Map.of("key", "value");
+                break;
+            default:
+                meta = Map.of("key1", "value1", "key2", "value2");
+                break;
+        }
+
+        return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20),
+            randomBoolean(), randomBoolean(), meta);
     }
 
     @Override

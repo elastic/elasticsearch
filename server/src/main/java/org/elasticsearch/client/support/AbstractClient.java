@@ -64,6 +64,10 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
@@ -159,10 +163,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
@@ -396,13 +396,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public IndexRequestBuilder prepareIndex(String index, String type) {
-        return prepareIndex(index, type, null);
-    }
-
-    @Override
-    public IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id) {
-        return prepareIndex().setIndex(index).setType(type).setId(id);
+    public IndexRequestBuilder prepareIndex(String index) {
+        return new IndexRequestBuilder(this, IndexAction.INSTANCE, index);
     }
 
     @Override
@@ -417,12 +412,12 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public UpdateRequestBuilder prepareUpdate() {
-        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null, null);
+        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null);
     }
 
     @Override
-    public UpdateRequestBuilder prepareUpdate(String index, String type, String id) {
-        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, index, type, id);
+    public UpdateRequestBuilder prepareUpdate(String index, String id) {
+        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, index, id);
     }
 
     @Override
@@ -441,8 +436,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public DeleteRequestBuilder prepareDelete(String index, String type, String id) {
-        return prepareDelete().setIndex(index).setType(type).setId(id);
+    public DeleteRequestBuilder prepareDelete(String index, String id) {
+        return prepareDelete().setIndex(index).setId(id);
     }
 
     @Override
@@ -461,8 +456,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType) {
-        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex, globalType);
+    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex) {
+        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex);
     }
 
     @Override
@@ -481,8 +476,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public GetRequestBuilder prepareGet(String index, String type, String id) {
-        return prepareGet().setIndex(index).setType(type).setId(id);
+    public GetRequestBuilder prepareGet(String index, String id) {
+        return prepareGet().setIndex(index).setId(id);
     }
 
     @Override
@@ -581,8 +576,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public ExplainRequestBuilder prepareExplain(String index, String type, String id) {
-        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, type, id);
+    public ExplainRequestBuilder prepareExplain(String index, String id) {
+        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, id);
     }
 
     @Override
@@ -1005,6 +1000,21 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public CleanupRepositoryRequestBuilder prepareCleanupRepository(String repository) {
+            return new CleanupRepositoryRequestBuilder(this, CleanupRepositoryAction.INSTANCE, repository);
+        }
+
+        @Override
+        public ActionFuture<CleanupRepositoryResponse> cleanupRepository(CleanupRepositoryRequest request) {
+            return execute(CleanupRepositoryAction.INSTANCE, request);
+        }
+
+        @Override
+        public void cleanupRepository(CleanupRepositoryRequest request, ActionListener<CleanupRepositoryResponse> listener) {
+            execute(CleanupRepositoryAction.INSTANCE, request, listener);
+        }
+
+        @Override
         public ActionFuture<RestoreSnapshotResponse> restoreSnapshot(RestoreSnapshotRequest request) {
             return execute(RestoreSnapshotAction.INSTANCE, request);
         }
@@ -1335,21 +1345,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public FlushRequestBuilder prepareFlush(String... indices) {
             return new FlushRequestBuilder(this, FlushAction.INSTANCE).setIndices(indices);
-        }
-
-        @Override
-        public ActionFuture<SyncedFlushResponse> syncedFlush(SyncedFlushRequest request) {
-            return execute(SyncedFlushAction.INSTANCE, request);
-        }
-
-        @Override
-        public void syncedFlush(SyncedFlushRequest request, ActionListener<SyncedFlushResponse> listener) {
-            execute(SyncedFlushAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public SyncedFlushRequestBuilder prepareSyncedFlush(String... indices) {
-            return new SyncedFlushRequestBuilder(this, SyncedFlushAction.INSTANCE).setIndices(indices);
         }
 
         @Override

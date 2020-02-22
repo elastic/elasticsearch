@@ -54,7 +54,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
         IngestService ingestService, NodeClient client) {
         super(
             PutPipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new
+            threadPool, actionFilters, PutPipelineRequest::new, indexNameExpressionResolver
         );
         this.client = client;
         this.ingestService = ingestService;
@@ -68,11 +68,6 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

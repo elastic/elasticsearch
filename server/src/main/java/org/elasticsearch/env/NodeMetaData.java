@@ -37,8 +37,8 @@ import java.util.Objects;
  */
 public final class NodeMetaData {
 
-    private static final String NODE_ID_KEY = "node_id";
-    private static final String NODE_VERSION_KEY = "node_version";
+    static final String NODE_ID_KEY = "node_id";
+    static final String NODE_VERSION_KEY = "node_version";
 
     private final String nodeId;
 
@@ -69,13 +69,6 @@ public final class NodeMetaData {
             "nodeId='" + nodeId + '\'' +
             ", nodeVersion=" + nodeVersion +
             '}';
-    }
-
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("node_meta_data", Builder::new);
-
-    static {
-        PARSER.declareString(Builder::setNodeId, new ParseField(NODE_ID_KEY));
-        PARSER.declareInt(Builder::setNodeVersionId, new ParseField(NODE_VERSION_KEY));
     }
 
     public String nodeId() {
@@ -130,7 +123,20 @@ public final class NodeMetaData {
         }
     }
 
-    public static final MetaDataStateFormat<NodeMetaData> FORMAT = new MetaDataStateFormat<NodeMetaData>("node-") {
+    static class NodeMetaDataStateFormat extends MetaDataStateFormat<NodeMetaData> {
+
+        private ObjectParser<Builder, Void> objectParser;
+
+        /**
+         * @param ignoreUnknownFields whether to ignore unknown fields or not. Normally we are strict about this, but
+         *                            {@link OverrideNodeVersionCommand} is lenient.
+         */
+        NodeMetaDataStateFormat(boolean ignoreUnknownFields) {
+            super("node-");
+            objectParser = new ObjectParser<>("node_meta_data", ignoreUnknownFields, Builder::new);
+            objectParser.declareString(Builder::setNodeId, new ParseField(NODE_ID_KEY));
+            objectParser.declareInt(Builder::setNodeVersionId, new ParseField(NODE_VERSION_KEY));
+        }
 
         @Override
         protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
@@ -146,8 +152,10 @@ public final class NodeMetaData {
         }
 
         @Override
-        public NodeMetaData fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null).build();
+        public NodeMetaData fromXContent(XContentParser parser) throws IOException {
+            return objectParser.apply(parser, null).build();
         }
-    };
+    }
+
+    public static final MetaDataStateFormat<NodeMetaData> FORMAT = new NodeMetaDataStateFormat(false);
 }

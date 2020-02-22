@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -28,19 +27,21 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestTemplatesAction extends AbstractCatAction {
-    public RestTemplatesAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/templates", this);
-        controller.registerHandler(GET, "/_cat/templates/{name}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/templates"),
+            new Route(GET, "/_cat/templates/{name}"));
     }
 
     @Override

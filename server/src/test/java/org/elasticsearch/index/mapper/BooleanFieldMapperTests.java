@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -46,6 +47,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -71,7 +73,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", true)
@@ -142,7 +144,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                     .field("field", randomValue)
                 .endObject());
         MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON)));
+                () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON)));
         assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
             "Preview of field's value: '" + randomValue + "'", ex.getMessage());
     }
@@ -169,7 +171,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject());
         MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON)));
+                () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON)));
         assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
             "Preview of field's value: '{inner_field=" + randomValue + "}'", ex.getMessage());
     }
@@ -196,7 +198,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                     .field("field", false)
                 .endObject());
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
         assertNotNull(doc.rootDoc().getField("field.as_string"));
     }
 
@@ -219,7 +221,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument parsedDoc = defaultMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument parsedDoc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("bool1", true)
@@ -250,5 +252,31 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testMeta() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "boolean")
+                .field("meta", Collections.singletonMap("foo", "bar"))
+                .endObject().endObject().endObject().endObject());
+
+        DocumentMapper mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "boolean")
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping2, mapper.mappingSource().toString());
+
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "boolean")
+                .field("meta", Collections.singletonMap("baz", "quux"))
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping3, mapper.mappingSource().toString());
     }
 }

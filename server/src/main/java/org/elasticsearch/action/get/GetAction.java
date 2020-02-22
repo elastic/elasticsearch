@@ -20,7 +20,6 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class GetAction extends ActionType<GetResponse> {
 
@@ -28,11 +27,7 @@ public class GetAction extends ActionType<GetResponse> {
     public static final String NAME = "indices:data/read/get";
 
     private GetAction() {
-        super(NAME);
+        super(NAME, GetResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<GetResponse> getResponseReader() {
-        return GetResponse::new;
-    }
 }

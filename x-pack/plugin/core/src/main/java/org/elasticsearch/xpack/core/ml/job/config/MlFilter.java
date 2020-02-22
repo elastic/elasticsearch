@@ -94,7 +94,7 @@ public class MlFilter implements ToXContentObject, Writeable {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.field(ITEMS.getPreferredName(), items);
-        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(TYPE.getPreferredName(), FILTER_TYPE);
         }
         builder.endObject();

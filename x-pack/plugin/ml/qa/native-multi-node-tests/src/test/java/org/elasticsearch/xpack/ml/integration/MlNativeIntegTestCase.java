@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -140,6 +142,16 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         } catch (Exception e) {
             throw new AssertionError("Failed to wait for pending tasks to complete", e);
         }
+    }
+
+    protected DeleteExpiredDataAction.Response deleteExpiredData() throws Exception {
+        DeleteExpiredDataAction.Response response = client().execute(DeleteExpiredDataAction.INSTANCE,
+            new DeleteExpiredDataAction.Request()).get();
+
+        // We need to refresh to ensure the deletion is visible
+        client().admin().indices().prepareRefresh("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
+
+        return response;
     }
 
     @Override

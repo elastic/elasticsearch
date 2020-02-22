@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -49,6 +51,8 @@ import java.util.Collections;
  */
 public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
+
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
     private volatile boolean closeIndexEnabled;
@@ -60,8 +64,8 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
                                      ThreadPool threadPool, MetaDataIndexStateService indexStateService,
                                      ClusterSettings clusterSettings, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
-        super(CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            CloseIndexRequest::new);
+        super(CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CloseIndexRequest::new,
+            indexNameExpressionResolver);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
         this.closeIndexEnabled = CLUSTER_INDICES_CLOSE_ENABLE_SETTING.get(settings);
@@ -76,11 +80,6 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     protected String executor() {
         // no need to use a thread pool, we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected CloseIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

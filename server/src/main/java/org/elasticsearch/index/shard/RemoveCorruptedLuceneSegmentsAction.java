@@ -33,8 +33,7 @@ import java.io.PrintStream;
  */
 public class RemoveCorruptedLuceneSegmentsAction {
 
-    public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
-                                                                                     Directory indexDirectory,
+    public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(Directory indexDirectory,
                                                                                      Lock writeLock,
                                                                                      PrintStream printStream,
                                                                                      boolean verbose) throws IOException {
@@ -62,7 +61,6 @@ public class RemoveCorruptedLuceneSegmentsAction {
     }
 
     public void execute(Terminal terminal,
-                        ShardPath shardPath,
                         Directory indexDirectory,
                         Lock writeLock,
                         PrintStream printStream,

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpInfo;
@@ -54,7 +54,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -62,15 +61,17 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesAction extends AbstractCatAction {
-    public RestNodesAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/nodes", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/nodes"));
     }
 
     @Override
@@ -87,7 +88,9 @@ public class RestNodesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        if (request.hasParam("local") && Version.CURRENT.major == Version.V_7_0_0.major + 1) { // only needed in v8 to catch breaking usages
+            throw new IllegalArgumentException("parameter [local] is not supported");
+        }
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         final boolean fullId = request.paramAsBoolean("full_id", false);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
@@ -279,7 +282,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(node.getVersion().toString());
             table.addCell(info == null ? null : info.getBuild().flavor().displayName());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
-            table.addCell(info == null ? null : info.getBuild().shortHash());
+            table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
 
 
@@ -299,7 +302,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(diskUsed);
             table.addCell(diskAvailable);
             table.addCell(diskUsedPercent);
-            
+
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPercent());
             table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());

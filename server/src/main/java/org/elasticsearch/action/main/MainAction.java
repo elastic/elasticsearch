@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.main;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class MainAction extends StreamableResponseActionType<MainResponse> {
+public class MainAction extends ActionType<MainResponse> {
 
     public static final String NAME = "cluster:monitor/main";
     public static final MainAction INSTANCE = new MainAction();
 
     public MainAction() {
-        super(NAME);
-    }
-
-    @Override
-    public MainResponse newResponse() {
-        return new MainResponse();
+        super(NAME, MainResponse::new);
     }
 }

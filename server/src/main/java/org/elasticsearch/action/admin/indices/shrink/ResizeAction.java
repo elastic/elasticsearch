@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class ResizeAction extends ActionType<ResizeResponse> {
 
@@ -28,11 +27,7 @@ public class ResizeAction extends ActionType<ResizeResponse> {
     public static final String NAME = "indices:admin/resize";
 
     private ResizeAction() {
-        super(NAME);
+        super(NAME, ResizeResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<ResizeResponse> getResponseReader() {
-        return ResizeResponse::new;
-    }
 }

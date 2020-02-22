@@ -33,19 +33,20 @@ public interface RecoveryTargetHandler {
     /**
      * Prepares the target to receive translog operations, after all file have been copied
      *
-     * @param fileBasedRecovery whether or not this call is part of an file based recovery
      * @param totalTranslogOps  total translog operations expected to be sent
      */
-    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener);
+    void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener);
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, updates
      * the global checkpoint.
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
+     * @param trimAboveSeqNo   The recovery target should erase its existing translog above this sequence number
+     *                         from the previous primary terms.
      * @param listener         the listener which will be notified when this method is completed
      */
-    void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener);
+    void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener);
 
     /**
      * Handoff the primary context between the relocation source and the relocation target.

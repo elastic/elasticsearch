@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -82,7 +81,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 query.to(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end));
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
-                if (createShardContext().getMapperService().fullName(DATE_FIELD_NAME) != null) {
+                if (createShardContext().getMapperService().fieldType(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
                         query.timeZone(randomZone().getId());
                     }
@@ -134,13 +133,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
-            if (context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
+            if (context.getMapperService().fieldType(queryBuilder.fieldName()).hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-            } else if (context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
+            } else if (context.getMapperService().fieldType(queryBuilder.fieldName()).omitNorms() == false) {
                 expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
@@ -161,8 +160,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             query = ((IndexOrDocValuesQuery) query).getIndexQuery();
             assertThat(query, instanceOf(PointRangeQuery.class));
-            MapperService mapperService = context.getQueryShardContext().getMapperService();
-            MappedFieldType mappedFieldType = mapperService.fullName(expectedFieldName);
+            MapperService mapperService = context.getMapperService();
+            MappedFieldType mappedFieldType = mapperService.fieldType(expectedFieldName);
             final Long fromInMillis;
             final Long toInMillis;
             // we have to normalize the incoming value into milliseconds since it could be literally anything
@@ -171,12 +170,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(queryBuilder.from(),
                         queryBuilder.includeLower(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
+                        queryBuilder.getForceDateParser(), context::nowInMillis);
                 toInMillis = queryBuilder.to() == null ? null :
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(queryBuilder.to(),
                         queryBuilder.includeUpper(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
+                        queryBuilder.getForceDateParser(), context::nowInMillis);
             } else {
                 fromInMillis = toInMillis = null;
                 fail("unexpected mapped field type: [" + mappedFieldType.getClass() + "] " + mappedFieldType.toString());

@@ -32,8 +32,8 @@ public abstract class DelegatingHandler implements NioChannelHandler {
     }
 
     @Override
-    public void channelRegistered() {
-        this.delegate.channelRegistered();
+    public void channelActive() {
+        this.delegate.channelActive();
     }
 
     @Override

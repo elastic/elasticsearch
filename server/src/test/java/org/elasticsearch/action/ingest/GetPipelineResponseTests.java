@@ -20,13 +20,14 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -35,7 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GetPipelineResponseTests extends AbstractStreamableXContentTestCase<GetPipelineResponse> {
+public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPipelineResponse> {
 
     private XContentBuilder getRandomXContentBuilder() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
@@ -100,17 +101,17 @@ public class GetPipelineResponseTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected GetPipelineResponse createBlankInstance() {
-        return new GetPipelineResponse();
-    }
-
-    @Override
     protected GetPipelineResponse createTestInstance() {
         try {
             return new GetPipelineResponse(new ArrayList<>(createPipelineConfigMap().values()));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override
+    protected Writeable.Reader<GetPipelineResponse> instanceReader() {
+        return GetPipelineResponse::new;
     }
 
     @Override

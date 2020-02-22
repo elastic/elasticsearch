@@ -45,7 +45,7 @@ datetime formatting is a switch from a complex datetime to a string datetime.
 A <<painless-api-reference-shared-DateTimeFormatter, DateTimeFormatter>> is a
 complex type (<<reference-types, object>>) that defines the allowed sequence
 of characters for a string datetime. Datetime parsing and formatting often
-requires a DateTimeFormatter. For more information about how to use a
+require a DateTimeFormatter. For more information about how to use a
 DateTimeFormatter see the
 {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html[Java documentation].
 
@@ -231,8 +231,8 @@ ZonedDateTime updatedZdt = zdt.withYear(1976);
 
 Use either two numeric datetimes or two complex datetimes to calculate the
 difference (elapsed time) between two different datetimes. Use
-<<subtraction-operator, subtraction>> to calculate the difference between
-between two numeric datetimes of the same time unit such as milliseconds. For
+<<subtraction-operator, subtraction>> to calculate the difference between two
+numeric datetimes of the same time unit such as milliseconds. For
 complex datetimes there is often a method or another complex type
 (<<reference-types, object>>) available to calculate the difference. Use
 <<painless-api-reference-shared-ChronoUnit, ChronoUnit>>
@@ -293,7 +293,7 @@ if (timestamp1 > timestamp2) {
 }
 ----
 +
-* Equality comparision of two complex datetimes
+* Equality comparison of two complex datetimes
 +
 [source,Painless]
 ----
@@ -307,7 +307,7 @@ if (zdt1.equals(zdt2)) {
 }
 ----
 +
-* Less than comparision of two complex datetimes
+* Less than comparison of two complex datetimes
 +
 [source,Painless]
 ----
@@ -321,7 +321,7 @@ if (zdt1.isBefore(zdt2)) {
 }
 ----
 +
-* Greater than comparision of two complex datetimes
+* Greater than comparison of two complex datetimes
 +
 [source,Painless]
 ----
@@ -541,7 +541,7 @@ document is most commonly accessible through an input called `doc`.
 +
 [source,Painless]
 ----
-def input = doc['input_datetime'].value;
+ZonedDateTime input = doc['input_datetime'].value;
 String output = input.format(DateTimeFormatter.ISO_INSTANT); <1>
 ----
 <1> Note the use of a built-in DateTimeFormatter.
@@ -584,8 +584,8 @@ if (doc.containsKey('start') && doc.containsKey('end')) { <1>
 
     if (doc['start'].size() > 0 && doc['end'].size() > 0) { <2>
 
-        def start = doc['start'].value;
-        def end = doc['end'].value;
+        ZonedDateTime start = doc['start'].value;
+        ZonedDateTime end = doc['end'].value;
         long differenceInMillis = ChronoUnit.MILLIS.between(start, end);
 
         // handle difference in times
@@ -606,12 +606,12 @@ value for the current document.
 ==== Datetime Now
 
 Under most Painless contexts the current datetime, `now`, is not supported.
-There are two primary reasons for this. The first is scripts are often run once
+There are two primary reasons for this. The first is that scripts are often run once
 per document, so each time the script is run a different `now` is returned. The
-second is scripts are often run in a distributed fashion without a way to
+second is that scripts are often run in a distributed fashion without a way to
 appropriately synchronize `now`. Instead, pass in a user-defined parameter with
 either a string datetime or numeric datetime for `now`. A numeric datetime is
-preferred as there is no need to parse it for comparision.
+preferred as there is no need to parse it for comparison.
 
 ===== Datetime Now Examples
 
@@ -660,7 +660,7 @@ preferred as there is no need to parse it for comparision.
 [source,Painless]
 ----
 long now = params['now'];
-def inputDateTime = doc['input_datetime'];
+ZonedDateTime inputDateTime = doc['input_datetime'];
 long millisDateTime = zdt.toInstant().toEpochMilli();
 long elapsedTime = now - millisDateTime;
 ----
@@ -712,9 +712,187 @@ long elapsedTime = now - millisDateTime;
 String nowString = params['now'];
 ZonedDateTime nowZdt = ZonedDateTime.parse(datetime); <1>
 long now = ZonedDateTime.toInstant().toEpochMilli();
-def inputDateTime = doc['input_datetime'];
+ZonedDateTime inputDateTime = doc['input_datetime'];
 long millisDateTime = zdt.toInstant().toEpochMilli();
 long elapsedTime = now - millisDateTime;
 ----
 <1> Note this parses the same string datetime every time the script runs. Use a
 numeric datetime to avoid a significant performance hit.
+
+==== Datetime Examples in Contexts
+
+===== Load the Example Data
+
+Run the following curl commands to load the data necessary for the context
+examples into an Elasticsearch cluster:
+
+. Create {ref}/mapping.html[mappings] for the sample data.
++
+[source,console]
+----
+PUT /messages
+{
+    "mappings": {
+        "properties": {
+            "priority": {
+                "type": "integer"
+            },
+            "datetime": {
+                "type": "date"
+            },
+            "message": {
+                "type": "text"
+            }
+        }
+    }
+}
+----
++
+. Load the sample data.
++
+[source,console]
+----
+POST /_bulk
+{ "index" : { "_index" : "messages", "_id" : "1" } }
+{ "priority": 1, "datetime": "2019-07-17T12:13:14Z", "message": "m1" }
+{ "index" : { "_index" : "messages", "_id" : "2" } }
+{ "priority": 1, "datetime": "2019-07-24T01:14:59Z", "message": "m2" }
+{ "index" : { "_index" : "messages", "_id" : "3" } }
+{ "priority": 2, "datetime": "1983-10-14T00:36:42Z", "message": "m3" }
+{ "index" : { "_index" : "messages", "_id" : "4" } }
+{ "priority": 3, "datetime": "1983-10-10T02:15:15Z", "message": "m4" }
+{ "index" : { "_index" : "messages", "_id" : "5" } }
+{ "priority": 3, "datetime": "1983-10-10T17:18:19Z", "message": "m5" }
+{ "index" : { "_index" : "messages", "_id" : "6" } }
+{ "priority": 1, "datetime": "2019-08-03T17:19:31Z", "message": "m6" }
+{ "index" : { "_index" : "messages", "_id" : "7" } }
+{ "priority": 3, "datetime": "2019-08-04T17:20:00Z", "message": "m7" }
+{ "index" : { "_index" : "messages", "_id" : "8" } }
+{ "priority": 2, "datetime": "2019-08-04T18:01:01Z", "message": "m8" }
+{ "index" : { "_index" : "messages", "_id" : "9" } }
+{ "priority": 3, "datetime": "1983-10-10T19:00:45Z", "message": "m9" }
+{ "index" : { "_index" : "messages", "_id" : "10" } }
+{ "priority": 2, "datetime": "2019-07-23T23:39:54Z", "message": "m10" }
+----
+// TEST[continued]
+
+===== Day-of-the-Week Bucket Aggregation Example
+
+The following example uses a
+{ref}/search-aggregations-bucket-terms-aggregation.html#search-aggregations-bucket-terms-aggregation-script[terms aggregation]
+as part of the
+<<painless-bucket-script-agg-context, bucket script aggregation context>> to
+display the number of messages from each day-of-the-week.
+
+[source,console]
+----
+GET /messages/_search?pretty=true
+{
+    "aggs": {
+        "day-of-week-count": {
+            "terms": {
+                "script": "return doc[\"datetime\"].value.getDayOfWeekEnum();"
+            }
+        }
+    }
+}
+----
+// TEST[continued]
+
+===== Morning/Evening Bucket Aggregation Example
+
+The following example uses a
+{ref}/search-aggregations-bucket-terms-aggregation.html#search-aggregations-bucket-terms-aggregation-script[terms aggregation]
+as part of the
+<<painless-bucket-script-agg-context, bucket script aggregation context>> to
+display the number of messages received in the morning versus the evening.
+
+[source,console]
+----
+GET /messages/_search?pretty=true
+{
+    "aggs": {
+        "am-pm-count": {
+            "terms": {
+                "script": "return doc[\"datetime\"].value.getHour() < 12 ? \"AM\" : \"PM\";"
+            }
+        }
+    }
+}
+----
+// TEST[continued]
+
+===== Age of a Message Script Field Example
+
+The following example uses a
+{ref}/search-request-body.html#request-body-search-script-fields[script field] as part of the
+<<painless-field-context, field context>> to display the elapsed time between
+"now" and when a message was received.
+
+[source,console]
+----
+GET /_search?pretty=true
+{
+    "query" : {
+        "match_all": {}
+    },
+    "script_fields" : {
+        "message_age" : {
+            "script" : {
+                "source": "ZonedDateTime now = ZonedDateTime.ofInstant(Instant.ofEpochMilli(params[\"now\"]), ZoneId.of(\"Z\")); ZonedDateTime mdt = doc[\"datetime\"].value; String age; long years = mdt.until(now, ChronoUnit.YEARS); age = years + \"Y \"; mdt = mdt.plusYears(years); long months = mdt.until(now, ChronoUnit.MONTHS); age += months + \"M \"; mdt = mdt.plusMonths(months); long days = mdt.until(now, ChronoUnit.DAYS); age += days + \"D \"; mdt = mdt.plusDays(days); long hours = mdt.until(now, ChronoUnit.HOURS); age += hours + \"h \"; mdt = mdt.plusHours(hours); long minutes = mdt.until(now, ChronoUnit.MINUTES); age += minutes + \"m \"; mdt = mdt.plusMinutes(minutes); long seconds = mdt.until(now, ChronoUnit.SECONDS); age += hours + \"s\"; return age;",
+                "params": {
+                    "now": 1574005645830
+                }
+            }
+        }
+    }
+}
+----
+// TEST[continued]
+
+The following shows the script broken into multiple lines:
+
+[source,Painless]
+----
+ZonedDateTime now = ZonedDateTime.ofInstant(
+        Instant.ofEpochMilli(params['now']), ZoneId.of('Z')); <1>
+ZonedDateTime mdt = doc['datetime'].value; <2>
+
+String age;
+
+long years = mdt.until(now, ChronoUnit.YEARS); <3>
+age = years + 'Y '; <4>
+mdt = mdt.plusYears(years); <5>
+
+long months = mdt.until(now, ChronoUnit.MONTHS);
+age += months + 'M ';
+mdt = mdt.plusMonths(months);
+
+long days = mdt.until(now, ChronoUnit.DAYS);
+age += days + 'D ';
+mdt = mdt.plusDays(days);
+
+long hours = mdt.until(now, ChronoUnit.HOURS);
+age += hours + 'h ';
+mdt = mdt.plusHours(hours);
+
+long minutes = mdt.until(now, ChronoUnit.MINUTES);
+age += minutes + 'm ';
+mdt = mdt.plusMinutes(minutes);
+
+long seconds = mdt.until(now, ChronoUnit.SECONDS);
+age += hours + 's';
+
+return age; <6>
+----
+<1> Parse the datetime "now" as input from the user-defined params.
+<2> Store the datetime the message was received as a `ZonedDateTime`.
+<3> Find the difference in years between "now" and the datetime the message was
+received.
+<4> Add the difference in years later returned in the format
+`Y <years> ...` for the age of a message.
+<5> Add the years so only the remainder of the months, days, etc. remain as the
+difference between "now" and the datetime the message was received. Repeat this
+pattern until the desired granularity is reached (seconds in this example).
+<6> Return the age of the message in the format
+`Y <years> M <months> D <days> h <hours> m <minutes> s <seconds>`.

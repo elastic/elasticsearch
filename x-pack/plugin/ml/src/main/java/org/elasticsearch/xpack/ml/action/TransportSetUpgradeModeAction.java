@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.io.IOException;
@@ -67,8 +68,8 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                          PersistentTasksClusterService persistentTasksClusterService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                          PersistentTasksService persistentTasksService) {
-        super(SetUpgradeModeAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            SetUpgradeModeAction.Request::new);
+        super(SetUpgradeModeAction.NAME, transportService, clusterService, threadPool, actionFilters, SetUpgradeModeAction.Request::new,
+            indexNameExpressionResolver);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.clusterService = clusterService;
         this.client = client;
@@ -83,11 +84,6 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -304,7 +300,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 // If the task was removed from the node, all is well
                 // We handle the case of allocation_id changing later in this transport class by timing out waiting for task completion
                 // Consequently, if the exception is ResourceNotFoundException, continue execution; circuit break otherwise.
-                ex -> ex instanceof ResourceNotFoundException == false);
+                ex -> ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException == false);
 
         for (PersistentTask<?> task : datafeedAndJobTasks) {
             chainTaskExecutor.add(

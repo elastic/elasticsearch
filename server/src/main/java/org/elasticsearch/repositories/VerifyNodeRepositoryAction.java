@@ -63,7 +63,7 @@ public class VerifyNodeRepositoryAction {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SNAPSHOT,
+        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SNAPSHOT, VerifyNodeRepositoryRequest::new,
             new VerifyNodeRepositoryRequestHandler());
     }
 
@@ -115,7 +115,11 @@ public class VerifyNodeRepositoryAction {
     private static void finishVerification(String repositoryName, ActionListener<List<DiscoveryNode>> listener, List<DiscoveryNode> nodes,
                                    CopyOnWriteArrayList<VerificationFailure> errors) {
         if (errors.isEmpty() == false) {
-            listener.onFailure(new RepositoryVerificationException(repositoryName, errors.toString()));
+            RepositoryVerificationException e = new RepositoryVerificationException(repositoryName, errors.toString());
+            for (VerificationFailure error : errors) {
+                e.addSuppressed(error.getCause());
+            }
+            listener.onFailure(e);
         } else {
             listener.onResponse(nodes);
         }
@@ -131,19 +135,15 @@ public class VerifyNodeRepositoryAction {
         private String repository;
         private String verificationToken;
 
-        public VerifyNodeRepositoryRequest() {
+        public VerifyNodeRepositoryRequest(StreamInput in) throws IOException {
+            super(in);
+            repository = in.readString();
+            verificationToken = in.readString();
         }
 
         VerifyNodeRepositoryRequest(String repository, String verificationToken) {
             this.repository = repository;
             this.verificationToken = verificationToken;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            repository = in.readString();
-            verificationToken = in.readString();
         }
 
         @Override

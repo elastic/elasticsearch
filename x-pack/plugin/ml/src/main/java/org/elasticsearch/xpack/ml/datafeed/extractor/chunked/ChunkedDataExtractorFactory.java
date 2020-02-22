@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
@@ -22,17 +23,20 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     private final Job job;
     private final DataExtractorFactory dataExtractorFactory;
     private final NamedXContentRegistry xContentRegistry;
+    private final DatafeedTimingStatsReporter timingStatsReporter;
 
     public ChunkedDataExtractorFactory(Client client,
                                        DatafeedConfig datafeedConfig,
                                        Job job,
                                        NamedXContentRegistry xContentRegistry,
-                                       DataExtractorFactory dataExtractorFactory) {
+                                       DataExtractorFactory dataExtractorFactory,
+                                       DatafeedTimingStatsReporter timingStatsReporter) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.xContentRegistry = xContentRegistry;
+        this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
     }
 
     @Override
@@ -52,7 +56,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
                 datafeedConfig.hasAggregations(),
                 datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null
             );
-        return new ChunkedDataExtractor(client, dataExtractorFactory, dataExtractorContext);
+        return new ChunkedDataExtractor(client, dataExtractorFactory, dataExtractorContext, timingStatsReporter);
     }
 
     private ChunkedDataExtractorContext.TimeAligner newTimeAligner() {

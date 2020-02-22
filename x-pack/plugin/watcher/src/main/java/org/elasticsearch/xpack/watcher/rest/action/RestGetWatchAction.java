@@ -6,14 +6,10 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -22,20 +18,17 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetWatchAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetWatchAction.class));
-
-    public RestGetWatchAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_watcher/watch/{id}", this,
-            GET, "/_xpack/watcher/watch/{id}", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_watcher/watch/{id}"));
     }
 
     @Override

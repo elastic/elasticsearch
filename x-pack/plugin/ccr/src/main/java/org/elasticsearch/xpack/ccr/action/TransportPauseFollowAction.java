@@ -13,15 +13,18 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 
 import java.io.IOException;
@@ -56,17 +59,20 @@ public class TransportPauseFollowAction extends TransportMasterNodeAction<PauseF
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void masterOperation(Task task, PauseFollowAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+                                   ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+        final IndexMetaData followerIMD = state.metaData().index(request.getFollowIndex());
+        if (followerIMD == null) {
+            listener.onFailure(new IndexNotFoundException(request.getFollowIndex()));
+            return;
+        }
+        if (followerIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY) == null) {
+            listener.onFailure(new IllegalArgumentException("index [" + request.getFollowIndex() + "] is not a follower index"));
+            return;
+        }
         PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (persistentTasksMetaData == null) {
-            listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));
+            listener.onFailure(new IllegalArgumentException("no shard follow tasks found"));
             return;
         }
 

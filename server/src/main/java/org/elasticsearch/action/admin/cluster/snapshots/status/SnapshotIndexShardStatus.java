@@ -50,7 +50,12 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
 
     private String failure;
 
-    private SnapshotIndexShardStatus() {
+    public SnapshotIndexShardStatus(StreamInput in) throws IOException {
+        super(in);
+        stage = SnapshotIndexShardStage.fromValue(in.readByte());
+        stats = new SnapshotStats(in);
+        nodeId = in.readOptionalString();
+        failure = in.readOptionalString();
     }
 
     SnapshotIndexShardStatus(ShardId shardId, SnapshotIndexShardStage stage) {
@@ -127,13 +132,6 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         return failure;
     }
 
-
-    public static SnapshotIndexShardStatus readShardSnapshotStatus(StreamInput in) throws IOException {
-        SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus();
-        shardStatus.readFrom(in);
-        return shardStatus;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -141,15 +139,6 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         stats.writeTo(out);
         out.writeOptionalString(nodeId);
         out.writeOptionalString(failure);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        stage = SnapshotIndexShardStage.fromValue(in.readByte());
-        stats = SnapshotStats.readSnapshotStats(in);
-        nodeId = in.readOptionalString();
-        failure = in.readOptionalString();
     }
 
     static final class Fields {

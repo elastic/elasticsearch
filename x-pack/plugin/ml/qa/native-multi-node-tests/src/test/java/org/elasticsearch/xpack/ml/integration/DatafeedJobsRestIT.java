@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
@@ -55,7 +55,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         return true;
     }
 
-    private void setupDataAccessRole(String index) throws IOException {
+    private static void setupDataAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
         request.setJsonEntity("{"
                 + "  \"indices\" : ["
@@ -185,9 +185,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createAirlineDataNested);
 
         bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 1}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}, \"airline\":[{\"name\": \"foo\"}]}\n");
         bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 2}}\n");
-        bulk.append("{\"time\":\"2016-06-01T01:59:00Z\",\"responsetime\":{\"millis\":222.0}}\n");
+        bulk.append("{\"time\":\"2016-06-01T01:59:00Z\", \"responsetime\":{\"millis\":222.00}, \"airline\":[{\"name\": \"bar\"}]}\n");
 
         // Create index with multiple docs per time interval for aggregation testing
         Request createAirlineDataAggs = new Request("PUT", "/airline-data-aggs");
@@ -283,13 +283,15 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         new LookbackOnlyTestHelper("test-lookback-only-with-source-disabled", "airline-data-disabled-source").execute();
     }
 
-    @AwaitsFix(bugUrl = "This test uses painless which is not available in the integTest phase")
     public void testLookbackOnlyWithScriptFields() throws Exception {
-        new LookbackOnlyTestHelper("test-lookback-only-with-script-fields", "airline-data-disabled-source")
-                .setAddScriptedFields(true).execute();
+        new LookbackOnlyTestHelper("test-lookback-only-with-script-fields", "airline-data")
+                .setScriptedFields(
+                    "{\"scripted_airline\":{\"script\":{\"lang\":\"painless\",\"source\":\"doc['airline.keyword'].value\"}}}")
+            .setAirlineVariant("scripted_airline")
+            .execute();
     }
 
-    public void testLookbackOnlyWithNestedFields() throws Exception {
+    public void testLookbackonlyWithNestedFields() throws Exception {
         String jobId = "test-lookback-only-with-nested-fields";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         createJobRequest.setJsonEntity("{\n"
@@ -299,7 +301,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "    \"detectors\": [\n"
                 + "      {\n"
                 + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime.millis\"\n"
+                + "        \"field_name\": \"responsetime.millis\",\n"
+                + "        \"by_field_name\": \"airline.name\"\n"
                 + "      }\n"
                 + "    ]\n"
                 + "  },"
@@ -744,9 +747,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":0"));
 
         // There should be a notification saying that there was a problem extracting data
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
         Response notificationsResponse = client().performRequest(
-                new Request("GET", AuditorField.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
+                new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
                 "action [indices:data/read/search] is unauthorized for user [ml_admin_plus_data]\""));
@@ -951,9 +954,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         startDatafeedAndWaitUntilStopped(datafeedId, BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS);
         waitUntilJobIsClosed(jobId);
         // There should be a notification saying that there was a problem extracting data
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
         Response notificationsResponse = client().performRequest(
-            new Request("GET", AuditorField.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
+            new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
             "action [indices:admin/xpack/rollup/search] is unauthorized for user [ml_admin_plus_data]\""));
@@ -1088,7 +1091,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         private String jobId;
         private String airlineVariant;
         private String dataIndex;
-        private boolean addScriptedFields;
+        private String scriptedFields;
         private boolean shouldSucceedInput;
         private boolean shouldSucceedProcessing;
 
@@ -1100,8 +1103,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             this.airlineVariant = "airline";
         }
 
-        public LookbackOnlyTestHelper setAddScriptedFields(boolean value) {
-            addScriptedFields = value;
+        public LookbackOnlyTestHelper setScriptedFields(String scriptFields) {
+            this.scriptedFields = scriptFields;
             return this;
         }
 
@@ -1124,10 +1127,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         public void execute() throws Exception {
             createJob(jobId, airlineVariant);
             String datafeedId = "datafeed-" + jobId;
-            new DatafeedBuilder(datafeedId, jobId, dataIndex)
-                    .setScriptedFields(addScriptedFields ?
-                            "{\"airline\":{\"script\":{\"lang\":\"painless\",\"inline\":\"doc['airline'].value\"}}}" : null)
-                    .build();
+            new DatafeedBuilder(datafeedId, jobId, dataIndex).setScriptedFields(scriptedFields).build();
             openJob(client(), jobId);
 
             startDatafeedAndWaitUntilStopped(datafeedId);

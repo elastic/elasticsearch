@@ -22,12 +22,7 @@ public class PersistJobAction extends ActionType<PersistJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/persist";
 
     private PersistJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, PersistJobAction.Response::new);
     }
 
     public static class Request extends JobTaskRequest<PersistJobAction.Request> {

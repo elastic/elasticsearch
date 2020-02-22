@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,6 +83,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         public void consumeBucketsAndMaybeBreak(int size) {
             multiBucketConsumer.accept(size);
         }
+
     }
 
     protected final String name;
@@ -126,22 +128,24 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
+     * Creates the output from all pipeline aggs that this aggregation is associated with.  Should only
+     * be called after all aggregations have been fully reduced
+     */
+    public InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        assert reduceContext.isFinalReduce();
+        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+            reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
+        }
+        return reducedAggs;
+    }
+
+    /**
      * Reduces the given aggregations to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
      * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
      * try reusing an existing instance (typically the first in the given list) to save on redundant object
      * construction.
      */
-    public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        InternalAggregation aggResult = doReduce(aggregations, reduceContext);
-        if (reduceContext.isFinalReduce()) {
-            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-                aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
-            }
-        }
-        return aggResult;
-    }
-
-    public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
     /**
      * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns
@@ -237,6 +241,22 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * Get value to use when sorting by this aggregation.
+     */
+    public double sortValue(String key) {
+        // subclasses will override this with a real implementation if they can be sorted
+        throw new IllegalArgumentException("Can't sort a [" + getType() + "] aggregation [" + getName() + "]");
+    }
+
+    /**
+     * Get value to use when sorting by a descendant of this aggregation.
+     */
+    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        // subclasses will override this with a real implementation if you can sort on a descendant
+        throw new IllegalArgumentException("Can't sort by a descendant of a [" + getType() + "] aggregation [" + head + "]");
     }
 
 }

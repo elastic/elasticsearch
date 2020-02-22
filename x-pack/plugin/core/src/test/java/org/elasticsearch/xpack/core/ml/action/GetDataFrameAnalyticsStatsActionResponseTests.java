@@ -11,24 +11,32 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
-    @Override
-    protected Response createTestInstance() {
-        int listSize = randomInt(10);
+    public static Response randomResponse(int listSize) {
         List<Response.Stats> analytics = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
-            Integer progressPercentage = randomBoolean() ? null : randomIntBetween(0, 100);
             String failureReason = randomBoolean() ? null : randomAlphaOfLength(10);
+            int progressSize = randomIntBetween(2, 5);
+            List<PhaseProgress> progress = new ArrayList<>(progressSize);
+            IntStream.of(progressSize).forEach(progressIndex -> progress.add(
+                new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100))));
             Response.Stats stats = new Response.Stats(DataFrameAnalyticsConfigTests.randomValidId(),
-                randomFrom(DataFrameAnalyticsState.values()), failureReason, progressPercentage, null, randomAlphaOfLength(20));
+                randomFrom(DataFrameAnalyticsState.values()), failureReason, progress, null, randomAlphaOfLength(20));
             analytics.add(stats);
         }
         return new Response(new QueryPage<>(analytics, analytics.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+    }
+
+    @Override
+    protected Response createTestInstance() {
+        return randomResponse(randomInt(10));
     }
 
     @Override

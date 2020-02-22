@@ -10,6 +10,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -85,14 +86,13 @@ import static org.mockito.Mockito.when;
 public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     private OpenIdConnectAuthenticator authenticator;
-    private Settings globalSettings;
     private Environment env;
     private ThreadContext threadContext;
     private int callsToReloadJwk;
 
     @Before
     public void setup() {
-        globalSettings = Settings.builder().put("path.home", createTempDir())
+        final Settings globalSettings = Settings.builder().put("path.home", createTempDir())
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate").build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
@@ -108,7 +108,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     private OpenIdConnectAuthenticator buildAuthenticator() throws URISyntaxException {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
-        return new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(globalSettings, env), null);
+        return new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
     }
 
     private OpenIdConnectAuthenticator buildAuthenticator(OpenIdConnectProviderConfiguration opConfig, RelyingPartyConfiguration rpConfig,
@@ -116,7 +116,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
         final JWSVerificationKeySelector keySelector = new JWSVerificationKeySelector(rpConfig.getSignatureAlgorithm(), jwkSource);
         final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), keySelector, null);
-        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), validator,
+        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(env), validator,
             null);
     }
 
@@ -125,13 +125,14 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
         final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(),
             rpConfig.getSignatureAlgorithm(), new Secret(rpConfig.getClientSecret().toString()));
-        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), validator,
+        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(env), validator,
             null);
     }
 
     public void testEmptyRedirectUrlIsRejected() throws Exception {
         authenticator = buildAuthenticator();
-        OpenIdConnectToken token = new OpenIdConnectToken(null, new State(), new Nonce());
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        OpenIdConnectToken token = new OpenIdConnectToken(null, new State(), new Nonce(), authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -145,7 +146,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final String state = randomAlphaOfLengthBetween(8, 12);
         final String invalidState = state.concat(randomAlphaOfLength(2));
         final String redirectUrl = "https://rp.elastic.co/cb?code=" + code + "&state=" + state;
-        OpenIdConnectToken token = new OpenIdConnectToken(redirectUrl, new State(invalidState), new Nonce());
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        OpenIdConnectToken token = new OpenIdConnectToken(redirectUrl, new State(invalidState), new Nonce(),authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -173,7 +175,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final String keyId = (jwk.getAlgorithm().getName().startsWith("HS")) ? null : jwk.getKeyID();
         final Tuple<AccessToken, JWT> tokens = buildTokens(invalidNonce, key, jwk.getAlgorithm().getName(), keyId, subject, true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -197,7 +200,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final String subject = "janedoe";
         final Tuple<AccessToken, JWT> tokens = buildTokens(nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         JWTClaimsSet claimsSet = future.actionGet();
@@ -218,7 +222,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final String subject = "janedoe";
         final Tuple<AccessToken, JWT> tokens = buildTokens(nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         JWTClaimsSet claimsSet = future.actionGet();
@@ -239,7 +244,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final String subject = "janedoe";
         final Tuple<AccessToken, JWT> tokens = buildTokens(nonce, key, jwk.getAlgorithm().getName(), null, subject, true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         JWTClaimsSet claimsSet = future.actionGet();
@@ -275,7 +281,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Tuple<AccessToken, JWT> tokens = buildTokens(idTokenBuilder.build(), key, jwk.getAlgorithm().getName(), keyId, subject,
             true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         JWTClaimsSet claimsSet = future.actionGet();
@@ -312,7 +319,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Tuple<AccessToken, JWT> tokens = buildTokens(idTokenBuilder.build(), key, jwk.getAlgorithm().getName(), keyId,
             subject, true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -356,7 +364,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Tuple<AccessToken, JWT> tokens = buildTokens(idTokenBuilder.build(), key, jwk.getAlgorithm().getName(), keyId,
             subject, true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -399,7 +408,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Tuple<AccessToken, JWT> tokens = buildTokens(idTokenBuilder.build(), key, jwk.getAlgorithm().getName(), keyId,
             subject, true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -442,7 +452,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Tuple<AccessToken, JWT> tokens = buildTokens(idTokenBuilder.build(), key, jwk.getAlgorithm().getName(), keyId,
             subject, true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -471,7 +482,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final String subject = "janedoe";
         final Tuple<AccessToken, JWT> tokens = buildTokens(nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, true);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -496,7 +508,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final String subject = "janedoe";
         final Tuple<AccessToken, JWT> tokens = buildTokens(nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, true);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -520,7 +533,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final String subject = "janedoe";
         final Tuple<AccessToken, JWT> tokens = buildTokens(nonce, key, jwk.getAlgorithm().getName(), null, subject, true, true);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -550,7 +564,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Tuple<AccessToken, JWT> tokens = buildTokens(nonce, key, jwk.getAlgorithm().getName(), keyId, subject, true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), new BearerAccessToken("someforgedAccessToken"), state,
             rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -588,7 +603,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         String fordedTokenString = encodedForgedHeader + "." + serializedParts[1] + "." + serializedParts[2];
         idToken = SignedJWT.parse(fordedTokenString);
         final String responseUrl = buildAuthResponse(idToken, tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -619,7 +635,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Tuple<AccessToken, JWT> tokens = buildTokens(nonce, hmacKey, "HS384", null, subject,
             true, false);
         final String responseUrl = buildAuthResponse(tokens.v2(), tokens.v1(), state, rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -656,7 +673,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         final String responseUrl = buildAuthResponse(new PlainJWT(idTokenBuilder.build()), null, state,
             rpConfig.getRedirectUri());
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         authenticator.authenticate(token, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
@@ -953,7 +971,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         } else if (type.equals("ES")) {
             hashSize = randomFrom(256, 384, 512);
-            ECKey.Curve curve = curveFromHashSize(hashSize);
+            Curve curve = curveFromHashSize(hashSize);
             KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
             gen.initialize(curve.toECParameterSpec());
             KeyPair keyPair = gen.generateKeyPair();
@@ -965,16 +983,16 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         } else {
             throw new IllegalArgumentException("Invalid key type :" + type);
         }
-        return new Tuple(key, new JWKSet(jwk));
+        return new Tuple<>(key, new JWKSet(jwk));
     }
 
-    private ECKey.Curve curveFromHashSize(int size) {
+    private Curve curveFromHashSize(int size) {
         if (size == 256) {
-            return ECKey.Curve.P_256;
+            return Curve.P_256;
         } else if (size == 384) {
-            return ECKey.Curve.P_384;
+            return Curve.P_384;
         } else if (size == 512) {
-            return ECKey.Curve.P_521;
+            return Curve.P_521;
         } else {
             throw new IllegalArgumentException("Invalid hash size:" + size);
         }

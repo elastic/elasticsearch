@@ -23,7 +23,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -34,7 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -80,7 +79,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String index;
 
     @Before
-    public void setIndex() throws IOException {
+    public void setIndex() {
         index = getTestName().toLowerCase(Locale.ROOT);
     }
 
@@ -235,8 +234,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
 
         // Check some global properties:
-        String clusterName = (String) clusterState.get("cluster_name");
-        assertEquals("full-cluster-restart", clusterName);
         String numberOfShards = (String) XContentMapValues.extractValue(
             "metadata.templates.template_1.settings.index.number_of_shards", clusterState);
         assertEquals("1", numberOfShards);
@@ -669,29 +666,26 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
              * an index without a translog so we randomize whether
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
-
+            Settings.Builder settings = Settings.builder();
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // make sure all recoveries are done
             ensureGreen(index);
-            // Recovering a synced-flush index from 5.x to 6.x might be subtle as a 5.x index commit does not have all 6.x commit tags.
+
+            // Force flush so we're sure that all translog are committed
+            Request flushRequest = new Request("POST", "/" + index + "/_flush");
+            flushRequest.addParameter("force", "true");
+            flushRequest.addParameter("wait_if_ongoing", "true");
+            assertOK(client().performRequest(flushRequest));
             if (randomBoolean()) {
-                // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-                // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-                assertBusy(() -> {
-                    try {
-                        Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
-                        Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                        assertThat(result.get("successful"), equalTo(result.get("total")));
-                        assertThat(result.get("failed"), equalTo(0));
-                    } catch (ResponseException ex) {
-                        throw new AssertionError(ex); // cause assert busy to retry
-                    }
-                });
-            } else {
-                // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
-                assertOK(client().performRequest(new Request("POST", "/_flush")));
+                syncedFlush(index);
             }
+
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
                 indexRandomDocuments(
@@ -786,6 +780,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster()) {
             // Create the index
             count = between(200, 300);
+            Settings.Builder settings = Settings.builder();
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            createIndex(index, settings.build());
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
         } else {
             count = countOfIndexedRandomDocuments();
@@ -1172,6 +1171,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    private void indexDocument(String id) throws IOException {
+        final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/" + id);
+        indexRequest.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("f", "v").endObject()));
+        assertOK(client().performRequest(indexRequest));
+    }
+
     private int countOfIndexedRandomDocuments() throws IOException {
         return Integer.parseInt(loadInfoDocument(index + "_count"));
     }
@@ -1229,5 +1234,162 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         logger.info("health api response: {}", healthRsp);
         assertEquals("green", healthRsp.get("status"));
         assertFalse((Boolean) healthRsp.get("timed_out"));
+    }
+
+    public void testPeerRecoveryRetentionLeases() throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            XContentBuilder settings = jsonBuilder();
+            settings.startObject();
+            {
+                settings.startObject("settings");
+                settings.field("number_of_shards", between(1, 5));
+                settings.field("number_of_replicas", between(0, 1));
+                settings.endObject();
+            }
+            settings.endObject();
+
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(settings));
+            client().performRequest(createIndex);
+        }
+        ensureGreen(index);
+        ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+    }
+
+    /**
+     * Tests that with or without soft-deletes, we should perform an operation-based recovery if there were some
+     * but not too many uncommitted documents (i.e., less than 10% of committed documents or the extra translog)
+     * before we restart the cluster. This is important when we move from translog based to retention leases based
+     * peer recoveries.
+     */
+    public void testOperationBasedRecovery() throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1);
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
+            ensureGreen(index);
+            int committedDocs = randomIntBetween(100, 200);
+            for (int i = 0; i < committedDocs; i++) {
+                indexDocument(Integer.toString(i));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+            flush(index, true);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+            // less than 10% of the committed docs (see IndexSetting#FILE_BASED_RECOVERY_THRESHOLD_SETTING).
+            int uncommittedDocs = randomIntBetween(0, (int) (committedDocs * 0.1));
+            for (int i = 0; i < uncommittedDocs; i++) {
+                final String id = Integer.toString(randomIntBetween(1, 100));
+                indexDocument(id);
+            }
+        } else {
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index, n -> true);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+        }
+    }
+
+    /**
+     * Verifies that once all shard copies on the new version, we should turn off the translog retention for indices with soft-deletes.
+     */
+    public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            createIndex(index, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                indexDocument(Integer.toString(randomIntBetween(1, 100)));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+        } else {
+            ensureGreen(index);
+            flush(index, true);
+            assertEmptyTranslog(index);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+        }
+    }
+
+    public void testResize() throws Exception {
+        int numDocs;
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
+            }
+            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
+            numDocs = randomIntBetween(10, 1000);
+            for (int i = 0; i < numDocs; i++) {
+                indexDocument(Integer.toString(i));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+            saveInfoDocument("num_doc_" + index, Integer.toString(numDocs));
+            ensureGreen(index);
+        } else {
+            ensureGreen(index);
+            numDocs = Integer.parseInt(loadInfoDocument("num_doc_" + index));
+            int moreDocs = randomIntBetween(0, 100);
+            for (int i = 0; i < moreDocs; i++) {
+                indexDocument(Integer.toString(numDocs + i));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+            Request updateSettingsRequest = new Request("PUT", "/" + index + "/_settings");
+            updateSettingsRequest.setJsonEntity("{\"settings\": {\"index.blocks.write\": true}}");
+            client().performRequest(updateSettingsRequest);
+            {
+                final String target = index + "_shrunken";
+                Request shrinkRequest = new Request("PUT", "/" + index + "/_shrink/" + target);
+                Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1);
+                if (randomBoolean()) {
+                    settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                }
+                shrinkRequest.setJsonEntity("{\"settings\":" + Strings.toString(settings.build()) + "}");
+                client().performRequest(shrinkRequest);
+                ensureGreenLongWait(target);
+                assertNumHits(target, numDocs + moreDocs, 1);
+            }
+            {
+                final String target = index + "_split";
+                Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 6);
+                if (randomBoolean()) {
+                    settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                }
+                Request splitRequest = new Request("PUT", "/" + index + "/_split/" + target);
+                splitRequest.setJsonEntity("{\"settings\":" + Strings.toString(settings.build()) + "}");
+                client().performRequest(splitRequest);
+                ensureGreenLongWait(target);
+                assertNumHits(target, numDocs + moreDocs, 6);
+            }
+            {
+                final String target = index + "_cloned";
+                client().performRequest(new Request("PUT", "/" + index + "/_clone/" + target));
+                ensureGreenLongWait(target);
+                assertNumHits(target, numDocs + moreDocs, 3);
+            }
+        }
+    }
+
+    private void assertNumHits(String index, int numHits, int totalShards) throws IOException {
+        Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
+        assertNoFailures(resp);
+        assertThat(XContentMapValues.extractValue("_shards.total", resp), equalTo(totalShards));
+        assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
+        assertThat(extractTotalHits(resp), equalTo(numHits));
     }
 }

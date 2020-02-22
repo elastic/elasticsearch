@@ -20,7 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.Scroll;
@@ -72,13 +72,8 @@ public class InternalScrollSearchRequest extends TransportRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     @Override

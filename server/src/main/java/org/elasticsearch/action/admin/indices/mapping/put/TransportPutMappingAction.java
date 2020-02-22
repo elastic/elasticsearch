@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
@@ -41,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -48,6 +51,8 @@ import java.util.Optional;
  * Put mapping action.
  */
 public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetaDataMappingService metaDataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
@@ -61,8 +66,8 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final RequestValidators<PutMappingRequest> requestValidators) {
-        super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            PutMappingRequest::new);
+        super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest::new,
+            indexNameExpressionResolver);
         this.metaDataMappingService = metaDataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
     }
@@ -76,11 +81,6 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -106,10 +106,9 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                 listener.onFailure(maybeValidationException.get());
                 return;
             }
-            PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
-                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                    .indices(concreteIndices).type(request.type())
-                    .source(request.source());
+            PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest(request.source())
+                .indices(concreteIndices)
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
             metaDataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
@@ -120,14 +119,14 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
 
                 @Override
                 public void onFailure(Exception t) {
-                    logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
-                        concreteIndices, request.type()), t);
+                    logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
+                        Arrays.asList(concreteIndices)), t);
                     listener.onFailure(t);
                 }
             });
         } catch (IndexNotFoundException ex) {
-            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
-                request.indices(), request.type()), ex);
+            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
+                Arrays.asList(request.indices())), ex);
             throw ex;
         }
     }

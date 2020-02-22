@@ -1,5 +1,8 @@
 [[query-dsl-dis-max-query]]
-=== Disjunction Max Query
+=== Disjunction max query
+++++
+<titleabbrev>Disjunction max</titleabbrev>
+++++
 
 Returns documents matching one or more wrapped queries, called query clauses or
 clauses.
@@ -8,13 +11,10 @@ If a returned document matches multiple query clauses, the `dis_max` query
 assigns the document the highest relevance score from any matching clause, plus
 a tie breaking increment for any additional matching subqueries.
 
-You can use the `dis_max` to search for a term in fields mapped with different
-<<mapping-boost,boost>> factors.
-
 [[query-dsl-dis-max-query-ex-request]]
 ==== Example request
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -29,22 +29,22 @@ GET /_search
     }
 }    
 ----
-// CONSOLE
 
 [[query-dsl-dis-max-query-top-level-params]]
 ==== Top-level parameters for `dis_max`
 
-`queries` (Required)::
-(array of query objects) Contains one or more query clauses. Returned documents
-**must match one or more** of these queries. If a document matches multiple
-queries, {es} uses the highest <<query-filter-context, relevance score>>.
+`queries`::
+(Required, array of query objects) Contains one or more query clauses. Returned
+documents **must match one or more** of these queries. If a document matches
+multiple queries, {es} uses the highest <<query-filter-context, relevance
+score>>.
 
-`tie_breaker` (Optional)::
+`tie_breaker`::
 +
 --
-(float) Floating point number between `0` and `1.0` used to increase the
-<<query-filter-context, relevance scores>> of documents matching multiple query
-clauses. Defaults to `0.0`.
+(Optional, float) Floating point number between `0` and `1.0` used to increase
+the <<relevance-scores,relevance scores>> of documents matching multiple
+query clauses. Defaults to `0.0`.
 
 You can use the `tie_breaker` value to assign higher relevance scores to
 documents that contain the same term in multiple fields than documents that

@@ -41,18 +41,12 @@ public class IsolateDatafeedAction extends ActionType<IsolateDatafeedAction.Resp
     public static final String NAME = "cluster:internal/xpack/ml/datafeed/isolate";
 
     private IsolateDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, IsolateDatafeedAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
         }

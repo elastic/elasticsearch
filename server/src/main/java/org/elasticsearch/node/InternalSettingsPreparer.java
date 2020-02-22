@@ -82,10 +82,6 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         finalizeSettings(output, defaultNodeName);
 
-        environment = new Environment(output.build(), configPath);
-
-        // we put back the path.logs so we can use it in the logging configuration file
-        output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
         return new Environment(output.build(), configPath);
     }
 

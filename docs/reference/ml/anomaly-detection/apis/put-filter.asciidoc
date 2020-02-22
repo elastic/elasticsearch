@@ -1,0 +1,70 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-put-filter]]
+=== Create filter API
+++++
+<titleabbrev>Create filter</titleabbrev>
+++++
+
+Instantiates a filter.
+
+[[ml-put-filter-request]]
+==== {api-request-title}
+
+`PUT _ml/filters/<filter_id>`
+
+[[ml-put-filter-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-put-filter-desc]]
+==== {api-description-title}
+
+A {ml-docs}/ml-rules.html[filter] contains a list of strings. 
+It can be used by one or more jobs. Specifically, filters are referenced in 
+the `custom_rules` property of detector configuration objects. 
+
+[[ml-put-filter-path-parms]]
+==== {api-path-parms-title}
+
+`<filter_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
+
+[[ml-put-filter-request-body]]
+==== {api-request-body-title}
+
+`description`::
+  (Optional, string) A description of the filter.
+  
+`items`::
+  (Required, array of strings) The items of the filter. A wildcard `*` can be
+  used at the beginning or the end of an item. Up to 10000 items are allowed in
+  each filter.
+
+[[ml-put-filter-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+PUT _ml/filters/safe_domains
+{
+  "description": "A list of safe domains",
+  "items": ["*.google.com", "wikipedia.org"]
+}
+--------------------------------------------------
+// TEST[skip:need-licence]
+
+When the filter is created, you receive the following response:
+
+[source,console-result]
+----
+{
+  "filter_id": "safe_domains",
+  "description": "A list of safe domains",
+  "items": ["*.google.com", "wikipedia.org"]
+}
+----

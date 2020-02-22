@@ -29,9 +29,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -52,12 +54,14 @@ public class BinarySoftClassification implements Evaluation {
     public static final ConstructingObjectParser<BinarySoftClassification, Void> PARSER =
         new ConstructingObjectParser<>(
             NAME,
+            true,
             args -> new BinarySoftClassification((String) args[0], (String) args[1], (List<EvaluationMetric>) args[2]));
 
     static {
         PARSER.declareString(constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(constructorArg(), PREDICTED_PROBABILITY_FIELD);
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, n, null), METRICS);
+        PARSER.declareNamedObjects(
+            optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), null), METRICS);
     }
 
     public static BinarySoftClassification fromXContent(XContentParser parser) {
@@ -80,6 +84,10 @@ public class BinarySoftClassification implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
+    public BinarySoftClassification(String actualField, String predictedField) {
+        this(actualField, predictedField, (List<EvaluationMetric>)null);
+    }
+
     public BinarySoftClassification(String actualField, String predictedProbabilityField, EvaluationMetric... metric) {
         this(actualField, predictedProbabilityField, Arrays.asList(metric));
     }
@@ -88,7 +96,10 @@ public class BinarySoftClassification implements Evaluation {
                                     @Nullable List<EvaluationMetric> metrics) {
         this.actualField = Objects.requireNonNull(actualField);
         this.predictedProbabilityField = Objects.requireNonNull(predictedProbabilityField);
-        this.metrics = Objects.requireNonNull(metrics);
+        if (metrics != null) {
+            metrics.sort(Comparator.comparing(EvaluationMetric::getName));
+        }
+        this.metrics = metrics;
     }
 
     @Override
@@ -102,11 +113,13 @@ public class BinarySoftClassification implements Evaluation {
         builder.field(ACTUAL_FIELD.getPreferredName(), actualField);
         builder.field(PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField);
 
-        builder.startObject(METRICS.getPreferredName());
-        for (EvaluationMetric metric : metrics) {
-            builder.field(metric.getName(), metric);
+        if (metrics != null) {
+            builder.startObject(METRICS.getPreferredName());
+            for (EvaluationMetric metric : metrics) {
+                builder.field(metric.getName(), metric);
+            }
+            builder.endObject();
         }
-        builder.endObject();
 
         builder.endObject();
         return builder;

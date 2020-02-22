@@ -43,8 +43,9 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     private Map<ShardRouting, ShardStats> shardStatsMap;
 
-    IndicesStatsResponse() {
-
+    IndicesStatsResponse(StreamInput in) throws IOException {
+        super(in);
+        shards = in.readArray(ShardStats::new, (size) -> new ShardStats[size]);
     }
 
     IndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards, int failedShards,
@@ -124,12 +125,6 @@ public class IndicesStatsResponse extends BroadcastResponse {
         }
         primary = stats;
         return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shards = in.readArray(ShardStats::readShardStats, (size) -> new ShardStats[size]);
     }
 
     @Override

@@ -1,5 +1,8 @@
 [[query-dsl-terms-query]]
-=== Terms Query
+=== Terms query
+++++
+<titleabbrev>Terms</titleabbrev>
+++++
 
 Returns documents that contain one or more *exact* terms in a provided field.
 
@@ -12,7 +15,7 @@ except you can search for multiple values.
 The following search returns documents where the `user` field contains `kimchy`
 or `elasticsearch`.
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -24,14 +27,13 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[terms-top-level-params]]
 ==== Top-level parameters for `terms`
 `<field>`::
 +
 --
-Field you wish to search.
+(Optional, object) Field you wish to search.
 
 The value of this parameter is an array of terms you wish to find in the
 provided field. To return a document, one or more terms must exactly match a
@@ -49,9 +51,8 @@ To use the field values of an existing document as search terms, use the
 `boost`::
 +
 --
-Floating point number used to decrease or increase the
-<<query-filter-context, relevance scores>> of a query. Default is `1.0`.
-Optional.
+(Optional, float) Floating point number used to decrease or increase the
+<<relevance-scores,relevance scores>> of a query. Defaults to `1.0`.
 
 You can use the `boost` parameter to adjust relevance scores for searches
 containing two or more queries.
@@ -66,7 +67,7 @@ increases the relevance score.
 
 [[query-dsl-terms-query-highlighting]]
 ===== Highlighting `terms` queries
-<<search-request-highlighting,Highlighting>> is best-effort only. {es} may not
+<<request-body-search-highlighting,Highlighting>> is best-effort only. {es} may not
 return highlight results for `terms` queries depending on:
 
 * Highlighter type
@@ -92,15 +93,16 @@ To perform a terms lookup, use the following parameters.
 [[query-dsl-terms-lookup-params]]
 ====== Terms lookup parameters
 `index`::
-Name of the index from which to fetch field values.
+(Optional, string) Name of the index from which to fetch field values.
 
 `id`::
-<<mapping-id-field,ID>> of the document from which to fetch field values.
+(Optional, string) <<mapping-id-field,ID>> of the document from which to fetch
+field values.
 
 `path`::
 +
 --
-Name of the field from which to fetch field values. {es} uses
+(Optional, string) Name of the field from which to fetch field values. {es} uses
 these values as search terms for the query.
 
 If the field values include an array of nested inner objects, you can access
@@ -108,9 +110,9 @@ those objects using dot notation syntax.
 --
 
 `routing`::
-Custom <<mapping-routing-field, routing value>> of the document from which to
-fetch term values. If a custom routing value was provided when the document was
-indexed, this parameter is required.
+(Optional, string) Custom <<mapping-routing-field, routing value>> of the
+document from which to fetch term values. If a custom routing value was provided
+when the document was indexed, this parameter is required.
 
 [[query-dsl-terms-lookup-example]]
 ====== Terms lookup example
@@ -121,7 +123,7 @@ To see how terms lookup works, try the following example.
 +
 --
 
-[source,js]
+[source,console]
 ----
 PUT my_index
 {
@@ -132,7 +134,6 @@ PUT my_index
     }
 }
 ----
-// CONSOLE
 --
 
 . Index a document with an ID of 1 and values of `["blue", "green"]` in the
@@ -140,14 +141,13 @@ PUT my_index
 +
 --
 
-[source,js]
+[source,console]
 ----
 PUT my_index/_doc/1
 {
   "color":   ["blue", "green"]
 }
 ----
-// CONSOLE
 // TEST[continued]
 --
 
@@ -156,14 +156,13 @@ field.
 +
 --
 
-[source,js]
+[source,console]
 ----
 PUT my_index/_doc/2
 {
   "color":   "blue"
 }
 ----
-// CONSOLE
 // TEST[continued]
 --
 
@@ -175,16 +174,15 @@ parameter so the response is more readable.
 
 ////
 
-[source,js]
+[source,console]
 ----
 POST my_index/_refresh
 ----
-// CONSOLE
 // TEST[continued]
 
 ////
 
-[source,js]
+[source,console]
 ----
 GET my_index/_search?pretty
 {
@@ -199,13 +197,12 @@ GET my_index/_search?pretty
   }
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 Because document 2 and document 1 both contain `blue` as a value in the `color`
 field, {es} returns both documents.
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 17,
@@ -225,7 +222,6 @@ field, {es} returns both documents.
     "hits" : [
       {
         "_index" : "my_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
@@ -237,7 +233,6 @@ field, {es} returns both documents.
       },
       {
         "_index" : "my_index",
-        "_type" : "_doc",
         "_id" : "2",
         "_score" : 1.0,
         "_source" : {

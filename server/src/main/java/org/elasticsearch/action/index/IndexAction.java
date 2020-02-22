@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class IndexAction extends StreamableResponseActionType<IndexResponse> {
+public class IndexAction extends ActionType<IndexResponse> {
 
     public static final IndexAction INSTANCE = new IndexAction();
     public static final String NAME = "indices:data/write/index";
 
     private IndexAction() {
-        super(NAME);
-    }
-
-    @Override
-    public IndexResponse newResponse() {
-        return new IndexResponse();
+        super(NAME, IndexResponse::new);
     }
 }

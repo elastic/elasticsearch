@@ -149,12 +149,12 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int docs = 0; docs < numDocs; docs++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(newDocBuilder()));
+            builders.add(client().prepareIndex("idx").setSource(newDocBuilder()));
         }
-        builders.add(client().prepareIndex("idx_with_gaps", "type").setSource(newDocBuilder(1, 1, 0, 0)));
-        builders.add(client().prepareIndex("idx_with_gaps", "type").setSource(newDocBuilder(1, 2, 0, 0)));
-        builders.add(client().prepareIndex("idx_with_gaps", "type").setSource(newDocBuilder(3, 1, 0, 0)));
-        builders.add(client().prepareIndex("idx_with_gaps", "type").setSource(newDocBuilder(3, 3, 0, 0)));
+        builders.add(client().prepareIndex("idx_with_gaps").setSource(newDocBuilder(1, 1, 0, 0)));
+        builders.add(client().prepareIndex("idx_with_gaps").setSource(newDocBuilder(1, 2, 0, 0)));
+        builders.add(client().prepareIndex("idx_with_gaps").setSource(newDocBuilder(3, 1, 0, 0)));
+        builders.add(client().prepareIndex("idx_with_gaps").setSource(newDocBuilder(3, 3, 0, 0)));
 
         indexRandom(true, builders);
         ensureSearchable();

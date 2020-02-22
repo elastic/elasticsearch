@@ -95,10 +95,13 @@ public class ShardStateAction {
         this.threadPool = threadPool;
 
         transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ThreadPool.Names.SAME, StartedShardEntry::new,
-            new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
+            new ShardStartedTransportHandler(clusterService,
+                new ShardStartedClusterStateTaskExecutor(allocationService, rerouteService, logger),
+                logger));
         transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ThreadPool.Names.SAME, FailedShardEntry::new,
             new ShardFailedTransportHandler(clusterService,
-                new ShardFailedClusterStateTaskExecutor(allocationService, rerouteService, logger), logger));
+                new ShardFailedClusterStateTaskExecutor(allocationService, rerouteService, logger),
+                logger));
     }
 
     private void sendShardAction(final String actionName, final ClusterState currentState,
@@ -375,11 +378,12 @@ public class ShardStateAction {
         public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
             int numberOfUnassignedShards = clusterChangedEvent.state().getRoutingNodes().unassigned().size();
             if (numberOfUnassignedShards > 0) {
-                String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("{}, scheduling a reroute", reason);
-                }
-                rerouteService.reroute(reason, ActionListener.wrap(
+                // The reroute called after failing some shards will not assign any shard back to the node on which it failed. If there were
+                // no other options for a failed shard then it is left unassigned. However, absent other options it's better to try and
+                // assign it again, even if that means putting it back on the node on which it previously failed:
+                final String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
+                logger.trace("{}, scheduling a reroute", reason);
+                rerouteService.reroute(reason, Priority.NORMAL, ActionListener.wrap(
                     r -> logger.trace("{}, reroute completed", reason),
                     e -> logger.debug(new ParameterizedMessage("{}, reroute failed", reason), e)));
             }
@@ -440,10 +444,10 @@ public class ShardStateAction {
             components.add("allocation id [" + allocationId + "]");
             components.add("primary term [" + primaryTerm + "]");
             components.add("message [" + message + "]");
-            if (failure != null) {
-                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
-            }
             components.add("markAsStale [" + markAsStale + "]");
+            if (failure != null) {
+                components.add("failure [" + ExceptionsHelper.stackTrace(failure) + "]");
+            }
             return String.join(", ", components);
         }
 
@@ -510,10 +514,12 @@ public class ShardStateAction {
             implements ClusterStateTaskExecutor<StartedShardEntry>, ClusterStateTaskListener {
         private final AllocationService allocationService;
         private final Logger logger;
+        private final RerouteService rerouteService;
 
-        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, Logger logger) {
+        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService, Logger logger) {
             this.allocationService = allocationService;
             this.logger = logger;
+            this.rerouteService = rerouteService;
         }
 
         @Override
@@ -587,6 +593,13 @@ public class ShardStateAction {
             } else {
                 logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
             }
+        }
+
+        @Override
+        public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            rerouteService.reroute("reroute after starting shards", Priority.NORMAL, ActionListener.wrap(
+                r -> logger.trace("reroute after starting shards succeeded"),
+                e -> logger.debug("reroute after starting shards failed", e)));
         }
     }
 

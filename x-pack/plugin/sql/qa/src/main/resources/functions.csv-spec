@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 bitLengthGroupByAndOrderBy
 SELECT BIT_LENGTH(first_name), COUNT(*) count FROM "test_emp" GROUP BY BIT_LENGTH(first_name) ORDER BY BIT_LENGTH(first_name) LIMIT 10;
 
@@ -329,6 +331,26 @@ SELECT LOCATE('a',"first_name") pos, INSERT("first_name",LOCATE('a',"first_name"
 4              |BreAAAnnda                                   
 3              |ChAAArlene                                   
 8              |ChirstiAAAn  
+;
+
+selectLocateWithConditional1
+SELECT CAST(LOCATE('a', CASE WHEN TRUNCATE(salary, 3) > 40000 THEN first_name.keyword ELSE last_name.keyword END) > 0 AS STRING) AS x, COUNT(*) AS c FROM test_emp GROUP BY x ORDER BY c ASC;
+
+      x:s      |       c:l       
+---------------+---------------
+null           |4              
+false          |43             
+true           |53             
+;
+
+selectLocateWithConditional2
+SELECT CAST(LOCATE(CASE WHEN languages > 3 THEN 'a' ELSE 'b' END, CASE WHEN TRUNCATE(salary, 3) > 40000 THEN first_name.keyword ELSE last_name.keyword END, CASE WHEN gender IS NOT NULL THEN 3 ELSE NULL END) > 0 AS STRING) AS x, COUNT(*) AS c FROM test_emp GROUP BY x ORDER BY c DESC;
+
+      x:s      |       c:l       
+---------------+---------------
+false          |80             
+true           |16             
+null           |4              
 ;
 
 selectLeft

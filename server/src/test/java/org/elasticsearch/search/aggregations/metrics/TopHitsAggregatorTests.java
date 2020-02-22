@@ -69,11 +69,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         SearchHits searchHits = ((TopHits) result).getHits();
         assertEquals(3L, searchHits.getTotalHits().value);
         assertEquals("3", searchHits.getAt(0).getId());
-        assertEquals("type", searchHits.getAt(0).getType());
         assertEquals("2", searchHits.getAt(1).getId());
-        assertEquals("type", searchHits.getAt(1).getType());
         assertEquals("1", searchHits.getAt(2).getId());
-        assertEquals("type", searchHits.getAt(2).getType());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
     }
 

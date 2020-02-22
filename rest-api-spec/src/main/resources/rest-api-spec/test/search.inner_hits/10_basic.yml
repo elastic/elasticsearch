@@ -28,10 +28,8 @@ setup:
           body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : {} } } }
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }
-    - match: { hits.hits.0._type: "_doc" }
     - match: { hits.hits.0._id: "1" }
     - match: { hits.hits.0.inner_hits.nested_field.hits.hits.0._index: "test" }
-    - match: { hits.hits.0.inner_hits.nested_field.hits.hits.0._type: "_doc" }
     - match: { hits.hits.0.inner_hits.nested_field.hits.hits.0._id: "1" }
     - match: { hits.hits.0.inner_hits.nested_field.hits.hits.0._nested.field: "nested_field" }
     - match: { hits.hits.0.inner_hits.nested_field.hits.hits.0._nested.offset: 0 }
@@ -57,7 +55,6 @@ setup:
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }
-    - match: { hits.hits.0._type: "_doc" }
     - match: { hits.hits.0._id: "1" }
     - match: { hits.hits.0._version: 1 }
     - match: { hits.hits.0.fields._seq_no: [0] }
@@ -80,7 +77,6 @@ setup:
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }
-    - match: { hits.hits.0._type: "_doc" }
     - match: { hits.hits.0._id: "1" }
     - match: { hits.hits.0._version: 2 }
     - match: { hits.hits.0.fields._seq_no: [1] }

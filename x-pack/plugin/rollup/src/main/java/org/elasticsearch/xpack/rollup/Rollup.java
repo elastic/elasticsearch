@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.rollup;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -46,7 +45,6 @@ import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsAction;
@@ -73,7 +71,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 
@@ -89,19 +86,11 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
     public static final String SCHEDULE_THREAD_POOL_NAME = RollupField.NAME + "_scheduler";
 
-    public static final String MAPPING_METADATA_PLACEHOLDER = "\"ROLLUP_METADATA_PLACEHOLDER\":\"ROLLUP_METADATA_PLACEHOLDER\"";
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
-    public static final String ROLLUP_TEMPLATE_VERSION_PATTERN =
-            Pattern.quote("${rollup.dynamic_template.version}");
-
-    private static final String ROLLUP_TEMPLATE_NAME = "/rollup-dynamic-template.json";
-    public static final String DYNAMIC_MAPPING_TEMPLATE = TemplateUtils.loadTemplate(ROLLUP_TEMPLATE_NAME,
-            Version.CURRENT.toString(), Rollup.ROLLUP_TEMPLATE_VERSION_PATTERN);
 
     // list of headers that will be stored when a job is created
     public static final Set<String> HEADER_FILTERS =
             new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
-
 
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
@@ -116,7 +105,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         return emptyList();
     }
 
@@ -130,14 +120,14 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         }
 
         return Arrays.asList(
-            new RestRollupSearchAction(settings, restController),
-            new RestPutRollupJobAction(settings, restController),
-            new RestStartRollupJobAction(settings, restController),
-            new RestStopRollupJobAction(settings, restController),
-            new RestDeleteRollupJobAction(settings, restController),
-            new RestGetRollupJobsAction(settings, restController),
-            new RestGetRollupCapsAction(settings, restController),
-            new RestGetRollupIndexCapsAction(settings, restController)
+            new RestRollupSearchAction(),
+            new RestPutRollupJobAction(),
+            new RestStartRollupJobAction(),
+            new RestStopRollupJobAction(),
+            new RestDeleteRollupJobAction(),
+            new RestGetRollupJobsAction(),
+            new RestGetRollupCapsAction(),
+            new RestGetRollupIndexCapsAction()
         );
 
     }
@@ -169,7 +159,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         }
 
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, Rollup.TASK_THREAD_POOL_NAME,
-                4, 4, "xpack.rollup.task_thread_pool");
+                4, 4, "xpack.rollup.task_thread_pool", false);
 
         return Collections.singletonList(indexing);
     }
@@ -178,7 +168,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
                                                                        ThreadPool threadPool,
                                                                        Client client,
-                                                                       SettingsModule settingsModule) {
+                                                                       SettingsModule settingsModule,
+                                                                       IndexNameExpressionResolver expressionResolver) {
         if (enabled == false) {
             return emptyList();
         }

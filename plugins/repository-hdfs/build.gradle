@@ -18,6 +18,7 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 import java.nio.file.Files
@@ -37,7 +38,7 @@ versions << [
   'hadoop2': '2.8.1'
 ]
 
-testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
+testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
 
 configurations {
   hdfsFixture
@@ -68,14 +69,18 @@ dependencies {
   hdfsFixture project(':test:fixtures:hdfs-fixture')
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
-  testRuntime files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab").parent)
+  if (isEclipse == false) {
+    testRuntime files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
+  }
 }
 
 normalization {
-    runtimeClasspath {
-        // ignore generated keytab files for the purposes of build avoidance
-        ignore '*.keytab'
-    }
+  runtimeClasspath {
+    // ignore generated keytab files for the purposes of build avoidance
+    ignore '*.keytab'
+    // ignore fixture ports file which is on the classpath primarily to pacify the security manager
+    ignore '*HdfsFixture/**'
+  }
 }
 
 dependencyLicenses {
@@ -89,15 +94,15 @@ String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
   project.tasks.create(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
-    executable = new File(project.runtimeJavaHome, 'bin/java')
-    env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
-    onlyIf {  project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled }
+    executable = "${BuildParams.runtimeJavaHome}/bin/java"
+    env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
+    maxWaitInSeconds 60
+    onlyIf { BuildParams.inFipsJvm == false }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
       return fixture.portsFile.exists()
     }
-
     final List<String> miniHDFSArgs = []
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
@@ -117,7 +122,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
       miniHDFSArgs.add(
-              project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
+        project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
       )
     }
 
@@ -125,7 +130,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
   }
 }
 
-Set disabledIntegTestTaskNames = ['integTestSecure', 'integTestSecureHa']
+Set disabledIntegTestTaskNames = []
 
 for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
   task "${integTestTaskName}"(type: RestIntegTestTask) {
@@ -136,17 +141,42 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
       enabled = false;
     }
 
+    if (integTestTaskName.contains("Secure")) {
+      if (integTestTaskName.contains("Ha")) {
+        dependsOn secureHaHdfsFixture
+      } else {
+        dependsOn secureHdfsFixture
+      }
+    }
+
     runner {
+      onlyIf { BuildParams.inFipsJvm == false }
+      if (integTestTaskName.contains("Ha")) {
+        if (integTestTaskName.contains("Secure")) {
+          Path path = buildDir.toPath()
+            .resolve("fixtures")
+            .resolve("secureHaHdfsFixture")
+            .resolve("ports")
+          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
+        } else {
+          Path path = buildDir.toPath()
+            .resolve("fixtures")
+            .resolve("haHdfsFixture")
+            .resolve("ports")
+          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
+        }
+        classpath += files("$buildDir/fixtures")
+      }
+
       if (integTestTaskName.contains("Secure")) {
         if (disabledIntegTestTaskNames.contains(integTestTaskName) == false) {
-            dependsOn secureHdfsFixture
-            nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
-            nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-            jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
-            nonInputProperties.systemProperty (
-                    "test.krb5.keytab.hdfs",
-                    project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab")
-            )
+          nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
+          nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
+          jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
+          nonInputProperties.systemProperty(
+            "test.krb5.keytab.hdfs",
+            project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
+          )
         }
       }
     }
@@ -157,13 +187,12 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     if (integTestTaskName.contains("Secure")) {
       systemProperty "java.security.krb5.conf", krb5conf
       extraConfigFile(
-              "repository-hdfs/krb5.keytab",
-              file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"), IGNORE_VALUE
+        "repository-hdfs/krb5.keytab",
+        file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"), IGNORE_VALUE
       )
     }
   }
 }
-
 
 // Determine HDFS Fixture compatibility for the current build environment.
 boolean fixtureSupported = false
@@ -173,9 +202,9 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   if (nativePath != null) {
     Path path = Paths.get(nativePath);
     if (Files.isDirectory(path) &&
-            Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
-            Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
-            Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
+      Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
+      Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
+      Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
       fixtureSupported = true
     } else {
       throw new IllegalStateException("HADOOP_HOME: ${path} is invalid, does not contain hadoop native libraries in \$HADOOP_HOME/bin");
@@ -193,6 +222,7 @@ if (legalPath == false) {
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
 integTest.runner {
+  onlyIf { BuildParams.inFipsJvm == false }
   exclude('**/Ha*TestSuiteIT.class')
 }
 
@@ -244,27 +274,27 @@ integTestSecureHa.runner {
 }
 
 thirdPartyAudit {
-    ignoreMissingClasses()
-    ignoreViolations (
-      // internal java api: sun.net.dns.ResolverConfiguration
-      // internal java api: sun.net.util.IPAddressUtil
-      'org.apache.hadoop.security.SecurityUtil$QualifiedHostResolver',
+  ignoreMissingClasses()
+  ignoreViolations(
+    // internal java api: sun.net.dns.ResolverConfiguration
+    // internal java api: sun.net.util.IPAddressUtil
+    'org.apache.hadoop.security.SecurityUtil$QualifiedHostResolver',
 
-      // internal java api: sun.misc.Unsafe
-      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator', 
-      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-      'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
-      'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
-      'org.apache.hadoop.io.nativeio.NativeIO',
-      'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
-      'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+    // internal java api: sun.misc.Unsafe
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
+    'org.apache.hadoop.io.nativeio.NativeIO',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
 
-      // internal java api: sun.nio.ch.DirectBuffer
-      // internal java api: sun.misc.Cleaner
-      'org.apache.hadoop.io.nativeio.NativeIO$POSIX',
-      'org.apache.hadoop.crypto.CryptoStreamUtils',
-     
-      // internal java api: sun.misc.SignalHandler
-      'org.apache.hadoop.util.SignalLogger$Handler',
-    )
+    // internal java api: sun.nio.ch.DirectBuffer
+    // internal java api: sun.misc.Cleaner
+    'org.apache.hadoop.io.nativeio.NativeIO$POSIX',
+    'org.apache.hadoop.crypto.CryptoStreamUtils',
+
+    // internal java api: sun.misc.SignalHandler
+    'org.apache.hadoop.util.SignalLogger$Handler',
+  )
 }

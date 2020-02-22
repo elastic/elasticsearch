@@ -103,7 +103,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
                         terms("category").field("category").size(10000).subAggregation(
-                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("_id", SortOrder.ASC))
+                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("id", SortOrder.ASC))
                         )
                 ).get();
         assertSearchResponse(searchResponse);
@@ -117,7 +117,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
             logger.info("total_hits={}", topHits.getHits().getTotalHits().value);
             for (SearchHit searchHit : topHits.getHits()) {
-                logger.info("hit= {} {} {}", searchHit.getSortValues()[0], searchHit.getType(), searchHit.getId());
+                logger.info("hit= {} {}", searchHit.getSortValues()[0], searchHit.getId());
             }
         }
 
@@ -160,7 +160,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String indexName = "xyz";
         assertAcked(
                 prepareCreate(indexName)
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
                             "name", "keyword"))
         );
@@ -192,7 +192,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
              * the updates cause that.
              */
             UpdateResponse updateResponse;
-            updateResponse = client().prepareUpdate(indexName, "doc", idToUpdate)
+            updateResponse = client().prepareUpdate(indexName, idToUpdate)
                     .setRouting("1")
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
                     .setDetectNoop(false)
@@ -222,7 +222,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                 prepareCreate(indexName)
                     .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
                             masterType, childType),
                             "brand", "text", "name", "keyword", "material", "text", "color", "keyword", "size", "keyword"))
@@ -285,7 +285,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String childType = "city";
         assertAcked(
                 prepareCreate(indexName)
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
                             grandParentType, parentType, parentType, childType),
                             "name", "keyword"))
@@ -328,7 +328,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         // us to miss to evaluate child docs in segments we didn't have parent matches for.
         assertAcked(
                 prepareCreate("index")
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
                             "parentType", "childType"),
                             "name", "keyword", "town", "keyword", "age", "integer"))

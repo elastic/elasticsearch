@@ -1,45 +1,416 @@
 [[search-search]]
-== Search
+=== Search
 
-The search API allows you to execute a search query and get back search hits
-that match the query. The query can either be provided using a simple
+Returns search hits that match the query defined in the request.
+
+[source,console]
+----
+GET /twitter/_search?q=tag:wow
+----
+// TEST[setup:twitter]
+
+
+[[search-search-api-request]]
+==== {api-request-title}
+
+`GET /<index>/_search`
+
+`POST /<index>/_search`
+
+`GET /_search`
+
+`POST /_search`
+
+
+[[search-search-api-desc]]
+==== {api-description-title}
+
+Allows you to execute a search query and get back search hits that match the 
+query. The query can either be provided using a simple
 <<search-uri-request,query string as a parameter>>, or using a
 <<search-request-body,request body>>.
 
-["float",id="search-multi-index"]
-=== Multi-Index
+[[search-partial-responses]]
+===== Partial responses
 
-All search APIs can be applied across multiple indices with support for
-the <<multi-index,multi index syntax>>. For
-example, we can search on all documents within the twitter index:
+To ensure fast responses, the search API will respond with partial results if 
+one or more shards fail. See <<shard-failures, Shard failures>> for more 
+information.
 
-[source,js]
---------------------------------------------------
+[[search-search-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+
+
+[[search-search-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+  
+`allow_partial_search_results`::
+  (Optional, boolean) Indicates if an error should be returned if there is a 
+  partial search failure or timeout. Defaults to `true`.
+
+`analyzer`::
+  (Optional, string) Defines the analyzer to use for the query string.
+  
+`analyze_wildcard`::
+  (Optional, boolean) If `true`, wildcard and prefix queries will also be 
+  analyzed. Defaults to `false`.
+  
+`batched_reduce_size`::
+  (Optional, integer) The number of shard results that should be reduced at once 
+  on the coordinating node. This value should be used as a protection mechanism 
+  to reduce the memory overhead per search request if the potential number of 
+  shards in the request can be large. Defaults to `512`.
+  
+`ccs_minimize_roundtrips`::
+  (Optional, boolean) Indicates whether network round-trips should be minimized 
+  as part of cross-cluster search requests execution. Defaults to `true`.
+  
+`default_operator`::
+  (Optional, string) The default operator for query string query (AND or OR). 
+  Defaults to `OR`.
+  
+`df`::
+  (Optional, string) Defines the field to use as default where no field prefix 
+  is given in the query string.
+  
+`docvalue_fields`::
+  (Optional, string) A comma-separated list of fields to return as the docvalue 
+  representation of a field for each hit.
+  
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+  
+`explain`::
+  (Optional, boolean) If `true`, returns detailed information about score 
+  computation as part of a hit. Defaults to `false`.
+  
+`from`::
+  (Optional, integer) Defines the starting offset. Defaults to `0`.
+
+`ignore_throttled`::
+  (Optional, boolean) If `true`, concrete, expanded or aliased indices will be 
+  ignored when throttled. Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+  
+`lenient`::
+  (Optional, boolean) If `true`, format-based query failures (such as 
+  providing text to a numeric field) will be ignored. Defaults to `false`.
+  
+`max_concurrent_shard_requests`::
+  (Optional, integer) Defines the number of concurrent shard requests per node 
+  this search executes concurrently. This value should be used to limit the 
+  impact of the search on the cluster in order to limit the number of concurrent 
+  shard requests. Defaults to `5`.
+  
+`pre_filter_shard_size`::
+  (Optional, integer) Defines a threshold that enforces a pre-filter roundtrip 
+  to prefilter search shards based on query rewriting if the number of shards 
+  the search request expands to exceeds the threshold. This filter roundtrip can 
+  limit the number of shards significantly if for instance a shard can not match 
+  any documents based on it's rewrite method ie. if date filters are mandatory 
+  to match but the shard bounds and the query are disjoint. Defaults to `128`.
+
+`preference`::
+  (Optional, string) Specifies the node or shard the operation should be 
+  performed on. Random by default.
+  
+`q`::
+  (Optional, string) Query in the Lucene query string syntax.
+
+`request_cache`::
+  (Optional, boolean) If `true`, request cache will be used for this request. 
+  Defaults to index level settings.
+  
+`rest_total_hits_as_int`::
+  (Optional, boolean) Indicates whether hits.total should be rendered as an 
+  integer or an object in the rest search response. Defaults to `false`.
+
+`routing`::
+  (Optional, <<time-units, time units>>) Specifies how long a consistent view of 
+  the index should be maintained for scrolled search.
+  
+`search_type`::
+  (Optional, string) Defines the type of the search operation. Available 
+  options:
+  * `query_then_fetch`
+  * `dfs_query_then_fetch`
+
+`seq_no_primary_term`::
+  (Optional, boolean) If `true`, returns sequence number and primary term of the 
+  last modification of each hit.
+
+`size`::
+  (Optional, integer) Defines the number of hits to return. Defaults to `10`.
+  
+`sort`::
+  (Optional, string) A comma-separated list of <field>:<direction> pairs.
+  
+`_source`::
+  (Optional, string) True or false to return the `_source` field or not, or a 
+  list of fields to return.
+  
+`_source_excludes`::
+  (Optional, string) A list of fields to exclude from the returned `_source` 
+  field.
+  
+`_source_includes`::
+  (Optional, string) A list of fields to extract and return from the `_source` 
+  field.
+  
+`stats`::
+  (Optional, string) Specific `tag` of the request for logging and statistical 
+  purposes.
+
+`stored_fields`::
+  (Optional, string) A comma-separated list of stored fields to return as part 
+  of a hit.
+  
+`suggest_field`::
+  (Optional, string) Specifies which field to use for suggestions.
+  
+`suggest_mode`::
+  (Optional, string) Specifies suggest mode. Defaults to `missing`. Available 
+  options:
+  * `always`
+  * `missing`
+  * `popular`
+  
+`suggest_size`::
+  (Optional, integer) Defines how many suggestions to return in response.
+  
+`suggest_text`::
+  (Optional, string) The source text for which the suggestions should be 
+  returned.
+  
+`terminate_after`::
+  (Optional, integer) The maximum number of documents to collect for each shard, 
+  upon reaching which the query execution will terminate early.
+  
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+
+`track_scores`::
+  (Optional, boolean) If `true`, then calculates and returns scores even if they 
+  are not used for sorting.
+  
+`track_total_hits`::
+  (Optional, boolean) Indicates if the number of documents that match the query 
+  should be tracked.
+  
+`typed_keys`::
+  (Optional, boolean) Specifies whether aggregation and suggester names should 
+  be prefixed by their respective types in the response.
+  
+`version`::
+  (Optional, boolean) If `true`, returns document version as part of a hit.
+
+
+[[search-search-api-request-body]]
+==== {api-request-body-title}
+
+`query`::
+  (Optional, <<query-dsl,query object>>) Defines the search definition using the 
+  <<query-dsl,Query DSL>>.
+
+
+[[search-api-response-body]]
+==== {api-response-body-title}
+
+`took`::
++
+--
+(Integer)
+Milliseconds it took {es} to execute the request.
+
+This value is calculated by measuring the time elapsed
+between receipt of a request on the coordinating node
+and the time at which the coordinating node is ready to send the response.
+
+Took time includes:
+
+* Communication time between the coordinating node and data nodes
+* Time the request spends in the `search` <<modules-threadpool,thread pool>>,
+  queued for execution
+* Actual execution time
+
+Took time does *not* include:
+
+* Time needed to send the request to {es}
+* Time needed to serialize the JSON response
+* Time needed to send the response to a client
+--
+
+
+`timed_out`::
++
+--
+(Boolean)
+If `true`,
+the request timed out before completion;
+returned results may be partial or empty.
+--
+
+`_shards`::
++
+--
+(Object)
+Object containing a count of shards used for the request.
+Returned parameters include:
+
+`total`::
+(Integer)
+Total number of shards that require querying,
+including unallocated shards.
+
+`successful`::
+(Integer)
+Number of shards that executed the request successfully.
+
+`skipped`::
+(Integer)
+Number of shards that skipped the request because a lightweight check
+helped realize that no documents could possibly match on this shard. This
+typically happens when a search request includes a range filter and the
+shard only has values that fall outside of that range.
+
+`failed`::
+(Integer)
+Number of shards that failed to execute the request. Note that shards
+that are not allocated will be considered neither successful nor failed.
+Having `failed+successful` less than `total` is thus an indication that
+some of the shards were not allocated.
+
+--
+
+`hits`::
++
+--
+(Object)
+Contains returned documents and metadata.
+Returned parameters include:
+
+`total`::
+(Object)
+Metadata about the number of returned documents.
+Returned parameters include:
++
+* `value`: Total number of returned documents.
+* `relation`: Indicates whether the number of documents returned.
+Returned values are:
+** `eq`: Accurate
+** `gte`: Lower bound, including returned documents
+
+`max_score`::
+(Float)
+Highest returned document `_score`.
++
+The `_score` parameter is a 32-bit floating point number
+used to determine the relevance of the returned document.
++
+This parameter value is `null` for requests
+that do not sort by `_score`.
+
+`hits`::
+(Array of objects)
+Array of returned document objects.
+Returned parameters include:
++
+* `_index`: Name of the index containing the returned document.
+* `_id`: Unique identifier for the returned document.
+  This ID is only unique within the returned index.
+* `_score`: Positive 32-bit floating point number used to determine the
+  relevance of the returned document.
+* `_source`: Object containing the original JSON body
+  passed for the document at index time.
+--
+
+
+[[search-search-api-example]]
+==== {api-examples-title}
+
+[[search-api-specific-ex]]
+===== Search a specific index
+
+[source,console]
+----
 GET /twitter/_search?q=user:kimchy
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+----
+// TEST[continued]
 
-We can also search all documents with a certain tag across several indices
-(for example, when there is one index per user):
+The API returns the following response:
 
-[source,js]
---------------------------------------------------
-GET /kimchy,elasticsearch/_search?q=tag:wow
---------------------------------------------------
-// CONSOLE
+[source,console-result]
+----
+{
+  "took" : 5,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.3862942,
+    "hits" : [
+      {
+        "_index" : "twitter",
+        "_id" : "0",
+        "_score" : 1.3862942,
+        "_source" : {
+          "date" : "2009-11-15T14:12:12",
+          "likes" : 0,
+          "message" : "trying out Elasticsearch",
+          "user" : "kimchy"
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 5/"took": $body.took/]
+
+[[search-multi-index]]
+===== Search several indices
+
+[source,console]
+----
+GET /kimchy,elasticsearch/_search?q=user:kimchy
+----
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
-Or we can search across all available indices using `_all`:
+[[search-api-all-ex]]
+===== Search all indices
 
-[source,js]
----------------------------------------------------
-GET /_all/_search?q=tag:wow
----------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+To search all indices in a cluster,
+omit the `<index>` parameter.
 
-[float]
-[[search-partial-responses]]
-=== Partial responses
-To ensure fast responses, the search API will respond with partial results if one or more shards fail. See <<shard-failures, Shard failures>> for more information.
+[source,console]
+----
+GET /_search?q=user:kimchy
+----
+// TEST[continued]
+
+Alternatively,
+you can use the `_all` or `*` value in the `<index>` parameter.
+
+[source,console]
+----
+GET /_all/_search?q=user:kimchy
+----
+// TEST[continued]
+
+[source,console]
+----
+GET /*/_search?q=user:kimchy
+----
+// TEST[continued]

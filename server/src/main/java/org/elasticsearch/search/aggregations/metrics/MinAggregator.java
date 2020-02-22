@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 class MinAggregator extends NumericMetricsAggregator.SingleValue {
+    private static final int MAX_BKD_LOOKUPS = 1024;
 
     final ValuesSource.Numeric valuesSource;
     final DocValueFormat format;
@@ -102,7 +103,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (pointConverter != null) {
             Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
             if (segMin != null) {
-                /**
+                /*
                  * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
                  * so the ordinal for the bucket is always 0.
                  */
@@ -180,7 +181,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (parent != null) {
             return null;
         }
-        if (config.fieldContext() != null && config.script() == null) {
+        if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldContext().fieldType();
             if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
                 return null;
@@ -189,7 +190,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
                 converter = ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
             } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
-                converter = (in) -> LongPoint.decodeDimension(in, 0);
+                DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
+                /*
+                 * Makes sure that nanoseconds decode to milliseconds, just
+                 * like they do when you run the agg without the optimization.
+                 */
+                converter = (in) -> dft.resolution().toInstant(LongPoint.decodeDimension(in, 0)).toEpochMilli();
             }
             return converter;
         }
@@ -212,6 +218,8 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         final Number[] result = new Number[1];
         try {
             pointValues.intersect(new PointValues.IntersectVisitor() {
+                private short lookupCounter = 0;
+
                 @Override
                 public void visit(int docID) {
                     throw new UnsupportedOperationException();
@@ -222,6 +230,9 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
                     if (liveDocs.get(docID)) {
                         result[0] = converter.apply(packedValue);
                         // this is the first leaf with a live doc so the value is the minimum for this segment.
+                        throw new CollectionTerminatedException();
+                    }
+                    if (++lookupCounter > MAX_BKD_LOOKUPS) {
                         throw new CollectionTerminatedException();
                     }
                 }

@@ -5,22 +5,17 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
 /**
  * ActionType for authenticating using SAML assertions
  */
-public final class SamlAuthenticateAction extends StreamableResponseActionType<SamlAuthenticateResponse> {
+public final class SamlAuthenticateAction extends ActionType<SamlAuthenticateResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/saml/authenticate";
     public static final SamlAuthenticateAction INSTANCE = new SamlAuthenticateAction();
 
     private SamlAuthenticateAction() {
-        super(NAME);
-    }
-
-    @Override
-    public SamlAuthenticateResponse newResponse() {
-        return new SamlAuthenticateResponse();
+        super(NAME, SamlAuthenticateResponse::new);
     }
 }

@@ -18,7 +18,9 @@ public class GetBasicStatusResponse extends ActionResponse implements ToXContent
 
     private boolean eligibleToStartBasic;
 
-    GetBasicStatusResponse() {
+    GetBasicStatusResponse(StreamInput in) throws IOException {
+        super(in);
+        eligibleToStartBasic = in.readBoolean();
     }
 
     public GetBasicStatusResponse(boolean eligibleToStartBasic) {
@@ -27,11 +29,6 @@ public class GetBasicStatusResponse extends ActionResponse implements ToXContent
 
     boolean isEligibleToStartBasic() {
         return eligibleToStartBasic;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        eligibleToStartBasic = in.readBoolean();
     }
 
     @Override

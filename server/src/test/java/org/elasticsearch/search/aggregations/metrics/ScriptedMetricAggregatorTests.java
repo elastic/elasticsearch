@@ -23,9 +23,11 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -173,6 +175,17 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @Override
+    protected ScriptService getMockScriptService() {
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+            SCRIPTS,
+            Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
+
     @SuppressWarnings("unchecked")
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
@@ -311,7 +324,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                         .initScript(INIT_SCRIPT_PARAMS).mapScript(MAP_SCRIPT_PARAMS)
                         .combineScript(COMBINE_SCRIPT_PARAMS).reduceScript(REDUCE_SCRIPT_PARAMS);
                 ScriptedMetric scriptedMetric = searchAndReduce(
-                        newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder, 0, scriptService);
+                        newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder, 0);
 
                 // The result value depends on the script params.
                 assertEquals(4803, scriptedMetric.aggregation());
@@ -405,12 +418,14 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
      * is final and cannot be mocked
      */
     @Override
-    protected QueryShardContext queryShardContextMock(MapperService mapperService, IndexSettings indexSettings,
-                                                      CircuitBreakerService circuitBreakerService) {
+    protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
+                                                        MapperService mapperService,
+                                                        IndexSettings indexSettings,
+                                                        CircuitBreakerService circuitBreakerService) {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
-        return new QueryShardContext(0, indexSettings, null, null, null, mapperService, null, scriptService,
-                xContentRegistry(), writableRegistry(), null, null, System::currentTimeMillis, null);
+        return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService, null, scriptService,
+                xContentRegistry(), writableRegistry(), null, null, System::currentTimeMillis, null, null, () -> true);
     }
 }

@@ -33,8 +33,10 @@ import java.util.List;
  */
 public class MockTerminal extends Terminal {
 
-    private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-    private final PrintWriter writer = new PrintWriter(new OutputStreamWriter(buffer, StandardCharsets.UTF_8));
+    private final ByteArrayOutputStream stdoutBuffer = new ByteArrayOutputStream();
+    private final ByteArrayOutputStream stderrBuffer = new ByteArrayOutputStream();
+    private final PrintWriter writer = new PrintWriter(new OutputStreamWriter(stdoutBuffer, StandardCharsets.UTF_8));
+    private final PrintWriter errorWriter = new PrintWriter(new OutputStreamWriter(stderrBuffer, StandardCharsets.UTF_8));
 
     // A deque would be a perfect data structure for the FIFO queue of input values needed here. However,
     // to support the valid return value of readText being null (defined by Console), we need to be able
@@ -73,24 +75,35 @@ public class MockTerminal extends Terminal {
         return writer;
     }
 
+    @Override
+    public PrintWriter getErrorWriter() {
+        return errorWriter;
+    }
+
     /** Adds an an input that will be return from {@link #readText(String)}. Values are read in FIFO order. */
     public void addTextInput(String input) {
         textInput.add(input);
     }
 
-    /** Adds an an input that will be return from {@link #readText(String)}. Values are read in FIFO order. */
+    /** Adds an an input that will be return from {@link #readSecret(String)}. Values are read in FIFO order. */
     public void addSecretInput(String input) {
         secretInput.add(input);
     }
 
     /** Returns all output written to this terminal. */
     public String getOutput() throws UnsupportedEncodingException {
-        return buffer.toString("UTF-8");
+        return stdoutBuffer.toString("UTF-8");
+    }
+
+    /** Returns all output written to this terminal. */
+    public String getErrorOutput() throws UnsupportedEncodingException {
+        return stderrBuffer.toString("UTF-8");
     }
 
     /** Wipes the input and output. */
     public void reset() {
-        buffer.reset();
+        stdoutBuffer.reset();
+        stderrBuffer.reset();
         textIndex = 0;
         textInput.clear();
         secretIndex = 0;

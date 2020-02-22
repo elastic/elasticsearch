@@ -165,7 +165,7 @@ public class CCSDuelIT extends ESRestTestCase {
         //this index with a single document is used to test partial failures
         IndexRequest indexRequest = new IndexRequest(INDEX_NAME + "_err");
         indexRequest.id("id");
-        indexRequest.source("creationDate", "err");
+        indexRequest.source("id", "id", "creationDate", "err");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         assertEquals(201, indexResponse.status().getStatus());
@@ -178,6 +178,7 @@ public class CCSDuelIT extends ESRestTestCase {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
         createIndexRequest.settings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0));
         createIndexRequest.mapping("{\"properties\":{" +
+                "\"id\":{\"type\":\"keyword\"}," +
                 "\"suggest\":{\"type\":\"completion\"}," +
                 "\"join\":{\"type\":\"join\", \"relations\": {\"question\":\"answer\"}}}}", XContentType.JSON);
         CreateIndexResponse createIndexResponse = restHighLevelClient.indices().create(createIndexRequest, RequestOptions.DEFAULT);
@@ -237,6 +238,7 @@ public class CCSDuelIT extends ESRestTestCase {
             joinField.put("parent", questionId);
         }
         indexRequest.source(XContentType.JSON,
+            "id", id,
             "type", type,
             "votes", randomIntBetween(0, 30),
             "questionId", questionId,
@@ -614,7 +616,7 @@ public class CCSDuelIT extends ESRestTestCase {
         topHits.from(10);
         topHits.size(10);
         topHits.sort("creationDate", SortOrder.DESC);
-        topHits.sort("_id", SortOrder.ASC);
+        topHits.sort("id", SortOrder.ASC);
         TermsAggregationBuilder tags = new TermsAggregationBuilder("tags", ValueType.STRING);
         tags.field("tags.keyword");
         tags.size(10);

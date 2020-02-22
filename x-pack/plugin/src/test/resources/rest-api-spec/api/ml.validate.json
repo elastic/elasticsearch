@@ -1,14 +1,23 @@
 {
-  "ml.validate": {
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [ "/_ml/anomaly_detectors/_validate" ],
-      "params": {}
+  "ml.validate":{
+    "documentation":{
+      "url":null
     },
-    "body": {
-      "description" : "The job config",
-      "required" : true
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/_validate",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The job config",
+      "required":true
     }
   }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.index.warmer;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -29,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class WarmerStats implements Streamable, Writeable, ToXContentFragment {
+public class WarmerStats implements Writeable, ToXContentFragment {
 
     private long current;
 
@@ -109,11 +108,6 @@ public class WarmerStats implements Streamable, Writeable, ToXContentFragment {
         static final String TOTAL = "total";
         static final String TOTAL_TIME = "total_time";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

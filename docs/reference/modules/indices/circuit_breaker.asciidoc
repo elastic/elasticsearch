@@ -6,8 +6,8 @@ causing an OutOfMemoryError. Each breaker specifies a limit for how much memory
 it can use. Additionally, there is a parent-level breaker that specifies the
 total amount of memory that can be used across all breakers.
 
-These settings can be dynamically updated on a live cluster with the
-<<cluster-update-settings,cluster-update-settings>> API.
+Except where noted otherwise, these settings can be dynamically updated on a
+live cluster with the <<cluster-update-settings,cluster-update-settings>> API.
 
 [[parent-circuit-breaker]]
 [float]
@@ -17,8 +17,9 @@ The parent-level breaker can be configured with the following settings:
 
 `indices.breaker.total.use_real_memory`::
 
-    Whether the parent breaker should take real memory usage into account (`true`) or only
-    consider the amount that is reserved by child circuit breakers (`false`). Defaults to `true`.
+    _Static_ setting determining whether the parent breaker should take real
+    memory usage into account (`true`) or only consider the amount that is
+    reserved by child circuit breakers (`false`). Defaults to `true`.
 
 `indices.breaker.total.limit`::
 

@@ -1,7 +1,7 @@
 [[painless-watcher-transform-context]]
 === Watcher transform context
 
-Use a Painless script as a {xpack-ref}/transform-script.html[watch transform]
+Use a Painless script as a {ref}/transform-script.html[watch transform]
 to transform a payload into a new payload for further use in the watch.
 Transform scripts return an Object value of the new payload.
 
@@ -18,7 +18,7 @@ The standard <<painless-api-reference-shared, Painless API>> is available.
 
 *Example*
 
-[source,Painless]
+[source,console]
 ----
 POST _watcher/watch/_execute
 {
@@ -75,6 +75,7 @@ POST _watcher/watch/_execute
   }
 }
 ----
+// TEST[skip: requires setup from other pages]
 
 <1> The Java Stream API is used in the transform. This API allows manipulation of
 the elements of the list in a pipeline.
@@ -86,7 +87,7 @@ the elements of the list in a pipeline.
 The following action transform changes each value in the mod_log action into a `String`.
 This transform does not change the values in the unmod_log action.
 
-[source,Painless]
+[source,console]
 ----
 POST _watcher/watch/_execute
 {
@@ -140,6 +141,7 @@ POST _watcher/watch/_execute
   }
 }
 ----
+// TEST[skip: requires setup from other pages]
 
 This example uses the streaming API in a very similar manner. The differences below are
 subtle and worth calling out.

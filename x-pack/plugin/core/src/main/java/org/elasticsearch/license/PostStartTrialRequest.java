@@ -17,6 +17,14 @@ public class PostStartTrialRequest extends MasterNodeRequest<PostStartTrialReque
     private boolean acknowledge = false;
     private String type;
 
+    public PostStartTrialRequest() {}
+
+    public PostStartTrialRequest(StreamInput in) throws IOException {
+        super(in);
+        type = in.readString();
+        acknowledge = in.readBoolean();
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -38,13 +46,6 @@ public class PostStartTrialRequest extends MasterNodeRequest<PostStartTrialReque
 
     public boolean isAcknowledged() {
         return acknowledge;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        type = in.readString();
-        acknowledge = in.readBoolean();
     }
 
     @Override

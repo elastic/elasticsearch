@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -6,23 +8,20 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  if (isEclipse) {
-    testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-  }
   testCompile project(path: ':modules:reindex')
 }
 
 forbiddenPatterns {
-    exclude '**/*.key'
-    exclude '**/*.pem'
-    exclude '**/*.p12'
-    exclude '**/*.jks'
+  exclude '**/*.key'
+  exclude '**/*.pem'
+  exclude '**/*.p12'
+  exclude '**/*.jks'
 }
 
 File caFile = project.file('src/test/resources/ssl/ca.p12')
 
 testClusters.integTest {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   // Whitelist reindexing from the local node so we can test it.
   extraConfigFile 'http.key', file('src/test/resources/ssl/http.key')
   extraConfigFile 'http.crt', file('src/test/resources/ssl/http.crt')
@@ -41,7 +40,7 @@ testClusters.integTest {
 
   // Workaround for JDK-8212885
   rootProject.globalInfo.ready {
-    if (project.ext.runtimeJavaVersion.isJava12Compatible() == false) {
+    if (BuildParams.runtimeJavaVersion.isJava12Compatible() == false) {
       setting 'reindex.ssl.supported_protocols', 'TLSv1.2'
     }
   }

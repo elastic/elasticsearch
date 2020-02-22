@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,6 +43,8 @@ import java.io.IOException;
 
 public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<UpgradeSettingsRequest, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportUpgradeSettingsAction.class);
+
     private final MetaDataUpdateSettingsService updateSettingsService;
 
     @Inject
@@ -48,7 +52,7 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
                                           ThreadPool threadPool, MetaDataUpdateSettingsService updateSettingsService,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ActionFilters actionFilters) {
         super(UpgradeSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, UpgradeSettingsRequest::new);
+            UpgradeSettingsRequest::new, indexNameExpressionResolver);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -66,11 +70,6 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

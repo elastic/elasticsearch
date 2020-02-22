@@ -67,11 +67,9 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", address));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        assertBusy(() -> {
-            List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
-            assertThat(infos.size(), equalTo(1));
-            assertThat(infos.get(0).getNumNodesConnected(), equalTo(1));
-        });
+        List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        assertThat(infos.size(), equalTo(1));
+        assertTrue(infos.get(0).isConnected());
     }
 
     @Before

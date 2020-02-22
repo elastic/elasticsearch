@@ -65,7 +65,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
                 .put("index.number_of_replicas", 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").get();
+            client().prepareIndex("test").setId(""+i).setSource("field1", "value1").get();
         }
         refresh();
         internalCluster().stopRandomDataNode();
@@ -97,7 +97,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ));
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
@@ -113,7 +113,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
@@ -143,12 +143,12 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             //this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
             Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))));
         ensureGreen();
-        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
-        SearchRequestBuilder request = client.prepareSearch("test")
-            .setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*"); // multiple wildchar  to cover multi-param usecase
+        // multiple wildchar to cover multi-param usecase
+        SearchRequestBuilder request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*");
         assertSearchOnRandomNodes(request);
 
         request = client.prepareSearch("test")
@@ -209,7 +209,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
             .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
         ensureGreen();
-        client().prepareIndex("test", "_doc").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final String customPreference = randomAlphaOfLength(10);

@@ -72,7 +72,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute", false).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertEquals(prevRoutingTable.index("idx").shards().size(), 1);
@@ -204,7 +204,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     Settings.builder().put(clusterState.metaData().index("idx").getSettings()).put("index.allocation.max_retries",
                         retries+1).build()
                 ).build(), true).build()).build();
-        ClusterState newState = strategy.reroute(clusterState, "settings changed", false);
+        ClusterState newState = strategy.reroute(clusterState, "settings changed");
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();
@@ -219,8 +219,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             routingTable.index("idx").shard(0).shards().get(0), null, new RoutingAllocation(null, null, clusterState, null, 0)));
 
         // now we start the shard
-        clusterState = strategy.applyStartedShards(clusterState, Collections.singletonList(
-            routingTable.index("idx").shard(0).shards().get(0)));
+        clusterState = startShardsAndReroute(strategy, clusterState, routingTable.index("idx").shard(0).shards().get(0));
         routingTable = clusterState.routingTable();
 
         // all counters have been reset to 0 ie. no unassigned info

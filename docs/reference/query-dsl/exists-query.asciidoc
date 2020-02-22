@@ -1,5 +1,8 @@
 [[query-dsl-exists-query]]
-=== Exists Query
+=== Exists query
+++++
+<titleabbrev>Exists</titleabbrev>
+++++
 
 Returns documents that contain an indexed value for a field.
 
@@ -13,7 +16,7 @@ An indexed value may not exist for a document's field due to a variety of reason
 [[exists-query-ex-request]]
 ==== Example request
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -24,14 +27,14 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[exists-query-top-level-params]]
 ==== Top-level parameters for `exists`
 `field`::
-Name of the field you wish to search.
+(Required, string) Name of the field you wish to search.
 +
-While a field is deemed non-existant if the JSON value is `null` or `[]`, these values will indicate the field does exist:
+While a field is deemed non-existent if the JSON value is `null` or `[]`, these
+values will indicate the field does exist:
 +
 * Empty strings, such as `""` or `"-"`
 * Arrays containing `null` and another value, such as `[null, "foo"]`
@@ -49,7 +52,7 @@ query.
 The following search returns documents that are missing an indexed value for
 the `user` field.
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -64,4 +67,3 @@ GET /_search
     }
 }
 ----
-// CONSOLE

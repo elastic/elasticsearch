@@ -37,4 +37,18 @@ public class ShowTablesTestCase extends JdbcIntegrationTestCase {
             assertResultSets(expected, es.createStatement().executeQuery("SHOW TABLES"));
         }
     }
+
+    public void testEmptyIndex() throws Exception {
+        DataLoader.createEmptyIndex(client(), "test_empty");
+        DataLoader.createEmptyIndex(client(), "test_empty_again");
+
+        try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
+            h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_show_tables.sql'");
+            h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('test_empty', 'BASE TABLE', 'INDEX');");
+            h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('test_empty_again', 'BASE TABLE', 'INDEX');");
+
+            ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock");
+            assertResultSets(expected, es.createStatement().executeQuery("SHOW TABLES"));
+        }
+    }
 }

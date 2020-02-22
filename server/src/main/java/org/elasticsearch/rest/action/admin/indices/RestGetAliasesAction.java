@@ -29,12 +29,10 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -56,16 +54,17 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    public RestGetAliasesAction(final Settings settings, final RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_alias", this);
-        controller.registerHandler(GET, "/_aliases", this);
-        controller.registerHandler(GET, "/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/_alias/{name}", this);
-        controller.registerHandler(GET, "/{index}/_alias", this);
-        controller.registerHandler(HEAD, "/{index}/_alias", this);
-        controller.registerHandler(GET, "/{index}/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_alias"),
+            new Route(GET, "/_aliases"),
+            new Route(GET, "/_alias/{name}"),
+            new Route(HEAD, "/_alias/{name}"),
+            new Route(GET, "/{index}/_alias"),
+            new Route(HEAD, "/{index}/_alias"),
+            new Route(GET, "/{index}/_alias/{name}"),
+            new Route(HEAD, "/{index}/_alias/{name}"));
     }
 
     @Override

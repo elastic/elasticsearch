@@ -65,7 +65,7 @@ public class URLSnapshotRestoreTests extends ESIntegTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));

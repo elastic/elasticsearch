@@ -25,6 +25,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.get.TransportMultiGetActionTests;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -100,7 +101,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
                             .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
-                        .putMapping("_doc",
+                        .putMapping(
                             XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
                                 .startObject()
                                     .startObject("_doc")
@@ -114,7 +115,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
                             .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
-                        .putMapping("_doc",
+                        .putMapping(
                             XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
                                 .startObject()
                                     .startObject("_doc")
@@ -185,7 +186,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             }
         };
 
-        transportAction.execute(task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
         assertTrue(shardActionInvoked.get());
     }
 
@@ -212,7 +213,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             }
         };
 
-        transportAction.execute(task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
         assertTrue(shardActionInvoked.get());
     }
 

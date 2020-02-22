@@ -92,7 +92,7 @@ public final class WatcherTestUtils {
         try {
             XContentBuilder xContentBuilder = jsonBuilder();
             xContentBuilder.value(sourceBuilder);
-            return new WatcherSearchTemplateRequest(indices, null, searchType,
+            return new WatcherSearchTemplateRequest(indices, searchType,
                     WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, BytesReference.bytes(xContentBuilder));
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -158,7 +158,7 @@ public final class WatcherTestUtils {
         httpRequest.path(new TextTemplate("/foobarbaz/{{ctx.watch_id}}"));
         httpRequest.body(new TextTemplate("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits"));
         actions.add(new ActionWrapper("_webhook", null, null, null, new ExecutableWebhookAction(new WebhookAction(httpRequest.build()),
-                logger, httpClient, engine), null));
+                logger, httpClient, engine), null, null));
 
 
         EmailTemplate email = EmailTemplate.builder().from("from@test.com").to("to@test.com").build();
@@ -166,7 +166,7 @@ public final class WatcherTestUtils {
         EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, null, null);
         ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, engine,
                 new HtmlSanitizer(Settings.EMPTY), Collections.emptyMap());
-        actions.add(new ActionWrapper("_email", null, null, null, executale, null));
+        actions.add(new ActionWrapper("_email", null, null, null, executale, null, null));
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Map<String, ActionStatus> statuses = new HashMap<>();

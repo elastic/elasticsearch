@@ -50,8 +50,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.geo.utils.Geohash.addNeighbors;
-import static org.elasticsearch.geo.utils.Geohash.stringEncode;
+import static org.elasticsearch.geometry.utils.Geohash.addNeighbors;
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 
 /**
  * A {@link ContextMapping} that uses a geo location/area as a
@@ -146,7 +146,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     @Override
     public Set<String> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
         if (fieldName != null) {
-            MappedFieldType fieldType = parseContext.mapperService().fullName(fieldName);
+            MappedFieldType fieldType = parseContext.mapperService().fieldType(fieldName);
             if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }

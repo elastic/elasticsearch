@@ -44,7 +44,7 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     public DeletePipelineTransportAction(ThreadPool threadPool, IngestService ingestService, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeletePipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, indexNameExpressionResolver, DeletePipelineRequest::new);
+            threadPool, actionFilters, DeletePipelineRequest::new, indexNameExpressionResolver);
         this.ingestService = ingestService;
     }
 
@@ -56,11 +56,6 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

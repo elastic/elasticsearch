@@ -20,13 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.RegexNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.Set;
+import java.lang.reflect.Modifier;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -54,12 +56,13 @@ public final class ERegex extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
-    }
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
+            throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
+                    + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
+                    + "recursion and long loops."));
+        }
 
-    @Override
-    void analyze(Locals locals) {
         if (!read) {
             throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
         }
@@ -71,17 +74,24 @@ public final class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        constant = new Constant(
-            location, MethodWriter.getType(Pattern.class), "regexAt$" + location.getOffset(), this::initializeConstant);
+        String name = scriptRoot.getNextSyntheticName("regex");
+        scriptRoot.getClassNode().addField(
+                new SField(location, Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE, name, Pattern.class));
+        constant = new Constant(location, MethodWriter.getType(Pattern.class), name, this::initializeConstant);
         actual = Pattern.class;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    RegexNode write(ClassNode classNode) {
+        RegexNode regexNode = new RegexNode();
+        regexNode.setLocation(location);
 
-        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, org.objectweb.asm.Type.getType(Pattern.class));
-        globals.addConstantInitializer(constant);
+        regexNode.setExpressionType(actual);
+        regexNode.setFlags(flags);
+        regexNode.setPattern(pattern);
+        regexNode.setConstant(constant);
+
+        return regexNode;
     }
 
     private void initializeConstant(MethodWriter writer) {

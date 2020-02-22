@@ -77,10 +77,10 @@ https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}
 endif::[]
 
 ifdef::include-xpack[]
+[role="xpack"]
 [[targz-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+==== Enable automatic creation of system indices
 
-{xpack} will try to automatically create a number of indices within {es}.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
@@ -168,11 +168,6 @@ directory so that you do not delete important data later on.
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
  d| Not configured
   | path.repo
-
-| script
-  | Location of script files.
-  | $ES_HOME/scripts
-  | path.scripts
 
 |=======================================================================
 

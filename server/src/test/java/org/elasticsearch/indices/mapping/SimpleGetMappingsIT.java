@@ -21,6 +21,7 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -53,21 +54,21 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         createIndex("index");
         GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
         assertThat(response.mappings().containsKey("index"), equalTo(true));
-        assertThat(response.mappings().get("index").size(), equalTo(0));
+        assertEquals(MappingMetaData.EMPTY_MAPPINGS, response.mappings().get("index"));
     }
 
-    private XContentBuilder getMappingForType(String type) throws IOException {
-        return jsonBuilder().startObject().startObject(type).startObject("properties")
+    private XContentBuilder getMappingForType() throws IOException {
+        return jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("field1").field("type", "text").endObject()
                 .endObject().endObject().endObject();
     }
 
     public void testSimpleGetMappings() throws Exception {
         client().admin().indices().prepareCreate("indexa")
-                .addMapping("typeA", getMappingForType("typeA"))
+                .setMapping(getMappingForType())
                 .execute().actionGet();
         client().admin().indices().prepareCreate("indexb")
-                .addMapping("typeA", getMappingForType("typeA"))
+                .setMapping(getMappingForType())
                 .execute().actionGet();
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
@@ -77,55 +78,24 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         // Get all mappings
         GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
         assertThat(response.mappings().size(), equalTo(2));
-        assertThat(response.mappings().get("indexa").size(), equalTo(1));
-        assertThat(response.mappings().get("indexa").get("typeA"), notNullValue());
-        assertThat(response.mappings().get("indexb").size(), equalTo(1));
-        assertThat(response.mappings().get("indexb").get("typeA"), notNullValue());
+        assertThat(response.mappings().get("indexa"), notNullValue());
+        assertThat(response.mappings().get("indexb"), notNullValue());
 
         // Get all mappings, via wildcard support
-        response = client().admin().indices().prepareGetMappings("*").setTypes("*").execute().actionGet();
+        response = client().admin().indices().prepareGetMappings("*").execute().actionGet();
         assertThat(response.mappings().size(), equalTo(2));
-        assertThat(response.mappings().get("indexa").size(), equalTo(1));
-        assertThat(response.mappings().get("indexa").get("typeA"), notNullValue());
-        assertThat(response.mappings().get("indexb").size(), equalTo(1));
-        assertThat(response.mappings().get("indexb").get("typeA"), notNullValue());
+        assertThat(response.mappings().get("indexa"), notNullValue());
+        assertThat(response.mappings().get("indexb"), notNullValue());
 
-        // Get all typeA mappings in all indices
-        response = client().admin().indices().prepareGetMappings("*").setTypes("typeA").execute().actionGet();
-        assertThat(response.mappings().size(), equalTo(2));
-        assertThat(response.mappings().get("indexa").size(), equalTo(1));
-        assertThat(response.mappings().get("indexa").get("typeA"), notNullValue());
-        assertThat(response.mappings().get("indexb").size(), equalTo(1));
-        assertThat(response.mappings().get("indexb").get("typeA"), notNullValue());
-
-        // Get all mappings in indexa
+        // Get mappings in indexa
         response = client().admin().indices().prepareGetMappings("indexa").execute().actionGet();
         assertThat(response.mappings().size(), equalTo(1));
-        assertThat(response.mappings().get("indexa").size(), equalTo(1));
-        assertThat(response.mappings().get("indexa").get("typeA"), notNullValue());
-
-        // Get all mappings beginning with A* in indexa
-        response = client().admin().indices().prepareGetMappings("indexa").setTypes("*A").execute().actionGet();
-        assertThat(response.mappings().size(), equalTo(1));
-        assertThat(response.mappings().get("indexa").size(), equalTo(1));
-        assertThat(response.mappings().get("indexa").get("typeA"), notNullValue());
-
-        // Get all mappings beginning with B* in all indices
-        response = client().admin().indices().prepareGetMappings().setTypes("B*").execute().actionGet();
-        assertThat(response.mappings().size(), equalTo(0));
-
-        // Get all mappings beginning with B* and A* in all indices
-        response = client().admin().indices().prepareGetMappings().setTypes("B*", "*A").execute().actionGet();
-        assertThat(response.mappings().size(), equalTo(2));
-        assertThat(response.mappings().get("indexa").size(), equalTo(1));
-        assertThat(response.mappings().get("indexa").get("typeA"), notNullValue());
-        assertThat(response.mappings().get("indexb").size(), equalTo(1));
-        assertThat(response.mappings().get("indexb").get("typeA"), notNullValue());
+        assertThat(response.mappings().get("indexa"), notNullValue());
     }
 
     public void testGetMappingsWithBlocks() throws IOException {
         client().admin().indices().prepareCreate("test")
-                .addMapping("_doc", getMappingForType("_doc"))
+                .setMapping(getMappingForType())
                 .execute().actionGet();
         ensureGreen();
 
@@ -134,7 +104,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
                 enableIndexBlock("test", block);
                 GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
                 assertThat(response.mappings().size(), equalTo(1));
-                assertThat(response.mappings().get("test").size(), equalTo(1));
+                assertNotNull(response.mappings().get("test"));
             } finally {
                 disableIndexBlock("test", block);
             }

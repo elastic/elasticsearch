@@ -8,14 +8,15 @@ The {odbc} can be installed on Microsoft Windows using an MSI package. The insta
 [[prerequisites]]
 ==== Installation Prerequisites
 
+The recommended installation platform is Windows 10 64 bit _or_ Windows Server 2016 64 bit.
+
 Before you install the {odbc} you need to meet the following prerequisites;
 
-* Windows 10 64 bit _or_ Windows Server 2016 64 bit operating system
 * .NET Framework 4.0 full - https://www.microsoft.com/en-au/download/details.aspx?id=17718
 * Microsoft Visual C++ Redistributable for Visual Studio 2017 - https://support.microsoft.com/en-au/help/2977003/the-latest-supported-visual-c-downloads
-- The 64 bit driver requires the x64 redistributable (this also installs the components needed for the 32 bit driver)
-- The 32 bit driver requires the x86 redistributable
-* Elevated privileges (administrator) for the User performing the installation
+- The 64 bit driver requires the x64 redistributable
+- The 32 bit driver requires the x86 or the x64 redistributable (the latter also installs the components needed for the 32 bit driver)
+* Elevated privileges (administrator) for the User performing the installation.
 
 If you fail to meet any of the prerequisites the installer will show an error message and abort the installation.
 

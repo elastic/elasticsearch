@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
@@ -48,9 +49,11 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -77,7 +80,9 @@ import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -85,6 +90,7 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -116,6 +122,17 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
             TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
         }
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new TermsAggregationBuilder("foo", ValueType.STRING).field(fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BYTES);
     }
 
     public void testGlobalOrdinalsExecutionHint() throws Exception {
@@ -888,6 +905,34 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testRangeField() throws Exception {
+        try (Directory directory = newDirectory()) {
+            double start = randomDouble();
+            double end = randomDoubleBetween(Math.nextUp(start), Double.MAX_VALUE, false);
+            RangeType rangeType = RangeType.DOUBLE;
+            final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
+            final String fieldName = "field";
+            final BinaryDocValuesField field = new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range)));
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(field);
+                indexWriter.addDocument(document);
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
+                    fieldType.setHasDocValues(true);
+                    fieldType.setName(fieldName);
+
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null) .field(fieldName);
+                    // Note - other places we throw IllegalArgumentException
+                    expectThrows(AggregationExecutionException.class, () -> {
+                        createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                    });
+                }
+            }
+        }
+    }
+
     public void testGeoPointField() throws Exception {
         try (Directory directory = newDirectory()) {
             GeoPoint point = RandomGeoGenerator.randomPoint(random());
@@ -1041,7 +1086,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 new InternalAggregation.ReduceContext(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY),
                     new NoneCircuitBreakerService()), null, true);
             for (InternalAggregation internalAgg : aggs) {
-                InternalAggregation mergedAggs = internalAgg.doReduce(aggs, ctx);
+                InternalAggregation mergedAggs = internalAgg.reduce(aggs, ctx);
                 assertTrue(mergedAggs instanceof DoubleTerms);
                 long expected = numLongs + numDoubles;
                 List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
@@ -1220,14 +1265,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         for (int nestedValue : nestedValues) {
             Document document = new Document();
             document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            document.add(new Field(TypeFieldMapper.NAME, "__nested_object", TypeFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedNumericDocValuesField("nested_value", nestedValue));
             documents.add(document);
         }
 
         Document document = new Document();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
-        document.add(new Field(TypeFieldMapper.NAME, "docs", TypeFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         document.add(new SortedNumericDocValuesField("value", value));
         document.add(sequenceIDFields.primaryTerm);
         documents.add(document);

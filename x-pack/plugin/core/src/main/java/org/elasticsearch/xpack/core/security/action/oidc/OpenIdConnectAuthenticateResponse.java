@@ -26,7 +26,7 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
     }
 
     public OpenIdConnectAuthenticateResponse(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         principal = in.readString();
         accessTokenString = in.readString();
         refreshTokenString = in.readString();
@@ -50,13 +50,7 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(principal);
         out.writeString(accessTokenString);
         out.writeString(refreshTokenString);

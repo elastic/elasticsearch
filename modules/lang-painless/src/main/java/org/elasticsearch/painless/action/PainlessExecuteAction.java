@@ -30,9 +30,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -50,7 +50,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -69,7 +68,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.FilterScript;
@@ -82,6 +80,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -95,12 +94,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
     private static final String NAME = "cluster:admin/scripts/painless/execute";
 
     private PainlessExecuteAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, Response::new);
     }
 
     public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
@@ -381,13 +375,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeGenericValue(result);
         }
 
@@ -539,7 +527,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         scoreScript.setScorer(scorer);
                     }
 
-                    double result = scoreScript.execute();
+                    double result = scoreScript.execute(null);
                     return new Response(result);
                 }, indexService);
             } else {
@@ -556,16 +544,17 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             try (RAMDirectory ramDirectory = new RAMDirectory()) {
                 try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(defaultAnalyzer))) {
                     String index = indexService.index().getName();
-                    String type = indexService.mapperService().documentMapper().type();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse(index, type, "_id", document, xContentType);
+                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
                     ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
+                        final IndexSearcher searcher = new IndexSearcher(indexReader);
+                        searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
-                            indexService.newQueryShardContext(0, indexReader, () -> absoluteStartMillis, null);
+                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }
@@ -575,10 +564,11 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
     public static class RestAction extends BaseRestHandler {
 
-        public RestAction(Settings settings, RestController controller) {
-            super(settings);
-            controller.registerHandler(GET, "/_scripts/painless/_execute", this);
-            controller.registerHandler(POST, "/_scripts/painless/_execute", this);
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                new Route(GET, "/_scripts/painless/_execute"),
+                new Route(POST, "/_scripts/painless/_execute"));
         }
 
         @Override

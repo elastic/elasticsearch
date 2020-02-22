@@ -88,14 +88,11 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
 
         logger.info("start all the primary shards, replicas will start initializing");
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        routingNodes = clusterState.getRoutingNodes();
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("start the replica shards");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        routingNodes = clusterState.getRoutingNodes();
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(1));
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(1));

@@ -76,7 +76,7 @@ public class TransportUpgradeStatusAction
 
     @Override
     protected ShardUpgradeStatus readShardResult(StreamInput in) throws IOException {
-        return ShardUpgradeStatus.readShardUpgradeStatus(in);
+        return new ShardUpgradeStatus(in);
     }
 
     @Override
@@ -89,9 +89,7 @@ public class TransportUpgradeStatusAction
 
     @Override
     protected UpgradeStatusRequest readRequestFrom(StreamInput in) throws IOException {
-        UpgradeStatusRequest request = new UpgradeStatusRequest();
-        request.readFrom(in);
-        return request;
+        return new UpgradeStatusRequest(in);
     }
 
     @Override

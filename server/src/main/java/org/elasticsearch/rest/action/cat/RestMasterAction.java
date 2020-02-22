@@ -25,18 +25,19 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestMasterAction extends AbstractCatAction {
-    public RestMasterAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/master", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/master"));
     }
 
     @Override

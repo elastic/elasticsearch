@@ -5,8 +5,7 @@
 
 The Elastic Stack supports single sign-on (SSO) using OpenID Connect via {kib} using
 {es} as the backend service that holds most of the functionality. {kib} and {es}
-together represent an OpenID Connect Relying Party (RP) that supports the Authorization
-Code Flow as this is defined in the OpenID Connect specification.
+together represent an OpenID Connect Relying Party (RP) that supports the authorization code flow and implicit flow as these are defined in the OpenID Connect specification.
 
 This guide assumes that you have an OpenID Connect Provider where the
 Elastic Stack Relying Party will be registered.
@@ -39,8 +38,8 @@ RP that you commonly need to provide for registration are the following:
 nor the Elastic Stack implementation impose any constraints on this value.
 - `Redirect URI`: This is the URI where the OP will redirect the user's browser after authentication. The
 appropriate value for this will depend on your setup and whether or not {kib} sits behind a proxy or
-load balancer. It will typically be +$\{kibana-url}/api/security/v1/oidc+ where _$\{kibana-url}_
-is the base URL for your {kib} instance. You might also see this called `Callback URI`.
+load balancer. It will typically be +$\{kibana-url}/api/security/v1/oidc+ (for the authorization code flow) or +$\{kibana-url}/api/security/v1/oidc/implicit+ (for the implicit flow) where _$\{kibana-url}_  is the base URL for your {kib} instance. You might also see this
+called `Callback URI`.
 
 At the end of the registration process, the OP will assign a Client Identifier and a Client Secret for the RP ({stack}) to use.
 Note these two values as they will be used in the {es} configuration.
@@ -64,7 +63,7 @@ configure the HTTP interface to use SSL/TLS before you can enable OpenID Connect
 authentication.
 
 For more information, see
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications].
+<<tls-http>>.
 
 [[oidc-enable-token]]
 ==== Enable the token service
@@ -85,8 +84,8 @@ OpenID Connect based authentication is enabled by configuring the appropriate re
 the authentication chain for {es}.
 
 This realm has a few mandatory settings, and a number of optional settings.
-The available settings are described in detail in the
-{ref}/security-settings.html#ref-oidc-settings[Security settings in {es}]. This
+The available settings are described in detail in
+<<ref-oidc-settings>>. This
 guide will explore the most common settings.
 
 Create an OpenID Connect (the realm type is `oidc`) realm in your `elasticsearch.yml` file
@@ -158,8 +157,8 @@ op.authorization_endpoint::
 
 op.token_endpoint::
     The URL for the Token Endpoint in the OpenID Connect Provider. This is the endpoint where
-    {es} will send a request to exchange the code for an ID Token, in the case where the Authorization Code
-    flow is used. The value for this setting should be provided by your OpenID Connect Provider.
+    {es} will send a request to exchange the code for an ID Token.  This setting is optional when
+    you use the implicit flow. The value for this setting should be provided by your OpenID Connect Provider.
 
 op.jwkset_path::
     The path to a file or a URL containing a JSON Web Key Set with the key material that the OpenID Connect
@@ -189,7 +188,8 @@ claims.groups:: See <<oidc-claims-mapping>>.
 
 A final piece of configuration of the OpenID Connect realm is to set the `Client Secret` that was assigned
 to the RP during registration in the OP. This is a secure setting and as such is not defined in the realm
-configuration in `elasticsearch.yml` but added to the {ref}/secure-settings.html[elasticsearch keystore].
+configuration in `elasticsearch.yml` but added to the
+<<secure-settings,elasticsearch keystore>>.
 For instance
 
 
@@ -253,7 +253,7 @@ The recommended steps for configuring OpenID Claims mapping are as follows:
   party. This process greatly varies by provider. You can use a static
   configuration while others will support that the RP requests the scopes that
   correspond to the claims to be "released" on authentication time. See
-  {ref}/security-settings.html#ref-oidc-settings[`rp.requested_scopes`] for details about how
+  <<ref-oidc-settings,`rp.requested_scopes`>> for details about how
   to configure the scopes to request. To ensure interoperability and minimize
   the errors, you should only request scopes that the OP supports, and which you
   intend to map to {es} user properties.
@@ -414,29 +414,31 @@ access any data.
 
 Your OpenID Connect users cannot do anything until they are assigned roles. This can be done
 through either the
-{ref}/security-api-put-role-mapping.html[add role mapping API], or with
-<<authorization_realms, authorization realms>>.
+<<security-api-put-role-mapping,add role mapping API>> or with
+<<authorization_realms,authorization realms>>.
 
-NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files]
+NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via OpenID Connect.
 
-This is an example of a simple role mapping that grants the `kibana_user` role
+This is an example of a simple role mapping that grants the `example_role` role
 to any user who authenticates against the `oidc1` OpenID Connect realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /_security/role_mapping/oidc-kibana
+PUT /_security/role_mapping/oidc-example
 {
-  "roles": [ "kibana_user" ],
+  "roles": [ "example_role" ], <1>
   "enabled": true,
   "rules": {
     "field": { "realm.name": "oidc1" }
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
+<1> The `example_role` role is *not* a builtin Elasticsearch role.
+This example assumes that you have created a custom role of your own, with
+appropriate access to your <<roles-indices-priv,indices>> and
+{kibana-ref}/kibana-privileges.html#kibana-feature-privileges[Kibana features].
 
 The user properties that are mapped via the realm configuration are used to process
 role mapping rules, and these rules determine which roles a user is granted.
@@ -450,7 +452,7 @@ mapping are derived from the OpenID Connect claims as follows:
 - `metadata`: See <<oidc-user-metadata>>
 
 For more information, see <<mapping-roles>> and
-{ref}/security-api.html#security-role-mapping-apis[role mapping APIs].
+<<security-role-mapping-apis>>.
 
 If your OP has the ability to provide groups or roles to RPs via tha use of
 an OpenID Claim, then you should map this claim to the `claims.groups` setting in
@@ -460,7 +462,7 @@ as per the example below.
 This mapping grants the {es} `finance_data` role, to any users who authenticate
 via the `oidc1` realm with the `finance-team` group membership.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/oidc-finance
 {
@@ -472,8 +474,6 @@ PUT /_security/role_mapping/oidc-finance
   ] }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 If your users also exist in a repository that can be directly accessed by {es}
 (such as an LDAP directory) then you can use
@@ -522,29 +522,29 @@ The three additional settings that are required for OpenID Connect support are s
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authProviders: [oidc]
-xpack.security.auth.oidc.realm: "oidc1"
+xpack.security.authc.providers: [oidc]
+xpack.security.authc.oidc.realm: "oidc1"
 server.xsrf.whitelist: [/api/security/v1/oidc]
 ------------------------------------------------------------
 
 The configuration values used in the example above are:
 
-`xpack.security.authProviders`::
+`xpack.security.authc.providers`::
 Set this to `[ oidc ]` to instruct {kib} to use OpenID Connect single sign-on as the
 authentication method. This instructs Kibana to attempt to initiate an SSO flow
 everytime a user attempts to access a URL in Kibana, if the user is not already
 authenticated. If you also want to allow users to login with a username and password,
-you must enable the `basic` authProvider too. For example:
+you must enable the `basic` authentication provider too. For example:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authProviders: [oidc, basic]
+xpack.security.authc.providers: [oidc, basic]
 ------------------------------------------------------------
 
 This will allow users that haven't already authenticated with OpenID Connect to
 navigate directly to the `/login` page in {kib} in order to use the login form.
 
-`xpack.security.auth.oidc.realm`::
+`xpack.security.authc.oidc.realm`::
 The name of the OpenID Connect realm in {es} that should handle authentication
 for this Kibana instance.
 
@@ -552,12 +552,12 @@ for this Kibana instance.
 {kib} has in-built protection against _Cross Site Request Forgery_ attacks, which
 is designed to prevent the {kib} server from processing requests that
 originated from outside the {kib} application.
-In order to support OpenID Connect messages that originate from your
-OP or a third party (see <<third-party-login>>, we need to explicitly _whitelist_ the
+If you use the authorization code flow, {kib} needs to support unsolicited messages that originate from your
+OP or a third party (see <<third-party-login>>). In order to do so, you must explicitly _whitelist_ the
 OpenID Connect authentication endpoint within {kib}, so that the {kib} server will
 not reject these external messages.
 
-
+[[oidc-without-kibana]]
 === OpenID Connect without {kib}
 
 The OpenID Connect realm is designed to allow users to authenticate to {kib} and as
@@ -600,17 +600,16 @@ that gives them the `manage_oidc` cluster privilege. The use of the `manage_toke
 cluster privilege will be necessary after the authentication takes place, so that the
 the user can maintain access or be subsequently logged out.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/facilitator-role
 {
   "cluster" : ["manage_oidc", "manage_token"]
 }
 --------------------------------------------------
-// CONSOLE
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/user/facilitator
 {
@@ -618,7 +617,6 @@ POST /_security/user/facilitator
   "roles"    : [ "facilitator-role"]
 }
 --------------------------------------------------
-// CONSOLE
 
 
 ==== Handling the authentication flow
@@ -627,17 +625,17 @@ On a high level, the custom web application would need to perform the following 
 authenticate a user with OpenID Connect:
 
 . Make an HTTP POST request to `_security/oidc/prepare`, authenticating as the `facilitator` user, using the name of the
-OpenID Connect realm in the {es} configuration in the request body. See the
-{ref}/security-api-oidc-prepare-authentication.html[OIDC Prepare Authentication API] for more details
+OpenID Connect realm in the {es} configuration in the request body. For more
+details, see 
+<<security-api-oidc-prepare-authentication>>.
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oidc/prepare
 {
   "realm" : "oidc1"
 }
 --------------------------------------------------
-// CONSOLE
 +
 . Handle the response to `/_security/oidc/prepare`. The response from {es} will contain 3 parameters:
   `redirect`, `state`, `nonce`. The custom web application would need to store the values for `state`
@@ -649,28 +647,30 @@ POST /_security/oidc/prepare
   this HTTP GET request, the custom web app will need to make an HTTP POST request to
   `_security/oidc/authenticate`, again - authenticating as the `facilitator` user - passing the URL
   where the user's browser was redirected to, as a parameter, along with the
-  values for `nonce` and `state` it had saved in the user's session previously.
-  See {ref}/security-api-oidc-authenticate.html[OIDC Authenticate API] for more details
+  values for `nonce` and `state` it had saved in the user's session previously. If more than one
+  OpenID Connect realms are configured, the custom web app can specify the name of the realm to be
+  used for handling this, but this parameter is optional. For more details, see
+  <<security-api-oidc-authenticate>>.
 +
-[source,js]
+[source,console]
 -----------------------------------------------------------------------
 POST /_security/oidc/authenticate
 {
   "redirect_uri" : "https://oidc-kibana.elastic.co:5603/api/security/v1/oidc?code=jtI3Ntt8v3_XvcLzCFGq&state=4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
   "state" : "4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
-  "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM"
+  "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM",
+  "realm" : "oidc1"
 }
 -----------------------------------------------------------------------
-// CONSOLE
 // TEST[catch:unauthorized]
 +
 Elasticsearch will validate this and if all is correct will respond with an access token that can be used
-  as a `Bearer` token for subsequent requests and a refresh token that can be later used to refresh the given
-  access token as described in {ref}/security-api-get-token.html[get token API].
+as a `Bearer` token for subsequent requests and a refresh token that can be later used to refresh the given
+access token as described in <<security-api-get-token>>.
 . At some point, if necessary, the custom web application can log the user out by using the
-  {ref}/security-api-oidc-logout.html[OIDC Logout API] passing the access token and refresh token as parameters. For example:
+<<security-api-oidc-logout,OIDC logout API>> passing the access token and refresh token as parameters. For example:
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oidc/logout
 {
@@ -678,7 +678,6 @@ POST /_security/oidc/logout
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:unauthorized]
 +
 If the realm is configured accordingly, this may result in a response with a `redirect` parameter indicating where

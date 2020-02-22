@@ -19,10 +19,9 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,9 +34,6 @@ import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +42,6 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -92,37 +87,6 @@ public class NetworkModuleTests extends ESTestCase {
         }
     }
 
-
-    static class FakeRestHandler extends BaseRestHandler {
-        FakeRestHandler() {
-            super(null);
-        }
-        @Override
-        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException { return channel -> {}; }
-        @Override
-        public String getName() {
-            return "FakeRestHandler";
-        }
-    }
-
-    static class FakeCatRestHandler extends AbstractCatAction {
-        FakeCatRestHandler() {
-            super(null);
-        }
-        @Override
-        protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) { return channel -> {}; }
-        @Override
-        protected void documentation(StringBuilder sb) {}
-        @Override
-        protected Table getTableWithHeader(RestRequest request) {
-            return null;
-        }
-        @Override
-        public String getName() {
-            return "FakeCatRestHandler";
-        }
-    }
-
     public void testRegisterTransport() {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom").build();
         Supplier<Transport> custom = () -> null; // content doesn't matter we check reference equality
@@ -154,7 +118,8 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
-                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
+                                                                                HttpServerTransport.Dispatcher requestDispatcher,
+                                                                                ClusterSettings clusterSettings) {
                 return Collections.singletonMap("custom", custom);
             }
         });
@@ -191,7 +156,8 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
-                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
+                                                                                HttpServerTransport.Dispatcher requestDispatcher,
+                                                                                ClusterSettings clusterSettings) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -226,7 +192,8 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
-                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
+                                                                                HttpServerTransport.Dispatcher requestDispatcher,
+                                                                                ClusterSettings clusterSettings) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -291,6 +258,7 @@ public class NetworkModuleTests extends ESTestCase {
 
     private NetworkModule newNetworkModule(Settings settings, NetworkPlugin... plugins) {
         return new NetworkModule(settings, Arrays.asList(plugins), threadPool, null, null, null, null,
-            xContentRegistry(), null, new NullDispatcher());
+            xContentRegistry(), null, new NullDispatcher(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 }

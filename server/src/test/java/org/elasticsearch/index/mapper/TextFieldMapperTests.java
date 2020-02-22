@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.DocValuesType;
@@ -30,6 +33,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -109,7 +114,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -141,7 +146,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -162,7 +167,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -185,7 +190,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -216,7 +221,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         for (String option : supportedOptions.keySet()) {
             jsonDoc.field(option, "1234");
         }
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(jsonDoc.endObject()),
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(jsonDoc.endObject()),
                 XContentType.JSON));
 
         for (Map.Entry<String, IndexOptions> entry : supportedOptions.entrySet()) {
@@ -238,7 +243,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .array("field", new String[] {"a", "b"})
@@ -280,7 +285,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .array("field", new String[]{"a", "b"})
@@ -439,7 +444,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "1234")
@@ -730,7 +735,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject());
 
             indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            MappedFieldType textField = indexService.mapperService().fullName("object.field");
+            MappedFieldType textField = indexService.mapperService().fieldType("object.field");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
@@ -756,7 +761,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject());
 
             indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            MappedFieldType textField = indexService.mapperService().fullName("body.with_prefix");
+            MappedFieldType textField = indexService.mapperService().fieldType("body.with_prefix");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
@@ -818,7 +823,28 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 new Term("synfield._index_phrase", "motor dog")})
             .build()));
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        // https://github.com/elastic/elasticsearch/issues/43976
+        CannedTokenStream cts = new CannedTokenStream(
+            new Token("foo", 1, 0, 2, 2),
+            new Token("bar", 0, 0, 2),
+            new Token("baz", 1, 0, 2)
+        );
+        Analyzer synonymAnalyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                return new TokenStreamComponents(reader -> {}, cts);
+            }
+        };
+        matchQuery.setAnalyzer(synonymAnalyzer);
+        Query q7 = matchQuery.parse(MatchQuery.Type.BOOLEAN, "synfield", "foo");
+        assertThat(q7, is(new BooleanQuery.Builder().add(new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("synfield", "foo")), BooleanClause.Occur.SHOULD)
+            .add(new PhraseQuery.Builder()
+                .add(new Term("synfield._index_phrase", "bar baz"))
+                .build(), BooleanClause.Occur.SHOULD)
+            .build(), BooleanClause.Occur.SHOULD).build()));
+
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("field", "Some English text that is going to be very useful")
@@ -883,7 +909,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=2:10"));
 
-            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                     .bytes(XContentFactory.jsonBuilder()
                             .startObject()
                             .field("field", "Some English text that is going to be very useful")
@@ -1220,5 +1246,31 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(mapper.mappers().getMapper("a_field"), instanceOf(TextFieldMapper.class));
             assertThat(mapper.mappers().getMapper("b_field"), instanceOf(KeywordFieldMapper.class));
         }
+    }
+
+    public void testMeta() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "text")
+                .field("meta", Collections.singletonMap("foo", "bar"))
+                .endObject().endObject().endObject().endObject());
+
+        DocumentMapper mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "text")
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping2, mapper.mappingSource().toString());
+
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "text")
+                .field("meta", Collections.singletonMap("baz", "quux"))
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping3, mapper.mappingSource().toString());
     }
 }

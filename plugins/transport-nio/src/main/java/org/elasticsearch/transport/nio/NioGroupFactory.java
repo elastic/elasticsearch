@@ -135,7 +135,7 @@ public final class NioGroupFactory {
      * Wraps the {@link RefCountedNioGroup}. Calls {@link RefCountedNioGroup#decRef()} on close. After close,
      * this wrapped instance can no longer be used.
      */
-    private class WrappedNioGroup implements NioGroup {
+    private static class WrappedNioGroup implements NioGroup {
 
         private final RefCountedNioGroup refCountedNioGroup;
 

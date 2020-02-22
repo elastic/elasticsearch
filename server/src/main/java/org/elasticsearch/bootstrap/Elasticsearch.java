@@ -52,9 +52,9 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
     // visible for testing
     Elasticsearch() {
-        super("starts elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
+        super("Starts Elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"),
-            "Prints elasticsearch version information and exits");
+            "Prints Elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
             "Starts Elasticsearch in the background")
             .availableUnless(versionOption);
@@ -91,6 +91,17 @@ class Elasticsearch extends EnvironmentAwareCommand {
         final Elasticsearch elasticsearch = new Elasticsearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
+            final String basePath = System.getProperty("es.logs.base_path");
+            // It's possible to fail before logging has been configured, in which case there's no point
+            // suggesting that the user look in the log file.
+            if (basePath != null) {
+                Terminal.DEFAULT.errorPrintln(
+                    "ERROR: Elasticsearch did not exit normally - check the logs at "
+                        + basePath
+                        + System.getProperty("file.separator")
+                        + System.getProperty("es.logs.cluster_name") + ".log"
+                );
+            }
             exit(status);
         }
     }
@@ -127,7 +138,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
                 Build.CURRENT.getQualifiedVersion(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
-                Build.CURRENT.shortHash(),
+                Build.CURRENT.hash(),
                 Build.CURRENT.date(),
                 JvmInfo.jvmInfo().version()
             );

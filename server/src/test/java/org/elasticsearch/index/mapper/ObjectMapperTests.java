@@ -43,7 +43,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            defaultMapper.parse(new SourceToParse("test", "type", "1", new BytesArray(" {\n" +
+            defaultMapper.parse(new SourceToParse("test", "1", new BytesArray(" {\n" +
                 "      \"object\": {\n" +
                 "        \"array\":[\n" +
                 "        {\n" +

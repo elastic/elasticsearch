@@ -23,19 +23,22 @@ import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.test.RunTask
+import org.elasticsearch.gradle.testclusters.RunTask
 
 import java.nio.file.Files
-import java.nio.file.Path 
+import java.nio.file.Path
+
+apply plugin: 'elasticsearch.testclusters'
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
 
 // Concatenates the dependencies CSV files into a single file
 task generateDependenciesReport(type: ConcatFilesTask) {
-  files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
+  files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license"
-  target = new File(System.getProperty('csv')?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
+  target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
 }
 
 /*****************************************************************************
@@ -68,6 +71,7 @@ task buildOssNoJdkNotice(type: NoticeTask) {
  *****************************************************************************/
 String ossOutputs = 'build/outputs/oss'
 String defaultOutputs = 'build/outputs/default'
+String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 
 task processOssOutputs(type: Sync) {
@@ -77,6 +81,10 @@ task processOssOutputs(type: Sync) {
 task processDefaultOutputs(type: Sync) {
   into defaultOutputs
   from processOssOutputs
+}
+
+task processSystemdOutputs(type: Sync) {
+  into systemdOutputs
 }
 
 // Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
@@ -110,6 +118,10 @@ task buildDefaultConfig {
   dependsOn processDefaultOutputs
   outputs.dir "${defaultOutputs}/config"
 }
+task buildSystemdModule {
+  dependsOn processSystemdOutputs
+  outputs.dir "${systemdOutputs}/modules"
+}
 task buildTransportModules {
   dependsOn processTransportOutputs
   outputs.dir "${transportOutputs}/modules"
@@ -126,7 +138,7 @@ void copyModule(Sync copyTask, Project module) {
       exclude 'config/log4j2.properties'
 
       eachFile { details ->
-        String name = module.plugins.hasPlugin('elasticsearch.esplugin') ? module.esplugin.name : module.es_meta_plugin.name 
+        String name = module.plugins.hasPlugin('elasticsearch.esplugin') ? module.esplugin.name : module.es_meta_plugin.name
         // Copy all non config/bin files
         // Note these might be unde a subdirectory in the case of a meta plugin
         if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
@@ -186,6 +198,10 @@ ext.restTestExpansions = [
 // we create the buildOssModules task above but fill it here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
 project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { Project module ->
+  if (module.name == 'systemd') {
+    // the systemd module is only included in the package distributions
+    return
+  }
   File licenses = new File(module.projectDir, 'licenses')
   if (licenses.exists()) {
     buildDefaultNotice.licensesDir licenses
@@ -212,11 +228,13 @@ Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   File licenses = new File(xpackModule.projectDir, 'licenses')
   if (licenses.exists()) {
-    buildDefaultNotice.licensesDir licenses 
+    buildDefaultNotice.licensesDir licenses
   }
   copyModule(processDefaultOutputs, xpackModule)
   copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
 }
+
+copyModule(processSystemdOutputs, project(':modules:systemd'))
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
 // put stuff in the build dir
@@ -264,8 +282,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     modulesFiles = { oss, platform ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin') {
+          if (it.relativePath.segments[-2] == 'bin' || (platform == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
+            // and MacOS is an alternative to bin on macOS
             it.mode = 0755
           } else {
             it.mode = 0644
@@ -279,14 +298,17 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         List excludePlatforms = ['linux', 'windows', 'darwin']
         if (platform != null) {
-           excludePlatforms.remove(excludePlatforms.indexOf(platform))
+          excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
-           excludePlatforms = []
+          excludePlatforms = []
         }
         from(buildModules) {
           for (String excludePlatform : excludePlatforms) {
             exclude "**/platform/${excludePlatform}-x86_64/**"
           }
+        }
+        if (project.path.startsWith(':distribution:packages')) {
+          from(project(':distribution').buildSystemdModule)
         }
       }
     }
@@ -315,7 +337,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     binFiles = { distributionType, oss, jdk ->
       copySpec {
-        // non-windows files, for all distributions 
+        // non-windows files, for all distributions
         with copySpec {
           from '../src/bin'
           exclude '*.exe'
@@ -365,19 +387,21 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           } else {
             from buildDefaultNoJdkNotice
           }
-      }  
+        }
       }
     }
 
-    jdkFiles = { project, platform ->
+    jdkFiles = { Project project, String platform ->
       project.jdks {
         "bundled_${platform}" {
           it.platform = platform
-          it.version = VersionProperties.bundledJdk
+          it.version = VersionProperties.getBundledJdk(platform)
+          it.vendor = VersionProperties.bundledJdkVendor
         }
       }
       return copySpec {
         from project.jdks."bundled_${platform}"
+        exclude "demo/**"
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755
@@ -392,26 +416,31 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
 }
 
-task run(type: RunTask) {
-  distribution = System.getProperty('run.distribution', 'default')
-  if (distribution == 'default') {
-    String licenseType = System.getProperty("run.license_type", "basic")
-    if (licenseType == 'trial') {
-      setting 'xpack.ml.enabled', 'true'
-      setting 'xpack.graph.enabled', 'true'
-      setting 'xpack.watcher.enabled', 'true'
-      setting 'xpack.license.self_generated.type', 'trial'
-    } else if (licenseType != 'basic') {
-      throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
+testClusters {
+  runTask {
+    testDistribution = System.getProperty('run.distribution', 'default')
+    if (System.getProperty('run.distribution', 'default') == 'default') {
+      String licenseType = System.getProperty("run.license_type", "basic")
+      if (licenseType == 'trial') {
+        setting 'xpack.ml.enabled', 'true'
+        setting 'xpack.graph.enabled', 'true'
+        setting 'xpack.watcher.enabled', 'true'
+        setting 'xpack.license.self_generated.type', 'trial'
+      } else if (licenseType != 'basic') {
+        throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
+      }
+      setting 'xpack.security.enabled', 'true'
+      setting 'xpack.monitoring.enabled', 'true'
+      setting 'xpack.sql.enabled', 'true'
+      setting 'xpack.rollup.enabled', 'true'
+      keystore 'bootstrap.password', 'password'
+      user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
     }
-    setupCommand 'setupTestAdmin',
-            'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.monitoring.enabled', 'true'
-    setting 'xpack.sql.enabled', 'true'
-    setting 'xpack.rollup.enabled', 'true'
-    keystoreSetting 'bootstrap.password', 'password'
   }
+}
+
+task run(type: RunTask) {
+  useCluster testClusters.runTask;
 }
 
 /**
@@ -459,10 +488,10 @@ subprojects {
       licenseText = rootProject.file('licenses/ELASTIC-LICENSE.txt').getText('UTF-8')
     }
     // license text needs to be indented with a single space
-    licenseText = ' ' + licenseText.replace('\n', '\n ') 
+    licenseText = ' ' + licenseText.replace('\n', '\n ')
 
     String footer = "# Built for ${project.name}-${project.version} " +
-        "(${distributionType})"
+      "(${distributionType})"
     Map<String, Object> expansions = [
       'project.name': project.name,
       'project.version': version,
@@ -485,9 +514,9 @@ subprojects {
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
       ],
       'source.path.env': [
-         'deb': 'source /etc/default/elasticsearch',
-         'rpm': 'source /etc/sysconfig/elasticsearch',
-         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
+        'deb': 'source /etc/default/elasticsearch',
+        'rpm': 'source /etc/sysconfig/elasticsearch',
+        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
       ],
       'path.logs': [
         'deb': packagingPathLogs,
@@ -530,7 +559,6 @@ subprojects {
         'def': oss ? 'oss' : 'default'
       ],
 
-
       'es.distribution.type': [
         'deb': 'deb',
         'rpm': 'rpm',
@@ -564,7 +592,7 @@ subprojects {
     return result
   }
 
-  ext.assertLinesInFile =  { Path path, List<String> expectedLines ->
+  ext.assertLinesInFile = { Path path, List<String> expectedLines ->
     final List<String> actualLines = Files.readAllLines(path)
     int line = 0
     for (final String expectedLine : expectedLines) {
@@ -577,12 +605,12 @@ subprojects {
   }
 }
 
-['archives:windows-zip','archives:oss-windows-zip',
- 'archives:darwin-tar','archives:oss-darwin-tar',
- 'archives:linux-tar', 'archives:oss-linux-tar',
- 'archives:integ-test-zip',
- 'packages:rpm', 'packages:deb',
- 'packages:oss-rpm', 'packages:oss-deb',
+['archives:windows-zip', 'archives:oss-windows-zip',
+  'archives:darwin-tar', 'archives:oss-darwin-tar',
+  'archives:linux-tar', 'archives:oss-linux-tar',
+  'archives:integ-test-zip',
+  'packages:rpm', 'packages:deb',
+  'packages:oss-rpm', 'packages:oss-deb',
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)

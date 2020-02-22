@@ -65,14 +65,13 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             super();
         }
 
-        public CancellableNodeRequest(CancellableNodesRequest request) {
-            requestName = request.requestName;
+        public CancellableNodeRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
+        public CancellableNodeRequest(CancellableNodesRequest request) {
+            requestName = request.requestName;
         }
 
         @Override
@@ -100,19 +99,14 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     public static class CancellableNodesRequest extends BaseNodesRequest<CancellableNodesRequest> {
         private String requestName;
 
-        private CancellableNodesRequest() {
-            super();
+        private CancellableNodesRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
         public CancellableNodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
         }
 
         @Override
@@ -173,7 +167,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 // Simulate a job that takes forever to finish
                 // Using periodic checks method to identify that the task was cancelled
                 try {
-                    awaitBusy(() -> {
+                    waitUntil(() -> {
                         if (((CancellableTask) task).isCancelled()) {
                             throw new TaskCancelledException("Cancelled");
                         }
@@ -206,7 +200,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             actions[i] = new CancellableTestNodesAction("internal:testAction", threadPool, testNodes[i]
                 .clusterService, testNodes[i].transportService, shouldBlock, actionLatch);
         }
-        Task task = actions[0].execute(request, listener);
+        Task task = testNodes[0].transportService.getTaskManager().registerAndExecute("transport", actions[0], request,
+            (t, r) -> listener.onResponse(r), (t, e) -> listener.onFailure(e));
         if (waitForActionToStart) {
             logger.info("Awaiting for all actions to start");
             actionLatch.await();

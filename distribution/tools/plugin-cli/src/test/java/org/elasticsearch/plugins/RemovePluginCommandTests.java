@@ -73,9 +73,7 @@ public class RemovePluginCommandTests extends ESTestCase {
         Files.createDirectories(home.resolve("bin"));
         Files.createFile(home.resolve("bin").resolve("elasticsearch"));
         Files.createDirectories(home.resolve("plugins"));
-        Settings settings = Settings.builder()
-                .put("path.home", home)
-                .build();
+        Settings settings = Settings.builder().put("path.home", home).build();
         env = TestEnvironment.newEnvironment(settings);
     }
 
@@ -93,13 +91,20 @@ public class RemovePluginCommandTests extends ESTestCase {
 
     void createPlugin(Path path, String name, Version version) throws IOException {
         PluginTestUtil.writePluginProperties(
-                path.resolve(name),
-                "description", "dummy",
-                "name", name,
-                "version", "1.0",
-                "elasticsearch.version", version.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "SomeClass");
+            path.resolve(name),
+            "description",
+            "dummy",
+            "name",
+            name,
+            "version",
+            "1.0",
+            "elasticsearch.version",
+            version.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "SomeClass"
+        );
     }
 
     static MockTerminal removePlugin(String name, Path home, boolean purge) throws Exception {
@@ -138,20 +143,12 @@ public class RemovePluginCommandTests extends ESTestCase {
 
     public void testRemoveOldVersion() throws Exception {
         Version previous = VersionUtils.getPreviousVersion();
-        if (previous.before(Version.CURRENT.minimumIndexCompatibilityVersion()) ) {
+        if (previous.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             // Can happen when bumping majors: 8.0 is only compat back to 7.0, but that's not released yet
             // In this case, ignore what's released and just find that latest version before current
-            previous = VersionUtils.allVersions().stream()
-                .filter(v -> v.before(Version.CURRENT))
-                .max(Version::compareTo)
-                .get();
+            previous = VersionUtils.allVersions().stream().filter(v -> v.before(Version.CURRENT)).max(Version::compareTo).get();
         }
-        createPlugin(
-                "fake",
-                VersionUtils.randomVersionBetween(
-                        random(),
-                        Version.CURRENT.minimumIndexCompatibilityVersion(),
-                        previous));
+        createPlugin("fake", VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), previous));
         removePlugin("fake", home, randomBoolean());
         assertThat(Files.exists(env.pluginsFile().resolve("fake")), equalTo(false));
         assertRemoveCleaned(env);
@@ -246,11 +243,17 @@ public class RemovePluginCommandTests extends ESTestCase {
                 return false;
             }
         }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal);
-        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
+        try (
+            BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));
+            BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))
+        ) {
             assertEquals("-> removing [fake]...", reader.readLine());
-            assertEquals("ERROR: plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins",
-                    reader.readLine());
+            assertEquals(
+                "ERROR: plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins",
+                errorReader.readLine()
+            );
             assertNull(reader.readLine());
+            assertNull(errorReader.readLine());
         }
     }
 
@@ -272,4 +275,3 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
 }
-

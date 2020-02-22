@@ -30,12 +30,22 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.equalTo;
 
 public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
+    private static final String OS_NAME = System.getProperty("os.name");
+    private static final boolean WINDOWS = OS_NAME.startsWith("Windows");
+
+    // These match the values defined in org.elasticsearch.gradle.testclusters.ElasticsearchNode
+    private static final String COMPUTERNAME = "WindowsComputername";
+    private static final String HOSTNAME = "LinuxDarwinHostname";
+
     @Override
     protected Matcher<String> nodeNameMatcher() {
-        return not("");
+        if (WINDOWS) {
+            return equalTo(COMPUTERNAME);
+        }
+        return equalTo(HOSTNAME);
     }
 
     @Override

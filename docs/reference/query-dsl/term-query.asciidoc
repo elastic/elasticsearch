@@ -1,5 +1,8 @@
 [[query-dsl-term-query]]
-=== Term Query
+=== Term query
+++++
+<titleabbrev>Term</titleabbrev>
+++++
 
 Returns documents that contain an *exact* term in a provided field.
 
@@ -21,7 +24,7 @@ instead.
 [[term-query-ex-request]]
 ==== Example request
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -35,23 +38,22 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[term-top-level-params]]
 ==== Top-level parameters for `term`
 `<field>`::
-Field you wish to search.
+(Required, object) Field you wish to search.
 
 [[term-field-params]]
 ==== Parameters for `<field>`
 `value`::
-Term you wish to find in the provided `<field>`. To return a document, the term
-must exactly match the field value, including whitespace and capitalization.
+(Required, string) Term you wish to find in the provided `<field>`. To return a
+document, the term must exactly match the field value, including whitespace and
+capitalization.
 
 `boost`::
-Floating point number used to decrease or increase the
-<<query-filter-context, relevance scores>> of a query. Default is `1.0`.
-Optional.
+(Optional, float) Floating point number used to decrease or increase the
+<<relevance-scores,relevance scores>> of a query. Defaults to `1.0`.
 +
 You can use the `boost` parameter to adjust relevance scores for searches
 containing two or more queries.
@@ -88,7 +90,7 @@ To see the difference in search results, try the following example.
 +
 --
 
-[source,js]
+[source,console]
 ----
 PUT my_index
 {
@@ -99,7 +101,6 @@ PUT my_index
     }
 }
 ----
-// CONSOLE
 
 --
 
@@ -108,14 +109,13 @@ field.
 +
 --
 
-[source,js]
+[source,console]
 ----
 PUT my_index/_doc/1
 {
   "full_text":   "Quick Brown Foxes!"
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 Because `full_text` is a `text` field, {es} changes `Quick Brown Foxes!` to
@@ -128,7 +128,7 @@ field. Include the `pretty` parameter so the response is more readable.
 +
 --
 
-[source,js]
+[source,console]
 ----
 GET my_index/_search?pretty
 {
@@ -139,7 +139,6 @@ GET my_index/_search?pretty
   }
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 Because the `full_text` field no longer contains the *exact* term `Quick Brown
@@ -154,16 +153,15 @@ field.
 
 ////
 
-[source,js]
+[source,console]
 ----
 POST my_index/_refresh
 ----
-// CONSOLE
 // TEST[continued]
 
 ////
 
-[source,js]
+[source,console]
 ----
 GET my_index/_search?pretty
 {
@@ -174,7 +172,6 @@ GET my_index/_search?pretty
   }
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 Unlike the `term` query, the `match` query analyzes your provided search term,
@@ -185,7 +182,7 @@ any documents containing the `quick`, `brown`, or `fox` tokens in the
 Here's the response for the `match` query search containing the indexed document
 in the results.
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 1,
@@ -205,7 +202,6 @@ in the results.
     "hits" : [
       {
         "_index" : "my_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 0.8630463,
         "_source" : {

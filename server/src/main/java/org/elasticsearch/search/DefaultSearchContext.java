@@ -23,9 +23,9 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -56,7 +56,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
@@ -109,7 +109,7 @@ final class DefaultSearchContext extends SearchContext {
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
-    private DocValueFieldsContext docValueFieldsContext;
+    private FetchDocValuesContext docValuesContext;
     private int from = -1;
     private int size = -1;
     private SortAndFormats sort;
@@ -121,9 +121,7 @@ final class DefaultSearchContext extends SearchContext {
     private boolean lowLevelCancellation;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
-    private SearchTask task;
-    private final Version minNodeVersion;
-
+    private SearchShardTask task;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -158,7 +156,7 @@ final class DefaultSearchContext extends SearchContext {
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
                          IndexShard indexShard, BigArrays bigArrays, LongSupplier relativeTimeSupplier, TimeValue timeout,
-                         FetchPhase fetchPhase, Version minNodeVersion) {
+                         FetchPhase fetchPhase) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -173,20 +171,18 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.clusterService = clusterService;
-        this.searcher = new ContextIndexSearcher(engineSearcher.reader(), engineSearcher.searcher().getSimilarity(),
-            indexService.cache().query(), indexShard.getQueryCachingPolicy());
+        this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
+            engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy());
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
-        this.minNodeVersion = minNodeVersion;
-        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis,
-            shardTarget.getClusterAlias());
+        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher,
+            request::nowInMillis, shardTarget.getClusterAlias());
         queryBoost = request.indexBoost();
     }
 
     @Override
     public void doClose() {
-        // clear and scope phase we have
-        Releasables.close(searcher, engineSearcher);
+        Releasables.close(engineSearcher);
     }
 
     /**
@@ -259,7 +255,7 @@ final class DefaultSearchContext extends SearchContext {
             try {
                 this.query = searcher.rewrite(query);
             } catch (IOException e) {
-                throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
+                throw new QueryPhaseExecutionException(shardTarget, "Failed to rewrite main query", e);
             }
         }
     }
@@ -279,7 +275,12 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            filters.add(sliceBuilder.toFilter(clusterService, request, queryShardContext, minNodeVersion));
+            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext);
+            if (slicedQuery instanceof MatchNoDocsQuery) {
+                return slicedQuery;
+            } else {
+                filters.add(slicedQuery);
+            }
         }
 
         if (filters.isEmpty()) {
@@ -442,13 +443,13 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public DocValueFieldsContext docValueFieldsContext() {
-        return docValueFieldsContext;
+    public FetchDocValuesContext docValuesContext() {
+        return docValuesContext;
     }
 
     @Override
-    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
-        this.docValueFieldsContext = docValueFieldsContext;
+    public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
+        this.docValuesContext = docValuesContext;
         return this;
     }
 
@@ -777,7 +778,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType smartNameFieldType(String name) {
-        return mapperService().fullName(name);
+        return mapperService().fieldType(name);
     }
 
     @Override
@@ -810,12 +811,12 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchTask task) {
+    public void setTask(SearchShardTask task) {
         this.task = task;
     }
 
     @Override
-    public SearchTask getTask() {
+    public SearchShardTask getTask() {
         return task;
     }
 

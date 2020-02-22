@@ -27,8 +27,7 @@ public class TransportGetCalendarsAction extends HandledTransportAction<GetCalen
     @Inject
     public TransportGetCalendarsAction(TransportService transportService, ActionFilters actionFilters,
                                        JobResultsProvider jobResultsProvider) {
-        super(GetCalendarsAction.NAME, transportService, actionFilters,
-            GetCalendarsAction.Request::new);
+        super(GetCalendarsAction.NAME, transportService, actionFilters, GetCalendarsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
     }
 

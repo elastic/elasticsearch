@@ -105,6 +105,9 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return subsetSize;
         }
 
+        // TODO we should refactor to remove this, since buckets should be immutable after they are generated.
+        // This can lead to confusing bugs if the bucket is re-created (via createBucket() or similar) without
+        // the score
         void updateScore(SignificanceHeuristic significanceHeuristic) {
             score = significanceHeuristic.getScore(subsetDf, subsetSize, supersetDf, supersetSize);
         }
@@ -118,21 +121,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         public Aggregations getAggregations() {
             return aggregations;
         }
-
-        public B reduce(List<B> buckets, ReduceContext context) {
-            long subsetDf = 0;
-            long supersetDf = 0;
-            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-            for (B bucket : buckets) {
-                subsetDf += bucket.subsetDf;
-                supersetDf += bucket.supersetDf;
-                aggregationsList.add(bucket.aggregations);
-            }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return newBucket(subsetDf, subsetSize, supersetDf, supersetSize, aggs);
-        }
-
-        abstract B newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations);
 
         @Override
         public double getSignificanceScore() {
@@ -206,7 +194,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public abstract List<B> getBuckets();
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long globalSubsetSize = 0;
         long globalSupersetSize = 0;
         // Compute the overall result set size and the corpus size using the
@@ -229,8 +217,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
                 }
                 // Adjust the buckets with the global stats representing the
                 // total size of the pots from which the stats are drawn
-                existingBuckets.add(bucket.newBucket(bucket.getSubsetDf(), globalSubsetSize, bucket.getSupersetDf(), globalSupersetSize,
-                        bucket.aggregations));
+                existingBuckets.add(createBucket(bucket.getSubsetDf(), globalSubsetSize, bucket.getSupersetDf(), globalSupersetSize,
+                        bucket.aggregations, bucket));
             }
         }
         SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
@@ -238,7 +226,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
         for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
             List<B> sameTermBuckets = entry.getValue();
-            final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
+            final B b = reduceBucket(sameTermBuckets, reduceContext);
             b.updateScore(heuristic);
             if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
                 B removed = ordered.insertWithOverflow(b);
@@ -257,6 +245,24 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         }
         return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
     }
+
+    @Override
+    protected B reduceBucket(List<B> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        long subsetDf = 0;
+        long supersetDf = 0;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        for (B bucket : buckets) {
+            subsetDf += bucket.subsetDf;
+            supersetDf += bucket.supersetDf;
+            aggregationsList.add(bucket.aggregations);
+        }
+        InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        return createBucket(subsetDf, buckets.get(0).subsetSize, supersetDf, buckets.get(0).supersetSize, aggs, buckets.get(0));
+    }
+
+    abstract B createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
+                            InternalAggregations aggregations, B prototype);
 
     protected abstract A create(long subsetSize, long supersetSize, List<B> buckets);
 

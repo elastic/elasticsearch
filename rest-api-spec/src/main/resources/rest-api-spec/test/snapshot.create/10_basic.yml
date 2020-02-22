@@ -39,6 +39,51 @@ setup:
   - match: { acknowledged: true }
 
 ---
+"Create a snapshot and clean up repository":
+  - skip:
+      version: " - 7.3.99"
+      reason:  cleanup introduced in 7.4
+
+  - do:
+      snapshot.cleanup_repository:
+        repository: test_repo_create_1
+
+  - match: { results.deleted_bytes: 0 }
+  - match: { results.deleted_blobs: 0 }
+
+  - do:
+      snapshot.create:
+        repository: test_repo_create_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+  - match: { snapshot.snapshot: test_snapshot }
+  - match: { snapshot.state : SUCCESS }
+  - match: { snapshot.shards.successful: 1 }
+  - match: { snapshot.shards.failed : 0 }
+
+  - do:
+      snapshot.cleanup_repository:
+        repository: test_repo_create_1
+
+  - match: { results.deleted_bytes: 0 }
+  - match: { results.deleted_blobs: 0 }
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_create_1
+        snapshot: test_snapshot
+
+  - match: { acknowledged: true }
+
+  - do:
+      snapshot.cleanup_repository:
+        repository: test_repo_create_1
+
+  - match: { results.deleted_bytes: 0 }
+  - match: { results.deleted_blobs: 0 }
+
+---
 "Create a snapshot for missing index":
 
   - do:

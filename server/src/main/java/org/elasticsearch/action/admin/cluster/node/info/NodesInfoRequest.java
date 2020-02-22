@@ -41,7 +41,18 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     private boolean ingest = true;
     private boolean indices = true;
 
-    public NodesInfoRequest() {
+    public NodesInfoRequest(StreamInput in) throws IOException {
+        super(in);
+        settings = in.readBoolean();
+        os = in.readBoolean();
+        process = in.readBoolean();
+        jvm = in.readBoolean();
+        threadPool = in.readBoolean();
+        transport = in.readBoolean();
+        http = in.readBoolean();
+        plugins = in.readBoolean();
+        ingest = in.readBoolean();
+        indices = in.readBoolean();
     }
 
     /**
@@ -238,21 +249,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      */
     public boolean indices() {
         return indices;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        settings = in.readBoolean();
-        os = in.readBoolean();
-        process = in.readBoolean();
-        jvm = in.readBoolean();
-        threadPool = in.readBoolean();
-        transport = in.readBoolean();
-        http = in.readBoolean();
-        plugins = in.readBoolean();
-        ingest = in.readBoolean();
-        indices = in.readBoolean();
     }
 
     @Override

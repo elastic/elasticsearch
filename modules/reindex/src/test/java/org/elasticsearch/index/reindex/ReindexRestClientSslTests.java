@@ -117,6 +117,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     public void testClientFailsWithUntrustedCertificate() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -124,7 +125,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-        try (RestClient client = TransportReindexAction.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
             expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
         }
     }
@@ -139,7 +140,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-        try (RestClient client = TransportReindexAction.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
             final Response response = client.performRequest(new Request("GET", "/"));
             assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
         }
@@ -155,7 +156,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-        try (RestClient client = TransportReindexAction.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
             final Response response = client.performRequest(new Request("GET", "/"));
             assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
         }
@@ -185,7 +186,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
         };
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-        try (RestClient client = TransportReindexAction.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
             final Response response = client.performRequest(new Request("GET", "/"));
             assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
             final Certificate[] certs = clientCertificates.get();

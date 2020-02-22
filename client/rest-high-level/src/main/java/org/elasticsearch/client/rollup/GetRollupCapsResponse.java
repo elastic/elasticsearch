@@ -46,7 +46,7 @@ public class GetRollupCapsResponse {
                 if (token.equals(XContentParser.Token.FIELD_NAME)) {
                     String pattern = parser.currentName();
 
-                    RollableIndexCaps cap = RollableIndexCaps.PARSER.apply(pattern).apply(parser, null);
+                    RollableIndexCaps cap = RollableIndexCaps.PARSER.parse(parser, pattern);
                     jobs.put(pattern, cap);
                 }
             }

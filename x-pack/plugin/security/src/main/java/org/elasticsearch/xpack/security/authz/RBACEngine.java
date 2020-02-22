@@ -28,11 +28,12 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
@@ -57,10 +58,13 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -85,7 +89,7 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 public class RBACEngine implements AuthorizationEngine {
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
-        ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
+        ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME, GetApiKeyAction.NAME);
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
     private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
@@ -136,7 +140,7 @@ public class RBACEngine implements AuthorizationEngine {
                                        ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest())) {
+            if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
             } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
@@ -153,26 +157,39 @@ public class RBACEngine implements AuthorizationEngine {
     boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
-            if (request instanceof UserRequest == false) {
-                assert false : "right now only a user request should be allowed";
-                return false;
-            }
-            UserRequest userRequest = (UserRequest) request;
-            String[] usernames = userRequest.usernames();
-            if (usernames == null || usernames.length != 1 || usernames[0] == null) {
-                assert false : "this role should only be used for actions to apply to a single user";
-                return false;
-            }
-            final String username = usernames[0];
-            final boolean sameUsername = authentication.getUser().principal().equals(username);
-            if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
-                return checkChangePasswordAction(authentication);
-            }
+            if (request instanceof UserRequest) {
+                UserRequest userRequest = (UserRequest) request;
+                String[] usernames = userRequest.usernames();
+                if (usernames == null || usernames.length != 1 || usernames[0] == null) {
+                    assert false : "this role should only be used for actions to apply to a single user";
+                    return false;
+                }
+                final String username = usernames[0];
+                final boolean sameUsername = authentication.getUser().principal().equals(username);
+                if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
+                    return checkChangePasswordAction(authentication);
+                }
 
-            assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
-                || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
-                : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
-            return sameUsername;
+                assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
+                    || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
+                    : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
+                return sameUsername;
+            } else if (request instanceof GetApiKeyRequest) {
+                GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
+                if (authentication.getAuthenticatedBy().getType().equals(ApiKeyService.API_KEY_REALM_TYPE)) {
+                    assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
+                    // if authenticated by API key then the request must also contain same API key id
+                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                    if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
+                        return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);
+                    } else {
+                        return false;
+                    }
+                }
+            } else {
+                assert false : "right now only a user request or get api key request should be allowed";
+                return false;
+            }
         }
         return false;
     }
@@ -360,8 +377,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
-            final ClusterPrivilege checkPrivilege = ClusterPrivilege.get(Collections.singleton(checkAction));
-            cluster.put(checkAction, userRole.grants(checkPrivilege));
+            cluster.put(checkAction, userRole.grants(ClusterPrivilegeResolver.resolve(checkAction)));
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
         ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = ResourcePrivilegesMap.builder();
@@ -412,15 +428,17 @@ public class RBACEngine implements AuthorizationEngine {
 
         // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing
         final Set<String> cluster = new TreeSet<>();
-        // But we don't have a meaningful ordering for objects like ConditionalClusterPrivilege, so the tests work with "random" ordering
-        final Set<ConditionalClusterPrivilege> conditionalCluster = new HashSet<>();
-        for (Tuple<ClusterPrivilege, ConditionalClusterPrivilege> tup : userRole.cluster().privileges()) {
-            if (tup.v2() == null) {
-                if (ClusterPrivilege.NONE.equals(tup.v1()) == false) {
-                    cluster.addAll(tup.v1().name());
-                }
+        // But we don't have a meaningful ordering for objects like ConfigurableClusterPrivilege, so the tests work with "random" ordering
+        final Set<ConfigurableClusterPrivilege> conditionalCluster = new HashSet<>();
+        for (ClusterPrivilege privilege : userRole.cluster().privileges()) {
+            if (privilege instanceof NamedClusterPrivilege) {
+                cluster.add(((NamedClusterPrivilege) privilege).name());
+            } else if (privilege instanceof ConfigurableClusterPrivilege) {
+                conditionalCluster.add((ConfigurableClusterPrivilege) privilege);
             } else {
-                conditionalCluster.add(tup.v2());
+                throw new IllegalArgumentException(
+                    "found unsupported cluster privilege : " + privilege +
+                        ((privilege != null) ? " of type " + privilege.getClass().getSimpleName() : ""));
             }
         }
 
@@ -506,9 +524,12 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         assert realmType != null;
-        // ensure the user was authenticated by a realm that we can change a password for. The native realm is an internal realm and
-        // right now only one can exist in the realm configuration - if this changes we should update this check
-        return ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
+        // Ensure that the user is not authenticated with an access token or an API key.
+        // Also ensure that the user was authenticated by a realm that we can change a password for. The native realm is an internal realm
+        // and right now only one can exist in the realm configuration - if this changes we should update this check
+        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
+        return (authType.equals(Authentication.AuthenticationType.REALM)
+            && (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType)));
     }
 
     static class RBACAuthorizationInfo implements AuthorizationInfo {

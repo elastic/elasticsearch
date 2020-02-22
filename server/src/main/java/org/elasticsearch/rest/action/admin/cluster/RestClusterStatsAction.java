@@ -21,19 +21,22 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStatsAction extends BaseRestHandler {
-    public RestClusterStatsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats/nodes/{nodeId}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cluster/stats"),
+            new Route(GET, "/_cluster/stats/nodes/{nodeId}"));
     }
 
     @Override

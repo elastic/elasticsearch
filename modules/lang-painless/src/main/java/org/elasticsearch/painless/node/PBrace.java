@@ -19,17 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BraceNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store and defers to a child subnode.
@@ -47,16 +47,10 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-        index.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        prefix.analyze(locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        prefix.analyze(scriptRoot, scope);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        prefix = prefix.cast(scriptRoot, scope);
 
         if (prefix.actual.isArray()) {
             sub = new PSubBrace(location, prefix.actual, index);
@@ -75,14 +69,21 @@ public final class PBrace extends AStoreable {
         sub.read = read;
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(locals);
+        sub.analyze(scriptRoot, scope);
         actual = sub.actual;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.write(writer, globals);
+    BraceNode write(ClassNode classNode) {
+        BraceNode braceNode = new BraceNode();
+
+        braceNode.setLeftNode(prefix.write(classNode));
+        braceNode.setRightNode(sub.write(classNode));
+
+        braceNode.setLocation(location);
+        braceNode.setExpressionType(actual);
+
+        return braceNode;
     }
 
     @Override
@@ -94,27 +95,6 @@ public final class PBrace extends AStoreable {
     void updateActual(Class<?> actual) {
         sub.updateActual(actual);
         this.actual = actual;
-    }
-
-    @Override
-    int accessElementCount() {
-        return sub.accessElementCount();
-    }
-
-    @Override
-    void setup(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.setup(writer, globals);
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
-        sub.load(writer, globals);
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        sub.store(writer, globals);
     }
 
     @Override

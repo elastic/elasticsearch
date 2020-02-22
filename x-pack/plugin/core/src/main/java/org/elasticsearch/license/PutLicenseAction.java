@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 public class PutLicenseAction extends ActionType<PutLicenseResponse> {
@@ -15,11 +14,6 @@ public class PutLicenseAction extends ActionType<PutLicenseResponse> {
     public static final String NAME = "cluster:admin/xpack/license/put";
 
     private PutLicenseAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<PutLicenseResponse> getResponseReader() {
-        return PutLicenseResponse::new;
+        super(NAME, PutLicenseResponse::new);
     }
 }

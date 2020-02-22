@@ -29,6 +29,7 @@ userPrincipalName: ironman@ad.test.elasticsearch.com
 userPrincipalName: CN=ironman@ad.test.elasticsearch.com
 userPassword: password
 sn: Stark
+departmentNumber: 12
 
 dn: CN=Thor,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com
 objectclass: user
@@ -42,3 +43,4 @@ tokenGroups:: AQUAAAAAAAUVAAAA4rc20emZjwwpdMkMUQQAAA==
 userPrincipalName: Thor@ad.test.elasticsearch.com
 userPassword: password
 sn: Stark
+departmentNumber: 13

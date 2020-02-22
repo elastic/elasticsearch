@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class PostStartBasicAction extends ActionType<PostStartBasicResponse> {
 
@@ -14,11 +13,6 @@ public class PostStartBasicAction extends ActionType<PostStartBasicResponse> {
     public static final String NAME = "cluster:admin/xpack/license/start_basic";
 
     private PostStartBasicAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<PostStartBasicResponse> getResponseReader() {
-        return PostStartBasicResponse::new;
+        super(NAME, PostStartBasicResponse::new);
     }
 }

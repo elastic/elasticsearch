@@ -228,14 +228,13 @@ public class AnalysisModuleTests extends ESTestCase {
         }
     }
 
-    public void testStandardFilterBWC() throws IOException {
+    public void testStandardFilterBWC() {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
         final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).put(IndexMetaData.SETTING_VERSION_CREATED, version)
                 .build();
-        IndexAnalyzers analyzers = getIndexAnalyzers(settings);
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> analyzers.get("my_standard").tokenStream("", ""));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
         assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
     }
 
@@ -264,8 +263,8 @@ public class AnalysisModuleTests extends ESTestCase {
             @Override
             public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
                 // Need mock keyword tokenizer here, because alpha / beta versions are broken up by the dash.
-                return singletonMap("keyword", (indexSettings, environment, name, settings) ->
-                    () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
+                return singletonMap("keyword", (indexSettings, environment, name, settings)
+                    -> TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
             }
         })).getAnalysisRegistry();
 

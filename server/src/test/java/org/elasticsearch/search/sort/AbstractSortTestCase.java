@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -182,7 +183,11 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
-    protected QueryShardContext createMockShardContext() {
+    protected final QueryShardContext createMockShardContext() {
+        return createMockShardContext(null);
+    }
+
+    protected final QueryShardContext createMockShardContext(IndexSearcher searcher) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
             Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
@@ -191,8 +196,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName);
             return builder.build(idxSettings, fieldType, new IndexFieldDataCache.None(), null, null);
         };
-        return new QueryShardContext(0, idxSettings, bitsetFilterCache, IndexSearcher::new, indexFieldDataLookup, null, null,
-                scriptService, xContentRegistry(), namedWriteableRegistry, null, null, () -> randomNonNegativeLong(), null) {
+        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
+                null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
+                () -> randomNonNegativeLong(), null, null, () -> true) {
 
             @Override
             public MappedFieldType fieldMapper(String name) {

@@ -26,10 +26,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -51,10 +49,13 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.ge
 public class RestTasksAction extends AbstractCatAction {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestTasksAction(Settings settings, RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/tasks", this);
+    public RestTasksAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/tasks"));
     }
 
     @Override

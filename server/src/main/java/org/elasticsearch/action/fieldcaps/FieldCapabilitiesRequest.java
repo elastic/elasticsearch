@@ -49,11 +49,24 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
 
-    private static ObjectParser<FieldCapabilitiesRequest, Void> PARSER =
+    private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER =
         new ObjectParser<>(NAME, FieldCapabilitiesRequest::new);
 
     static {
         PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), FIELDS_FIELD);
+    }
+
+    public FieldCapabilitiesRequest(StreamInput in) throws IOException {
+        super(in);
+        fields = in.readStringArray();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        mergeResults = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            includeUnmapped = in.readBoolean();
+        } else {
+            includeUnmapped = false;
+        }
     }
 
     public FieldCapabilitiesRequest() {}
@@ -75,20 +88,6 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
      */
     void setMergeResults(boolean mergeResults) {
         this.mergeResults = mergeResults;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        fields = in.readStringArray();
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        mergeResults = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            includeUnmapped = in.readBoolean();
-        } else {
-            includeUnmapped = false;
-        }
     }
 
     @Override

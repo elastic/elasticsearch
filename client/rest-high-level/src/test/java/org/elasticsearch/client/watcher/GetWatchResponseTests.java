@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetWatchResponseTests extends AbstractResponseTestCase<GetWatchResponse, org.elasticsearch.client.watcher.GetWatchResponse> {
 
     @Override
-    protected GetWatchResponse createServerTestInstance() {
+    protected GetWatchResponse createServerTestInstance(XContentType xContentType) {
         String id = randomAlphaOfLength(10);
         if (LuceneTestCase.rarely()) {
             return new GetWatchResponse(id);

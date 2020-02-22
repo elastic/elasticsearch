@@ -94,7 +94,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap)) {
             assertEquals(positionIncrementGap, analyzer.getPositionIncrementGap(randomAlphaOfLength(5)));
             assertEquals(offsetGap >= 0 ? offsetGap : 1, analyzer.getOffsetGap(randomAlphaOfLength(5)));
-            assertEquals("standard", analyzer.getComponents().getTokenizerName());
+            assertEquals("standard", analyzer.getComponents().getTokenizerFactory().name());
             assertEquals(0, analyzer.getComponents().getCharFilters().length);
             assertSame(testAnalysis.tokenizer.get("standard"), analyzer.getComponents().getTokenizerFactory());
             assertEquals(1, analyzer.getComponents().getTokenFilters().length);

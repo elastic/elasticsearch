@@ -39,7 +39,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -59,9 +58,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -202,7 +199,6 @@ public class PluginsService {
 
     public Settings updatedSettings() {
         Map<String, String> foundSettings = new HashMap<>();
-        final Map<String, String> features = new TreeMap<>();
         final Settings.Builder builder = Settings.builder();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             Settings settings = plugin.v2().additionalSettings();
@@ -214,23 +210,6 @@ public class PluginsService {
                 }
             }
             builder.put(settings);
-            final Optional<String> maybeFeature = plugin.v2().getFeature();
-            if (maybeFeature.isPresent()) {
-                final String feature = maybeFeature.get();
-                if (features.containsKey(feature)) {
-                    final String message = String.format(
-                            Locale.ROOT,
-                            "duplicate feature [%s] in plugin [%s], already added in [%s]",
-                            feature,
-                            plugin.v1().getName(),
-                            features.get(feature));
-                    throw new IllegalArgumentException(message);
-                }
-                features.put(feature, plugin.v1().getName());
-            }
-        }
-        for (final String feature : features.keySet()) {
-            builder.put(TransportSettings.FEATURE_PREFIX + "." + feature, true);
         }
         return builder.put(this.settings).build();
     }
@@ -580,7 +559,7 @@ public class PluginsService {
             throw new IllegalStateException(signatureMessage(pluginClass));
         }
 
-        final Class[] parameterTypes = constructor.getParameterTypes();
+        final Class<?>[] parameterTypes = constructor.getParameterTypes();
         try {
             if (constructor.getParameterCount() == 2 && parameterTypes[0] == Settings.class && parameterTypes[1] == Path.class) {
                 return (Plugin)constructor.newInstance(settings, configPath);
@@ -606,6 +585,7 @@ public class PluginsService {
                 "()");
     }
 
+    @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass()))
             .map(p -> ((T)p.v2())).collect(Collectors.toList());

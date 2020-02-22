@@ -8,21 +8,27 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -37,11 +43,15 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -67,25 +77,35 @@ public class JobResultsPersister {
 
     private static final Logger logger = LogManager.getLogger(JobResultsPersister.class);
 
-    private final Client client;
+    private final OriginSettingClient client;
+    private final ResultsPersisterService resultsPersisterService;
+    private final AnomalyDetectionAuditor auditor;
 
-    public JobResultsPersister(Client client) {
+    public JobResultsPersister(OriginSettingClient client,
+                               ResultsPersisterService resultsPersisterService,
+                               AnomalyDetectionAuditor auditor) {
         this.client = client;
+        this.resultsPersisterService = resultsPersisterService;
+        this.auditor = auditor;
     }
 
-    public Builder bulkPersisterBuilder(String jobId) {
-        return new Builder(jobId);
+    public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
+        return new Builder(jobId, resultsPersisterService, shouldRetry);
     }
 
     public class Builder {
         private BulkRequest bulkRequest;
         private final String jobId;
         private final String indexName;
+        private final Supplier<Boolean> shouldRetry;
+        private final ResultsPersisterService resultsPersisterService;
 
-        private Builder(String jobId) {
+        private Builder(String jobId, ResultsPersisterService resultsPersisterService, Supplier<Boolean> shouldRetry) {
             this.jobId = Objects.requireNonNull(jobId);
             indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
             bulkRequest = new BulkRequest();
+            this.shouldRetry = shouldRetry;
+            this.resultsPersisterService = resultsPersisterService;
         }
 
         /**
@@ -129,7 +149,11 @@ public class JobResultsPersister {
          * @return this
          */
         public Builder persistTimingStats(TimingStats timingStats) {
-            indexResult(TimingStats.documentId(timingStats.getJobId()), timingStats, TimingStats.TYPE.getPreferredName());
+            indexResult(
+                TimingStats.documentId(timingStats.getJobId()),
+                timingStats,
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+                TimingStats.TYPE.getPreferredName());
             return this;
         }
 
@@ -184,7 +208,11 @@ public class JobResultsPersister {
         }
 
         private void indexResult(String id, ToXContent resultDoc, String resultType) {
-            try (XContentBuilder content = toXContentBuilder(resultDoc)) {
+            indexResult(id, resultDoc, ToXContent.EMPTY_PARAMS, resultType);
+        }
+
+        private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) {
+            try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
                 bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
@@ -203,14 +231,9 @@ public class JobResultsPersister {
                 return;
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
-
-            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-                BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
-                if (addRecordsResponse.hasFailures()) {
-                    logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
-                }
-            }
-
+            resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, (msg) -> {
+                auditor.warning(jobId, "Bulk indexing of results failed " + msg);
+            });
             bulkRequest = new BulkRequest();
         }
 
@@ -225,10 +248,10 @@ public class JobResultsPersister {
      *
      * @param category The category to be persisted
      */
-    public void persistCategoryDefinition(CategoryDefinition category) {
-        Persistable persistable = new Persistable(category.getJobId(), category, category.getId());
-
-        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(category.getJobId())).actionGet();
+    public void persistCategoryDefinition(CategoryDefinition category, Supplier<Boolean> shouldRetry) {
+        Persistable persistable =
+            new Persistable(AnomalyDetectorsIndex.resultsWriteAlias(category.getJobId()), category.getJobId(), category, category.getId());
+        persistable.persist(shouldRetry);
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }
@@ -236,37 +259,89 @@ public class JobResultsPersister {
     /**
      * Persist the quantiles (blocking)
      */
-    public void persistQuantiles(Quantiles quantiles) {
-        Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).actionGet();
+    public void persistQuantiles(Quantiles quantiles, Supplier<Boolean> shouldRetry) {
+        String jobId = quantiles.getJobId();
+        String quantilesDocId = Quantiles.documentId(jobId);
+        SearchRequest searchRequest = buildQuantilesDocIdSearch(quantilesDocId);
+        SearchResponse searchResponse =
+            resultsPersisterService.searchWithRetry(
+                searchRequest,
+                jobId,
+                shouldRetry,
+                (msg) -> auditor.warning(jobId, quantilesDocId + " " + msg));
+        String indexOrAlias =
+            searchResponse.getHits().getHits().length > 0
+                ? searchResponse.getHits().getHits()[0].getIndex()
+                : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
+
+        Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);
+        persistable.persist(shouldRetry);
     }
 
     /**
      * Persist the quantiles (async)
      */
     public void persistQuantiles(Quantiles quantiles, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<IndexResponse> listener) {
-        Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
-        persistable.setRefreshPolicy(refreshPolicy);
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), listener);
+        String quantilesDocId = Quantiles.documentId(quantiles.getJobId());
+
+        // Step 2: Create or update the quantiles document:
+        //   - if the document did not exist, create the new one in the current write index
+        //   - if the document did exist, update it in the index where it resides (not necessarily the current write index)
+        ActionListener<SearchResponse> searchFormerQuantilesDocListener = ActionListener.wrap(
+            searchResponse -> {
+                String indexOrAlias =
+                    searchResponse.getHits().getHits().length > 0
+                        ? searchResponse.getHits().getHits()[0].getIndex()
+                        : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
+
+                Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);
+                persistable.setRefreshPolicy(refreshPolicy);
+                persistable.persist(listener);
+            },
+            listener::onFailure
+        );
+
+        // Step 1: Search for existing quantiles document in .ml-state*
+        SearchRequest searchRequest = buildQuantilesDocIdSearch(quantilesDocId);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest, searchFormerQuantilesDocListener, client::search);
+    }
+
+    private static SearchRequest buildQuantilesDocIdSearch(String quantilesDocId) {
+        return new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .allowPartialSearchResults(false)
+            .source(
+                new SearchSourceBuilder()
+                    .size(1)
+                    .trackTotalHits(false)
+                    .query(new BoolQueryBuilder().filter(new IdsQueryBuilder().addIds(quantilesDocId))));
     }
 
     /**
      * Persist a model snapshot description
      */
-    public IndexResponse persistModelSnapshot(ModelSnapshot modelSnapshot, WriteRequest.RefreshPolicy refreshPolicy) {
-        Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.documentId(modelSnapshot));
+    public BulkResponse persistModelSnapshot(ModelSnapshot modelSnapshot,
+                                             WriteRequest.RefreshPolicy refreshPolicy,
+                                             Supplier<Boolean> shouldRetry) {
+        Persistable persistable =
+            new Persistable(
+                AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId()),
+                modelSnapshot.getJobId(),
+                modelSnapshot,
+                ModelSnapshot.documentId(modelSnapshot));
         persistable.setRefreshPolicy(refreshPolicy);
-        return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId())).actionGet();
+        return persistable.persist(shouldRetry);
     }
 
     /**
      * Persist the memory usage data (blocking)
      */
-    public void persistModelSizeStats(ModelSizeStats modelSizeStats) {
+    public void persistModelSizeStats(ModelSizeStats modelSizeStats, Supplier<Boolean> shouldRetry) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
-        Persistable persistable = new Persistable(jobId, modelSizeStats, modelSizeStats.getId());
-        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
+        Persistable persistable =
+            new Persistable(AnomalyDetectorsIndex.resultsWriteAlias(jobId), jobId, modelSizeStats, modelSizeStats.getId());
+        persistable.persist(shouldRetry);
     }
 
     /**
@@ -276,9 +351,10 @@ public class JobResultsPersister {
                                       ActionListener<IndexResponse> listener) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
-        Persistable persistable = new Persistable(jobId, modelSizeStats, modelSizeStats.getId());
+        Persistable persistable =
+            new Persistable(AnomalyDetectorsIndex.resultsWriteAlias(jobId), jobId, modelSizeStats, modelSizeStats.getId());
         persistable.setRefreshPolicy(refreshPolicy);
-        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId), listener);
+        persistable.persist(listener);
     }
 
     /**
@@ -325,22 +401,50 @@ public class JobResultsPersister {
         }
     }
 
-    private XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
+    /**
+     * Persist datafeed timing stats
+     *
+     * @param timingStats datafeed timing stats to persist
+     * @param refreshPolicy refresh policy to apply
+     */
+    public BulkResponse persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy) {
+        String jobId = timingStats.getJobId();
+        logger.trace("[{}] Persisting datafeed timing stats", jobId);
+        Persistable persistable =
+            new Persistable(
+                AnomalyDetectorsIndex.resultsWriteAlias(jobId),
+                jobId,
+                timingStats,
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+                DatafeedTimingStats.documentId(timingStats.getJobId()));
+        persistable.setRefreshPolicy(refreshPolicy);
+        return persistable.persist(() -> true);
+    }
+
+    private static XContentBuilder toXContentBuilder(ToXContent obj, ToXContent.Params params) throws IOException {
         XContentBuilder builder = jsonBuilder();
-        obj.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        obj.toXContent(builder, params);
         return builder;
     }
 
     private class Persistable {
 
+        private final String indexName;
         private final String jobId;
         private final ToXContent object;
+        private final ToXContent.Params params;
         private final String id;
         private WriteRequest.RefreshPolicy refreshPolicy;
 
-        Persistable(String jobId, ToXContent object, String id) {
+        Persistable(String indexName, String jobId, ToXContent object, String id) {
+            this(indexName, jobId, object, ToXContent.EMPTY_PARAMS, id);
+        }
+
+        Persistable(String indexName, String jobId, ToXContent object, ToXContent.Params params, String id) {
+            this.indexName = indexName;
             this.jobId = jobId;
             this.object = object;
+            this.params = params;
             this.id = id;
             this.refreshPolicy = WriteRequest.RefreshPolicy.NONE;
         }
@@ -349,16 +453,31 @@ public class JobResultsPersister {
             this.refreshPolicy = refreshPolicy;
         }
 
-        ActionFuture<IndexResponse> persist(String indexName) {
-            PlainActionFuture<IndexResponse> actionFuture = PlainActionFuture.newFuture();
-            persist(indexName, actionFuture);
-            return actionFuture;
+        BulkResponse persist(Supplier<Boolean> shouldRetry) {
+            logCall(indexName);
+            try {
+                return resultsPersisterService.indexWithRetry(jobId,
+                    indexName,
+                    object,
+                    params,
+                    refreshPolicy,
+                    id,
+                    shouldRetry,
+                    (msg) -> auditor.warning(jobId, id + " " + msg));
+            } catch (IOException e) {
+                logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
+                IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
+                notCreatedResponse.setResult(Result.NOOP);
+                return new BulkResponse(
+                    new BulkItemResponse[]{new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, notCreatedResponse.build())},
+                    0);
+            }
         }
 
-        void persist(String indexName, ActionListener<IndexResponse> listener) {
+        void persist(ActionListener<IndexResponse> listener) {
             logCall(indexName);
 
-            try (XContentBuilder content = toXContentBuilder(object)) {
+            try (XContentBuilder content = toXContentBuilder(object, params)) {
                 IndexRequest indexRequest = new IndexRequest(indexName).id(id).source(content).setRefreshPolicy(refreshPolicy);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
             } catch (IOException e) {
@@ -377,4 +496,5 @@ public class JobResultsPersister {
             }
         }
     }
+
 }

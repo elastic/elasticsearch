@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class GetBasicStatusAction extends StreamableResponseActionType<GetBasicStatusResponse> {
+public class GetBasicStatusAction extends ActionType<GetBasicStatusResponse> {
 
     public static final GetBasicStatusAction INSTANCE = new GetBasicStatusAction();
     public static final String NAME = "cluster:admin/xpack/license/basic_status";
 
     private GetBasicStatusAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetBasicStatusResponse newResponse() {
-        return new GetBasicStatusResponse();
+        super(NAME, GetBasicStatusResponse::new);
     }
 }

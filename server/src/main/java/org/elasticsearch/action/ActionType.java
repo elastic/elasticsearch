@@ -33,15 +33,6 @@ public class ActionType<Response extends ActionResponse> {
 
     /**
      * @param name The name of the action, must be unique across actions.
-     * @deprecated Pass a {@link Writeable.Reader} with {@link }
-     */
-    @Deprecated
-    protected ActionType(String name) {
-        this(name, null);
-    }
-
-    /**
-     * @param name The name of the action, must be unique across actions.
      * @param responseReader A reader for the response type
      */
     public ActionType(String name, Writeable.Reader<Response> responseReader) {

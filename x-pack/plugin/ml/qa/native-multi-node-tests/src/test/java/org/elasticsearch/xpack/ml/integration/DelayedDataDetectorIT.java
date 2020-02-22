@@ -50,7 +50,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
     @Before
     public void putDataintoIndex() {
         client().admin().indices().prepareCreate(index)
-            .addMapping("type", "time", "type=date", "value", "type=long")
+            .setMapping("time", "type=date", "value", "type=long")
             .get();
         numDocs = randomIntBetween(32, 128);
         long oneDayAgo = now - 86400000;
@@ -219,7 +219,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         int maxDelta = (int) (end - start - 1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest(index, "type");
+            IndexRequest indexRequest = new IndexRequest(index);
             long timestamp = start + randomIntBetween(0, maxDelta);
             assert timestamp >= start && timestamp < end;
             indexRequest.source("time", timestamp, "value", i);

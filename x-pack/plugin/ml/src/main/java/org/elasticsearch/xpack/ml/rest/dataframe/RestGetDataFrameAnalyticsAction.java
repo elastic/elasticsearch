@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.ml.rest.dataframe;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -18,14 +16,17 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetDataFrameAnalyticsAction extends BaseRestHandler {
 
-    public RestGetDataFrameAnalyticsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "data_frame/analytics", this);
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "data_frame/analytics/{"
-            + DataFrameAnalyticsConfig.ID.getPreferredName() + "}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics"),
+            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}"));
     }
 
     @Override

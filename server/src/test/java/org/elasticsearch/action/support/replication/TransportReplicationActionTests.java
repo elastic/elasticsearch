@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -235,10 +234,12 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary("index", true, 0));
 
+        ShardId shardId = new ShardId(clusterService.state().metaData().index("index").getIndex(), 0);
+
         {
             setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
 
-            Request request = globalBlock ? new Request(NO_SHARD_ID) : new Request(NO_SHARD_ID).index("index");
+            Request request = new Request(shardId);
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -253,7 +254,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         {
             setStateWithBlock(clusterService, retryableBlock, globalBlock);
 
-            Request requestWithTimeout = (globalBlock ? new Request(NO_SHARD_ID) : new Request(NO_SHARD_ID).index("index")).timeout("5ms");
+            Request requestWithTimeout = (globalBlock ? new Request(shardId) : new Request(shardId)).timeout("5ms");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -269,7 +270,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         {
             setStateWithBlock(clusterService, retryableBlock, globalBlock);
 
-            Request request = globalBlock ? new Request(NO_SHARD_ID) : new Request(NO_SHARD_ID).index("index");
+            Request request = new Request(shardId);
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -466,7 +467,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         ShardRouting relocationTarget = clusterService.state().getRoutingTable().shardRoutingTable(shardId)
             .shardsWithState(ShardRoutingState.INITIALIZING).get(0);
         AllocationService allocationService = ESAllocationTestCase.createAllocationService();
-        ClusterState updatedState = allocationService.applyStartedShards(state, Collections.singletonList(relocationTarget));
+        ClusterState updatedState = ESAllocationTestCase.startShardsAndReroute(allocationService, state, relocationTarget);
 
         setState(clusterService, updatedState);
         logger.debug("--> relocation complete state:\n{}", clusterService.state());
@@ -487,6 +488,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state(index, true,
             randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
+
         Request request = new Request(new ShardId("unknown_index", "_na_", 0)).timeout("1ms");
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
@@ -495,7 +497,21 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertListenerThrows("must throw index not found exception", listener, IndexNotFoundException.class);
         assertPhase(task, "failed");
+        assertFalse(request.isRetrySet.get());
+
+        // try again with a request that is based on a newer cluster state, make sure we waited until that
+        // cluster state for the index to appear
+        request = new Request(new ShardId("unknown_index", "_na_", 0)).timeout("1ms");
+        request.routedBasedOnClusterVersion(clusterService.state().version() + 1);
+        listener = new PlainActionFuture<>();
+        task = maybeTask();
+
+        reroutePhase = action.new ReroutePhase(task, request, listener);
+        reroutePhase.run();
+        assertListenerThrows("must throw index not found exception", listener, IndexNotFoundException.class);
+        assertPhase(task, "failed");
         assertTrue(request.isRetrySet.get());
+
         request = new Request(new ShardId(index, "_na_", 10)).timeout("1ms");
         listener = new PlainActionFuture<>();
         reroutePhase = action.new ReroutePhase(null, request, listener);
@@ -513,7 +529,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             new CloseIndexRequest(index)));
         assertThat(clusterService.state().metaData().indices().get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        Request request = new Request(new ShardId("test", "_na_", 0)).timeout("1ms");
+        Request request = new Request(new ShardId(clusterService.state().metaData().indices().get(index).getIndex(), 0)).timeout("1ms");
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
 
@@ -1211,11 +1227,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void onRetry() {
             super.onRetry();
             isRetrySet.set(true);
@@ -1228,6 +1239,10 @@ public class TransportReplicationActionTests extends ESTestCase {
     }
 
     static class TestResponse extends ReplicationResponse {
+        TestResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+
         TestResponse() {
             setShardInfo(new ShardInfo());
         }
@@ -1246,13 +1261,13 @@ public class TransportReplicationActionTests extends ESTestCase {
                    ThreadPool threadPool, IndicesService indicesService) {
             super(settings, actionName, transportService, clusterService, indicesService, threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
+                new ActionFilters(new HashSet<>()),
                 Request::new, Request::new, ThreadPool.Names.SAME);
         }
 
         @Override
-        protected TestResponse newResponseInstance() {
-            return new TestResponse();
+        protected TestResponse newResponseInstance(StreamInput in) throws IOException {
+            return new TestResponse(in);
         }
 
         @Override
@@ -1267,11 +1282,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
             request.processedOnReplicas.incrementAndGet();
             return new ReplicaResult();
-        }
-
-        @Override
-        protected boolean resolveIndex() {
-            return false;
         }
     }
 

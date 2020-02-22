@@ -5,20 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
@@ -26,11 +27,14 @@ import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
-import org.elasticsearch.xpack.sql.type.Schema;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,7 +53,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     public TransportSqlQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                    ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
                                    SqlLicenseChecker sqlLicenseChecker) {
-        super(SqlQueryAction.NAME, transportService, actionFilters, (Writeable.Reader<SqlQueryRequest>) SqlQueryRequest::new);
+        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
                 new SecurityContext(settings, threadPool.getThreadContext()) : null;
@@ -67,50 +71,57 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     /**
      * Actual implementation of the action. Statically available to support embedded mode.
      */
-    public static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener,
+    static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener,
                                  String username, String clusterName) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         Configuration cfg = new Configuration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
-                request.filter(), request.mode(), request.clientId(), username, clusterName, request.fieldMultiValueLeniency(), 
+                request.filter(), request.mode(), request.clientId(), username, clusterName, request.fieldMultiValueLeniency(),
                 request.indexIncludeFrozen());
 
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(cfg, request.query(), request.params(),
-                    wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
+                    wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), listener::onFailure));
         } else {
-            planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    wrap(rowSet -> listener.onResponse(createResponse(request.mode(), request.columnar(), rowSet, null)),
+            Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
+            planExecutor.nextPage(cfg, decoded.v1(),
+                    wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p)),
                             listener::onFailure));
         }
     }
 
-    static SqlQueryResponse createResponse(SqlQueryRequest request, SchemaRowSet rowSet) {
+    private static SqlQueryResponse createResponseWithSchema(SqlQueryRequest request, Page page) {
+        RowSet rset = page.rowSet();
+        if ((rset instanceof SchemaRowSet) == false) {
+            throw new SqlIllegalArgumentException("No schema found inside {}", rset.getClass());
+        }
+        SchemaRowSet rowSet = (SchemaRowSet) rset;
+
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
             if (Mode.isDriver(request.mode())) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName, entry.type().displaySize));
+                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName(), SqlDataTypes.displaySize(entry.type())));
             } else {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName));
+                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName()));
             }
         }
         columns = unmodifiableList(columns);
-        return createResponse(request.mode(), request.columnar(), rowSet, columns);
+        return createResponse(request, request.zoneId(), columns, page);
     }
 
-    static SqlQueryResponse createResponse(Mode mode, boolean columnar, RowSet rowSet, List<ColumnInfo> columns) {
+    private static SqlQueryResponse createResponse(SqlQueryRequest request, ZoneId zoneId, List<ColumnInfo> header, Page page) {
         List<List<Object>> rows = new ArrayList<>();
-        rowSet.forEachRow(rowView -> {
+        page.rowSet().forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
             rowView.forEachColumn(row::add);
             rows.add(unmodifiableList(row));
         });
 
         return new SqlQueryResponse(
-                Cursors.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
-                mode,
-                columnar,
-                columns,
+                Cursors.encodeToString(page.next(), zoneId),
+                request.mode(),
+                request.columnar(),
+                header,
                 rows);
     }
 }

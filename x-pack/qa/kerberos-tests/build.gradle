@@ -1,67 +1,63 @@
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.nio.file.Files
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
-testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
+testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "peppa"
 
 dependencies {
-    testCompile project(':x-pack:plugin:core')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
-    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testCompile project(':x-pack:plugin:core')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 
 testClusters.integTest {
-    distribution = 'DEFAULT'
-    // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the cluster
-    // but do not know the exact address that is first in the http ports file
-    setting 'http.host', '127.0.0.1'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.authc.realms.file.file1.order', '0'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.security.audit.enabled', 'true'
-    setting 'xpack.security.authc.token.enabled', 'true'
-    // Kerberos realm
-    setting 'xpack.security.authc.realms.kerberos.kerberos.order', '1'
-    setting 'xpack.security.authc.realms.kerberos.kerberos.keytab.path', 'es.keytab'
-    setting 'xpack.security.authc.realms.kerberos.kerberos.krb.debug', 'true'
-    setting 'xpack.security.authc.realms.kerberos.kerberos.remove_realm_name', 'false'
+  testDistribution = 'DEFAULT'
+  // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the cluster
+  // but do not know the exact address that is first in the http ports file
+  setting 'http.host', '127.0.0.1'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.realms.file.file1.order', '0'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.security.audit.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  // Kerberos realm
+  setting 'xpack.security.authc.realms.kerberos.kerberos.order', '1'
+  setting 'xpack.security.authc.realms.kerberos.kerberos.keytab.path', 'es.keytab'
+  setting 'xpack.security.authc.realms.kerberos.kerberos.krb.debug', 'true'
+  setting 'xpack.security.authc.realms.kerberos.kerberos.remove_realm_name', 'false'
 
 
-    systemProperty "java.security.krb5.conf", { project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("peppa").toString() }
-    systemProperty "sun.security.krb5.debug", "true"
+  systemProperty "java.security.krb5.conf", { project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("peppa").toString() }
+  systemProperty "sun.security.krb5.debug", "true"
 
-    extraConfigFile "es.keytab", project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "HTTP_localhost.keytab")
+  extraConfigFile "es.keytab", project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "HTTP_localhost.keytab")
 
-    user username: "test_admin", password: "x-pack-test-password"
-    user username: "test_kibana_user", password: "x-pack-test-password", role: "kibana_system"
+  user username: "test_admin", password: "x-pack-test-password"
+  user username: "test_kibana_user", password: "x-pack-test-password", role: "kibana_system"
 }
 
 task copyKeytabToGeneratedResources(type: Copy) {
-    from project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "peppa.keytab")
-    into "$buildDir/generated-resources/keytabs"
-    dependsOn project(':test:fixtures:krb5kdc-fixture').postProcessFixture
+  from project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "peppa.keytab")
+  into "$buildDir/generated-resources/keytabs"
+  dependsOn project(':test:fixtures:krb5kdc-fixture').postProcessFixture
 }
 
 String realm = "BUILD.ELASTIC.CO"
 integTest.runner {
-    Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
-    nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
-    nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"
-    nonInputProperties.systemProperty 'test.userpwd', "george@${realm}"
-    systemProperty 'test.userpwd.password', "dino"
-    systemProperty 'tests.security.manager', 'true'
-    jvmArgs([
-            "-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("peppa")}",
-            "-Dsun.security.krb5.debug=true"
-    ])
-    classpath += copyKeytabToGeneratedResources.outputs.files
+  Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
+  nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
+  nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"
+  nonInputProperties.systemProperty 'test.userpwd', "george@${realm}"
+  systemProperty 'test.userpwd.password', "dino"
+  systemProperty 'tests.security.manager', 'true'
+  jvmArgs([
+    "-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("peppa")}",
+    "-Dsun.security.krb5.debug=true"
+  ])
+  classpath += copyKeytabToGeneratedResources.outputs.files
 }

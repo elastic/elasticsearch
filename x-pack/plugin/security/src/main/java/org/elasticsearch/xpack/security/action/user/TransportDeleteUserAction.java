@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
-import java.util.function.Supplier;
-
 public class TransportDeleteUserAction extends HandledTransportAction<DeleteUserRequest, DeleteUserResponse> {
 
     private final Settings settings;
@@ -31,7 +29,7 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
     @Inject
     public TransportDeleteUserAction(Settings settings, ActionFilters actionFilters,
                                      NativeUsersStore usersStore, TransportService transportService) {
-        super(DeleteUserAction.NAME, transportService, actionFilters, (Supplier<DeleteUserRequest>) DeleteUserRequest::new);
+        super(DeleteUserAction.NAME, transportService, actionFilters, DeleteUserRequest::new);
         this.settings = settings;
         this.usersStore = usersStore;
     }

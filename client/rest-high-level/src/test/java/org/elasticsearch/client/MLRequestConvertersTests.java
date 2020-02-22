@@ -35,7 +35,10 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameRequestTests;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequestTests;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -55,6 +58,8 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -66,6 +71,7 @@ import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
@@ -85,10 +91,10 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
+import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.client.ml.inference.TrainedModelConfig;
+import org.elasticsearch.client.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
@@ -776,22 +782,115 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + deleteRequest.getId(), request.getEndpoint());
         assertNull(request.getEntity());
+        assertThat(request.getParameters().isEmpty(), is(true));
+
+        deleteRequest = new DeleteDataFrameAnalyticsRequest(randomAlphaOfLength(10));
+        deleteRequest.setForce(true);
+        request = MLRequestConverters.deleteDataFrameAnalytics(deleteRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + deleteRequest.getId(), request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(Boolean.toString(true), request.getParameters().get("force"));
     }
 
     public void testEvaluateDataFrame() throws IOException {
-        EvaluateDataFrameRequest evaluateRequest =
-            new EvaluateDataFrameRequest(
-                Arrays.asList(generateRandomStringArray(1, 10, false, false)),
-                new BinarySoftClassification(
-                    randomAlphaOfLengthBetween(1, 10),
-                    randomAlphaOfLengthBetween(1, 10),
-                    PrecisionMetric.at(0.5), RecallMetric.at(0.6, 0.7)));
+        EvaluateDataFrameRequest evaluateRequest = EvaluateDataFrameRequestTests.createRandom();
         Request request = MLRequestConverters.evaluateDataFrame(evaluateRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/_evaluate", request.getEndpoint());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             EvaluateDataFrameRequest parsedRequest = EvaluateDataFrameRequest.fromXContent(parser);
             assertThat(parsedRequest, equalTo(evaluateRequest));
+        }
+    }
+
+    public void testExplainDataFrameAnalytics() throws IOException {
+        // Request with config
+        {
+            ExplainDataFrameAnalyticsRequest estimateRequest = new ExplainDataFrameAnalyticsRequest(randomDataFrameAnalyticsConfig());
+            Request request = MLRequestConverters.explainDataFrameAnalytics(estimateRequest);
+            assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+            assertEquals("/_ml/data_frame/analytics/_explain", request.getEndpoint());
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+                DataFrameAnalyticsConfig parsedConfig = DataFrameAnalyticsConfig.fromXContent(parser);
+                assertThat(parsedConfig, equalTo(estimateRequest.getConfig()));
+            }
+        }
+        // Request with id
+        {
+            ExplainDataFrameAnalyticsRequest estimateRequest = new ExplainDataFrameAnalyticsRequest("foo");
+            Request request = MLRequestConverters.explainDataFrameAnalytics(estimateRequest);
+            assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+            assertEquals("/_ml/data_frame/analytics/foo/_explain", request.getEndpoint());
+            assertNull(request.getEntity());
+        }
+    }
+
+    public void testGetTrainedModels() {
+        String modelId1 = randomAlphaOfLength(10);
+        String modelId2 = randomAlphaOfLength(10);
+        String modelId3 = randomAlphaOfLength(10);
+        GetTrainedModelsRequest getRequest = new GetTrainedModelsRequest(modelId1, modelId2, modelId3)
+            .setAllowNoMatch(false)
+            .setDecompressDefinition(true)
+            .setIncludeDefinition(false)
+            .setTags("tag1", "tag2")
+            .setPageParams(new PageParams(100, 300));
+
+        Request request = MLRequestConverters.getTrainedModels(getRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/inference/" + modelId1 + "," + modelId2 + "," + modelId3, request.getEndpoint());
+        assertThat(request.getParameters(),
+            allOf(
+                hasEntry("from", "100"),
+                hasEntry("size", "300"),
+                hasEntry("allow_no_match", "false"),
+                hasEntry("decompress_definition", "true"),
+                hasEntry("tags", "tag1,tag2"),
+                hasEntry("include_model_definition", "false")
+            ));
+        assertNull(request.getEntity());
+    }
+
+    public void testGetTrainedModelsStats() {
+        String modelId1 = randomAlphaOfLength(10);
+        String modelId2 = randomAlphaOfLength(10);
+        String modelId3 = randomAlphaOfLength(10);
+        GetTrainedModelsStatsRequest getRequest = new GetTrainedModelsStatsRequest(modelId1, modelId2, modelId3)
+            .setAllowNoMatch(false)
+            .setPageParams(new PageParams(100, 300));
+
+        Request request = MLRequestConverters.getTrainedModelsStats(getRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/inference/" + modelId1 + "," + modelId2 + "," + modelId3 + "/_stats", request.getEndpoint());
+        assertThat(request.getParameters(),
+            allOf(
+                hasEntry("from", "100"),
+                hasEntry("size", "300"),
+                hasEntry("allow_no_match", "false")
+            ));
+        assertNull(request.getEntity());
+    }
+
+    public void testDeleteTrainedModel() {
+        DeleteTrainedModelRequest deleteRequest = new DeleteTrainedModelRequest(randomAlphaOfLength(10));
+        Request request = MLRequestConverters.deleteTrainedModel(deleteRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/inference/" + deleteRequest.getId(), request.getEndpoint());
+        assertNull(request.getEntity());
+    }
+
+    public void testPutTrainedModel() throws IOException {
+        TrainedModelConfig trainedModelConfig = TrainedModelConfigTests.createTestTrainedModelConfig();
+        PutTrainedModelRequest putTrainedModelRequest = new PutTrainedModelRequest(trainedModelConfig);
+
+        Request request = MLRequestConverters.putTrainedModel(putTrainedModelRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_ml/inference/" + trainedModelConfig.getModelId()));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            TrainedModelConfig parsedTrainedModelConfig = TrainedModelConfig.PARSER.apply(parser, null).build();
+            assertThat(parsedTrainedModelConfig, equalTo(trainedModelConfig));
         }
     }
 
@@ -967,6 +1066,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         return new NamedXContentRegistry(namedXContent);
     }
 

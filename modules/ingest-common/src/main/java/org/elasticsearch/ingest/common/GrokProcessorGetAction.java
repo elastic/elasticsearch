@@ -22,44 +22,45 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class GrokProcessorGetAction extends StreamableResponseActionType<GrokProcessorGetAction.Response> {
+public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
 
     static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
     static final String NAME = "cluster:admin/ingest/processor/grok/get";
 
     private GrokProcessorGetAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response(null);
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest {
+
+        public Request() {}
+
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -67,10 +68,15 @@ public class GrokProcessorGetAction extends StreamableResponseActionType<GrokPro
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private Map<String, String> grokPatterns;
+        private final Map<String, String> grokPatterns;
 
         Response(Map<String, String> grokPatterns) {
             this.grokPatterns = grokPatterns;
+        }
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+            grokPatterns = in.readMap(StreamInput::readString, StreamInput::readString);
         }
 
         public Map<String, String> getGrokPatterns() {
@@ -87,14 +93,7 @@ public class GrokProcessorGetAction extends StreamableResponseActionType<GrokPro
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            grokPatterns = in.readMap(StreamInput::readString, StreamInput::readString);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(grokPatterns, StreamOutput::writeString, StreamOutput::writeString);
         }
     }
@@ -117,9 +116,10 @@ public class GrokProcessorGetAction extends StreamableResponseActionType<GrokPro
     }
 
     public static class RestAction extends BaseRestHandler {
-        RestAction(Settings settings, RestController controller) {
-            super(settings);
-            controller.registerHandler(GET, "/_ingest/processor/grok", this);
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(GET, "/_ingest/processor/grok"));
         }
 
         @Override

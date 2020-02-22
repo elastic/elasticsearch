@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,15 +29,17 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalConsumer;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -56,6 +59,13 @@ public class DateHistogramValuesSourceBuilder
         PARSER = new ObjectParser<>(DateHistogramValuesSourceBuilder.TYPE);
         PARSER.declareString(DateHistogramValuesSourceBuilder::format, new ParseField("format"));
         DateIntervalWrapper.declareIntervalFields(PARSER);
+        PARSER.declareField(DateHistogramValuesSourceBuilder::offset, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return p.longValue();
+            } else {
+                return DateHistogramAggregationBuilder.parseStringOffset(p.text());
+            }
+        }, Histogram.OFFSET_FIELD, ObjectParser.ValueType.LONG);
         PARSER.declareField(DateHistogramValuesSourceBuilder::timeZone, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return ZoneId.of(p.text());
@@ -71,6 +81,7 @@ public class DateHistogramValuesSourceBuilder
 
     private ZoneId timeZone = null;
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
+    private long offset = 0;
 
     public DateHistogramValuesSourceBuilder(String name) {
         super(name, ValueType.DATE);
@@ -80,12 +91,18 @@ public class DateHistogramValuesSourceBuilder
         super(in);
         dateHistogramInterval = new DateIntervalWrapper(in);
         timeZone = in.readOptionalZoneId();
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            offset = in.readLong();
+        }
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         dateHistogramInterval.writeTo(out);
         out.writeOptionalZoneId(timeZone);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeLong(offset);
+        }
     }
 
     @Override
@@ -211,14 +228,31 @@ public class DateHistogramValuesSourceBuilder
     /**
      * Gets the time zone to use for this aggregation
      */
+    @Override
     public ZoneId timeZone() {
         return timeZone;
     }
 
+    /**
+     * Get the offset to use when rounding, which is a number of milliseconds.
+     */
+    public long offset() {
+        return offset;
+    }
+
+    /**
+     * Set the offset on this builder, which is a number of milliseconds.
+     * @return this for chaining
+     */
+    public DateHistogramValuesSourceBuilder offset(long offset) {
+        this.offset = offset;
+        return this;
+    }
+
     @Override
-    protected CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException {
-        Rounding rounding = dateHistogramInterval.createRounding(timeZone());
-        ValuesSource orig = config.toValuesSource(context.getQueryShardContext());
+    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<?> config) throws IOException {
+        Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
+        ValuesSource orig = config.toValuesSource(queryShardContext);
         if (orig == null) {
             orig = ValuesSource.Numeric.EMPTY;
         }
@@ -228,7 +262,8 @@ public class DateHistogramValuesSourceBuilder
             // is specified in the builder.
             final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
-            return new CompositeValuesSourceConfig(name, fieldType, vs, docValueFormat, order(), missingBucket());
+            return new CompositeValuesSourceConfig(name, fieldType, vs, docValueFormat, order(),
+                missingBucket(), config.script() != null);
         } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }

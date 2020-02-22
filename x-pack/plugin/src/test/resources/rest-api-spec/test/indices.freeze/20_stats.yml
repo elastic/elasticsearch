@@ -10,8 +10,8 @@ setup:
 ---
 "Translog stats on frozen indices":
   - skip:
-      version: " - 7.2.99"
-      reason:  "frozen indices have translog stats starting version 7.3.0"
+      version: " - 7.3.99"
+      reason:  "start ignoring translog retention policy with soft-deletes enabled in 7.4"
 
   - do:
       index:
@@ -46,17 +46,17 @@ setup:
   - do:
       indices.stats:
         metric: [ translog ]
-  - match: { indices.test.primaries.translog.operations: 3 }
+  - match: { indices.test.primaries.translog.operations: 0 }
   - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
 
   # unfreeze index
   - do:
-      indices.freeze:
+      indices.unfreeze:
         index: test
   - is_true: acknowledged
 
   - do:
       indices.stats:
         metric: [ translog ]
-  - match: { indices.test.primaries.translog.operations: 3 }
+  - match: { indices.test.primaries.translog.operations: 0 }
   - match: { indices.test.primaries.translog.uncommitted_operations: 0 }

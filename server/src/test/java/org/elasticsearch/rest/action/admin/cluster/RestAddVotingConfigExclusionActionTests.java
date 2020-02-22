@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -35,7 +34,8 @@ public class RestAddVotingConfigExclusionActionTests extends RestActionTestCase 
 
     @Before
     public void setupAction() {
-        action = new RestAddVotingConfigExclusionAction(Settings.EMPTY, controller());
+        action = new RestAddVotingConfigExclusionAction();
+        controller().registerHandler(action);
     }
 
     public void testResolveVotingConfigExclusionsRequest() {

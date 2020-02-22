@@ -50,6 +50,12 @@ public final class NetworkService {
         Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
         Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_IDLE =
+        Setting.intSetting("network.tcp.keep_idle", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_INTERVAL =
+        Setting.intSetting("network.tcp.keep_interval", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_COUNT =
+        Setting.intSetting("network.tcp.keep_count", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * ActionType for cancelling running tasks
@@ -31,11 +30,7 @@ public class CancelTasksAction extends ActionType<CancelTasksResponse> {
     public static final String NAME = "cluster:admin/tasks/cancel";
 
     private CancelTasksAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<CancelTasksResponse> getResponseReader() {
-        return CancelTasksResponse::new;
+        super(NAME, CancelTasksResponse::new);
     }
 }
+

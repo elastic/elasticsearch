@@ -7,7 +7,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 1
         body: >
           {
@@ -17,7 +16,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 2
         body: >
           {
@@ -27,7 +25,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 3
         body: >
           {
@@ -37,7 +34,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 4
         body: >
           {

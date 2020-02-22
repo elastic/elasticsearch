@@ -18,21 +18,19 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -76,7 +74,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.waitUntil;
 
 /**
  * A plugin that adds a cancellable blocking test task of integration testing of the task manager.
@@ -128,8 +126,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     public static class NodeResponse extends BaseNodeResponse {
 
-        protected NodeResponse() {
-            super();
+        public NodeResponse(StreamInput in) throws IOException {
+            super(in);
         }
 
         public NodeResponse(DiscoveryNode node) {
@@ -139,22 +137,22 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     public static class NodesResponse extends BaseNodesResponse<NodeResponse> implements ToXContentFragment {
 
-        NodesResponse() {
-
+        NodesResponse(StreamInput in) throws IOException {
+            super(in);
         }
 
-        public NodesResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+        NodesResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(NodeResponse::new);
+            return in.readList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
 
         public int getFailureCount() {
@@ -169,23 +167,18 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     }
 
     public static class NodeRequest extends BaseNodeRequest {
-        protected String requestName;
-        protected boolean shouldBlock;
+        protected final String requestName;
+        protected final boolean shouldBlock;
 
-        public NodeRequest() {
-            super();
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
+            shouldBlock = in.readBoolean();
         }
 
         public NodeRequest(NodesRequest request, boolean shouldBlock) {
             requestName = request.requestName;
             this.shouldBlock = shouldBlock;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
-            shouldBlock = in.readBoolean();
         }
 
         @Override
@@ -212,11 +205,15 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         private boolean shouldBlock = true;
         private boolean shouldFail = false;
 
-        NodesRequest() {
-            super();
+        NodesRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
+            shouldStoreResult = in.readBoolean();
+            shouldBlock = in.readBoolean();
+            shouldFail = in.readBoolean();
         }
 
-        public NodesRequest(String requestName, String... nodesIds) {
+        NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
         }
@@ -244,15 +241,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         public boolean getShouldFail() {
             return shouldFail;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
-            shouldStoreResult = in.readBoolean();
-            shouldBlock = in.readBoolean();
-            shouldFail = in.readBoolean();
         }
 
         @Override
@@ -302,8 +290,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         @Override
-        protected NodeResponse newNodeResponse() {
-            return new NodeResponse();
+        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new NodeResponse(in);
         }
 
         @Override
@@ -316,7 +304,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             logger.info("Test task started on the node {}", clusterService.localNode());
             if (request.shouldBlock) {
                 try {
-                    awaitBusy(() -> {
+                    waitUntil(() -> {
                         if (((CancellableTask) task).isCancelled()) {
                             throw new RuntimeException("Cancelled!");
                         }
@@ -331,52 +319,23 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
     }
 
-    public static class TestTaskAction extends StreamableResponseActionType<NodesResponse> {
+    public static class TestTaskAction extends ActionType<NodesResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/tasks/test";
 
         private TestTaskAction() {
-            super(NAME);
-        }
-
-        @Override
-        public NodesResponse newResponse() {
-            return new NodesResponse();
+            super(NAME, NodesResponse::new);
         }
     }
-
-    public static class NodesRequestBuilder extends NodesOperationRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
-
-        protected NodesRequestBuilder(ElasticsearchClient client, ActionType<NodesResponse> action) {
-            super(client, action, new NodesRequest("test"));
-        }
-
-
-        public NodesRequestBuilder setShouldStoreResult(boolean shouldStoreResult) {
-            request().setShouldStoreResult(shouldStoreResult);
-            return this;
-        }
-
-        public NodesRequestBuilder setShouldBlock(boolean shouldBlock) {
-            request().setShouldBlock(shouldBlock);
-            return this;
-        }
-
-        public NodesRequestBuilder setShouldFail(boolean shouldFail) {
-            request().setShouldFail(shouldFail);
-            return this;
-        }
-    }
-
 
     public static class UnblockTestTaskResponse implements Writeable {
 
-        public UnblockTestTaskResponse() {
+        UnblockTestTaskResponse() {
 
         }
 
-        public UnblockTestTaskResponse(StreamInput in) {
+        UnblockTestTaskResponse(StreamInput in) {
         }
 
         @Override
@@ -403,13 +362,13 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         private List<UnblockTestTaskResponse> tasks;
 
-        public UnblockTestTasksResponse(List<UnblockTestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends
+        UnblockTestTasksResponse(List<UnblockTestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends
             FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
         }
 
-        public UnblockTestTasksResponse(StreamInput in) throws IOException {
+        UnblockTestTasksResponse(StreamInput in) throws IOException {
             super(in);
             int taskCount = in.readVInt();
             List<UnblockTestTaskResponse> builder = new ArrayList<>();
@@ -462,12 +421,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         public static final String NAME = "cluster:admin/tasks/testunblock";
 
         private UnblockTestTasksAction() {
-            super(NAME);
-        }
-
-        @Override
-        public Writeable.Reader<UnblockTestTasksResponse> getResponseReader() {
-            return UnblockTestTasksResponse::new;
+            super(NAME, UnblockTestTasksResponse::new);
         }
     }
 

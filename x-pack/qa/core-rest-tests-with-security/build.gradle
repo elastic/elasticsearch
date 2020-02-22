@@ -10,10 +10,10 @@ integTest {
   includePackaged = true
   runner {
     systemProperty 'tests.rest.blacklist',
-            [
-                    'index/10_with_id/Index with ID',
-                    'indices.get_alias/10_basic/Get alias against closed indices'
-            ].join(',')
+      [
+        'index/10_with_id/Index with ID',
+        'indices.get_alias/10_basic/Get alias against closed indices'
+      ].join(',')
 
     systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
     systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
@@ -21,7 +21,7 @@ integTest {
 }
 
 testClusters.integTest {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
@@ -30,5 +30,5 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
 
   user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
-          password:  System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
+    password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
 }

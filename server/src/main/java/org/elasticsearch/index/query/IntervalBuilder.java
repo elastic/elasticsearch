@@ -26,12 +26,12 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.intervals.IntervalIterator;
-import org.apache.lucene.search.intervals.Intervals;
-import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 
@@ -284,7 +284,7 @@ public class IntervalBuilder {
         }
 
         @Override
-        public MatchesIterator matches(String field, LeafReaderContext ctx, int doc) {
+        public IntervalMatchesIterator matches(String field, LeafReaderContext ctx, int doc) {
             return null;
         }
 

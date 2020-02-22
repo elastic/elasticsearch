@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.test.NodeInfo
+
 import org.elasticsearch.gradle.http.WaitForHttpResource
+import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -31,7 +32,7 @@ File clientCert = file("$keystoreDir/testclient.crt")
 // Add keystores to test classpath: it expects it there
 task copyKeyCerts(type: Copy) {
   from('./') {
-      include '*.crt', '*.pem', '*.jks'
+    include '*.crt', '*.pem', '*.jks'
   }
   into keystoreDir
 }
@@ -43,14 +44,8 @@ integTest.runner.dependsOn(copyKeyCerts)
 
 def pluginsCount = 0
 testClusters.integTest {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
-  setting 'xpack.monitoring.exporters._http.type', 'http'
-  setting 'xpack.monitoring.exporters._http.enabled', 'false'
-  setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
-  setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
-  setting 'xpack.monitoring.exporters._http.ssl.verification_mode', 'full'
-  setting 'xpack.monitoring.exporters._http.ssl.certificate_authorities', 'testnode.crt'
 
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
@@ -74,6 +69,10 @@ testClusters.integTest {
   user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
 
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+    if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
+      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+      return
+    }
     plugin file(pluginProject.tasks.bundlePlugin.archiveFile)
     tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
     pluginsCount += 1

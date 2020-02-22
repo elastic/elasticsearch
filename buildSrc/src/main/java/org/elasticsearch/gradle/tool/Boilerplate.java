@@ -19,32 +19,105 @@
 package org.elasticsearch.gradle.tool;
 
 import org.gradle.api.Action;
+import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.PolymorphicDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
+import org.gradle.api.UnknownTaskException;
 import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.services.BuildService;
+import org.gradle.api.services.BuildServiceRegistration;
+import org.gradle.api.services.BuildServiceRegistry;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.TaskProvider;
 
 import java.util.Optional;
 
 public abstract class Boilerplate {
+
+    public static <T> Action<T> noop() {
+        return t -> {};
+    }
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
         return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
     }
 
     public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name) {
-        return Optional.ofNullable(collection.findByName(name))
-            .orElse(collection.create(name));
-
+        return Optional.ofNullable(collection.findByName(name)).orElse(collection.create(name));
     }
+
     public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
-        return Optional.ofNullable(collection.findByName(name))
-            .orElseGet(() -> {
-                T result = collection.create(name);
-                action.execute(result);
-                return result;
-            });
+        return Optional.ofNullable(collection.findByName(name)).orElseGet(() -> {
+            T result = collection.create(name);
+            action.execute(result);
+            return result;
+        });
 
     }
 
+    public static <T> T maybeCreate(PolymorphicDomainObjectContainer<T> collection, String name, Class<T> type, Action<T> action) {
+        return Optional.ofNullable(collection.findByName(name)).orElseGet(() -> {
+            T result = collection.create(name, type);
+            action.execute(result);
+            return result;
+        });
+
+    }
+
+    public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {
+        try {
+            return tasks.named(name, clazz);
+        } catch (UnknownTaskException e) {
+            return tasks.register(name, clazz, action);
+        }
+    }
+
+    public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
+        TaskProvider<?> task;
+        try {
+            task = tasks.named(name);
+        } catch (UnknownTaskException e) {
+            return;
+        }
+
+        task.configure(config);
+    }
+
+    public static <T extends Task> void maybeConfigure(
+        TaskContainer tasks,
+        String name,
+        Class<? extends T> type,
+        Action<? super T> config
+    ) {
+        tasks.withType(type).configureEach(task -> {
+            if (task.getName().equals(name)) {
+                config.execute(task);
+            }
+        });
+    }
+
+    public static TaskProvider<?> findByName(TaskContainer tasks, String name) {
+        TaskProvider<?> task;
+        try {
+            task = tasks.named(name);
+        } catch (UnknownTaskException e) {
+            return null;
+        }
+
+        return task;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T extends BuildService<?>> Provider<T> getBuildService(BuildServiceRegistry registry, String name) {
+        BuildServiceRegistration<?, ?> registration = registry.getRegistrations().findByName(name);
+        if (registration == null) {
+            throw new GradleException("Unable to find build service with name '" + name + "'.");
+        }
+
+        return (Provider<T>) registration.getService();
+    }
 }

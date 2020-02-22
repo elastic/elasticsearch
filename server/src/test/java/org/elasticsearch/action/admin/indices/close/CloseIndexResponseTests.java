@@ -27,13 +27,14 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 
 import java.io.IOException;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -51,7 +53,91 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CloseIndexResponseTests extends ESTestCase {
+public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<CloseIndexResponse> {
+
+    @Override
+    protected CloseIndexResponse createTestInstance() {
+        return randomResponse();
+    }
+
+    @Override
+    protected Writeable.Reader<CloseIndexResponse> instanceReader() {
+        return CloseIndexResponse::new;
+    }
+
+    @Override
+    protected void assertEqualInstances(CloseIndexResponse expected, CloseIndexResponse actual) {
+        assertNotSame(expected, actual);
+        assertThat(actual.isAcknowledged(), equalTo(expected.isAcknowledged()));
+        assertThat(actual.isShardsAcknowledged(), equalTo(expected.isShardsAcknowledged()));
+
+        for (int i = 0; i < expected.getIndices().size(); i++) {
+            CloseIndexResponse.IndexResult expectedIndexResult = expected.getIndices().get(i);
+            CloseIndexResponse.IndexResult actualIndexResult = actual.getIndices().get(i);
+            assertNotSame(expectedIndexResult, actualIndexResult);
+            assertThat(actualIndexResult.getIndex(), equalTo(expectedIndexResult.getIndex()));
+            assertThat(actualIndexResult.hasFailures(), equalTo(expectedIndexResult.hasFailures()));
+
+            if (expectedIndexResult.hasFailures() == false) {
+                assertThat(actualIndexResult.getException(), nullValue());
+                if (actualIndexResult.getShards() != null) {
+                    assertThat(Arrays.stream(actualIndexResult.getShards())
+                        .allMatch(shardResult -> shardResult.hasFailures() == false), is(true));
+                }
+            }
+
+            if (expectedIndexResult.getException() != null) {
+                assertThat(actualIndexResult.getShards(), nullValue());
+                assertThat(actualIndexResult.getException(), notNullValue());
+                assertThat(actualIndexResult.getException().getMessage(), equalTo(expectedIndexResult.getException().getMessage()));
+                assertThat(actualIndexResult.getException().getClass(), equalTo(expectedIndexResult.getException().getClass()));
+                assertArrayEquals(actualIndexResult.getException().getStackTrace(), expectedIndexResult.getException().getStackTrace());
+            } else {
+                assertThat(actualIndexResult.getException(), nullValue());
+            }
+
+            if (expectedIndexResult.getShards() != null) {
+                assertThat(actualIndexResult.getShards().length, equalTo(expectedIndexResult.getShards().length));
+
+                for (int j = 0; j < expectedIndexResult.getShards().length; j++) {
+                    CloseIndexResponse.ShardResult expectedShardResult = expectedIndexResult.getShards()[j];
+                    CloseIndexResponse.ShardResult actualShardResult = actualIndexResult.getShards()[j];
+                    assertThat(actualShardResult.getId(), equalTo(expectedShardResult.getId()));
+                    assertThat(actualShardResult.hasFailures(), equalTo(expectedShardResult.hasFailures()));
+
+                    if (expectedShardResult.hasFailures()) {
+                        assertThat(actualShardResult.getFailures().length, equalTo(expectedShardResult.getFailures().length));
+
+                        for (int k = 0; k < expectedShardResult.getFailures().length; k++) {
+                            CloseIndexResponse.ShardResult.Failure expectedFailure = expectedShardResult.getFailures()[k];
+                            CloseIndexResponse.ShardResult.Failure actualFailure = actualShardResult.getFailures()[k];
+                            assertThat(actualFailure.getNodeId(), equalTo(expectedFailure.getNodeId()));
+                            assertThat(actualFailure.index(), equalTo(expectedFailure.index()));
+                            assertThat(actualFailure.shardId(), equalTo(expectedFailure.shardId()));
+
+                            // Serialising and deserialising an exception seems to remove the "java.base/" part from the stack trace
+                            // in the `reason` property, so we don't compare it directly. Instead, check that the first lines match,
+                            // and that the stack trace has the same number of lines.
+                            List<String> expectedReasonLines = expectedFailure.reason().lines().collect(Collectors.toList());
+                            List<String> actualReasonLines = actualFailure.reason().lines().collect(Collectors.toList());
+                            assertThat(actualReasonLines.get(0), equalTo(expectedReasonLines.get(0)));
+                            assertThat("Exceptions have a different number of lines",
+                                actualReasonLines,
+                                hasSize(expectedReasonLines.size()));
+
+                            assertThat(actualFailure.getCause().getMessage(), equalTo(expectedFailure.getCause().getMessage()));
+                            assertThat(actualFailure.getCause().getClass(), equalTo(expectedFailure.getCause().getClass()));
+                            assertArrayEquals(actualFailure.getCause().getStackTrace(), expectedFailure.getCause().getStackTrace());
+                        }
+                    } else {
+                        assertThat(actualShardResult.getFailures(), nullValue());
+                    }
+                }
+            } else {
+                assertThat(actualIndexResult.getShards(), nullValue());
+            }
+        }
+    }
 
     /**
      * Test that random responses can be written to xcontent without errors.
@@ -83,18 +169,6 @@ public class CloseIndexResponseTests extends ESTestCase {
                 + "\"reason\":{\"type\":\"action_not_found_transport_exception\","
                 + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
                 Strings.toString(closeIndexResponse));
-    }
-
-    public void testSerialization() throws Exception {
-        final CloseIndexResponse response = randomResponse();
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            response.writeTo(out);
-
-            try (StreamInput in = out.bytes().streamInput()) {
-                final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
-                assertCloseIndexResponse(deserializedResponse, response);
-            }
-        }
     }
 
     public void testBwcSerialization() throws Exception {
@@ -150,7 +224,7 @@ public class CloseIndexResponseTests extends ESTestCase {
 
         final List<CloseIndexResponse.IndexResult> indexResults = new ArrayList<>();
         for (String indexName : indicesNames) {
-            final Index index = new Index(indexName, "_na_");
+            final Index index = new Index(indexName, randomAlphaOfLength(5));
             if (randomBoolean()) {
                 indexResults.add(new CloseIndexResponse.IndexResult(index));
             } else {
@@ -178,7 +252,6 @@ public class CloseIndexResponseTests extends ESTestCase {
                     indexResults.add(new CloseIndexResponse.IndexResult(index, shards));
                 }
             }
-
         }
 
         final boolean shardsAcknowledged = acknowledged ? randomBoolean() : false;
@@ -190,65 +263,5 @@ public class CloseIndexResponseTests extends ESTestCase {
             new IndexNotFoundException(index),
             new ActionNotFoundTransportException("test"),
             new NoShardAvailableActionException(new ShardId(index, id)));
-    }
-
-    private static void assertCloseIndexResponse(final CloseIndexResponse actual, final CloseIndexResponse expected) {
-        assertThat(actual.isAcknowledged(), equalTo(expected.isAcknowledged()));
-        assertThat(actual.isShardsAcknowledged(), equalTo(expected.isShardsAcknowledged()));
-
-        for (int i = 0; i < expected.getIndices().size(); i++) {
-            CloseIndexResponse.IndexResult expectedIndexResult = expected.getIndices().get(i);
-            CloseIndexResponse.IndexResult actualIndexResult = actual.getIndices().get(i);
-            assertThat(actualIndexResult.getIndex(), equalTo(expectedIndexResult.getIndex()));
-            assertThat(actualIndexResult.hasFailures(), equalTo(expectedIndexResult.hasFailures()));
-
-            if (expectedIndexResult.hasFailures() == false) {
-                assertThat(actualIndexResult.getException(), nullValue());
-                if (actualIndexResult.getShards() != null) {
-                    assertThat(Arrays.stream(actualIndexResult.getShards())
-                        .allMatch(shardResult -> shardResult.hasFailures() == false), is(true));
-                }
-            }
-
-            if (expectedIndexResult.getException() != null) {
-                assertThat(actualIndexResult.getShards(), nullValue());
-                assertThat(actualIndexResult.getException(), notNullValue());
-                assertThat(actualIndexResult.getException().getMessage(), equalTo(expectedIndexResult.getException().getMessage()));
-                assertThat(actualIndexResult.getException().getClass(), equalTo(expectedIndexResult.getException().getClass()));
-                assertArrayEquals(actualIndexResult.getException().getStackTrace(), expectedIndexResult.getException().getStackTrace());
-            } else {
-                assertThat(actualIndexResult.getException(), nullValue());
-            }
-
-            if (expectedIndexResult.getShards() != null) {
-                assertThat(actualIndexResult.getShards().length, equalTo(expectedIndexResult.getShards().length));
-
-                for (int j = 0; j < expectedIndexResult.getShards().length; j++) {
-                    CloseIndexResponse.ShardResult expectedShardResult = expectedIndexResult.getShards()[j];
-                    CloseIndexResponse.ShardResult actualShardResult = actualIndexResult.getShards()[j];
-                    assertThat(actualShardResult.getId(), equalTo(expectedShardResult.getId()));
-                    assertThat(actualShardResult.hasFailures(), equalTo(expectedShardResult.hasFailures()));
-
-                    if (expectedShardResult.hasFailures()) {
-                        assertThat(actualShardResult.getFailures().length, equalTo(expectedShardResult.getFailures().length));
-
-                        for (int k = 0; k < expectedShardResult.getFailures().length; k++) {
-                            CloseIndexResponse.ShardResult.Failure expectedFailure = expectedShardResult.getFailures()[k];
-                            CloseIndexResponse.ShardResult.Failure actualFailure = actualShardResult.getFailures()[k];
-                            assertThat(actualFailure.getNodeId(), equalTo(expectedFailure.getNodeId()));
-                            assertThat(actualFailure.index(), equalTo(expectedFailure.index()));
-                            assertThat(actualFailure.shardId(), equalTo(expectedFailure.shardId()));
-                            assertThat(actualFailure.getCause().getMessage(), equalTo(expectedFailure.getCause().getMessage()));
-                            assertThat(actualFailure.getCause().getClass(), equalTo(expectedFailure.getCause().getClass()));
-                            assertArrayEquals(actualFailure.getCause().getStackTrace(), expectedFailure.getCause().getStackTrace());
-                        }
-                    } else {
-                        assertThat(actualShardResult.getFailures(), nullValue());
-                    }
-                }
-            } else {
-                assertThat(actualIndexResult.getShards(), nullValue());
-            }
-        }
     }
 }

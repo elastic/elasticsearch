@@ -19,22 +19,23 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
 
-    public RestClearVotingConfigExclusionsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_cluster/voting_config_exclusions", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(DELETE, "/_cluster/voting_config_exclusions"));
     }
 
     @Override

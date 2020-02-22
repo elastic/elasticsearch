@@ -88,21 +88,6 @@ public class InternalAdjacencyMatrix
             return aggregations;
         }
 
-        InternalBucket reduce(List<InternalBucket> buckets, ReduceContext context) {
-            InternalBucket reduced = null;
-            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-            for (InternalBucket bucket : buckets) {
-                if (reduced == null) {
-                    reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations);
-                } else {
-                    reduced.docCount += bucket.docCount;
-                }
-                aggregationsList.add(bucket.aggregations);
-            }
-            reduced.aggregations = InternalAggregations.reduce(aggregationsList, context);
-            return reduced;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -196,7 +181,7 @@ public class InternalAdjacencyMatrix
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<String, List<InternalBucket>> bucketsMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
@@ -212,7 +197,7 @@ public class InternalAdjacencyMatrix
 
         ArrayList<InternalBucket> reducedBuckets = new ArrayList<>(bucketsMap.size());
         for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
-            InternalBucket reducedBucket = sameRangeList.get(0).reduce(sameRangeList, reduceContext);
+            InternalBucket reducedBucket = reduceBucket(sameRangeList, reduceContext);
             if(reducedBucket.docCount >= 1){
                 reduceContext.consumeBucketsAndMaybeBreak(1);
                 reducedBuckets.add(reducedBucket);
@@ -225,6 +210,23 @@ public class InternalAdjacencyMatrix
         InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, pipelineAggregators(),
                 getMetaData());
 
+        return reduced;
+    }
+
+    @Override
+    protected InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        InternalBucket reduced = null;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        for (InternalBucket bucket : buckets) {
+            if (reduced == null) {
+                reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations);
+            } else {
+                reduced.docCount += bucket.docCount;
+            }
+            aggregationsList.add(bucket.aggregations);
+        }
+        reduced.aggregations = InternalAggregations.reduce(aggregationsList, context);
         return reduced;
     }
 

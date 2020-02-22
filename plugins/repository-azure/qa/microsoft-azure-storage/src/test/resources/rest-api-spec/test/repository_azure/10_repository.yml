@@ -13,10 +13,23 @@ setup:
             client: "integration_test"
             base_path: ${base_path}
 
+  # Remove the snapshots, if a previous test failed to delete them. This is
+  # useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository
+        snapshot: snapshot-one
+        ignore: 404
+  - do:
+      snapshot.delete:
+        repository: repository
+        snapshot: snapshot-two
+        ignore: 404
+
 ---
 "Snapshot/Restore with repository-azure":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   # Get repository
@@ -35,17 +48,14 @@ setup:
         body:
           - index:
               _index: docs
-              _type:  doc
               _id:    1
           - snapshot: one
           - index:
               _index: docs
-              _type:  doc
               _id:    2
           - snapshot: one
           - index:
               _index: docs
-              _type:  doc
               _id:    3
           - snapshot: one
 
@@ -83,22 +93,18 @@ setup:
         body:
           - index:
               _index: docs
-              _type:  doc
               _id:    4
           - snapshot: two
           - index:
               _index: docs
-              _type:  doc
               _id:    5
           - snapshot: two
           - index:
               _index: docs
-              _type:  doc
               _id:    6
           - snapshot: two
           - index:
               _index: docs
-              _type:  doc
               _id:    7
           - snapshot: two
 
@@ -207,7 +213,7 @@ setup:
 ---
 "Get a non existing snapshot":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   - do:

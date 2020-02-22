@@ -118,31 +118,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             return aggregations;
         }
 
-        abstract B newBucket(long docCount, InternalAggregations aggs, long docCountError);
-
-        public B reduce(List<B> buckets, ReduceContext context) {
-            long docCount = 0;
-            // For the per term doc count error we add up the errors from the
-            // shards that did not respond with the term. To do this we add up
-            // the errors from the shards that did respond with the terms and
-            // subtract that from the sum of the error from all shards
-            long docCountError = 0;
-            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-            for (B bucket : buckets) {
-                docCount += bucket.docCount;
-                if (docCountError != -1) {
-                    if (bucket.docCountError == -1) {
-                        docCountError = -1;
-                    } else {
-                        docCountError += bucket.docCountError;
-                    }
-                }
-                aggregationsList.add(bucket.aggregations);
-            }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return newBucket(docCount, aggs, docCountError);
-        }
-
         @Override
         public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -217,7 +192,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     public abstract B getBucketByKey(String term);
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<Object, List<B>> buckets = new HashMap<>();
         long sumDocCountError = 0;
         long otherDocCount = 0;
@@ -283,7 +258,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
         final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null));
         for (List<B> sameTermBuckets : buckets.values()) {
-            final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
+            final B b = reduceBucket(sameTermBuckets, reduceContext);
             if (sumDocCountError == -1) {
                 b.docCountError = -1;
             } else {
@@ -314,6 +289,31 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         return create(name, Arrays.asList(list), docCountError, otherDocCount);
     }
 
+    @Override
+    protected B reduceBucket(List<B> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        long docCount = 0;
+        // For the per term doc count error we add up the errors from the
+        // shards that did not respond with the term. To do this we add up
+        // the errors from the shards that did respond with the terms and
+        // subtract that from the sum of the error from all shards
+        long docCountError = 0;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        for (B bucket : buckets) {
+            docCount += bucket.docCount;
+            if (docCountError != -1) {
+                if (bucket.docCountError == -1) {
+                    docCountError = -1;
+                } else {
+                    docCountError += bucket.docCountError;
+                }
+            }
+            aggregationsList.add(bucket.aggregations);
+        }
+        InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        return createBucket(docCount, aggs, docCountError, buckets.get(0));
+    }
+
     protected abstract void setDocCountError(long docCountError);
 
     protected abstract int getShardSize();
@@ -324,6 +324,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
      * Create an array to hold some buckets. Used in collecting the results.
      */
     protected abstract B[] createBucketsArray(int size);
+
+    abstract B createBucket(long docCount, InternalAggregations aggs, long docCountError, B prototype);
 
     @Override
     public boolean equals(Object obj) {

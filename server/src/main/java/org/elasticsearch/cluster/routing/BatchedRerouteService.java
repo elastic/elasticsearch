@@ -24,7 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
@@ -32,6 +31,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiFunction;
 
 /**
@@ -49,7 +50,8 @@ public class BatchedRerouteService implements RerouteService {
 
     private final Object mutex = new Object();
     @Nullable // null if no reroute is currently pending
-    private PlainListenableActionFuture<Void> pendingRerouteListeners;
+    private List<ActionListener<ClusterState>> pendingRerouteListeners;
+    private Priority pendingTaskPriority = Priority.LANGUID;
 
     /**
      * @param reroute Function that computes the updated cluster state after it has been rerouted.
@@ -63,29 +65,55 @@ public class BatchedRerouteService implements RerouteService {
      * Initiates a reroute.
      */
     @Override
-    public final void reroute(String reason, ActionListener<Void> listener) {
-        final PlainListenableActionFuture<Void> currentListeners;
+    public final void reroute(String reason, Priority priority, ActionListener<ClusterState> listener) {
+        final List<ActionListener<ClusterState>> currentListeners;
         synchronized (mutex) {
             if (pendingRerouteListeners != null) {
-                logger.trace("already has pending reroute, adding [{}] to batch", reason);
-                pendingRerouteListeners.addListener(listener);
-                return;
+                if (priority.sameOrAfter(pendingTaskPriority)) {
+                    logger.trace("already has pending reroute at priority [{}], adding [{}] with priority [{}] to batch",
+                        pendingTaskPriority, reason, priority);
+                    pendingRerouteListeners.add(listener);
+                    return;
+                } else {
+                    logger.trace("already has pending reroute at priority [{}], promoting batch to [{}] and adding [{}]",
+                        pendingTaskPriority, priority, reason);
+                    currentListeners = new ArrayList<>(1 + pendingRerouteListeners.size());
+                    currentListeners.add(listener);
+                    currentListeners.addAll(pendingRerouteListeners);
+                    pendingRerouteListeners.clear();
+                    pendingRerouteListeners = currentListeners;
+                    pendingTaskPriority = priority;
+                }
+            } else {
+                logger.trace("no pending reroute, scheduling reroute [{}] at priority [{}]", reason, priority);
+                currentListeners = new ArrayList<>(1);
+                currentListeners.add(listener);
+                pendingRerouteListeners = currentListeners;
+                pendingTaskPriority = priority;
             }
-            currentListeners = PlainListenableActionFuture.newListenableFuture();
-            currentListeners.addListener(listener);
-            pendingRerouteListeners = currentListeners;
         }
-        logger.trace("rerouting [{}]", reason);
         try {
             clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")",
-                new ClusterStateUpdateTask(Priority.HIGH) {
+                new ClusterStateUpdateTask(priority) {
+
                     @Override
                     public ClusterState execute(ClusterState currentState) {
+                        final boolean currentListenersArePending;
                         synchronized (mutex) {
-                            assert pendingRerouteListeners == currentListeners;
-                            pendingRerouteListeners = null;
+                            assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners)
+                                : "currentListeners=" + currentListeners + ", pendingRerouteListeners=" + pendingRerouteListeners;
+                            currentListenersArePending = pendingRerouteListeners == currentListeners;
+                            if (currentListenersArePending) {
+                                pendingRerouteListeners = null;
+                            }
                         }
-                        return reroute.apply(currentState, reason);
+                        if (currentListenersArePending) {
+                            logger.trace("performing batched reroute [{}]", reason);
+                            return reroute.apply(currentState, reason);
+                        } else {
+                            logger.trace("batched reroute [{}] was promoted", reason);
+                            return currentState;
+                        }
                     }
 
                     @Override
@@ -95,7 +123,7 @@ public class BatchedRerouteService implements RerouteService {
                                 pendingRerouteListeners = null;
                             }
                         }
-                        currentListeners.onFailure(new NotMasterException("delayed reroute [" + reason + "] cancelled"));
+                        ActionListener.onFailure(currentListeners, new NotMasterException("delayed reroute [" + reason + "] cancelled"));
                         // no big deal, the new master will reroute again
                     }
 
@@ -114,22 +142,26 @@ public class BatchedRerouteService implements RerouteService {
                             logger.error(() -> new ParameterizedMessage("unexpected failure during [{}], current state version [{}]",
                                 source, state.version()), e);
                         }
-                        currentListeners.onFailure(new ElasticsearchException("delayed reroute [" + reason + "] failed", e));
+                        ActionListener.onFailure(currentListeners,
+                            new ElasticsearchException("delayed reroute [" + reason + "] failed", e));
                     }
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        currentListeners.onResponse(null);
+                        ActionListener.onResponse(currentListeners, newState);
                     }
                 });
         } catch (Exception e) {
             synchronized (mutex) {
-                assert pendingRerouteListeners == currentListeners;
-                pendingRerouteListeners = null;
+                assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners);
+                if (pendingRerouteListeners == currentListeners) {
+                    pendingRerouteListeners = null;
+                }
             }
             ClusterState state = clusterService.state();
             logger.warn(() -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
-            currentListeners.onFailure(new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e));
+            ActionListener.onFailure(currentListeners,
+                new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e));
         }
     }
 }

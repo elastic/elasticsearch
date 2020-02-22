@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -42,7 +43,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
@@ -135,15 +136,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
+import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 /**
  * Service responsible for the creation, validation, and other management of {@link UserToken}
@@ -207,6 +208,7 @@ public final class TokenService {
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
     private final XPackLicenseState licenseState;
+    private final SecurityContext securityContext;
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
@@ -214,7 +216,7 @@ public final class TokenService {
     /**
      * Creates a new token service
      */
-    public TokenService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState,
+    public TokenService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityContext securityContext,
                         SecurityIndexManager securityMainIndex, SecurityIndexManager securityTokensIndex,
                         ClusterService clusterService) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
@@ -225,6 +227,7 @@ public final class TokenService {
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;
         this.licenseState = licenseState;
+        this.securityContext = securityContext;
         this.securityMainIndex = securityMainIndex;
         this.securityTokensIndex = securityTokensIndex;
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
@@ -328,7 +331,7 @@ public final class TokenService {
             final BytesReference tokenDocument = createTokenDocument(userToken, storedRefreshToken, originatingClientAuth);
             final String documentId = getTokenDocumentId(storedAccessToken);
 
-            final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
+            final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName()).setId(documentId)
                     .setOpType(OpType.CREATE)
                     .setSource(tokenDocument, XContentType.JSON)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -418,9 +421,9 @@ public final class TokenService {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
         } else {
-            final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME,
+            final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(),
                     getTokenDocumentId(userTokenId)).request();
-            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
+            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -440,8 +443,10 @@ public final class TokenService {
                                     listener.onResponse(UserToken.fromSourceMap(userTokenSource));
                                 }
                             } else {
-                                onFailure.accept(
-                                    new IllegalStateException("token document is missing and must be present"));
+                                // The chances of a random token string decoding to something that we can read is minimal, so
+                                // we assume that this was a token we have created but is now expired/revoked and deleted
+                                logger.trace("The access token [{}] is expired and already deleted", userTokenId);
+                                listener.onResponse(null);
                             }
                         }, e -> {
                             // if the index or the shard is not there / available we assume that
@@ -523,7 +528,7 @@ public final class TokenService {
                     listener.onResponse(null);
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             // could happen with a token that is not ours
             if (logger.isDebugEnabled()) {
                logger.debug("built in token service unable to decode token", e);
@@ -653,7 +658,7 @@ public final class TokenService {
     }
 
     /**
-     * Invalidates access and/or refresh tokens associated to a user token (coexisting in the same token document) 
+     * Invalidates access and/or refresh tokens associated to a user token (coexisting in the same token document)
      */
     private void indexInvalidation(Collection<UserToken> userTokens, Iterator<TimeValue> backoff, String srcPrefix,
             @Nullable TokensInvalidationResult previousResult, ActionListener<TokensInvalidationResult> listener) {
@@ -704,7 +709,7 @@ public final class TokenService {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {
                 UpdateRequest request = client
-                        .prepareUpdate(tokensIndexManager.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(tokenId))
+                        .prepareUpdate(tokensIndexManager.aliasName(), getTokenDocumentId(tokenId))
                         .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
                         .setFetchSource(srcPrefix, null)
                         .request();
@@ -798,7 +803,7 @@ public final class TokenService {
         findTokenFromRefreshToken(refreshToken,
             backoff,
             ActionListener.wrap(tokenDocHit -> {
-                final Authentication clientAuth = Authentication.readFromContext(client.threadPool().getThreadContext());
+                final Authentication clientAuth = securityContext.getAuthentication();
                 innerRefresh(refreshToken, tokenDocHit.getId(), tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(),
                     tokenDocHit.getPrimaryTerm(),
                     clientAuth, backoff, refreshRequested, listener);
@@ -961,7 +966,7 @@ public final class TokenService {
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
             final SecurityIndexManager refreshedTokenIndex = getTokensIndexForVersion(refreshTokenStatus.getVersion());
             final UpdateRequestBuilder updateRequest = client
-                    .prepareUpdate(refreshedTokenIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
+                    .prepareUpdate(refreshedTokenIndex.aliasName(), tokenDocId)
                     .setDoc("refresh_token", updateMap)
                     .setFetchSource(true)
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -1087,7 +1092,7 @@ public final class TokenService {
     }
 
     private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
-        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId).request();
+        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), tokenDocId).request();
         tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get));
@@ -1184,7 +1189,7 @@ public final class TokenService {
     /**
      * Checks if the token can be refreshed once more. If a token has previously been refreshed, it can only by refreshed again inside a
      * short span of time (30 s).
-     * 
+     *
      * @return An {@code Optional} containing the exception in case this refresh token cannot be reused, or an empty <b>Optional</b> if
      *         refreshing is allowed.
      */
@@ -1240,17 +1245,20 @@ public final class TokenService {
                                                 - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
                                         )
                                 );
-                final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
-                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                        .setQuery(boolQuery)
-                        .setVersion(false)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, filter));
+                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                    final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
+                            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                            .setQuery(boolQuery)
+                            .setVersion(false)
+                            .setSize(1000)
+                            .setFetchSource(true)
+                            .request();
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
+                            (SearchHit hit) -> filterAndParseHit(hit, filter));
+                }
             }
         }, listener::onFailure));
-
     }
 
     /**
@@ -1284,14 +1292,18 @@ public final class TokenService {
                                                 - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
                                         )
                                 );
-                final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
-                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                        .setQuery(boolQuery)
-                        .setVersion(false)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username)));
+                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                    final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
+                            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                            .setQuery(boolQuery)
+                            .setVersion(false)
+                            .setSize(1000)
+                            .setFetchSource(true)
+                            .request();
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
+                            (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username)));
+                }
             }
         }, listener::onFailure));
     }
@@ -1325,7 +1337,7 @@ public final class TokenService {
         }
         final SecurityIndexManager frozenMainIndex = securityMainIndex.freeze();
         if (frozenMainIndex.indexExists()) {
-            // main security index _might_ contain tokens if the tokens index has been created recently 
+            // main security index _might_ contain tokens if the tokens index has been created recently
             if (false == frozenTokensIndex.indexExists() || frozenTokensIndex.getCreationTime()
                     .isAfter(clock.instant().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
                 if (false == frozenMainIndex.isAvailable()) {
@@ -1479,7 +1491,7 @@ public final class TokenService {
             listener.onResponse(null);
         } else {
             final GetRequest getRequest = client
-                    .prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(userToken)).request();
+                    .prepareGet(tokensIndex.aliasName(), getTokenDocumentId(userToken)).request();
             Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
             tokensIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -2011,7 +2023,7 @@ public final class TokenService {
 
             if (state.nodes().isLocalNodeElectedMaster()) {
                 if (XPackPlugin.isReadyForXPackCustomMetadata(state)) {
-                    installTokenMetadata(state.metaData());
+                    installTokenMetadata(state);
                 } else {
                     logger.debug("cannot add token metadata to cluster as the following nodes might not understand the metadata: {}",
                         () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(state));
@@ -2034,8 +2046,8 @@ public final class TokenService {
     // to prevent too many cluster state update tasks to be queued for doing the same update
     private final AtomicBoolean installTokenMetadataInProgress = new AtomicBoolean(false);
 
-    private void installTokenMetadata(MetaData metaData) {
-        if (metaData.custom(TokenMetaData.TYPE) == null) {
+    private void installTokenMetadata(ClusterState state) {
+        if (state.custom(TokenMetaData.TYPE) == null) {
             if (installTokenMetadataInProgress.compareAndSet(false, true)) {
                 clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override

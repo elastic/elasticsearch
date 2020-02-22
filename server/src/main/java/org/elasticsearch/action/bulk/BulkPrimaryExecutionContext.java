@@ -239,7 +239,7 @@ class BulkPrimaryExecutionContext {
         executionResult = new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
-            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause));
+            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.id(), cause));
         markAsCompleted(executionResult);
     }
 
@@ -253,11 +253,11 @@ class BulkPrimaryExecutionContext {
                 final DocWriteResponse response;
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
-                    response = new IndexResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
+                    response = new IndexResponse(primary.shardId(), requestToExecute.id(),
                         result.getSeqNo(), result.getTerm(), indexResult.getVersion(), indexResult.isCreated());
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
-                    response = new DeleteResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
+                    response = new DeleteResponse(primary.shardId(), requestToExecute.id(),
                         deleteResult.getSeqNo(), result.getTerm(), deleteResult.getVersion(), deleteResult.isFound());
 
                 } else {
@@ -273,8 +273,8 @@ class BulkPrimaryExecutionContext {
                     // Make sure to use request.index() here, if you
                     // use docWriteRequest.index() it will use the
                     // concrete index instead of an alias if used!
-                    new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(),
-                        result.getFailure(), result.getSeqNo()));
+                    new BulkItemResponse.Failure(request.index(), docWriteRequest.id(),
+                        result.getFailure(), result.getSeqNo(), result.getTerm()));
                 break;
             default:
                 throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());

@@ -21,6 +21,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -43,11 +44,12 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
@@ -173,6 +175,11 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     protected StopDatafeedAction.Response stopDatafeed(String datafeedId) {
         StopDatafeedAction.Request request = new StopDatafeedAction.Request(datafeedId);
         return client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
+    }
+
+    protected PutDatafeedAction.Response updateDatafeed(DatafeedUpdate update) {
+        UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(update);
+        return client().execute(UpdateDatafeedAction.INSTANCE, request).actionGet();
     }
 
     protected AcknowledgedResponse deleteDatafeed(String datafeedId) {

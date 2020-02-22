@@ -19,23 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
 /**
  * ActionType for retrieving a list of currently running tasks
  */
-public class GetTaskAction extends StreamableResponseActionType<GetTaskResponse> {
+public class GetTaskAction extends ActionType<GetTaskResponse> {
     public static final String TASKS_ORIGIN = "tasks";
 
     public static final GetTaskAction INSTANCE = new GetTaskAction();
     public static final String NAME = "cluster:monitor/task/get";
 
     private GetTaskAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetTaskResponse newResponse() {
-        return new GetTaskResponse();
+        super(NAME, GetTaskResponse::new);
     }
 }

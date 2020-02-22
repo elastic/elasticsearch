@@ -19,11 +19,9 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -50,9 +48,6 @@ import java.util.Set;
  * In all cases, all non-CJK input is passed thru unmodified.
  */
 public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(CJKBigramFilterFactory.class));
 
     private final int flags;
     private final boolean outputUnigrams;

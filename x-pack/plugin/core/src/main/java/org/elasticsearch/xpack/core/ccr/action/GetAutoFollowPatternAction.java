@@ -6,13 +6,12 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -27,12 +26,7 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
     public static final GetAutoFollowPatternAction INSTANCE = new GetAutoFollowPatternAction();
 
     private GetAutoFollowPatternAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetAutoFollowPatternAction.Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -93,13 +87,12 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
         }
 
         public Response(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             autoFollowPatterns = in.readMap(StreamInput::readString, AutoFollowPattern::readFrom);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(autoFollowPatterns, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
 

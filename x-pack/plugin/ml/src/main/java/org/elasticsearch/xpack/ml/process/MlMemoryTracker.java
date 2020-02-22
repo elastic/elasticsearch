@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Phaser;
@@ -299,7 +300,18 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 }
                 fullRefreshCompletionListeners.clear();
             }
-        }, onCompletion::onFailure);
+        },
+        e -> {
+            synchronized (fullRefreshCompletionListeners) {
+                assert fullRefreshCompletionListeners.isEmpty() == false;
+                for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
+                    listener.onFailure(e);
+                }
+                // It's critical that we empty out the current listener list on
+                // error otherwise subsequent retries to refresh will be ignored
+                fullRefreshCompletionListeners.clear();
+            }
+        });
 
         // persistentTasks will be null if there's never been a persistent task created in this cluster
         if (persistentTasks == null) {
@@ -341,10 +353,10 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return;
         }
 
-        String startedJobIds = mlDataFrameAnalyticsJobTasks.stream()
-            .map(task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId()).sorted().collect(Collectors.joining(","));
+        Set<String> jobsWithTasks = mlDataFrameAnalyticsJobTasks.stream().map(
+            task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId()).collect(Collectors.toSet());
 
-        configProvider.getMultiple(startedJobIds, false, ActionListener.wrap(
+        configProvider.getConfigsForJobsWithTasksLeniently(jobsWithTasks, ActionListener.wrap(
             analyticsConfigs -> {
                 for (DataFrameAnalyticsConfig analyticsConfig : analyticsConfigs) {
                     memoryRequirementByDataFrameAnalyticsJob.put(analyticsConfig.getId(),
@@ -424,6 +436,10 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }, e -> {
             if (e instanceof ResourceNotFoundException) {
                 // TODO: does this also happen if the .ml-config index exists but is unavailable?
+                // However, note that we wait for the .ml-config index to be available earlier on in the
+                // job assignment process, so that scenario should be very rare, i.e. somebody has closed
+                // the .ml-config index (which would be unexpected and unsupported for an internal index)
+                // during the memory refresh.
                 logger.trace("[{}] anomaly detector job deleted during ML memory update", jobId);
             } else {
                 logger.error("[" + jobId + "] failed to get anomaly detector job during ML memory update", e);

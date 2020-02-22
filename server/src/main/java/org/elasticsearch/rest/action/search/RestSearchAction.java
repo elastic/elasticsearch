@@ -19,18 +19,18 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -67,17 +68,18 @@ public class RestSearchAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
-    public RestSearchAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_search", this);
-        controller.registerHandler(POST, "/_search", this);
-        controller.registerHandler(GET, "/{index}/_search", this);
-        controller.registerHandler(POST, "/{index}/_search", this);
-    }
-
     @Override
     public String getName() {
         return "search_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_search"),
+            new Route(POST, "/_search"),
+            new Route(GET, "/{index}/_search"),
+            new Route(POST, "/{index}/_search"));
     }
 
     @Override
@@ -99,7 +101,10 @@ public class RestSearchAction extends BaseRestHandler {
         request.withContentOrSourceParamParserOrNull(parser ->
             parseSearchRequest(searchRequest, request, parser, setSize));
 
-        return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> {
+            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+        };
     }
 
     /**
@@ -306,5 +311,10 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     protected Set<String> responseParams() {
         return RESPONSE_PARAMS;
+    }
+
+    @Override
+    public boolean allowsUnsafeBuffers() {
+        return true;
     }
 }

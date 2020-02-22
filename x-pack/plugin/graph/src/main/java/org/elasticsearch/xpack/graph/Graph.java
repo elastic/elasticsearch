@@ -60,6 +60,6 @@ public class Graph extends Plugin implements ActionPlugin {
         if (false == enabled) {
             return emptyList();
         }
-        return singletonList(new RestGraphAction(settings, restController));
+        return singletonList(new RestGraphAction());
     }
 }

@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class GetAliasesAction extends StreamableResponseActionType<GetAliasesResponse> {
+public class GetAliasesAction extends ActionType<GetAliasesResponse> {
 
     public static final GetAliasesAction INSTANCE = new GetAliasesAction();
     public static final String NAME = "indices:admin/aliases/get";
 
     private GetAliasesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetAliasesResponse newResponse() {
-        return new GetAliasesResponse();
+        super(NAME, GetAliasesResponse::new);
     }
 }

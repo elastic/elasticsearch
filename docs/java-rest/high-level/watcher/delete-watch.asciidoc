@@ -1,5 +1,6 @@
+[role="xpack"]
 [[java-rest-high-x-pack-watcher-delete-watch]]
-=== Delete Watch API
+=== Delete watch API
 
 [[java-rest-high-x-pack-watcher-delete-watch-execution]]
 ==== Execution
@@ -26,7 +27,7 @@ include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-respons
 <3> `_version` returns the version of the deleted watch
 
 [[java-rest-high-x-pack-watcher-delete-watch-async]]
-==== Asynchronous Execution
+==== Asynchronous execution
 
 This request can be executed asynchronously:
 

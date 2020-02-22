@@ -45,19 +45,18 @@ public class ExplainRequestTests extends ESTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(indicesModule.getNamedWriteables());
+        entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
     }
 
     public void testSerialize() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            ExplainRequest request = new ExplainRequest("index", "type", "id");
+            ExplainRequest request = new ExplainRequest("index", "id");
             request.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1.*"}, new String[] {"field2.*"}));
-            request.filteringAlias(new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), new String[] {"alias0", "alias1"}));
+            request.filteringAlias(new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"));
             request.preference("the_preference");
             request.query(QueryBuilders.termQuery("field", "value"));
             request.storedFields(new String[] {"field1", "field2"});
@@ -77,7 +76,7 @@ public class ExplainRequestTests extends ESTestCase {
 
     public void testValidation() {
         {
-            final ExplainRequest request = new ExplainRequest("index4", "_doc", "0");
+            final ExplainRequest request = new ExplainRequest("index4", "0");
             request.query(QueryBuilders.termQuery("field", "value"));
 
             final ActionRequestValidationException validate = request.validate();
@@ -86,12 +85,12 @@ public class ExplainRequestTests extends ESTestCase {
         }
 
         {
-            final ExplainRequest request = new ExplainRequest("index4", randomBoolean() ? "" : null, randomBoolean() ? "" : null);
+            final ExplainRequest request = new ExplainRequest("index4", randomBoolean() ? "" : null);
             request.query(QueryBuilders.termQuery("field", "value"));
             final ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, not(nullValue()));
-            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
+            assertThat(validate.validationErrors(), hasItems("id is missing"));
         }
     }
 }

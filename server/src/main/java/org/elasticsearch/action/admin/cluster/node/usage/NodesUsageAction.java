@@ -19,20 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class NodesUsageAction extends StreamableResponseActionType<NodesUsageResponse> {
+public class NodesUsageAction extends ActionType<NodesUsageResponse> {
 
     public static final NodesUsageAction INSTANCE = new NodesUsageAction();
     public static final String NAME = "cluster:monitor/nodes/usage";
 
     protected NodesUsageAction() {
-        super(NAME);
+        super(NAME, NodesUsageResponse::new);
     }
-
-    @Override
-    public NodesUsageResponse newResponse() {
-        return new NodesUsageResponse();
-    }
-
 }

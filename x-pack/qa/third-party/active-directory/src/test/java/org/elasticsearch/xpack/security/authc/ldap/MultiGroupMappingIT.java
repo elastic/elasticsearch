@@ -41,7 +41,6 @@ public class MultiGroupMappingIT extends AbstractAdLdapRealmTestCase {
                 "      privileges: [ all ]\n";
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testGroupMapping() throws IOException {
         String asgardian = "odin";
         String securityPhilanthropist = realmConfig.loginWithCommonName ? "Bruce Banner" : "hulk";

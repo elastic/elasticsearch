@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.flattened;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +25,9 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
+import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
+
+import java.util.Map;
 
 public class FlattenedUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -42,8 +47,33 @@ public class FlattenedUsageTransportAction extends XPackUsageFeatureTransportAct
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        FlattenedFeatureSetUsage usage =
-            new FlattenedFeatureSetUsage(licenseState.isFlattenedAllowed(), XPackSettings.FLATTENED_ENABLED.get(settings));
+        boolean allowed = licenseState.isFlattenedAllowed();
+        boolean enabled = XPackSettings.FLATTENED_ENABLED.get(settings);
+        int fieldCount = 0;
+
+        if (allowed && enabled && state != null) {
+            for (IndexMetaData indexMetaData : state.metaData()) {
+                MappingMetaData mappingMetaData = indexMetaData.mapping();
+
+                if (mappingMetaData != null) {
+                    Map<String, Object> mappings = mappingMetaData.getSourceAsMap();
+
+                    if (mappings.containsKey("properties")) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Map<String, Object>> fieldMappings = (Map<String, Map<String, Object>>) mappings.get("properties");
+
+                        for (Map<String, Object> fieldMapping : fieldMappings.values()) {
+                            String fieldType = (String) fieldMapping.get("type");
+                            if (fieldType != null && fieldType.equals(FlatObjectFieldMapper.CONTENT_TYPE)) {
+                                fieldCount++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        FlattenedFeatureSetUsage usage = new FlattenedFeatureSetUsage(allowed, enabled, fieldCount);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

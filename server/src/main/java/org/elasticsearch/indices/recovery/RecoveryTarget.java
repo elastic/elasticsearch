@@ -159,10 +159,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return store;
     }
 
-    public RecoveryState.Stage stage() {
-        return state().getStage();
-    }
-
     /**
      * Closes the current recovery target and waits up to a certain timeout for resources to be freed.
      * Returns true if resetting the recovery was successful, false if the recovery target is already cancelled / failed or marked as done.
@@ -284,7 +280,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
@@ -293,13 +289,23 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint, ActionListener<Void> listener) {
+    public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            final IndexShard indexShard = indexShard();
             indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
             // Persist the global checkpoint.
             indexShard.sync();
             indexShard.persistRetentionLeases();
+            if (trimAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                // We should erase all translog operations above trimAboveSeqNo as we have received either the same or a newer copy
+                // from the recovery source in phase2. Rolling a new translog generation is not strictly required here for we won't
+                // trim the current generation. It's merely to satisfy the assumption that the current generation does not have any
+                // operation that would be trimmed (see TranslogWriter#assertNoSeqAbove). This assumption does not hold for peer
+                // recovery because we could have received operations above startingSeqNo from the previous primary terms.
+                indexShard.rollTranslogGeneration();
+                // the flush or translog generation threshold can be reached after we roll a new translog
+                indexShard.afterWriteOperation();
+                indexShard.trimOperationOfPreviousPrimaryTerms(trimAboveSeqNo);
+            }
             if (hasUncommittedOperations()) {
                 indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
             }
@@ -310,7 +316,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private boolean hasUncommittedOperations() throws IOException {
         long localCheckpointOfCommit = Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        return indexShard.estimateNumberOfHistoryOperations("peer-recovery", localCheckpointOfCommit + 1) > 0;
+        try (Translog.Snapshot snapshot =
+                 indexShard.newChangesSnapshot("peer-recovery", localCheckpointOfCommit + 1, Long.MAX_VALUE, false)) {
+            return snapshot.totalOperations() > 0;
+        }
     }
 
     @Override
@@ -380,6 +389,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                                 int totalTranslogOps,
                                 ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
+            indexShard.resetRecoveryStage();
+            indexShard.prepareForIndexRecovery();
             final RecoveryState.Index index = state().getIndex();
             for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
                 index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);
@@ -417,7 +428,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 } else {
                     assert indexShard.assertRetentionLeasesPersisted();
                 }
-
+                indexShard.maybeCheckIndex();
+                state().setStage(RecoveryState.Stage.TRANSLOG);
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are

@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
 import java.util.Collections;
 
-public class GetCategoriesResponseTests extends AbstractStreamableTestCase<GetCategoriesAction.Response> {
+public class GetCategoriesResponseTests extends AbstractWireSerializingTestCase<GetCategoriesAction.Response> {
 
     @Override
     protected GetCategoriesAction.Response createTestInstance() {
@@ -22,7 +23,7 @@ public class GetCategoriesResponseTests extends AbstractStreamableTestCase<GetCa
     }
 
     @Override
-    protected GetCategoriesAction.Response createBlankInstance() {
-        return new GetCategoriesAction.Response();
+    protected Writeable.Reader<GetCategoriesAction.Response> instanceReader() {
+        return GetCategoriesAction.Response::new;
     }
 }

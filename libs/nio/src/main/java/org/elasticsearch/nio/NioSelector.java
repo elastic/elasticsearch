@@ -28,6 +28,7 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -196,7 +197,8 @@ public class NioSelector implements Closeable {
         cleanupPendingWrites();
         channelsToClose.addAll(channelsToRegister);
         channelsToRegister.clear();
-        channelsToClose.addAll(selector.keys().stream().map(sk -> (ChannelContext<?>) sk.attachment()).collect(Collectors.toList()));
+        channelsToClose.addAll(selector.keys().stream()
+            .map(sk -> (ChannelContext<?>) sk.attachment()).filter(Objects::nonNull).collect(Collectors.toList()));
         closePendingChannels();
     }
 
@@ -338,22 +340,32 @@ public class NioSelector implements Closeable {
     private void writeToChannel(WriteOperation writeOperation) {
         assertOnSelectorThread();
         SocketChannelContext context = writeOperation.getChannel();
-        // If the channel does not currently have anything that is ready to flush, we should flush after
-        // the write operation is queued.
-        boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
-        try {
-            SelectionKeyUtils.setWriteInterested(context.getSelectionKey());
-            context.queueWriteOperation(writeOperation);
-        } catch (Exception e) {
-            shouldFlushAfterQueuing = false;
-            executeFailedListener(writeOperation.getListener(), e);
-        }
 
-        if (shouldFlushAfterQueuing) {
-            if (context.selectorShouldClose() == false) {
-                handleWrite(context);
+        if (context.isOpen() == false) {
+            executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
+        } else if (context.getSelectionKey() == null) {
+            // This should very rarely happen. The only times a channel is exposed outside the event loop,
+            // but might not registered is through the exception handler and channel accepted callbacks.
+            executeFailedListener(writeOperation.getListener(), new IllegalStateException("Channel not registered"));
+        } else {
+            // If the channel does not currently have anything that is ready to flush, we should flush after
+            // the write operation is queued.
+            boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
+            try {
+                context.queueWriteOperation(writeOperation);
+            } catch (Exception e) {
+                shouldFlushAfterQueuing = false;
+                executeFailedListener(writeOperation.getListener(), e);
             }
-            eventHandler.postHandling(context);
+
+            if (shouldFlushAfterQueuing) {
+                // We only attempt the write if the connect process is complete and the context is not
+                // signalling that it should be closed.
+                if (context.isConnectComplete() && context.selectorShouldClose() == false) {
+                    handleWrite(context);
+                }
+                eventHandler.postHandling(context);
+            }
         }
     }
 
@@ -434,14 +446,25 @@ public class NioSelector implements Closeable {
         try {
             if (newChannel.isOpen()) {
                 eventHandler.handleRegistration(newChannel);
+                channelActive(newChannel);
                 if (newChannel instanceof SocketChannelContext) {
                     attemptConnect((SocketChannelContext) newChannel, false);
                 }
             } else {
                 eventHandler.registrationException(newChannel, new ClosedChannelException());
+                closeChannel(newChannel);
             }
         } catch (Exception e) {
             eventHandler.registrationException(newChannel, e);
+            closeChannel(newChannel);
+        }
+    }
+
+    private void channelActive(ChannelContext<?> newChannel) {
+        try {
+            eventHandler.handleActive(newChannel);
+        } catch (IOException e) {
+            eventHandler.activeException(newChannel, e);
         }
     }
 
@@ -463,11 +486,7 @@ public class NioSelector implements Closeable {
     private void handleQueuedWrites() {
         WriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
-            if (writeOperation.getChannel().isOpen()) {
-                writeToChannel(writeOperation);
-            } else {
-                executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
-            }
+            writeToChannel(writeOperation);
         }
     }
 

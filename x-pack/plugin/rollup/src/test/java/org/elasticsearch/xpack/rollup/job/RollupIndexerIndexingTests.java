@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -89,8 +90,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     private void setup() {
         settings = createIndexSettings();
         queryShardContext = new QueryShardContext(0, settings,
-                null, null, null, null, null, null,
-                null, null, null, null, () -> 0L, null);
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
+                null, null, null, null, () -> 0L, null, null, () -> true);
     }
 
     public void testSimpleDateHisto() throws Exception {
@@ -110,7 +111,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(resp.size(), equalTo(2));
             IndexRequest request = resp.get(0);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -123,7 +123,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             ));
             request = resp.get(1);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -168,7 +167,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(resp.size(), equalTo(5));
             IndexRequest request = resp.get(0);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -186,7 +184,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             ));
             request = resp.get(1);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -204,7 +201,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             ));
             request = resp.get(2);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -222,7 +218,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             ));
             request = resp.get(3);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -240,7 +235,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             ));
             request = resp.get(4);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -286,7 +280,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(resp.size(), equalTo(3));
             IndexRequest request = resp.get(0);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -299,7 +292,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             ));
             request = resp.get(1);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -312,7 +304,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             ));
             request = resp.get(2);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -403,7 +394,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     assertThat(resp.size(), equalTo(1));
                     IndexRequest request = resp.get(0);
                     assertThat(request.index(), equalTo(rollupIndex));
-                    assertThat(request.type(), equalTo("_doc"));
                     assertThat(request.sourceAsMap(), equalTo(
                             asMap(
                                     "_rollup.version", 2,
@@ -422,7 +412,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(resp.size(), equalTo(2));
             IndexRequest request = resp.get(0);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -435,7 +424,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             ));
             request = resp.get(1);
             assertThat(request.index(), equalTo(rollupIndex));
-            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", 2,
@@ -473,7 +461,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(resp.size(), greaterThan(0));
             for (DocWriteRequest request : resp) {
                 assertThat(request.index(), equalTo(rollupIndex));
-                assertThat(request.type(), equalTo("_doc"));
 
                 Map<String, Object> source = ((IndexRequest) request).sourceAsMap();
 

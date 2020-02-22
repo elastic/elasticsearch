@@ -1,11 +1,14 @@
 [[alias]]
 === Alias datatype
+++++
+<titleabbrev>Alias</titleabbrev>
+++++
 
 An `alias` mapping defines an alternate name for a field in the  index.
 The alias can be used in place of the target field in <<search, search>> requests,
 and selected other APIs like <<search-field-caps, field capabilities>>.
 
-[source,js]
+[source,console]
 --------------------------------
 PUT trips
 {
@@ -36,7 +39,6 @@ GET _search
   }
 }
 --------------------------------
-// CONSOLE
 
 <1> The path to the target field. Note that this must be the full path, including any parent
 objects (e.g. `object1.object2.field`).
@@ -49,11 +51,10 @@ field values. Please see the section on <<unsupported-apis, unsupported APIs>> f
 In some parts of the search request and when requesting field capabilities, field wildcard patterns can be
 provided. In these cases, the wildcard pattern will match field aliases in addition to concrete fields:
 
-[source,js]
+[source,console]
 --------------------------------
 GET trips/_field_caps?fields=route_*,transit_mode
 --------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[alias-targets]]
@@ -81,7 +82,7 @@ will result in a failure. Likewise, aliases cannot be used as the target of `cop
 Because alias names are not present in the document source, aliases cannot be used when performing
 source filtering. For example, the following request will return an empty result for `_source`:
 
-[source,js]
+[source,console]
 --------------------------------
 GET /_search
 {
@@ -91,7 +92,6 @@ GET /_search
   "_source": "route_length_miles"
 }
 --------------------------------
-// CONSOLE
 // TEST[continued]
 
 Currently only the search and field capabilities APIs will accept and resolve field aliases.

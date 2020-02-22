@@ -87,7 +87,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<Object, List<B>> buckets = new HashMap<>();
         InternalRareTerms<A, B> referenceTerms = null;
         SetBackedScalingCuckooFilter filter = null;
@@ -128,7 +128,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
 
         final List<B> rare = new ArrayList<>();
         for (List<B> sameTermBuckets : buckets.values()) {
-            final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
+            final B b = reduceBucket(sameTermBuckets, reduceContext);
             if ((b.getDocCount() <= maxDocCount && containsTerm(filter, b) == false)) {
                 rare.add(b);
                 reduceContext.consumeBucketsAndMaybeBreak(1);

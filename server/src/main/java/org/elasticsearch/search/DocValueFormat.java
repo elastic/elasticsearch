@@ -28,8 +28,9 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -114,6 +115,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            try {
+                // Prefer parsing as a long to avoid losing precision
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                // retry as a double
+            }
             double d = Double.parseDouble(value);
             if (roundUp) {
                 d = Math.ceil(d);
@@ -131,6 +138,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(value);
+        }
+
+        @Override
+        public String toString() {
+            return "raw";
         }
     };
 
@@ -246,6 +258,28 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
+    DocValueFormat GEOTILE = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "geo_tile";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public String format(long value) {
+            return GeoTileUtils.stringEncode(value);
+        }
+
+        @Override
+        public String format(double value) {
+            return format((long) value);
+        }
+    };
+
     DocValueFormat BOOLEAN = new DocValueFormat() {
 
         @Override
@@ -305,6 +339,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        }
+
+        @Override
+        public String toString() {
+            return "ip";
         }
     };
 

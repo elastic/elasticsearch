@@ -260,7 +260,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         }
     }
 
-    public static ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
             "feature", args -> {
                 final String field = (String) args[0];
                 final float boost = args[1] == null ? DEFAULT_BOOST : (Float) args[1];
@@ -299,6 +299,11 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     private final String field;
     private final ScoreFunction scoreFunction;
 
+    /**
+     *
+     * @param field  The field name.
+     * @param scoreFunction Scoring function for the rank_feature field.
+     */
     public RankFeatureQueryBuilder(String field, ScoreFunction scoreFunction) {
         this.field = Objects.requireNonNull(field);
         this.scoreFunction = Objects.requireNonNull(scoreFunction);

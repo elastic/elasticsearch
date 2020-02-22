@@ -64,8 +64,8 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
 
     @Before
     public void startWebservice() throws Exception {
-        Settings settings = getInstanceFromMaster(Settings.class);
-        TestsSSLService sslService = new TestsSSLService(settings, getInstanceFromMaster(Environment.class));
+        final Environment environment = getInstanceFromMaster(Environment.class);
+        final TestsSSLService sslService = new TestsSSLService(environment);
         webServer = new MockWebServer(sslService.sslContext("xpack.http.ssl"), false);
         webServer.start();
     }
@@ -150,7 +150,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         } else {
             JavaVersion full =
                 AccessController.doPrivileged(
-                        (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.specification.version")));
+                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
             if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
                 return List.of("TLSv1.2");
             }

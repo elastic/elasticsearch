@@ -68,12 +68,12 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     private static IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
-        return client().prepareIndex(idx, "type").setSource(
+        return client().prepareIndex(idx).setSource(
                 jsonBuilder().startObject().timeField("date", date).field("value", value).endObject());
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
-        return client().prepareIndex("idx", "type").setSource(
+        return client().prepareIndex("idx").setSource(
                 jsonBuilder().startObject().field("value", value).timeField("date", date(month, day)).startArray("dates")
                         .timeValue(date(month, day)).timeValue(date(month + 1, day + 1)).endArray().endObject());
     }
@@ -83,10 +83,10 @@ public class DateDerivativeIT extends ESIntegTestCase {
         createIndex("idx");
         createIndex("idx_unmapped");
         // TODO: would be nice to have more random data here
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
                     jsonBuilder().startObject().field("value", i * 2).endObject()));
         }
         builders.addAll(Arrays.asList(indexDoc(1, 2, 1), // date: Jan 2, dates: Jan 2, Feb 3
@@ -198,7 +198,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
         ZoneId timezone = ZoneId.of("CET");
-        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss").withZone(timezone);
+        DateFormatter formatter = DateFormatter.forPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(timezone);
         // epoch millis: 1332547200000
         addNTimes(1, IDX_DST_START, DateFormatters.from(formatter.parse("2012-03-24T01:00:00")), builders);
         // day with dst shift, only 23h long
@@ -223,7 +223,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(4));
 
-        DateFormatter dateFormatter = DateFormatter.forPattern("yyyy-MM-dd");
+        DateFormatter dateFormatter = DateFormatter.forPattern("uuuu-MM-dd");
         ZonedDateTime expectedKeyFirstBucket =
             LocalDate.from(dateFormatter.parse("2012-03-24")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
         assertBucket(buckets.get(0), expectedKeyFirstBucket, 1L, nullValue(), null, null);
@@ -250,7 +250,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         ZoneId timezone = ZoneId.of("CET");
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
-        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss").withZone(timezone);
+        DateFormatter formatter = DateFormatter.forPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(timezone);
         addNTimes(1, IDX_DST_END, DateFormatters.from(formatter.parse("2012-10-27T01:00:00")), builders);
         // day with dst shift -1h, 25h long
         addNTimes(2, IDX_DST_END, DateFormatters.from(formatter.parse("2012-10-28T01:00:00")), builders);
@@ -274,7 +274,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(4));
 
-        DateFormatter dateFormatter = DateFormatter.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
+        DateFormatter dateFormatter = DateFormatter.forPattern("uuuu-MM-dd").withZone(ZoneOffset.UTC);
 
         ZonedDateTime expectedKeyFirstBucket =
             LocalDate.from(dateFormatter.parse("2012-10-27")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
@@ -303,7 +303,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         ZoneId timezone = ZoneId.of("Asia/Kathmandu");
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
-        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss").withZone(timezone);
+        DateFormatter formatter = DateFormatter.forPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(timezone);
         addNTimes(1, IDX_DST_KATHMANDU, DateFormatters.from(formatter.parse("1985-12-31T22:30:00")), builders);
         // the shift happens during the next bucket, which includes the 45min that do not start on the full hour
         addNTimes(2, IDX_DST_KATHMANDU, DateFormatters.from(formatter.parse("1985-12-31T23:30:00")), builders);
@@ -327,7 +327,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(4));
 
-        DateFormatter dateFormatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss").withZone(ZoneOffset.UTC);
+        DateFormatter dateFormatter = DateFormatter.forPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(ZoneOffset.UTC);
 
         ZonedDateTime expectedKeyFirstBucket =
             LocalDateTime.from(dateFormatter.parse("1985-12-31T22:00:00")).atZone(timezone).withZoneSameInstant(ZoneOffset.UTC);

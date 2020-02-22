@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -14,13 +16,18 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
+import java.io.IOException;
+
 public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJobsAction.Request, GetJobsAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetJobsAction.class);
 
     private final JobManager jobManager;
 
@@ -40,8 +47,8 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
     }
 
     @Override
-    protected GetJobsAction.Response newResponse() {
-        return new GetJobsAction.Response();
+    protected GetJobsAction.Response read(StreamInput in) throws IOException {
+        return new GetJobsAction.Response(in);
     }
 
     @Override

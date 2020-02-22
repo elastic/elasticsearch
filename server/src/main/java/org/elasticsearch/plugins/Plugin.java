@@ -21,10 +21,8 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -49,7 +47,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 
@@ -73,17 +70,6 @@ import java.util.function.UnaryOperator;
 public abstract class Plugin implements Closeable {
 
     /**
-     * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link MetaData.Custom}; see
-     * also {@link ClusterState.FeatureAware}.
-     *
-     * @return a feature set represented by this plugin, or the empty optional if the plugin does not expose cluster state or metadata
-     * customs
-     */
-    protected Optional<String> getFeature() {
-        return Optional.empty();
-    }
-
-    /**
      * Returns components added by this plugin.
      *
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
@@ -99,11 +85,13 @@ public abstract class Plugin implements Closeable {
      * @param environment the environment for path and setting configurations
      * @param nodeEnvironment the node environment used coordinate access to the data paths
      * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
+     * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         return Collections.emptyList();
     }
 
@@ -157,22 +145,6 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Provides a function to modify global custom meta data on startup.
-     * <p>
-     * Plugins should return the input custom map via {@link UnaryOperator#identity()} if no upgrade is required.
-     * <p>
-     * The order of custom meta data upgraders calls is undefined and can change between runs so, it is expected that
-     * plugins will modify only data owned by them to avoid conflicts.
-     * <p>
-     * @return Never {@code null}. The same or upgraded {@code MetaData.Custom} map.
-     * @throws IllegalStateException if the node should not start because at least one {@code MetaData.Custom}
-     *                               is unsupported
-     */
-    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
-        return UnaryOperator.identity();
-    }
-
-    /**
      * Provides a function to modify index template meta data on startup.
      * <p>
      * Plugins should return the input template map via {@link UnaryOperator#identity()} if no upgrade is required.
@@ -185,21 +157,6 @@ public abstract class Plugin implements Closeable {
      *                               cannot be upgraded
      */
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
-        return UnaryOperator.identity();
-    }
-
-    /**
-     * Provides a function to modify index meta data when an index is introduced into the cluster state for the first time.
-     * <p>
-     * Plugins should return the input index metadata via {@link UnaryOperator#identity()} if no upgrade is required.
-     * <p>
-     * The order of the index upgrader calls for the same index is undefined and can change between runs so, it is expected that
-     * plugins will modify only indices owned by them to avoid conflicts.
-     * <p>
-     * @return Never {@code null}. The same or upgraded {@code IndexMetaData}.
-     * @throws IllegalStateException if the node should not start because the index is unsupported
-     */
-    public UnaryOperator<IndexMetaData> getIndexMetaDataUpgrader() {
         return UnaryOperator.identity();
     }
 

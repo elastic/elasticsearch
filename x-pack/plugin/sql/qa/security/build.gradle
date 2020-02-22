@@ -6,31 +6,31 @@ Project mainProject = project
 
 group = "${group}.x-pack.qa.sql.security"
 
+configurations.create('testArtifacts')
+
+TaskProvider testJar = tasks.register("testJar", Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}
+
 // Tests are pushed down to subprojects and will be checked there.
 testingConventions.enabled = false
 
 subprojects {
-  // Use resources from the parent project in subprojects
-  sourceSets {
-    test {
-      mainProject.sourceSets.test.output.classesDirs.each { dir ->
-        output.addClassesDir { dir }
-        output.builtBy(mainProject.tasks.testClasses)
-      }
-      runtimeClasspath += mainProject.sourceSets.test.output
-    }
-  }
-
-  processTestResources {
-    from mainProject.file('src/test/resources')
-  }
+  // Use tests from the root security qa project in subprojects
+  configurations.create('testArtifacts')
 
   dependencies {
     testCompile project(":x-pack:plugin:core")
+    testArtifacts project(path: mainProject.path, configuration: 'testArtifacts')
   }
 
   testClusters.integTest {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     // Setup auditing so we can use it in some tests
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.security.enabled', 'true'
@@ -42,10 +42,22 @@ subprojects {
     user username: "test_admin", password: "x-pack-test-password"
   }
 
-  integTest.runner {
-    nonInputProperties.systemProperty 'tests.audit.logfile',
-        "${ -> testClusters.integTest.singleNode().getAuditLog()}"
-    nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
-        "${ -> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
+  File testArtifactsDir = project.file("$buildDir/testArtifacts")
+  TaskProvider copyTestClasses = tasks.register("copyTestClasses", Copy) {
+    dependsOn configurations.testArtifacts
+    from { zipTree(configurations.testArtifacts.singleFile) }
+    into testArtifactsDir
   }
+
+  integTest.runner {
+    dependsOn copyTestClasses
+    testClassesDirs += project.files(testArtifactsDir)
+    classpath += configurations.testArtifacts
+    nonInputProperties.systemProperty 'tests.audit.logfile',
+      "${-> testClusters.integTest.singleNode().getAuditLog()}"
+    nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
+      "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
+  }
+
+  testingConventions.enabled = false
 }

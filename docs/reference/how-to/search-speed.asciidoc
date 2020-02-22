@@ -31,7 +31,7 @@ If your search is CPU-bound, you should investigate buying faster CPUs.
 Documents should be modeled so that search-time operations are as cheap as possible.
 
 In particular, joins should be avoided. <<nested,`nested`>> can make queries
-several times slower and <<mapping-parent-field,parent-child>> relations can make
+several times slower and <<parent-join,parent-child>> relations can make
 queries hundreds of times slower. So if the same questions can be answered without
 joins by denormalizing documents, significant speedups can be expected.
 
@@ -48,7 +48,7 @@ of an index containing movies that optimizes queries that search over both the
 name and the plot of the movie by indexing both values into the `name_and_plot`
 field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT movies
 {
@@ -69,7 +69,6 @@ PUT movies
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 === Pre-index data
@@ -83,7 +82,7 @@ aggregations.
 
 For instance, if documents look like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/_doc/1
 {
@@ -91,11 +90,10 @@ PUT index/_doc/1
   "price": 13
 }
 --------------------------------------------------
-// CONSOLE
 
 and search requests look like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -113,13 +111,12 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Then documents could be enriched by a `price_range` field at index time, which
 should be mapped as a <<keyword,`keyword`>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
@@ -139,12 +136,11 @@ PUT index/_doc/1
   "price_range": "10-100"
 }
 --------------------------------------------------
-// CONSOLE
 
 And then search requests could aggregate this new field rather than running a
 `range` aggregation on the `price` field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -157,20 +153,13 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
 [[map-ids-as-keyword]]
 === Consider mapping identifiers as `keyword`
 
-The fact that some data is numeric does not mean it should always be mapped as a
-<<number,numeric field>>. The way that Elasticsearch indexes numbers optimizes
-for `range` queries while `keyword` fields are better at `term` queries. Typically, 
-fields storing identifiers such as an `ISBN` or any number identifying a record 
-from another database are rarely used in `range` queries or aggregations. This is
-why they might benefit from being mapped as <<keyword,`keyword`>> rather than as 
-`integer` or `long`.
+include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 
 [float]
 === Avoid scripts
@@ -188,7 +177,7 @@ benefit of making better use of the query cache.
 
 For instance the below query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/_doc/1
 {
@@ -211,11 +200,10 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 could be replaced with the following query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -233,7 +221,6 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 In that case we rounded to the minute, so if the current time is `16:31:29`,
@@ -249,7 +236,7 @@ NOTE: It might be tempting to split ranges into a large cacheable part and
 smaller not cacheable parts in order to be able to leverage the query cache,
 as shown below:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -289,7 +276,6 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 However such practice might make the query run slower in some cases since the
@@ -299,13 +285,17 @@ leveraging the query cache.
 [float]
 === Force-merge read-only indices
 
-Indices that are read-only would benefit from being
-<<indices-forcemerge,merged down to a single segment>>. This is typically the
-case with time-based indices: only the index for the current time frame is
-getting new documents while older indices are read-only.
+Indices that are read-only may benefit from being <<indices-forcemerge,merged
+down to a single segment>>. This is typically the case with time-based indices:
+only the index for the current time frame is getting new documents while older
+indices are read-only. Shards that have been force-merged into a single segment
+can use simpler and more efficient data structures to perform searches.
 
-IMPORTANT: Don't force-merge indices that are still being written to -- leave
-merging to the background merge process.
+IMPORTANT: Do not force-merge indices to which you are still writing, or to
+which you will write again in the future. Instead, rely on the automatic
+background merge process to perform merges as needed to keep the index running
+smoothly. If you continue to write to a force-merged index then its performance
+may become much worse.
 
 [float]
 === Warm up global ordinals
@@ -315,9 +305,10 @@ Global ordinals are a data-structure that is used in order to run
 <<keyword,`keyword`>> fields. They are loaded lazily in memory because
 Elasticsearch does not know which fields will be used in `terms` aggregations
 and which fields won't. You can tell Elasticsearch to load global ordinals
-eagerly at refresh-time by configuring mappings as described below:
+eagerly when starting or refreshing a shard by configuring mappings as
+described below:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
@@ -331,7 +322,6 @@ PUT index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 === Warm up the filesystem cache
@@ -340,8 +330,8 @@ If the machine running Elasticsearch is restarted, the filesystem cache will be
 empty, so it will take some time before the operating system loads hot regions
 of the index into memory so that search operations are fast. You can explicitly
 tell the operating system which files should be loaded into memory eagerly
-depending on the file extension using the <<file-system,`index.store.preload`>>
-setting.
+depending on the file extension using the
+<<preload-data-to-file-system-cache,`index.store.preload`>> setting.
 
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
@@ -424,7 +414,7 @@ queries, this can speed up queries significantly.
 [[faster-prefix-queries]]
 === Faster prefix queries with `index_prefixes`
 
-The <<text,`text`>> field has an <<index-phrases,`index_prefixes`>> option that
+The <<text,`text`>> field has an <<index-prefixes,`index_prefixes`>> option that
 indexes prefixes of all terms and is automatically leveraged by query parsers to
 run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.

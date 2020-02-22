@@ -17,9 +17,11 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 // This is a top level task which we will add dependencies to below.
@@ -29,112 +31,101 @@ task bwcTest {
   group = 'verification'
 }
 
-for (Version version : bwcVersions.wireCompatible) {
+configurations {
+  restSpec
+}
+
+dependencies {
+  restSpec project(':rest-api-spec')
+}
+
+processTestResources {
+  from({ zipTree(configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/api/**'
+  }
+  dependsOn configurations.restSpec
+}
+
+for (Version bwcVersion : bwcVersions.wireCompatible) {
   /*
    * The goal here is to:
    * <ul>
    *  <li>start three nodes on the old version
    *  <li>run tests with systemProperty 'tests.rest.suite', 'old_cluster'
-   *  <li>shut down one node
-   *  <li>start a node with the new version
+   *  <li>upgrade one node
    *  <li>run tests with systemProperty 'tests.rest.suite', 'mixed_cluster'
-   *  <li>shut down one node on the old version
-   *  <li>start a node with the new version
+   *  <li>upgrade one more node
    *  <li>run tests with systemProperty 'tests.rest.suite', 'mixed_cluster' again
-   *  <li>shut down the last node with the old version
-   *  <li>start a node with the new version
+   *  <li>updgrade the last node
    *  <li>run tests with systemProperty 'tests.rest.suite', 'upgraded_cluster'
-   *  <li>shut down the entire cluster
    * </ul>
-   *
-   * Be careful: gradle dry run spits out tasks in the wrong order but,
-   * strangely, running the tasks works properly.
    */
-  String baseName = "v${version}"
+  String baseName = "v${bwcVersion}"
 
-  Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
-    mustRunAfter(precommit)
-  }
+  testClusters {
+    "${baseName}" {
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 3
 
-  configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-    bwcVersion = version
-    numBwcNodes = 3
-    numNodes = 3
-    clusterName = 'rolling-upgrade'
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    if (version.onOrAfter('5.3.0')) {
+      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'http.content_type.required', 'true'
     }
   }
 
-  Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
-  oldClusterTestRunner.configure {
-    systemProperty 'tests.rest.suite', 'old_cluster'
-  }
-
-  Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure getOtherUnicastHostAddresses ->
-    configure(extensions.findByName("${baseName}#${name}")) {
-      dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
-      clusterName = 'rolling-upgrade'
-      otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
-      /* Override the data directory so the new node always gets the node we
-      * just stopped's data directory. */
-      dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
-      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-      setting 'node.name', "upgraded-node-${stopNode}"
+  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+    dependsOn processTestResources
+    useCluster testClusters."${baseName}"
+    mustRunAfter(precommit)
+    doFirst {
+      project.delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
+    systemProperty 'tests.rest.suite', 'old_cluster'
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  Task oneThirdUpgradedTest = tasks.create(name: "${baseName}#oneThirdUpgradedTest", type: RestIntegTestTask)
-
-  configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner, 0,
-    // Use all running nodes as seed nodes so there is no race between pinging and the tests
-    { [oldClusterTest.nodes.get(1).transportUri(), oldClusterTest.nodes.get(2).transportUri()] })
-
-  Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
-  oneThirdUpgradedTestRunner.configure {
+  tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
+    dependsOn "${baseName}#oldClusterTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
-    finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  Task twoThirdsUpgradedTest = tasks.create(name: "${baseName}#twoThirdsUpgradedTest", type: RestIntegTestTask)
-
-  configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner, 1,
-    // Use all running nodes as seed nodes so there is no race between pinging and the tests
-    { [oldClusterTest.nodes.get(2).transportUri(), oneThirdUpgradedTest.nodes.get(0).transportUri()] })
-
-  Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
-  twoThirdsUpgradedTestRunner.configure {
+  tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+    dependsOn "${baseName}#oneThirdUpgradedTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
-    finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
-
-  configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner, 2,
-    // Use all running nodes as seed nodes so there is no race between pinging and the tests
-    { [oneThirdUpgradedTest.nodes.get(0).transportUri(), twoThirdsUpgradedTest.nodes.get(0).transportUri()] })
-
-  Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
-  upgradedClusterTestRunner.configure {
+  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+    dependsOn "${baseName}#twoThirdsUpgradedTest"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
+    useCluster testClusters."${baseName}"
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
-    /*
-     * Force stopping all the upgraded nodes after the test runner
-     * so they are alive during the test.
-     */
-    finalizedBy "${baseName}#oneThirdUpgradedTestCluster#stop"
-    finalizedBy "${baseName}#twoThirdsUpgradedTestCluster#stop"
-  }
-
-  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-    enabled = project.bwc_tests_enabled
-    dependsOn = [upgradedClusterTest]
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn(versionBwcTest)
+    bwcTest.dependsOn(
+      tasks.register("${baseName}#bwcTest") {
+        dependsOn tasks.named("${baseName}#upgradedClusterTest")
+      }
+    )
   }
 }
 
@@ -150,3 +141,5 @@ task bwcTestSnapshots {
 }
 
 check.dependsOn(bwcTestSnapshots)
+
+test.enabled = false

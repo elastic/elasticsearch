@@ -25,9 +25,11 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -97,7 +99,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     protected abstract InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations);
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long docCount = 0L;
         List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
@@ -107,6 +109,22 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         }
         final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
         return newAggregation(getName(), docCount, aggs);
+    }
+
+    /**
+     * Unlike {@link InternalAggregation#reducePipelines(InternalAggregation, ReduceContext)}, a single-bucket
+     * agg needs to first reduce the aggs in it's bucket (and their parent pipelines) before allowing sibling pipelines
+     * to reduce
+     */
+    @Override
+    public final InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        assert reduceContext.isFinalReduce();
+        List<InternalAggregation> aggs = new ArrayList<>();
+        for (Aggregation agg : getAggregations().asList()) {
+            aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext));
+        }
+        InternalAggregations reducedSubAggs = new InternalAggregations(aggs);
+        return super.reducePipelines(create(reducedSubAggs), reduceContext);
     }
 
     @Override
@@ -134,6 +152,21 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
         aggregations.toXContentInternal(builder, params);
         return builder;
+    }
+
+    @Override
+    public final double sortValue(String key) {
+        if (key != null && false == key.equals("doc_count")) {
+            throw new IllegalArgumentException(
+                    "Unknown value key [" + key + "] for single-bucket aggregation [" + getName() +
+                    "]. Either use [doc_count] as key or drop the key all together.");
+        }
+        return docCount;
+    }
+
+    @Override
+    public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        return aggregations.sortValue(head, tail);
     }
 
     @Override

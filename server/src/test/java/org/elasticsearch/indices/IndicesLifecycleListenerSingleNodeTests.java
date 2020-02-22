@@ -122,7 +122,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         };
         indicesService.removeIndex(idx, DELETED, "simon says");
         try {
-            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener));
+            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener), false);
             assertEquals(3, counter.get());
             idx = index.index();
             ShardRouting newRouting = shardRouting;
@@ -137,7 +137,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             final DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
                     emptyMap(), emptySet(), Version.CURRENT);
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
-            shard.recoverFromStore();
+            IndexShardTestCase.recoverFromStore(shard);
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(6, counter.get());

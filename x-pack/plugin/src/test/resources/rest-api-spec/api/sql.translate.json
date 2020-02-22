@@ -1,16 +1,25 @@
 {
-    "sql.translate": {
-      "documentation": "Translate SQL into Elasticsearch queries",
-      "stability" : "stable",
-      "methods": [ "POST", "GET" ],
-      "url": {
-        "paths": [ "/_sql/translate" ],
-        "parts": {},
-        "params": {}
-      },
-      "body": {
-        "description" : "Specify the query in the `query` element.",
-        "required" : true
-      }
+  "sql.translate":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-translate.html",
+      "description":"Translates SQL into Elasticsearch queries"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_sql/translate",
+          "methods":[
+            "POST",
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"Specify the query in the `query` element.",
+      "required":true
     }
   }
+}

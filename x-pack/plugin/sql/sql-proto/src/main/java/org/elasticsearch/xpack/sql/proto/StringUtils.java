@@ -21,6 +21,7 @@ import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
 import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
+import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public final class StringUtils {
@@ -40,16 +41,29 @@ public final class StringUtils {
             .appendOffsetId()
             .toFormatter(Locale.ROOT);
 
+    public static final DateTimeFormatter ISO_DATE_WITH_NANOS = new DateTimeFormatterBuilder()
+            .parseCaseInsensitive()
+            .append(ISO_LOCAL_DATE)
+            .appendLiteral('T')
+            .appendValue(HOUR_OF_DAY, 2)
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 2)
+            .appendLiteral(':')
+            .appendValue(SECOND_OF_MINUTE, 2)
+            .appendFraction(NANO_OF_SECOND, 3, 9, true)
+            .appendOffsetId()
+            .toFormatter(Locale.ROOT);
+
     public static final DateTimeFormatter ISO_TIME_WITH_MILLIS = new DateTimeFormatterBuilder()
-        .parseCaseInsensitive()
-        .appendValue(HOUR_OF_DAY, 2)
-        .appendLiteral(':')
-        .appendValue(MINUTE_OF_HOUR, 2)
-        .appendLiteral(':')
-        .appendValue(SECOND_OF_MINUTE, 2)
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-        .appendOffsetId()
-        .toFormatter(Locale.ROOT);
+            .parseCaseInsensitive()
+            .appendValue(HOUR_OF_DAY, 2)
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 2)
+            .appendLiteral(':')
+            .appendValue(SECOND_OF_MINUTE, 2)
+            .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+            .appendOffsetId()
+            .toFormatter(Locale.ROOT);
 
     private static final int SECONDS_PER_MINUTE = 60;
     private static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;
@@ -61,7 +75,7 @@ public final class StringUtils {
         if (value == null) {
             return "null";
         }
-
+        
         if (value instanceof ZonedDateTime) {
             return ((ZonedDateTime) value).format(ISO_DATE_WITH_MILLIS);
         }
@@ -115,8 +129,14 @@ public final class StringUtils {
             sb.append(":");
             durationInSec = durationInSec % SECONDS_PER_MINUTE;
             sb.append(indent(durationInSec));
-            sb.append(".");
-            sb.append(TimeUnit.NANOSECONDS.toMillis(d.getNano()));
+            long millis = TimeUnit.NANOSECONDS.toMillis(d.getNano());
+            if (millis > 0) {
+                sb.append(".");
+                while (millis % 10 == 0) {
+                    millis /= 10;
+                }
+                sb.append(millis);
+            }
             return sb.toString();
         }
 

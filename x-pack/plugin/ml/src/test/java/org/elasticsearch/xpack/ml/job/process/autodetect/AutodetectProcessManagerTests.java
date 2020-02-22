@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -52,8 +53,9 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -61,6 +63,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -118,7 +121,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private AutodetectCommunicator autodetectCommunicator;
     private AutodetectProcessFactory autodetectFactory;
     private NormalizerFactory normalizerFactory;
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
     private ClusterState clusterState;
     private ClusterService clusterService;
     private NativeStorageProvider nativeStorageProvider;
@@ -143,15 +146,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
-        when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(mock(JobResultsPersister.Builder.class));
+        when(jobResultsPersister.bulkPersisterBuilder(any(), any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         autodetectCommunicator = mock(AutodetectCommunicator.class);
         autodetectFactory = mock(AutodetectProcessFactory.class);
         normalizerFactory = mock(NormalizerFactory.class);
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings =
-            new ClusterSettings(Settings.EMPTY, Collections.singleton(MachineLearning.MAX_OPEN_JOBS_PER_NODE));
+            new ClusterSettings(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                    ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         MetaData metaData = mock(MetaData.class);
         SortedMap<String, AliasOrIndex> aliasOrIndexSortedMap = new TreeMap<>();
@@ -685,7 +690,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private AutodetectProcessManager createManager(Settings settings) {
         return new AutodetectProcessManager(environment, settings,
             client, threadPool, new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService, jobManager, jobResultsProvider,
-            jobResultsPersister, jobDataCountsPersister, autodetectFactory, normalizerFactory, nativeStorageProvider);
+            jobResultsPersister, jobDataCountsPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
+            new IndexNameExpressionResolver());
     }
     private AutodetectProcessManager createSpyManagerAndCallProcessData(String jobId) {
         AutodetectProcessManager manager = createSpyManager();

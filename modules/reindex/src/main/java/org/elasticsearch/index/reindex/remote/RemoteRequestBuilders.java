@@ -125,6 +125,11 @@ final class RemoteRequestBuilders {
             request.addParameter(storedFieldsParamName, fields.toString());
         }
 
+        if (remoteVersion.onOrAfter(Version.fromId(6030099))) {
+            // allow_partial_results introduced in 6.3, running remote reindex against earlier versions still silently discards RED shards.
+            request.addParameter("allow_partial_search_results", "false");
+        }
+
         // EMPTY is safe here because we're not calling namedObject
         try (XContentBuilder entity = JsonXContent.contentBuilder();
                 XContentParser queryParser = XContentHelper
@@ -173,15 +178,6 @@ final class RemoteRequestBuilders {
             return URLEncoder.encode(s, "utf-8");
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private static void checkIndexOrType(String name, String indexOrType) {
-        if (indexOrType.indexOf(',') >= 0) {
-            throw new IllegalArgumentException(name + " containing [,] not supported but got [" + indexOrType + "]");
-        }
-        if (indexOrType.indexOf('/') >= 0) {
-            throw new IllegalArgumentException(name + " containing [/] not supported but got [" + indexOrType + "]");
         }
     }
 

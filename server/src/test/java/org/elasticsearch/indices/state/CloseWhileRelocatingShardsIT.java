@@ -104,7 +104,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     logger.debug("creating index {} with {} documents", indexName, nbDocs);
                     createIndex(indexName);
                     indexRandom(randomBoolean(), IntStream.range(0, nbDocs)
-                        .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                        .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                         .collect(Collectors.toList()));
                     break;
                 default:

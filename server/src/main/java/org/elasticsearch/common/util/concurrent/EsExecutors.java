@@ -24,7 +24,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
@@ -47,11 +46,14 @@ import java.util.stream.Collectors;
 public class EsExecutors {
 
     /**
-     * Settings key to manually set the number of available processors.
-     * This is used to adjust thread pools sizes etc. per node.
+     * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
-    public static final Setting<Integer> PROCESSORS_SETTING =
-        Setting.intSetting("processors", Runtime.getRuntime().availableProcessors(), 1, Property.NodeScope);
+    public static final Setting<Integer> NODE_PROCESSORS_SETTING = Setting.intSetting(
+        "node.processors",
+        Runtime.getRuntime().availableProcessors(),
+        1,
+        Runtime.getRuntime().availableProcessors(),
+        Property.NodeScope);
 
     /**
      * Returns the number of available processors. Defaults to
@@ -62,7 +64,7 @@ public class EsExecutors {
      * @return the number of available processors
      */
     public static int numberOfProcessors(final Settings settings) {
-        return PROCESSORS_SETTING.get(settings);
+        return NODE_PROCESSORS_SETTING.get(settings);
     }
 
     public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,
@@ -80,38 +82,20 @@ public class EsExecutors {
     }
 
     public static EsThreadPoolExecutor newFixed(String name, int size, int queueCapacity,
-                                                ThreadFactory threadFactory, ThreadContext contextHolder) {
+                                                ThreadFactory threadFactory, ThreadContext contextHolder, boolean trackEWMA) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-            queue, threadFactory, new EsAbortPolicy(), contextHolder);
-    }
-
-    /**
-     * Return a new executor that will automatically adjust the queue size based on queue throughput.
-     *
-     * @param size number of fixed threads to use for executing tasks
-     * @param initialQueueCapacity initial size of the executor queue
-     * @param minQueueSize minimum queue size that the queue can be adjusted to
-     * @param maxQueueSize maximum queue size that the queue can be adjusted to
-     * @param frameSize number of tasks during which stats are collected before adjusting queue size
-     */
-    public static EsThreadPoolExecutor newAutoQueueFixed(String name, int size, int initialQueueCapacity, int minQueueSize,
-                                                         int maxQueueSize, int frameSize, TimeValue targetedResponseTime,
-                                                         ThreadFactory threadFactory, ThreadContext contextHolder) {
-        if (initialQueueCapacity <= 0) {
-            throw new IllegalArgumentException("initial queue capacity for [" + name + "] executor must be positive, got: " +
-                            initialQueueCapacity);
+        if (trackEWMA) {
+            return new EWMATrackingEsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+                queue, TimedRunnable::new, threadFactory, new EsAbortPolicy(), contextHolder);
+        } else {
+            return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+                queue, threadFactory, new EsAbortPolicy(), contextHolder);
         }
-        ResizableBlockingQueue<Runnable> queue =
-                new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), initialQueueCapacity);
-        return new QueueResizingEsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-                queue, minQueueSize, maxQueueSize, TimedRunnable::new, frameSize, targetedResponseTime, threadFactory,
-                new EsAbortPolicy(), contextHolder);
     }
 
     /**

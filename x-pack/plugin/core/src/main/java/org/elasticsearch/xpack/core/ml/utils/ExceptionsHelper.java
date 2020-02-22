@@ -43,12 +43,20 @@ public class ExceptionsHelper {
         return new ResourceAlreadyExistsException("A data frame analytics with id [{}] already exists", id);
     }
 
+    public static ResourceNotFoundException missingTrainedModel(String modelId) {
+        return new ResourceNotFoundException("No known trained model with model_id [{}]", modelId);
+    }
+
     public static ElasticsearchException serverError(String msg) {
         return new ElasticsearchException(msg);
     }
 
     public static ElasticsearchException serverError(String msg, Throwable cause) {
         return new ElasticsearchException(msg, cause);
+    }
+
+    public static ElasticsearchException serverError(String msg, Throwable cause, Object... args) {
+        return new ElasticsearchException(msg, cause, args);
     }
 
     public static ElasticsearchStatusException conflictStatusException(String msg, Throwable cause, Object... args) {
@@ -98,5 +106,9 @@ public class ExceptionsHelper {
 
     public static <T> T requireNonNull(T obj, ParseField paramName) {
         return requireNonNull(obj, paramName.getPreferredName());
+    }
+
+    public static Throwable unwrapCause(Throwable t) {
+       return org.elasticsearch.ExceptionsHelper.unwrapCause(t);
     }
 }

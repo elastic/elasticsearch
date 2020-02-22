@@ -1,15 +1,22 @@
 {
-  "ml.evaluate_data_frame": {
-    "stability": "experimental",
-    "methods": [ "POST" ],
-    "url": {
-      "path": "/_ml/data_frame/_evaluate",
-      "paths": [ "/_ml/data_frame/_evaluate" ],
-      "parts": {}
+  "ml.evaluate_data_frame":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/evaluate-dfanalytics.html"
     },
-    "body": {
-      "description" : "The evaluation definition",
-      "required" : true
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/data_frame/_evaluate",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The evaluation definition",
+      "required":true
     }
   }
 }

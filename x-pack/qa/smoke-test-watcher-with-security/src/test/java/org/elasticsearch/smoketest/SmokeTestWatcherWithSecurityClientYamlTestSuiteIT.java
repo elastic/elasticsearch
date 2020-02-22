@@ -19,6 +19,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -108,7 +109,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override

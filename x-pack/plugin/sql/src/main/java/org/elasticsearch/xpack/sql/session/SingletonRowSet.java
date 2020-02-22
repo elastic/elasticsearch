@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.xpack.sql.type.Schema;
+import org.elasticsearch.xpack.ql.type.Schema;
 
 //TODO is it worth keeping this when we have ListRowSet?
 class SingletonRowSet extends AbstractRowSet implements SchemaRowSet {
@@ -41,11 +41,6 @@ class SingletonRowSet extends AbstractRowSet implements SchemaRowSet {
     @Override
     public int size() {
         return 1;
-    }
-
-    @Override
-    public Cursor nextPageCursor() {
-        return Cursor.EMPTY;
     }
 
     @Override

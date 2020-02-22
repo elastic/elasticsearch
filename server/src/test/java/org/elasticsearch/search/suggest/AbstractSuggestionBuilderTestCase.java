@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -173,13 +174,14 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 when(mapperService.searchAnalyzer())
                         .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
             }
-            when(mapperService.fullName(any(String.class))).thenReturn(fieldType);
+            when(mapperService.fieldType(any(String.class))).thenReturn(fieldType);
             when(mapperService.getNamedAnalyzer(any(String.class))).then(
                     invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
-            QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, mapperService, null,
-                    scriptService, xContentRegistry(), namedWriteableRegistry, null, null, System::currentTimeMillis, null);
+            QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+                null, mapperService, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
+                    System::currentTimeMillis, null, null, () -> true);
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
             assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());

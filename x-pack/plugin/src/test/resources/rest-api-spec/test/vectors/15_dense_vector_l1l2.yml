@@ -1,0 +1,101 @@
+setup:
+  - skip:
+      features: headers
+      version: " - 7.3.99"
+      reason: "l1norm and l2norm functions were added from 7.4"
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              my_dense_vector:
+                 type: dense_vector
+                 dims: 5
+  - do:
+      index:
+        index: test-index
+        id: 1
+        body:
+          my_dense_vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+
+  - do:
+      index:
+        index: test-index
+        id: 2
+        body:
+          my_dense_vector: [-0.5, 100.0, -13, 14.8, -156.0]
+
+  - do:
+      index:
+        index: test-index
+        id: 3
+        body:
+          my_dense_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - do:
+      indices.refresh: {}
+
+
+---
+"L1 norm":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l1norm(params.query_vector, 'my_dense_vector')"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "1"}
+  - gte: {hits.hits.0._score: 485.18}
+  - lte: {hits.hits.0._score: 485.19}
+
+  - match: {hits.hits.1._id: "2"}
+  - gte: {hits.hits.1._score: 12.29}
+  - lte: {hits.hits.1._score: 12.31}
+
+  - match: {hits.hits.2._id: "3"}
+  - gte: {hits.hits.2._score: 0.00}
+  - lte: {hits.hits.2._score: 0.01}
+
+---
+"L2 norm":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l2norm(params.query_vector, 'my_dense_vector')"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "1"}
+  - gte: {hits.hits.0._score: 301.36}
+  - lte: {hits.hits.0._score: 301.37}
+
+  - match: {hits.hits.1._id: "2"}
+  - gte: {hits.hits.1._score: 11.34}
+  - lte: {hits.hits.1._score: 11.35}
+
+  - match: {hits.hits.2._id: "3"}
+  - gte: {hits.hits.2._score: 0.00}
+  - lte: {hits.hits.2._score: 0.01}

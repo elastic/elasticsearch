@@ -51,7 +51,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean lenient;
     protected final Settings settings;
     protected final Environment environment;
-    private final boolean updateable;
+    protected final AnalysisMode analysisMode;
 
     SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env,
                                       String name, Settings settings) {
@@ -67,13 +67,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.expand = settings.getAsBoolean("expand", true);
         this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
-        this.updateable = settings.getAsBoolean("updateable", false);
+        boolean updateable = settings.getAsBoolean("updateable", false);
+        this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
     }
 
     @Override
     public AnalysisMode getAnalysisMode() {
-        return this.updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
+        return this.analysisMode;
     }
 
     @Override
@@ -109,14 +110,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public AnalysisMode getAnalysisMode() {
-                return updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
+                return analysisMode;
             }
         };
     }
 
     Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
                                   List<TokenFilterFactory> tokenFilters, Function<String, TokenFilterFactory> allFilters) {
-        return new CustomAnalyzer("synonyms", tokenizer, charFilters.toArray(new CharFilterFactory[0]),
+        return new CustomAnalyzer(tokenizer, charFilters.toArray(new CharFilterFactory[0]),
             tokenFilters.stream()
                 .map(TokenFilterFactory::getSynonymFilter)
                 .toArray(TokenFilterFactory[]::new));

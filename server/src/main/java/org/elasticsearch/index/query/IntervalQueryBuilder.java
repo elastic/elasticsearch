@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.intervals.IntervalQuery;
+import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,6 +53,14 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         super(in);
         this.field = in.readString();
         this.sourceProvider = in.readNamedWriteable(IntervalsSourceProvider.class);
+    }
+
+    public String getField() {
+        return field;
+    }
+
+    public IntervalsSourceProvider getSourceProvider() {
+        return sourceProvider;
     }
 
     @Override

@@ -30,15 +30,15 @@ import java.util.Map;
  * See {@link ReloadableCustomAnalyzer} for an example usage.
  */
 public final class AnalyzerComponents {
-    private final String tokenizerName;
+
     private final TokenizerFactory tokenizerFactory;
     private final CharFilterFactory[] charFilters;
     private final TokenFilterFactory[] tokenFilters;
     private final AnalysisMode analysisMode;
 
-    AnalyzerComponents(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
+    AnalyzerComponents(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
                        TokenFilterFactory[] tokenFilters) {
-        this.tokenizerName = tokenizerName;
+
         this.tokenizerFactory = tokenizerFactory;
         this.charFilters = charFilters;
         this.tokenFilters = tokenFilters;
@@ -85,12 +85,8 @@ public final class AnalyzerComponents {
             tokenFilterList.add(tokenFilter);
         }
 
-        return new AnalyzerComponents(tokenizerName, tokenizer, charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
+        return new AnalyzerComponents(tokenizer, charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()]));
-    }
-
-    public String getTokenizerName() {
-        return tokenizerName;
     }
 
     public TokenizerFactory getTokenizerFactory() {

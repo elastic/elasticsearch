@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class IndicesAliasesAction extends ActionType<AcknowledgedResponse> {
 
@@ -29,11 +28,7 @@ public class IndicesAliasesAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/aliases";
 
     private IndicesAliasesAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
-    }
 }

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -32,13 +32,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.ScriptContext;
@@ -72,12 +70,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
 
     private PainlessContextAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, PainlessContextAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -104,11 +97,6 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -140,13 +128,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeStringCollection(scriptContextNames);
             out.writeOptionalWriteable(painlessContextInfo);
         }
@@ -211,9 +193,9 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
     public static class RestAction extends BaseRestHandler {
 
-        public RestAction(Settings settings, RestController controller) {
-            super(settings);
-            controller.registerHandler(GET, "/_scripts/painless/_context", this);
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(GET, "/_scripts/painless/_context"));
         }
 
         @Override

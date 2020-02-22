@@ -28,7 +28,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
@@ -242,24 +244,39 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     public void testAuthenticateWithCodeFlow() throws Exception {
         final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME);
         final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
+        final String realm = randomBoolean() ? null : prepareAuthResponse.getRealm();
         Tuple<String, String> tokens = completeAuthentication(redirectUri, prepareAuthResponse.getState(),
-            prepareAuthResponse.getNonce());
+            prepareAuthResponse.getNonce(), realm);
         verifyElasticsearchAccessTokenForCodeFlow(tokens.v1());
     }
 
     public void testAuthenticateWithImplicitFlow() throws Exception {
         final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME_IMPLICIT);
         final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
+        final String realm = randomBoolean() ? null : prepareAuthResponse.getRealm();
+
         Tuple<String, String> tokens = completeAuthentication(redirectUri, prepareAuthResponse.getState(),
-            prepareAuthResponse.getNonce());
+            prepareAuthResponse.getNonce(), realm);
         verifyElasticsearchAccessTokenForImplicitFlow(tokens.v1());
+    }
+
+    public void testAuthenticateWithCodeFlowFailsForWrongRealm() throws Exception {
+        final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME);
+        final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
+        // Use existing realm that can't authenticate the response, or a non-existent realm
+        ResponseException e = expectThrows(ResponseException.class, () -> {
+            completeAuthentication(redirectUri,
+                prepareAuthResponse.getState(),
+                prepareAuthResponse.getNonce(), randomFrom(REALM_NAME_IMPLICIT, REALM_NAME + randomAlphaOfLength(8)));
+        });
+        assertThat(401, equalTo(e.getResponse().getStatusLine().getStatusCode()));
     }
 
     private void verifyElasticsearchAccessTokenForCodeFlow(String accessToken) throws IOException {
         final Map<String, Object> map = callAuthenticateApiUsingAccessToken(accessToken);
         logger.info("Authentication with token Response: " + map);
         assertThat(map.get("username"), equalTo("alice"));
-        assertThat((List<?>) map.get("roles"), containsInAnyOrder("kibana_user", "auditor"));
+        assertThat((List<?>) map.get("roles"), containsInAnyOrder("kibana_admin", "auditor"));
 
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
@@ -290,14 +307,19 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         final String state = (String) responseBody.get("state");
         final String nonce = (String) responseBody.get("nonce");
         final String authUri = (String) responseBody.get("redirect");
-        return new PrepareAuthResponse(new URI(authUri), state, nonce);
+        final String realm = (String) responseBody.get("realm");
+        return new PrepareAuthResponse(new URI(authUri), state, nonce, realm);
     }
 
-    private Tuple<String, String> completeAuthentication(String redirectUri, String state, String nonce) throws Exception {
+    private Tuple<String, String> completeAuthentication(String redirectUri, String state, String nonce, @Nullable String realm)
+        throws Exception {
         final Map<String, String> body = new HashMap<>();
         body.put("redirect_uri", redirectUri);
         body.put("state", state);
         body.put("nonce", nonce);
+        if (realm != null){
+            body.put("realm", realm);
+        }
         Request request = buildRequest("POST", "/_security/oidc/authenticate", body, facilitatorAuth());
         final Response authenticate = client().performRequest(request);
         assertOK(authenticate);
@@ -352,7 +374,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
 
     private void setRoleMappings() throws IOException {
         Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana");
-        createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"kibana_user\"]," +
+        createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"kibana_admin\"]," +
             "\"enabled\": true," +
             "\"rules\": {" +
             "\"field\": { \"realm.name\": \"" + REALM_NAME + "\"}" +
@@ -387,11 +409,13 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         private URI authUri;
         private String state;
         private String nonce;
+        private String realm;
 
-        PrepareAuthResponse(URI authUri, String state, String nonce) {
+        PrepareAuthResponse(URI authUri, String state, String nonce, @Nullable String realm) {
             this.authUri = authUri;
             this.state = state;
             this.nonce = nonce;
+            this.realm = realm;
         }
 
         URI getAuthUri() {
@@ -405,5 +429,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         String getNonce() {
             return nonce;
         }
+
+        String getRealm() { return realm;}
     }
 }

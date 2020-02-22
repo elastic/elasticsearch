@@ -186,9 +186,4 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         this.waitForMetaDataVersion = waitForMetaDataVersion;
         return this;
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

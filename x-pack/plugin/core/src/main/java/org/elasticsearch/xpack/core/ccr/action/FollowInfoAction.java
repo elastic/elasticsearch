@@ -29,12 +29,7 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
     public static final FollowInfoAction INSTANCE = new FollowInfoAction();
 
     private FollowInfoAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, FollowInfoAction.Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -103,7 +98,6 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeList(followInfos);
         }
 

@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -20,6 +22,10 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
      */
     public ReloadAnalyzersRequest(String... indices) {
         super(indices);
+    }
+
+    public ReloadAnalyzersRequest(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

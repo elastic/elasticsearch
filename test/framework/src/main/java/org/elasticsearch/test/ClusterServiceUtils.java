@@ -47,28 +47,6 @@ import static junit.framework.TestCase.fail;
 
 public class ClusterServiceUtils {
 
-    public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
-        MasterService masterService = new MasterService("test_master_node", Settings.EMPTY, threadPool);
-        AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-            clusterStateRef.set(event.state());
-            publishListener.onResponse(null);
-        });
-        masterService.setClusterStateSupplier(clusterStateRef::get);
-        masterService.start();
-        return masterService;
-    }
-
-    public static MasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
-        ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
-            .nodes(DiscoveryNodes.builder()
-                .add(localNode)
-                .localNodeId(localNode.getId())
-                .masterNodeId(localNode.getId()))
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
-        return createMasterService(threadPool, initialClusterState);
-    }
-
     public static void setState(ClusterApplierService executor, ClusterState clusterState) {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exception = new AtomicReference<>();

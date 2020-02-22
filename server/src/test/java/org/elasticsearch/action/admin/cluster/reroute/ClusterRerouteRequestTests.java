@@ -165,9 +165,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                ClusterRerouteRequest copy = new ClusterRerouteRequest();
-                copy.readFrom(in);
-                return copy;
+                return new ClusterRerouteRequest(in);
             }
         }
     }

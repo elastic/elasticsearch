@@ -35,7 +35,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -47,13 +46,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
-import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -79,7 +78,7 @@ public class FetchPhase implements SearchPhase {
 
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
-        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
+        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
     @Override
@@ -204,16 +203,14 @@ public class FetchPhase implements SearchPhase {
                                       int subDocId,
                                       Map<String, Set<String>> storedToRequestedFields,
                                       LeafReaderContext subReaderContext) {
-        DocumentMapper documentMapper = context.mapperService().documentMapper();
-        Text typeText = documentMapper.typeText();
         if (fieldsVisitor == null) {
-            return new SearchHit(docId, null, typeText, null);
+            return new SearchHit(docId, null, null);
         }
 
         Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId,
             storedToRequestedFields, subReaderContext);
 
-        SearchHit searchHit = new SearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
+        SearchHit searchHit = new SearchHit(docId, fieldsVisitor.id(), searchFields);
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
@@ -228,7 +225,7 @@ public class FetchPhase implements SearchPhase {
                                                        int subDocId,
                                                        Map<String, Set<String>> storedToRequestedFields,
                                                        LeafReaderContext subReaderContext) {
-        loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
+        loadStoredFields(context.shardTarget(), subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
 
         if (fieldsVisitor.fields().isEmpty()) {
@@ -251,6 +248,7 @@ public class FetchPhase implements SearchPhase {
         return searchFields;
     }
 
+    @SuppressWarnings("unchecked")
     private SearchHit createNestedSearchHit(SearchContext context,
                                             int nestedTopDocId,
                                             int nestedSubDocId,
@@ -260,18 +258,18 @@ public class FetchPhase implements SearchPhase {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
         // because the entire _source is only stored with the root document.
-        final Uid uid;
+        final String id;
         final BytesReference source;
         final boolean needSource = context.sourceRequested() || context.highlight() != null;
         if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context, subReaderContext, rootFieldsVisitor, rootSubDocId);
+            loadStoredFields(context.shardTarget(), subReaderContext, rootFieldsVisitor, rootSubDocId);
             rootFieldsVisitor.postProcess(context.mapperService());
-            uid = rootFieldsVisitor.uid();
+            id = rootFieldsVisitor.id();
             source = rootFieldsVisitor.source();
         } else {
             // In case of nested inner hits we already know the uid, so no need to fetch it from stored fields again!
-            uid = ((InnerHitsContext.InnerHitSubContext) context).getUid();
+            id = ((InnerHitsContext.InnerHitSubContext) context).getId();
             source = null;
         }
 
@@ -339,7 +337,7 @@ public class FetchPhase implements SearchPhase {
             XContentType contentType = tuple.v1();
             context.lookup().source().setSourceContentType(contentType);
         }
-        return new SearchHit(nestedTopDocId, uid.id(), documentMapper.typeText(), nestedIdentity, searchFields);
+        return new SearchHit(nestedTopDocId, id, nestedIdentity, searchFields);
     }
 
     private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,
@@ -382,7 +380,7 @@ public class FetchPhase implements SearchPhase {
             BitSet parentBits = context.bitsetFilterCache().getBitSetProducer(parentFilter).getBitSet(subReaderContext);
 
             int offset = 0;
-            /**
+            /*
              * Starts from the previous parent and finds the offset of the
              * <code>nestedSubDocID</code> within the nested children. Nested documents
              * are indexed in the same order than in the source array so the offset
@@ -405,12 +403,12 @@ public class FetchPhase implements SearchPhase {
         return nestedIdentity;
     }
 
-    private void loadStoredFields(SearchContext searchContext, LeafReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
+    private void loadStoredFields(SearchShardTarget shardTarget, LeafReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
         fieldVisitor.reset();
         try {
             readerContext.reader().document(docId, fieldVisitor);
         } catch (IOException e) {
-            throw new FetchPhaseExecutionException(searchContext, "Failed to fetch doc id [" + docId + "]", e);
+            throw new FetchPhaseExecutionException(shardTarget, "Failed to fetch doc id [" + docId + "]", e);
         }
     }
 }

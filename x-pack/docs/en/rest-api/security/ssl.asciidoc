@@ -8,16 +8,25 @@
 The `certificates` API enables you to retrieve information about the X.509
 certificates that are used to encrypt communications in your {es} cluster.
 
-==== Request
+[[security-api-ssl-request]]
+==== {api-request-title}
 
 `GET /_ssl/certificates`
 
 
-==== Description
+[[security-api-ssl-prereqs]]
+==== {api-prereq-title}
+
+* If the {security-features} are enabled, you must have `monitor` cluster
+privileges to use this API. For more information, see
+<<security-privileges>>.
+
+[[security-api-ssl-desc]]
+==== {api-description-title}
 
 For more information about how certificates are configured in conjunction with
 Transport Layer Security (TLS), see
-{stack-ov}/ssl-tls.html[Setting up SSL/TLS on a cluster].
+<<ssl-tls>>.
 
 The API returns a list that includes certificates from all TLS contexts
 including:
@@ -45,8 +54,8 @@ If {es} is configured to use a keystore or truststore, the API output
 includes all certificates in that store, even though some of the certificates
 might not be in active use within the cluster.
 
-
-==== Results
+[[security-api-ssl-response-body]]
+==== {api-response-body-title}
 
 The response is an array of objects, with each object representing a
 single certificate. The fields in each object are:
@@ -64,24 +73,17 @@ certificate, this field has a value of `true`.
 `expiry`:: (string) The ISO formatted date of the certificate's expiry
 (not-after) date.
 
-==== Authorization
 
-If the {security-features} are enabled, you must have `monitor` cluster
-privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges].
-
-
-==== Examples
+[[security-api-ssl-example]]
+==== {api-examples-title}
 
 The following example provides information about the certificates on a single
 node of {es}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_ssl/certificates
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The API returns the following results:
 

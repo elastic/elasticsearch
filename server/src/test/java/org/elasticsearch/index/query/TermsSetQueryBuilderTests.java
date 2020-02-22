@@ -48,7 +48,6 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
@@ -78,7 +77,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         String docType = "_doc";
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
                 "m_s_m", "type=long"
         ))), MapperService.MergeReason.MAPPING_UPDATE);
     }
@@ -100,7 +99,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermsSetQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(TermsSetQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.getValues().isEmpty()) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;

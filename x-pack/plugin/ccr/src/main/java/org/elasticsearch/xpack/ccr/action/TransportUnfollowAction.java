@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -49,6 +51,8 @@ import java.util.Objects;
 
 public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowAction.Request, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportUnfollowAction.class);
+
     private final Client client;
 
     @Inject
@@ -78,11 +82,6 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

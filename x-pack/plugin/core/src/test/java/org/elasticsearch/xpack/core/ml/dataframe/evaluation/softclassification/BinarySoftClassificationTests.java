@@ -10,21 +10,27 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class BinarySoftClassificationTests extends AbstractSerializingTestCase<BinarySoftClassification> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlEvaluationNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(MlEvaluationNamedXContentProvider.getNamedWriteables());
     }
 
     @Override
@@ -33,7 +39,7 @@ public class BinarySoftClassificationTests extends AbstractSerializingTestCase<B
     }
 
     public static BinarySoftClassification createRandom() {
-        List<SoftClassificationMetric> metrics = new ArrayList<>();
+        List<EvaluationMetric> metrics = new ArrayList<>();
         if (randomBoolean()) {
             metrics.add(AucRocTests.createRandom());
         }
@@ -75,5 +81,25 @@ public class BinarySoftClassificationTests extends AbstractSerializingTestCase<B
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new BinarySoftClassification("foo", "bar", Collections.emptyList()));
         assertThat(e.getMessage(), equalTo("[binary_soft_classification] must have one or more metrics"));
+    }
+
+    public void testBuildSearch() {
+        QueryBuilder userProvidedQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery("act"))
+                .filter(QueryBuilders.existsQuery("prob"))
+                .filter(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+
+        BinarySoftClassification evaluation = new BinarySoftClassification("act", "prob", Arrays.asList(new Precision(Arrays.asList(0.7))));
+
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(userProvidedQuery);
+        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
+        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }
 }

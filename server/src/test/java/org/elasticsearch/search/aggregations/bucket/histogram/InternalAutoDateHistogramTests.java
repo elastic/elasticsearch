@@ -108,10 +108,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertThat(result, equalTo(2));
     }
 
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39497")
-    // TODO: When resolving the above AwaitsFix, just delete this override. Method is only overriden to apply the annotation.
     public void testReduceRandom() {
         super.testReduceRandom();
     }

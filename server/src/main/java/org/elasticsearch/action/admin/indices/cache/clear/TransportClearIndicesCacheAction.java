@@ -70,9 +70,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
 
     @Override
     protected ClearIndicesCacheRequest readRequestFrom(StreamInput in) throws IOException {
-        final ClearIndicesCacheRequest request = new ClearIndicesCacheRequest();
-        request.readFrom(in);
-        return request;
+        return new ClearIndicesCacheRequest(in);
     }
 
     @Override

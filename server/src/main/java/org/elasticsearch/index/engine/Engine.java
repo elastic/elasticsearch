@@ -27,7 +27,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -36,7 +35,10 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -51,13 +53,11 @@ import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -86,7 +86,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -110,7 +109,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class Engine implements Closeable {
 
-    public static final String SYNC_COMMIT_ID = "sync_id";
+    public static final String SYNC_COMMIT_ID = "sync_id"; // TODO: Remove sync_id in 9.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
@@ -162,18 +161,6 @@ public abstract class Engine implements Closeable {
         return a.ramBytesUsed();
     }
 
-    /**
-     * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
-     */
-    protected static boolean isMergedSegment(LeafReader reader) {
-        // We expect leaves to be segment readers
-        final Map<String, String> diagnostics = Lucene.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
-        final String source = diagnostics.get(IndexWriter.SOURCE);
-        assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH,
-                IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
-        return IndexWriter.SOURCE_MERGE.equals(source);
-    }
-
     public final EngineConfig config() {
         return engineConfig;
     }
@@ -194,13 +181,13 @@ public abstract class Engine implements Closeable {
      * Returns the {@link CompletionStats} for this engine
      */
     public CompletionStats completionStats(String... fieldNamePatterns) throws IOException {
-        try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats", SearcherScope.INTERNAL)) {
+        try (Searcher currentSearcher = acquireSearcher("completion_stats", SearcherScope.INTERNAL)) {
             long sizeInBytes = 0;
             ObjectLongHashMap<String> completionFields = null;
             if (fieldNamePatterns != null && fieldNamePatterns.length > 0) {
                 completionFields = new ObjectLongHashMap<>(fieldNamePatterns.length);
             }
-            for (LeafReaderContext atomicReaderContext : currentSearcher.reader().leaves()) {
+            for (LeafReaderContext atomicReaderContext : currentSearcher.getIndexReader().leaves()) {
                 LeafReader atomicReader = atomicReaderContext.reader();
                 for (FieldInfo info : atomicReader.getFieldInfos()) {
                     Terms terms = atomicReader.terms(info.name);
@@ -222,13 +209,13 @@ public abstract class Engine implements Closeable {
      * Returns the {@link DocsStats} for this engine
      */
     public DocsStats docStats() {
-        // we calculate the doc stats based on the internal reader that is more up-to-date and not subject
-        // to external refreshes. For instance we don't refresh an external reader if we flush and indices with
+        // we calculate the doc stats based on the internal searcher that is more up-to-date and not subject
+        // to external refreshes. For instance we don't refresh an external searcher if we flush and indices with
         // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
-        // when indexing but not refreshing in general. Yet, if a refresh happens the internal reader is refresh as well so we are
+        // when indexing but not refreshing in general. Yet, if a refresh happens the internal searcher is refresh as well so we are
         // safe here.
-        try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
-           return docsStats(searcher.reader());
+        try (Searcher searcher = acquireSearcher("docStats", SearcherScope.INTERNAL)) {
+           return docsStats(searcher.getIndexReader());
         }
     }
 
@@ -527,8 +514,8 @@ public abstract class Engine implements Closeable {
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version, long term) {
-            this(failure, version, term, UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version) {
+            this(failure, version, UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long term, long seqNo) {
@@ -591,28 +578,12 @@ public abstract class Engine implements Closeable {
 
     }
 
-    /**
-     * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
-     * succeeds if there are not pending writes in lucene and the current point is equal to the expected one.
-     *
-     * @param syncId           id of this sync
-     * @param expectedCommitId the expected value of
-     * @return true if the sync commit was made, false o.w.
-     */
-    public abstract SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException;
-
-    public enum SyncedFlushResult {
-        SUCCESS,
-        COMMIT_MISMATCH,
-        PENDING_OPERATIONS
-    }
-
-    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory,
-                                              SearcherScope scope) throws EngineException {
-        final Searcher searcher = searcherFactory.apply("get", scope);
+    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory,
+                                                SearcherScope scope) throws EngineException {
+        final Engine.Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), get.uid(), true);
+            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here
@@ -637,7 +608,7 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion);
+            return new GetResult(searcher, docIdAndVersion, false);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
@@ -679,10 +650,12 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
-            IndexSearcher acquire = referenceManager.acquire();
+            assert assertSearcherIsWarmedUp(source, scope);
+            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
+            final ElasticsearchDirectoryReader acquire = referenceManager.acquire();
             AtomicBoolean released = new AtomicBoolean(false);
             Searcher engineSearcher = new Searcher(source, acquire,
+                engineConfig.getSimilarity(), engineConfig.getQueryCache(), engineConfig.getQueryCachingPolicy(),
                 () -> {
                 if (released.compareAndSet(false, true)) {
                     try {
@@ -691,13 +664,13 @@ public abstract class Engine implements Closeable {
                         store.decRef();
                     }
                 } else {
-                    /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
+                    /* In general, readers should never be released twice or this would break reference counting. There is one rare case
                      * when it might happen though: when the request and the Reaper thread would both try to release it in a very short
                      * amount of time, this is why we only log a warning instead of throwing an exception. */
                     logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
                 }
               });
-            releasable = null; // success - hand over the reference to the engine searcher
+            releasable = null; // success - hand over the reference to the engine reader
             return engineSearcher;
         } catch (AlreadyClosedException ex) {
             throw ex;
@@ -711,7 +684,11 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope);
+    protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
+
+    boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
+        return true;
+    }
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL
@@ -732,7 +709,7 @@ public abstract class Engine implements Closeable {
     /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public abstract Closeable acquireRetentionLock();
+    public abstract Closeable acquireHistoryRetentionLock();
 
     /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
@@ -742,22 +719,9 @@ public abstract class Engine implements Closeable {
                                                          long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
-     * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
-     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
      */
-    public abstract Translog.Snapshot readHistoryOperations(String source,
-                                                                MapperService mapperService, long startingSeqNo) throws IOException;
-
-    /**
-     * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
-     */
-    public abstract int estimateNumberOfHistoryOperations(String source,
-                                                                MapperService mapperService, long startingSeqNo) throws IOException;
-
-    /**
-     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its translog
-     */
-    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+    public abstract boolean hasCompleteOperationHistory(String reason, long startingSeqNo);
 
     /**
      * Gets the minimum retained sequence number for this engine.
@@ -815,7 +779,7 @@ public abstract class Engine implements Closeable {
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
         try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.INTERNAL)) {
-            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
                 segmentName.add(segmentReader.getSegmentName());
@@ -823,7 +787,7 @@ public abstract class Engine implements Closeable {
         }
 
         try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.EXTERNAL)) {
-            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segmentName.contains(segmentReader.getSegmentName()) == false) {
                     fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
@@ -938,13 +902,13 @@ public abstract class Engine implements Closeable {
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)){
-            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 fillSegmentInfo(Lucene.segmentReader(ctx.reader()), verbose, true, segments);
             }
         }
 
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.INTERNAL)){
-            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
                     fillSegmentInfo(segmentReader, verbose, false, segments);
@@ -1068,20 +1032,17 @@ public abstract class Engine implements Closeable {
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
      * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
      *                      Otherwise this call will return without blocking.
-     * @return the commit Id for the resulting commit
      */
-    public abstract CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException;
+    public abstract void flush(boolean force, boolean waitIfOngoing) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
      * documents in the lucene index to disk including a potentially heavy and durable fsync operation.
      * This operation is not going to block if another flush operation is currently running and won't write
      * a lucene commit if nothing needs to be committed.
-     *
-     * @return the commit Id for the resulting commit
      */
-    public final CommitId flush() throws EngineException {
-        return flush(false, false);
+    public final void flush() throws EngineException {
+        flush(false, false);
     }
 
 
@@ -1131,6 +1092,11 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * @return a summary of the contents of the current safe commit
+     */
+    public abstract SafeCommitInfo getSafeCommitInfo();
+
+    /**
      * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
      * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
      * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error,
@@ -1160,7 +1126,6 @@ public abstract class Engine implements Closeable {
             maybeDie(reason, failure);
         }
         if (failEngineLock.tryLock()) {
-            store.incRef();
             try {
                 if (failedEngine.get() != null) {
                     logger.warn(() ->
@@ -1182,11 +1147,19 @@ public abstract class Engine implements Closeable {
                     // on the same node that we don't see the corrupted marker file when
                     // the shard is initializing
                     if (Lucene.isCorruptionException(failure)) {
-                        try {
-                            store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])",
-                                ExceptionsHelper.unwrapCorruption(failure)));
-                        } catch (IOException e) {
-                            logger.warn("Couldn't mark store corrupted", e);
+                        if (store.tryIncRef()) {
+                            try {
+                                store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])",
+                                    ExceptionsHelper.unwrapCorruption(failure)));
+                            } catch (IOException e) {
+                                logger.warn("Couldn't mark store corrupted", e);
+                            } finally {
+                                store.decRef();
+                            }
+                        } else {
+                            logger.warn(() ->
+                                    new ParameterizedMessage("tried to mark store as corrupted but store is already closed. [{}]", reason),
+                                failure);
                         }
                     }
                     eventListener.onFailedEngine(reason, failure);
@@ -1195,8 +1168,6 @@ public abstract class Engine implements Closeable {
                 if (failure != null) inner.addSuppressed(failure);
                 // don't bubble up these exceptions up
                 logger.warn("failEngine threw exception", inner);
-            } finally {
-                store.decRef();
             }
         } else {
             logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should " +
@@ -1222,14 +1193,18 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static final class Searcher implements Releasable {
+    public static final class Searcher extends IndexSearcher implements Releasable {
         private final String source;
-        private final IndexSearcher searcher;
         private final Closeable onClose;
 
-        public Searcher(String source, IndexSearcher searcher, Closeable onClose) {
+        public Searcher(String source, IndexReader reader,
+                        Similarity similarity, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                        Closeable onClose) {
+            super(reader);
+            setSimilarity(similarity);
+            setQueryCache(queryCache);
+            setQueryCachingPolicy(queryCachingPolicy);
             this.source = source;
-            this.searcher = searcher;
             this.onClose = onClose;
         }
 
@@ -1240,19 +1215,11 @@ public abstract class Engine implements Closeable {
             return source;
         }
 
-        public IndexReader reader() {
-            return searcher.getIndexReader();
-        }
-
         public DirectoryReader getDirectoryReader() {
-            if (reader() instanceof DirectoryReader) {
-                return (DirectoryReader) reader();
+            if (getIndexReader() instanceof DirectoryReader) {
+                return (DirectoryReader) getIndexReader();
             }
-            throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
-        }
-
-        public IndexSearcher searcher() {
-            return searcher;
+            throw new IllegalStateException("Can't use " + getIndexReader().getClass() + " as a directory reader");
         }
 
         @Override
@@ -1266,7 +1233,6 @@ public abstract class Engine implements Closeable {
                 throw new AssertionError(e);
             }
         }
-
     }
 
     public abstract static class Operation {
@@ -1353,8 +1319,6 @@ public abstract class Engine implements Closeable {
             return this.startTime;
         }
 
-        public abstract String type();
-
         abstract String id();
 
         public abstract TYPE operationType();
@@ -1398,11 +1362,6 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public String type() {
-            return this.doc.type();
-        }
-
-        @Override
         public String id() {
             return this.doc.id();
         }
@@ -1426,7 +1385,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public int estimatedSizeInBytes() {
-            return (id().length() + type().length()) * 2 + source().length() + 12;
+            return (id().length() * 2) + source().length() + 12;
         }
 
         /**
@@ -1457,12 +1416,11 @@ public abstract class Engine implements Closeable {
 
     public static class Delete extends Operation {
 
-        private final String type;
         private final String id;
         private final long ifSeqNo;
         private final long ifPrimaryTerm;
 
-        public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
+        public Delete(String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
                       Origin origin, long startTime, long ifSeqNo, long ifPrimaryTerm) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
             assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
@@ -1471,25 +1429,19 @@ public abstract class Engine implements Closeable {
                 "ifSeqNo [" + ifSeqNo + "] must be non negative or unset";
             assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM) :
                 "cas operations are only allowed if origin is primary. get [" + origin + "]";
-            this.type = Objects.requireNonNull(type);
             this.id = Objects.requireNonNull(id);
             this.ifSeqNo = ifSeqNo;
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
-        public Delete(String type, String id, Term uid, long primaryTerm) {
-            this(type, id, uid, UNASSIGNED_SEQ_NO, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL,
+        public Delete(String id, Term uid, long primaryTerm) {
+            this(id, uid, UNASSIGNED_SEQ_NO, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL,
                 Origin.PRIMARY, System.nanoTime(), UNASSIGNED_SEQ_NO, 0);
         }
 
         public Delete(Delete template, VersionType versionType) {
-            this(template.type(), template.id(), template.uid(), template.seqNo(), template.primaryTerm(), template.version(),
+            this(template.id(), template.uid(), template.seqNo(), template.primaryTerm(), template.version(),
                     versionType, template.origin(), template.startTime(), UNASSIGNED_SEQ_NO, 0);
-        }
-
-        @Override
-        public String type() {
-            return this.type;
         }
 
         @Override
@@ -1535,11 +1487,6 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public String type() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public long version() {
             throw new UnsupportedOperationException();
         }
@@ -1569,16 +1516,15 @@ public abstract class Engine implements Closeable {
     public static class Get {
         private final boolean realtime;
         private final Term uid;
-        private final String type, id;
+        private final String id;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-        public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String id, Term uid) {
             this.realtime = realtime;
-            this.type = type;
             this.id = id;
             this.uid = uid;
             this.readFromTranslog = readFromTranslog;
@@ -1586,10 +1532,6 @@ public abstract class Engine implements Closeable {
 
         public boolean realtime() {
             return this.realtime;
-        }
-
-        public String type() {
-            return type;
         }
 
         public String id() {
@@ -1636,7 +1578,7 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = primaryTerm;
             return this;
         }
-        
+
         public long getIfPrimaryTerm() {
             return ifPrimaryTerm;
         }
@@ -1647,22 +1589,21 @@ public abstract class Engine implements Closeable {
         private final boolean exists;
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
-        private final Searcher searcher;
+        private final Engine.Searcher searcher;
+        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
+            this.fromTranslog = fromTranslog;
         }
 
-        /**
-         * Build a non-realtime get result from the searcher.
-         */
-        public GetResult(Searcher searcher, DocIdAndVersion docIdAndVersion) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
         }
 
         public boolean exists() {
@@ -1673,7 +1614,11 @@ public abstract class Engine implements Closeable {
             return this.version;
         }
 
-        public Searcher searcher() {
+        public boolean isFromTranslog() {
+            return fromTranslog;
+        }
+
+        public Engine.Searcher searcher() {
             return this.searcher;
         }
 
@@ -1740,58 +1685,6 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class CommitId implements Writeable {
-
-        private final byte[] id;
-
-        public CommitId(byte[] id) {
-            assert id != null;
-            this.id = Arrays.copyOf(id, id.length);
-        }
-
-        /**
-         * Read from a stream.
-         */
-        public CommitId(StreamInput in) throws IOException {
-            assert in != null;
-            this.id = in.readByteArray();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByteArray(id);
-        }
-
-        @Override
-        public String toString() {
-            return Base64.getEncoder().encodeToString(id);
-        }
-
-        public boolean idsEqual(byte[] id) {
-            return Arrays.equals(id, this.id);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            CommitId commitId = (CommitId) o;
-
-            return Arrays.equals(id, commitId.id);
-
-        }
-
-        @Override
-        public int hashCode() {
-            return Arrays.hashCode(id);
-        }
-    }
-
     public static class IndexCommitRef implements Closeable {
         private final AtomicBoolean closed = new AtomicBoolean();
         private final CheckedRunnable<IOException> onClose;
@@ -1815,6 +1708,7 @@ public abstract class Engine implements Closeable {
     }
 
     public void onSettingsChanged() {
+
     }
 
     /**
@@ -1830,15 +1724,15 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Called for each new opened engine searcher to warm new segments
+     * Called for each new opened engine reader to warm new segments
      *
      * @see EngineConfig#getWarmer()
      */
     public interface Warmer {
         /**
-         * Called once a new Searcher is opened on the top-level searcher.
+         * Called once a new top-level reader is opened.
          */
-        void warm(Engine.Searcher searcher);
+        void warm(ElasticsearchDirectoryReader reader);
     }
 
     /**
@@ -1881,13 +1775,6 @@ public abstract class Engine implements Closeable {
      * Do not replay translog operations, but make the engine be ready.
      */
     public abstract void skipTranslogRecovery();
-
-    /**
-     * Returns <code>true</code> iff this engine is currently recovering from translog.
-     */
-    public boolean isRecovering() {
-        return false;
-    }
 
     /**
      * Tries to prune buffered deletes from the version map.

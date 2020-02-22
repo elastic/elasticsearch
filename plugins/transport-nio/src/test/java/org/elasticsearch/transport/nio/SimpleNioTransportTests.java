@@ -29,16 +29,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -52,11 +47,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
-    public MockTransportService nioFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-                                                         ClusterSettings clusterSettings, boolean doHandshake) {
+    @Override
+    protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        Transport transport = new NioTransport(settings, version, threadPool, networkService, new MockPageCacheRecycler(settings),
+        return new NioTransport(settings, version, threadPool, networkService, new MockPageCacheRecycler(settings),
             namedWriteableRegistry, new NoneCircuitBreakerService(), new NioGroupFactory(settings, logger)) {
 
             @Override
@@ -69,25 +64,11 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
                 }
             }
         };
-        MockTransportService mockTransportService =
-            MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
-        mockTransportService.start();
-        return mockTransportService;
-    }
-
-    @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        settings = Settings.builder().put(settings)
-            .put(TransportSettings.PORT.getKey(), "0")
-            .build();
-        MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
-        transportService.start();
-        return transportService;
     }
 
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
+            connectToNode(serviceA, new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
                 emptyMap(), emptySet(),Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
@@ -96,27 +77,5 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             Throwable cause = e.getCause();
             assertThat(cause, instanceOf(IOException.class));
         }
-    }
-
-    public void testBindUnavailableAddress() {
-        // this is on a lower level since it needs access to the TransportService before it's started
-        int port = serviceA.boundAddress().publishAddress().getPort();
-        Settings settings = Settings.builder()
-            .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-            .put(TransportSettings.PORT.getKey(), port)
-            .build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = nioFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
-            try {
-                transportService.start();
-            } finally {
-                transportService.stop();
-                transportService.close();
-            }
-        });
-        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
     }
 }

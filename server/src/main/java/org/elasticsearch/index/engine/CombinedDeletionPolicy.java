@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -43,14 +44,16 @@ import java.util.function.LongSupplier;
  * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
  */
-public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
+public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final Logger logger;
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
+    private volatile long maxSeqNoOfNextSafeCommit;
     private volatile IndexCommit lastCommit; // the most recent commit point
+    private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
 
     CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
                            SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {
@@ -62,7 +65,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     @Override
-    public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
+    public void onInit(List<? extends IndexCommit> commits) throws IOException {
         assert commits.isEmpty() == false : "index is opened, but we have no commits";
         onCommit(commits);
         if (safeCommit != commits.get(commits.size() - 1)) {
@@ -74,16 +77,37 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     @Override
-    public synchronized void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
-        lastCommit = commits.get(commits.size() - 1);
-        safeCommit = commits.get(keptPosition);
-        for (int i = 0; i < keptPosition; i++) {
-            if (snapshottedCommits.containsKey(commits.get(i)) == false) {
-                deleteCommit(commits.get(i));
+    public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+        final IndexCommit safeCommit;
+        synchronized (this) {
+            final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
+            this.safeCommitInfo = SafeCommitInfo.EMPTY;
+            this.lastCommit = commits.get(commits.size() - 1);
+            this.safeCommit = commits.get(keptPosition);
+            if (keptPosition == commits.size() - 1) {
+                this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
+            } else {
+                this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
             }
+            for (int i = 0; i < keptPosition; i++) {
+                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
+                    deleteCommit(commits.get(i));
+                }
+            }
+            updateRetentionPolicy();
+            safeCommit = this.safeCommit;
         }
-        updateRetentionPolicy();
+
+        assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
+        safeCommitInfo = new SafeCommitInfo(Long.parseLong(
+            safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));
+
+        // This is protected from concurrent calls by a lock on the IndexWriter, but this assertion makes sure that we notice if that ceases
+        // to be true in future. It is not disastrous if safeCommitInfo refers to an older safeCommit, it just means that we might retain a
+        // bit more history and do a few more ops-based recoveries than we would otherwise.
+        final IndexCommit newSafeCommit = this.safeCommit;
+        assert safeCommit == newSafeCommit
+            : "onCommit called concurrently? " + safeCommit.getGeneration() + " vs " + newSafeCommit.getGeneration();
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {
@@ -97,16 +121,18 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert Thread.holdsLock(this);
         logger.debug("Safe commit [{}], last commit [{}]", commitDescription(safeCommit), commitDescription(lastCommit));
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
-        final long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
-        final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        softDeletesPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
+        translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
+    }
 
-        assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
-        translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
-        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
+    protected int getDocCountOfCommit(IndexCommit indexCommit) throws IOException {
+        return SegmentInfos.readCommit(indexCommit.getDirectory(), indexCommit.getSegmentsFileName()).totalMaxDoc();
+    }
 
-        softDeletesPolicy.setLocalCheckpointOfSafeCommit(
-            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
+    SafeCommitInfo getSafeCommitInfo() {
+        return safeCommitInfo;
     }
 
     /**
@@ -191,16 +217,10 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
-     * Checks if the deletion policy can release some index commits with the latest global checkpoint.
+     * Checks if the deletion policy can delete some index commits with the latest global checkpoint.
      */
-    boolean hasUnreferencedCommits() throws IOException {
-        final IndexCommit lastCommit = this.lastCommit;
-        if (safeCommit != lastCommit) { // Race condition can happen but harmless
-            final long maxSeqNoFromLastCommit = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-            // We can clean up the current safe commit if the last commit is safe
-            return globalCheckpointSupplier.getAsLong() >= maxSeqNoFromLastCommit;
-        }
-        return false;
+    boolean hasUnreferencedCommits() {
+        return maxSeqNoOfNextSafeCommit <= globalCheckpointSupplier.getAsLong();
     }
 
     /**

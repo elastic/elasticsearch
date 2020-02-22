@@ -30,12 +30,7 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/data/post";
 
     private PostDataAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, PostDataAction.Response::new);
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {

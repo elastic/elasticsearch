@@ -6,16 +6,17 @@
 
 package org.elasticsearch.xpack.core.deprecation;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
 public class NodesDeprecationCheckRequestTests
-    extends AbstractStreamableTestCase<NodesDeprecationCheckRequest> {
+    extends AbstractWireSerializingTestCase<NodesDeprecationCheckRequest> {
 
     @Override
-    protected NodesDeprecationCheckRequest createBlankInstance() {
-        return new NodesDeprecationCheckRequest();
+    protected Writeable.Reader<NodesDeprecationCheckRequest> instanceReader() {
+        return NodesDeprecationCheckRequest::new;
     }
 
     @Override

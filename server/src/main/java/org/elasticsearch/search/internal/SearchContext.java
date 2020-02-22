@@ -22,7 +22,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -49,7 +49,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
@@ -93,9 +93,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
         super("search_context");
     }
 
-    public abstract void setTask(SearchTask task);
+    public abstract void setTask(SearchShardTask task);
 
-    public abstract SearchTask getTask();
+    public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
 
@@ -197,9 +197,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
 
-    public abstract DocValueFieldsContext docValueFieldsContext();
+    public abstract FetchDocValuesContext docValuesContext();
 
-    public abstract SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext);
+    public abstract SearchContext docValuesContext(FetchDocValuesContext docValuesContext);
 
     public abstract ContextIndexSearcher searcher();
 

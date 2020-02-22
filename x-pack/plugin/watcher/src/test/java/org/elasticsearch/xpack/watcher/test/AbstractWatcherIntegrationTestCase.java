@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,6 +41,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.Email;
@@ -94,6 +94,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
+import static org.mockito.Mockito.mock;
 
 @ClusterScope(scope = SUITE, numClientNodes = 0, maxNumDataNodes = 3)
 public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase {
@@ -114,6 +115,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 // watcher settings that should work despite randomization
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
+                .put("indices.lifecycle.history_index_enabled", false)
+                // SLM can cause timing issues during testsuite teardown: https://github.com/elastic/elasticsearch/issues/50302
+                // SLM is not required for tests extending from this base class and only add noise.
+                .put("xpack.slm.enabled", false)
                 .build();
     }
 
@@ -261,7 +266,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
         GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(originalIndexOrAlias).get();
-        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]).get(MapperService.SINGLE_MAPPING_NAME);
+        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
         Settings.Builder newSettings = Settings.builder().put(settings);
@@ -271,7 +276,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.version.created");
 
         CreateIndexResponse createIndexResponse = client().admin().indices().prepareCreate(to)
-            .addMapping(MapperService.SINGLE_MAPPING_NAME, mapping.sourceAsMap())
+            .setMapping(mapping.sourceAsMap())
             .setSettings(newSettings)
             .get();
         assertTrue(createIndexResponse.isAcknowledged());
@@ -518,9 +523,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             WatcherStatsResponse watcherStatsResponse = new WatcherStatsRequestBuilder(client()).get();
             assertThat(watcherStatsResponse.hasFailures(), is(false));
             List<Tuple<String, WatcherState>> currentStatesFromStatsRequest = watcherStatsResponse.getNodes().stream()
-                    .map(response -> Tuple.tuple(response.getNode().getName(), response.getWatcherState()))
-                    .collect(Collectors.toList());
+                    .map(response -> Tuple.tuple(response.getNode().getName() + " (" + response.getThreadPoolQueueSize() + ")",
+                        response.getWatcherState())).collect(Collectors.toList());
             List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
+
+
 
             logger.info("waiting to stop watcher, current states {}", currentStatesFromStatsRequest);
 
@@ -546,13 +553,14 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             throw new AssertionError("unexpected state, retrying with next run");
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     public static class NoopEmailService extends EmailService {
 
         public NoopEmailService() {
-            super(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+            super(Settings.EMPTY, null, mock(SSLService.class),
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
         }
 
         @Override

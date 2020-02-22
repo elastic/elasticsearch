@@ -7,60 +7,79 @@
 
 Invalidates one or more API keys.
 
-==== Request
+[[security-api-invalidate-api-key-request]]
+==== {api-request-title}
 
 `DELETE /_security/api_key`
 
-==== Description
+[[security-api-invalidate-api-key-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_api_key` cluster privilege.
+
+[[security-api-invalidate-api-key-desc]]
+==== {api-description-title}
 
 The API keys created by <<security-api-create-api-key,create API Key>> can be
 invalidated using this API.
 
-==== Request Body
+
+[[security-api-invalidate-api-key-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a DELETE request and
 pertain to invalidating api keys:
 
-`id` (optional)::
-(string) An API key id. This parameter cannot be used with any of `name`,
-`realm_name` or `username` are used.
+`id`::
+(Optional, string) An API key id. This parameter cannot be used with any of
+`name`, `realm_name` or `username` are used.
 
-`name` (optional)::
-(string) An API key name. This parameter cannot be used with any of `id`,
-`realm_name` or `username` are used.
+`name`::
+(Optional, string) An API key name. This parameter cannot be used with any of
+`id`, `realm_name` or `username` are used.
 
-`realm_name` (optional)::
-(string) The name of an authentication realm. This parameter cannot be used with
-either `id` or `name`.
+`realm_name`::
+(Optional, string) The name of an authentication realm. This parameter cannot be
+used with either `id` or `name` or when `owner` flag is set to `true`.
 
-`username` (optional)::
-(string) The username of a user. This parameter cannot be used with either
-`id` or `name`.
+`username`::
+(Optional, string) The username of a user. This parameter cannot be used with
+either `id` or `name` or when `owner` flag is set to `true`.
 
-NOTE: While all parameters are optional, at least one of them is required.
+`owner`::
+(Optional, boolean) A boolean flag that can be used to query API keys owned
+by the currently authenticated user. Defaults to false.
+The 'realm_name' or 'username' parameters cannot be specified when this
+parameter is set to 'true' as they are assumed to be the currently authenticated ones.
 
-==== Authorization
+NOTE: At least one of "id", "name", "username" and "realm_name" must be specified
+ if "owner" is "false" (default).
 
-To use this API, you must have at least the `manage_api_key` cluster privilege.
+[[security-api-invalidate-api-key-response-body]]
+==== {api-response-body-title}
 
-==== Examples
+A successful call returns a JSON structure that contains the ids of the API keys
+that were invalidated, the ids of the API keys that had already been invalidated,
+and potentially a list of errors encountered while invalidating specific api
+keys.
+
+[[security-api-invalidate-api-key-example]]
+==== {api-examples-title}
 
 If you create an API key as follows:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/api_key
 {
   "name": "my-api-key"
 }
 ------------------------------------------------------------
-// CONSOLE
-// TEST
 
 A successful call returns a JSON structure that provides
 API key information. For example:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "id":"VuaCfGcBCdbkQm-e5aOx",
@@ -71,61 +90,79 @@ API key information. For example:
 // TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 
-The following example invalidates the API key identified by specified `id` immediately:
+The following example invalidates the API key identified by specified `id`
+immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/api_key
 {
   "id" : "VuaCfGcBCdbkQm-e5aOx"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
 
-The following example invalidates the API key identified by specified `name` immediately:
+The following example invalidates the API key identified by specified `name`
+immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/api_key
 {
   "name" : "my-api-key"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The following example invalidates all API keys for the `native1` realm
 immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/api_key
 {
   "realm_name" : "native1"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The following example invalidates all API keys for the user `myuser` in all
 realms immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/api_key
 {
   "username" : "myuser"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
+
+The following example invalidates the API key identified by the specified `id` if
+ it is owned by the currently authenticated user immediately:
+
+[source,console]
+--------------------------------------------------
+DELETE /_security/api_key
+{
+  "id" : "VuaCfGcBCdbkQm-e5aOx",
+  "owner" : "true"
+}
+--------------------------------------------------
+
+The following example invalidates all API keys owned by the currently authenticated
+ user immediately:
+
+[source,console]
+--------------------------------------------------
+DELETE /_security/api_key
+{
+  "owner" : "true"
+}
+--------------------------------------------------
 
 Finally, the following example invalidates all API keys for the user `myuser` in
  the `native1` realm immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/api_key
 {
@@ -133,12 +170,6 @@ DELETE /_security/api_key
   "realm_name" : "native1"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
-
-A successful call returns a JSON structure that contains the ids of the API keys that were invalidated, the ids
-of the API keys that had already been invalidated, and potentially a list of errors encountered while invalidating
-specific api keys.
 
 [source,js]
 --------------------------------------------------
@@ -173,8 +204,8 @@ specific api keys.
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> The ids of the API keys that were invalidated as part of this request.
-<2> The ids of the API keys that were already invalidated.
+<1> The IDs of the API keys that were invalidated as part of this request.
+<2> The IDs of the API keys that were already invalidated.
 <3> The number of errors that were encountered when invalidating the API keys.
 <4> Details about these errors. This field is not present in the response when
     `error_count` is 0.

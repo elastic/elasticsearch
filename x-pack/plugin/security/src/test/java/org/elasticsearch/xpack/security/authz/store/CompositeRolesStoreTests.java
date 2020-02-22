@@ -15,10 +15,13 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -26,6 +29,7 @@ import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -36,18 +40,23 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -58,10 +67,14 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -75,11 +88,12 @@ import java.util.function.Predicate;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
@@ -137,20 +151,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }, null);
         FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
-        ReservedRolesStore reservedRolesStore = mock(ReservedRolesStore.class);
-        doCallRealMethod().when(reservedRolesStore).accept(any(Set.class), any(ActionListener.class));
-        NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
-        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
 
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls"))).thenReturn(Collections.singleton(flsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("dls"))).thenReturn(Collections.singleton(dlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls_dls"))).thenReturn(Collections.singleton(flsDlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("no_fls_dls"))).thenReturn(Collections.singleton(noFlsDlsRole));
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
-        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(Settings.EMPTY, fileRolesStore, nativeRolesStore,
-                reservedRolesStore, mock(NativePrivilegeStore.class), Collections.emptyList(),
-                new ThreadContext(Settings.EMPTY), licenseState, cache, mock(ApiKeyService.class), null,
-                rds -> effectiveRoleDescriptors.set(rds));
+        CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(Settings.EMPTY, fileRolesStore, null,
+            null, null, licenseState, null, null, rds -> effectiveRoleDescriptors.set(rds));
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.roles(Collections.singleton("fls"), roleFuture);
@@ -213,19 +221,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }, null);
         FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
-        ReservedRolesStore reservedRolesStore = mock(ReservedRolesStore.class);
-        doCallRealMethod().when(reservedRolesStore).accept(any(Set.class), any(ActionListener.class));
-        NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
-        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls"))).thenReturn(Collections.singleton(flsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("dls"))).thenReturn(Collections.singleton(dlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls_dls"))).thenReturn(Collections.singleton(flsDlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("no_fls_dls"))).thenReturn(Collections.singleton(noFlsDlsRole));
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
-        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(Settings.EMPTY, fileRolesStore, nativeRolesStore,
-                reservedRolesStore, mock(NativePrivilegeStore.class), Collections.emptyList(),
-                new ThreadContext(Settings.EMPTY), licenseState, cache, mock(ApiKeyService.class), null,
-                rds -> effectiveRoleDescriptors.set(rds));
+        CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(Settings.EMPTY, fileRolesStore, null,
+            null, null, licenseState, null, null, rds -> effectiveRoleDescriptors.set(rds));
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.roles(Collections.singleton("fls"), roleFuture);
@@ -258,6 +260,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
         doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
         when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+
         doAnswer((invocationOnMock) -> {
             ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
             callback.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
@@ -273,11 +276,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativePrivilegeStore).getPrivileges(isA(Set.class), isA(Set.class), any(ActionListener.class));
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
-        final CompositeRolesStore compositeRolesStore =
-                new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                        nativePrivilegeStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                        new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), null,
-                        rds -> effectiveRoleDescriptors.set(rds));
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(SECURITY_ENABLED_SETTINGS,
+            fileRolesStore, nativeRolesStore, reservedRolesStore, nativePrivilegeStore, null, null, null,
+            rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
         final String roleName = randomAlphaOfLengthBetween(1, 10);
@@ -313,7 +314,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         if (getSuperuserRole && numberOfTimesToCall > 0) {
             // the superuser role was requested so we get the role descriptors again
             verify(reservedRolesStore, times(2)).accept(anySetOf(String.class), any(ActionListener.class));
-            verify(nativePrivilegeStore).getPrivileges(isA(Set.class),isA(Set.class), any(ActionListener.class));
+            verify(nativePrivilegeStore).getPrivileges(isA(Set.class), isA(Set.class), any(ActionListener.class));
         }
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore, nativePrivilegeStore);
     }
@@ -335,9 +336,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             .put("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 0)
             .build();
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
             reservedRolesStore, mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(settings),
-            new XPackLicenseState(settings), cache, mock(ApiKeyService.class), null, rds -> effectiveRoleDescriptors.set(rds));
+            new XPackLicenseState(settings), cache, mock(ApiKeyService.class), documentSubsetBitsetCache,
+            rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
         final String roleName = randomAlphaOfLengthBetween(1, 10);
@@ -371,10 +374,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), null,
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), documentSubsetBitsetCache,
                 rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
@@ -409,6 +413,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verify(nativeRolesStore, times(numberOfTimesToCall + 1)).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
     }
+
 
     public void testCustomRolesProviders() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
@@ -456,11 +461,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }));
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final CompositeRolesStore compositeRolesStore =
                 new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                                 mock(NativePrivilegeStore.class), Arrays.asList(inMemoryProvider1, inMemoryProvider2),
                                 new ThreadContext(SECURITY_ENABLED_SETTINGS), new XPackLicenseState(SECURITY_ENABLED_SETTINGS),
-                                cache, mock(ApiKeyService.class), null, rds -> effectiveRoleDescriptors.set(rds));
+                                cache, mock(ApiKeyService.class), documentSubsetBitsetCache,
+                                rds -> effectiveRoleDescriptors.set(rds));
 
         final Set<String> roleNames = Sets.newHashSet("roleA", "roleB", "unknown");
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -541,10 +548,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final TransportRequest request1 = mock(TransportRequest.class);
         final TransportRequest request2 = mock(TransportRequest.class);
         final TransportRequest request3 = mock(TransportRequest.class);
+        final Authentication authentication = mock(Authentication.class);
 
-        ConditionalClusterPrivilege ccp1 = mock(ConditionalClusterPrivilege.class);
-        when(ccp1.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        when(ccp1.getRequestPredicate()).thenReturn(req -> req == request1);
+        ConfigurableClusterPrivilege ccp1 = new MockConfigurableClusterPrivilege() {
+            @Override
+            public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    req -> req == request1);
+                return builder;
+            }
+        };
         RoleDescriptor role1 = new RoleDescriptor("r1", new String[]{"monitor"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
                 .indices("abc-*", "xyz-*")
@@ -565,12 +578,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("settings/*")
                 .privileges("read")
                 .build()
-        }, new ConditionalClusterPrivilege[] { ccp1 },
+        }, new ConfigurableClusterPrivilege[] { ccp1 },
         new String[]{"app-user-1"}, null, null);
 
-        ConditionalClusterPrivilege ccp2 = mock(ConditionalClusterPrivilege.class);
-        when(ccp2.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        when(ccp2.getRequestPredicate()).thenReturn(req -> req == request2);
+        ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
+            @Override
+            public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    req -> req == request2);
+                return builder;
+            }
+        };
         RoleDescriptor role2 = new RoleDescriptor("r2", new String[]{"manage_saml"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
                 .indices("abc-*", "ind-2-*")
@@ -587,7 +605,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("*")
                 .privileges("read")
                 .build()
-        }, new ConditionalClusterPrivilege[] { ccp2 },
+        }, new ConfigurableClusterPrivilege[] { ccp2 },
         new String[]{"app-user-2"}, null, null);
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -609,12 +627,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(role1, role2), cache, privilegeStore, future);
         Role role = future.actionGet();
 
-        assertThat(role.cluster().check(ClusterStateAction.NAME, randomFrom(request1, request2, request3)), equalTo(true));
-        assertThat(role.cluster().check(SamlAuthenticateAction.NAME, randomFrom(request1, request2, request3)), equalTo(true));
-        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, randomFrom(request1, request2, request3)), equalTo(false));
+        assertThat(role.cluster().check(ClusterStateAction.NAME, randomFrom(request1, request2, request3), authentication), equalTo(true));
+        assertThat(role.cluster().check(SamlAuthenticateAction.NAME, randomFrom(request1, request2, request3), authentication),
+            equalTo(true));
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, randomFrom(request1, request2, request3), authentication),
+            equalTo(false));
 
-        assertThat(role.cluster().check(PutUserAction.NAME, randomFrom(request1, request2)), equalTo(true));
-        assertThat(role.cluster().check(PutUserAction.NAME, request3), equalTo(false));
+        assertThat(role.cluster().check(PutUserAction.NAME, randomFrom(request1, request2), authentication), equalTo(true));
+        assertThat(role.cluster().check(PutUserAction.NAME, request3, authentication), equalTo(false));
 
         final Predicate<String> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
         assertThat(allowedRead.test("abc-123"), equalTo(true));
@@ -670,11 +690,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
             (roles, listener) -> listener.onFailure(new Exception("fake failure"));
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Arrays.asList(inMemoryProvider1, failingProvider),
                 new ThreadContext(SECURITY_ENABLED_SETTINGS), new XPackLicenseState(SECURITY_ENABLED_SETTINGS),
-                cache, mock(ApiKeyService.class), null, rds -> effectiveRoleDescriptors.set(rds));
+                cache, mock(ApiKeyService.class), documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
 
         final Set<String> roleNames = Sets.newHashSet("roleA", "roleB", "unknown");
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -717,10 +738,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         // these licenses don't allow custom role providers
         xPackLicenseState.update(randomFrom(OperationMode.BASIC, OperationMode.GOLD, OperationMode.STANDARD), true, null);
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
             Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore, mock(NativePrivilegeStore.class),
             Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState, cache,
-            mock(ApiKeyService.class), null, rds -> effectiveRoleDescriptors.set(rds));
+            mock(ApiKeyService.class), documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
 
         Set<String> roleNames = Sets.newHashSet("roleA");
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -735,9 +757,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore = new CompositeRolesStore(
             Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore, mock(NativePrivilegeStore.class),
             Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState, cache,
-            mock(ApiKeyService.class), null, rds -> effectiveRoleDescriptors.set(rds));
+            mock(ApiKeyService.class), documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
         // these licenses allow custom role providers
-        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.TRIAL), true, null);
+        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.ENTERPRISE, OperationMode.TRIAL), true, null);
         roleNames = Sets.newHashSet("roleA");
         future = new PlainActionFuture<>();
         compositeRolesStore.roles(roleNames, future);
@@ -752,8 +774,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore = new CompositeRolesStore(
             Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore, mock(NativePrivilegeStore.class),
             Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState, cache,
-            mock(ApiKeyService.class), null, rds -> effectiveRoleDescriptors.set(rds));
-        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.TRIAL), false, null);
+            mock(ApiKeyService.class), documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
+        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.ENTERPRISE, OperationMode.TRIAL), false, null);
         roleNames = Sets.newHashSet("roleA");
         future = new PlainActionFuture<>();
         compositeRolesStore.roles(roleNames, future);
@@ -780,10 +802,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doCallRealMethod().when(reservedRolesStore).accept(any(Set.class), any(ActionListener.class));
         NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
         doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
                 Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(Settings.EMPTY),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), null, rds -> {}) {
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), documentSubsetBitsetCache,
+                rds -> {}) {
             @Override
             public void invalidateAll() {
                 numInvalidation.incrementAndGet();
@@ -832,10 +856,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doCallRealMethod().when(reservedRolesStore).accept(any(Set.class), any(ActionListener.class));
         NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
         doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(SECURITY_ENABLED_SETTINGS,
                 fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), null, rds -> {}) {
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class),
+                documentSubsetBitsetCache, rds -> {}) {
             @Override
             public void invalidateAll() {
                 numInvalidation.incrementAndGet();
@@ -862,10 +888,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
-        final CompositeRolesStore compositeRolesStore =
-            new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), null, rds -> {});
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore,
+            nativeRolesStore, reservedRolesStore, mock(NativePrivilegeStore.class), null, mock(ApiKeyService.class),
+            null, null);
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
@@ -901,10 +926,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
-        final CompositeRolesStore compositeRolesStore =
-            new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(settings),
-                new XPackLicenseState(settings), cache, mock(ApiKeyService.class), null, rds -> {});
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
+            reservedRolesStore, mock(NativePrivilegeStore.class), null, mock(ApiKeyService.class), null, null);
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
@@ -915,7 +938,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(Arrays.asList(roles.names()), hasItem("anonymous_user_role"));
     }
 
-    public void testDoesNotUseRolesStoreForXPackUser() {
+    public void testDoesNotUseRolesStoreForXPacAndAsyncSearchUser() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
@@ -928,19 +951,30 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), null,
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), documentSubsetBitsetCache,
                 rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
+        // test Xpack user short circuits to its own reserved role
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
         Authentication auth = new Authentication(XPackUser.INSTANCE, new RealmRef("name", "type", "node"), null);
         compositeRolesStore.getRoles(XPackUser.INSTANCE, auth, rolesFuture);
-        final Role roles = rolesFuture.actionGet();
+        Role roles = rolesFuture.actionGet();
         assertThat(roles, equalTo(XPackUser.ROLE));
+        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+        verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
+
+        // test AyncSearch user short circuits to its own reserved role
+        rolesFuture = new PlainActionFuture<>();
+        auth = new Authentication(AsyncSearchUser.INSTANCE, new RealmRef("name", "type", "node"), null);
+        compositeRolesStore.getRoles(AsyncSearchUser.INSTANCE, auth, rolesFuture);
+        roles = rolesFuture.actionGet();
+        assertThat(roles, equalTo(AsyncSearchUser.ROLE));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
     }
@@ -958,11 +992,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), null,
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), documentSubsetBitsetCache,
                 rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
@@ -993,11 +1028,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
             return Void.TYPE;
         }).when(nativePrivStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
 
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 nativePrivStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService, null,
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService, documentSubsetBitsetCache,
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = new Authentication(new User("test api key user", "superuser"),
@@ -1038,11 +1074,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
             return Void.TYPE;
         }).when(nativePrivStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
 
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 nativePrivStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService, null,
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService, documentSubsetBitsetCache,
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = new Authentication(new User("test api key user", "api_key"),
@@ -1059,11 +1096,144 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
         Role role = roleFuture.actionGet();
-        assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE), is(false));
+        assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, mock(Authentication.class)), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService).getRoleForApiKey(eq(authentication), any(ActionListener.class));
     }
 
+    public void testUsageStats() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        final Map<String, Object> fileRolesStoreUsageStats = Map.of("size", "1", "fls", Boolean.FALSE, "dls", Boolean.TRUE);
+        when(fileRolesStore.usageStats()).thenReturn(fileRolesStoreUsageStats);
+
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        final Map<String, Object> nativeRolesStoreUsageStats = Map.of();
+        doAnswer((invocationOnMock) -> {
+            ActionListener<Map<String, Object>> usageStats = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
+            usageStats.onResponse(nativeRolesStoreUsageStats);
+            return Void.TYPE;
+        }).when(nativeRolesStore).usageStats(any(ActionListener.class));
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
+
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore, null, null, mock(ApiKeyService.class),
+            documentSubsetBitsetCache, null);
+
+        PlainActionFuture<Map<String, Object>> usageStatsListener = new PlainActionFuture<>();
+        compositeRolesStore.usageStats(usageStatsListener);
+        Map<String, Object> usageStats = usageStatsListener.actionGet();
+        assertThat(usageStats.get("file"), is(fileRolesStoreUsageStats));
+        assertThat(usageStats.get("native"), is(nativeRolesStoreUsageStats));
+        assertThat(usageStats.get("dls"), is(Map.of("bit_set_cache", documentSubsetBitsetCache.usageStats())));
+    }
+
+    public void testLoggingOfDeprecatedRoles() {
+        List<RoleDescriptor> descriptors = new ArrayList<>();
+        Function<Map<String, Object>, RoleDescriptor> newRole = metadata -> new RoleDescriptor(
+            randomAlphaOfLengthBetween(4, 9), generateRandomStringArray(5, 5, false, true),
+            null, null, null, null, metadata, null);
+
+        RoleDescriptor deprecated1 = newRole.apply(MetadataUtils.getDeprecatedReservedMetadata("some reason"));
+        RoleDescriptor deprecated2 = newRole.apply(MetadataUtils.getDeprecatedReservedMetadata("a different reason"));
+
+        // Can't use getDeprecatedReservedMetadata because `Map.of` doesn't accept null values,
+        // so we clone metadata with a real value and then remove that key
+        final Map<String, Object> nullReasonMetadata = new HashMap<>(deprecated2.getMetadata());
+        nullReasonMetadata.remove(MetadataUtils.DEPRECATED_REASON_METADATA_KEY);
+        assertThat(nullReasonMetadata.keySet(), hasSize(deprecated2.getMetadata().size() -1));
+        RoleDescriptor deprecated3 = newRole.apply(nullReasonMetadata);
+
+        descriptors.add(deprecated1);
+        descriptors.add(deprecated2);
+        descriptors.add(deprecated3);
+
+        for (int i = randomIntBetween(2, 10); i > 0; i--) {
+            // the non-deprecated metadata is randomly one of:
+            // {}, {_deprecated:null}, {_deprecated:false},
+            // {_reserved:true}, {_reserved:true,_deprecated:null}, {_reserved:true,_deprecated:false}
+            Map<String, Object> metadata = randomBoolean() ? Map.of() : MetadataUtils.DEFAULT_RESERVED_METADATA;
+            if (randomBoolean()) {
+                metadata = new HashMap<>(metadata);
+                metadata.put(MetadataUtils.DEPRECATED_METADATA_KEY, randomBoolean() ? null : false);
+            }
+            descriptors.add(newRole.apply(metadata));
+        }
+        Collections.shuffle(descriptors, random());
+
+        final CompositeRolesStore compositeRolesStore =
+            buildCompositeRolesStore(SECURITY_ENABLED_SETTINGS, null, null, null, null, null, null, null, null);
+
+        // Use a LHS so that the random-shufle-order of the list is preserved
+        compositeRolesStore.logDeprecatedRoles(new LinkedHashSet<>(descriptors));
+
+        assertWarnings(
+            "The role [" + deprecated1.getName() + "] is deprecated and will be removed in a future version of Elasticsearch." +
+                " some reason",
+            "The role [" + deprecated2.getName() + "] is deprecated and will be removed in a future version of Elasticsearch." +
+                " a different reason",
+            "The role [" + deprecated3.getName() + "] is deprecated and will be removed in a future version of Elasticsearch." +
+                " Please check the documentation"
+        );
+    }
+
+    private CompositeRolesStore buildCompositeRolesStore(Settings settings,
+                                                         @Nullable FileRolesStore fileRolesStore,
+                                                         @Nullable NativeRolesStore nativeRolesStore,
+                                                         @Nullable ReservedRolesStore reservedRolesStore,
+                                                         @Nullable NativePrivilegeStore privilegeStore,
+                                                         @Nullable XPackLicenseState licenseState,
+                                                         @Nullable ApiKeyService apiKeyService,
+                                                         @Nullable DocumentSubsetBitsetCache documentSubsetBitsetCache,
+                                                         @Nullable Consumer<Collection<RoleDescriptor>> roleConsumer) {
+        if (fileRolesStore == null) {
+            fileRolesStore = mock(FileRolesStore.class);
+            doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+            when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+        }
+        if (nativeRolesStore == null) {
+            nativeRolesStore = mock(NativeRolesStore.class);
+            doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+            doAnswer((invocationOnMock) -> {
+                ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+                callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+                return null;
+            }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
+        }
+        if (reservedRolesStore == null) {
+            reservedRolesStore = mock(ReservedRolesStore.class);
+            doCallRealMethod().when(reservedRolesStore).accept(any(Set.class), any(ActionListener.class));
+        }
+        if (privilegeStore == null) {
+            privilegeStore = mock(NativePrivilegeStore.class);
+            doAnswer((invocationOnMock) -> {
+                ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = null;
+                callback = (ActionListener<Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                callback.onResponse(Collections.emptyList());
+                return null;
+            }).when(privilegeStore).getPrivileges(isA(Set.class), isA(Set.class), any(ActionListener.class));
+        }
+        if (licenseState == null) {
+            licenseState = new XPackLicenseState(settings);
+        }
+        if (apiKeyService == null) {
+            apiKeyService = mock(ApiKeyService.class);
+        }
+        if (documentSubsetBitsetCache == null) {
+            documentSubsetBitsetCache = buildBitsetCache();
+        }
+        if (roleConsumer == null) {
+            roleConsumer = rds -> { };
+        }
+        return new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore, privilegeStore,
+            Collections.emptyList(), new ThreadContext(settings), licenseState, cache, apiKeyService, documentSubsetBitsetCache,
+            roleConsumer);
+    }
+
+    private DocumentSubsetBitsetCache buildBitsetCache() {
+        return new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class));
+    }
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
         private final Function<Set<String>, RoleRetrievalResult> roleDescriptorsFunc;
 
@@ -1074,6 +1244,27 @@ public class CompositeRolesStoreTests extends ESTestCase {
         @Override
         public void accept(Set<String> roles, ActionListener<RoleRetrievalResult> listener) {
             listener.onResponse(roleDescriptorsFunc.apply(roles));
+        }
+    }
+
+    private abstract static class MockConfigurableClusterPrivilege implements ConfigurableClusterPrivilege {
+        @Override
+        public Category getCategory() {
+            return Category.APPLICATION;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "mock";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
         }
     }
 }

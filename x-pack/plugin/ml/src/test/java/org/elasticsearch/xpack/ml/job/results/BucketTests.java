@@ -27,13 +27,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BucketTests extends AbstractSerializingTestCase<Bucket> {
 
+    private static final long MAX_BUCKET_SPAN_SEC = 100_000_000_000L;  // bucket span of > 3000 years should be enough for everyone
+
     @Override
     public Bucket createTestInstance() {
         return createTestInstance("foo");
     }
 
     public Bucket createTestInstance(String jobId) {
-        Bucket bucket = new Bucket(jobId, randomDate(), randomNonNegativeLong());
+        Bucket bucket = new Bucket(jobId, randomDate(), randomLongBetween(1, MAX_BUCKET_SPAN_SEC));
         if (randomBoolean()) {
             bucket.setAnomalyScore(randomDouble());
         }

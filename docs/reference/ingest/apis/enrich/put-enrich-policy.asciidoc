@@ -1,0 +1,107 @@
+[role="xpack"]
+[testenv="basic"]
+[[put-enrich-policy-api]]
+=== Put enrich policy API
+++++
+<titleabbrev>Put enrich policy</titleabbrev>
+++++
+
+Creates an enrich policy.
+
+////
+[source,console]
+----
+PUT /users
+{
+    "mappings" : {
+        "properties" : {
+            "email" : { "type" : "keyword" }
+        }
+    }
+}
+----
+////
+
+[source,console]
+----
+PUT /_enrich/policy/my-policy
+{
+    "match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+    }
+}
+----
+// TEST[continued]
+
+////
+[source,console]
+--------------------------------------------------
+DELETE /_enrich/policy/my-policy
+--------------------------------------------------
+// TEST[continued]
+////
+
+
+[[put-enrich-policy-api-request]]
+==== {api-request-title}
+
+`PUT /_enrich/policy/<enrich-policy>`
+
+
+[[put-enrich-policy-api-prereqs]]
+==== {api-prereq-title}
+
+// tag::enrich-policy-api-prereqs[]
+If you use {es} {security-features}, you must have:
+
+* `read` index privileges for any indices used
+* The `enrich_user` <<built-in-roles,built-in role>>
+// end::enrich-policy-api-prereqs[]
+
+
+[[put-enrich-policy-api-desc]]
+==== {api-description-title}
+
+Use the put enrich policy API
+to create a new <<enrich-policy,enrich policy>>.
+
+// tag::update-enrich-policy[]
+[WARNING]
+====
+Once created, you can't update or change an enrich policy.
+Instead, you can:
+
+.   Create and <<execute-enrich-policy-api,execute>> a new enrich policy.
+
+.   Replace the previous enrich policy
+    with the new enrich policy
+    in any in-use enrich processors.
+
+.   Use the <<delete-enrich-policy-api, delete enrich policy>> API
+    to delete the previous enrich policy.
+====
+// end::update-enrich-policy[]
+
+
+[[put-enrich-policy-api-path-params]]
+==== {api-path-parms-title}
+
+`<enrich-policy>`::
+(Required, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=enrich-policy]
+
+
+[[put-enrich-policy-api-request-body]]
+==== {api-request-body-title}
+
+`<policy-type>`::
++
+--
+(Required, <<enrich-policy-definition,enrich policy>> object)
+Enrich policy used to match and add the right enrich data to
+the right incoming documents.
+
+See <<enrich-policy-definition>> for object definition and parameters.
+--

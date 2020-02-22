@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
@@ -38,7 +39,7 @@ import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.time.Duration;
 import java.util.Iterator;
@@ -74,7 +75,7 @@ public class AutodetectResultProcessor {
     private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
 
     private final Client client;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
@@ -86,7 +87,8 @@ public class AutodetectResultProcessor {
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
-    private int bucketCount; // only used from the process() thread, so doesn't need to be volatile
+    private final long priorRunsBucketCount;
+    private long currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
     private boolean deleteInterimRequired;
 
@@ -96,7 +98,7 @@ public class AutodetectResultProcessor {
     private volatile ModelSizeStats latestModelSizeStats;
 
     public AutodetectResultProcessor(Client client,
-                                     Auditor auditor,
+                                     AnomalyDetectionAuditor auditor,
                                      String jobId,
                                      Renormalizer renormalizer,
                                      JobResultsPersister persister,
@@ -107,10 +109,9 @@ public class AutodetectResultProcessor {
     }
 
     // Visible for testing
-    AutodetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+    AutodetectResultProcessor(Client client, AnomalyDetectionAuditor auditor, String jobId, Renormalizer renormalizer,
                               JobResultsPersister persister, AutodetectProcess autodetectProcess, ModelSizeStats latestModelSizeStats,
-                              TimingStats timingStats,
-                              FlushListener flushListener) {
+                              TimingStats timingStats, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -119,9 +120,10 @@ public class AutodetectResultProcessor {
         this.process = Objects.requireNonNull(autodetectProcess);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
-        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId);
+        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
         this.deleteInterimRequired = true;
+        this.priorRunsBucketCount = timingStats.getBucketCount();
     }
 
     public void process() {
@@ -140,7 +142,7 @@ public class AutodetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
-            LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
+            LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, currentRunBucketCount);
 
         } catch (Exception e) {
             failed = true;
@@ -166,7 +168,7 @@ public class AutodetectResultProcessor {
     }
 
     private void readResults() {
-        bucketCount = 0;
+        currentRunBucketCount = 0;
         try {
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
             while (iterator.hasNext()) {
@@ -174,13 +176,10 @@ public class AutodetectResultProcessor {
                     AutodetectResult result = iterator.next();
                     processResult(result);
                     if (result.getBucket() != null) {
-                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, currentRunBucketCount);
                     }
                 } catch (Exception e) {
-                    if (processKilled) {
-                        throw e;
-                    }
-                    if (process.isProcessAliveAfterWaiting() == false) {
+                    if (isAlive() == false) {
                         throw e;
                     }
                     LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
@@ -213,10 +212,9 @@ public class AutodetectResultProcessor {
 
             // persist after deleting interim results in case the new
             // results are also interim
-            timingStatsReporter.reportBucketProcessingTime(bucket.getProcessingTimeMs());
+            timingStatsReporter.reportBucket(bucket);
             bulkResultsPersister.persistBucket(bucket).executeRequest();
-
-            ++bucketCount;
+            ++currentRunBucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
@@ -228,7 +226,7 @@ public class AutodetectResultProcessor {
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {
-            persister.persistCategoryDefinition(categoryDefinition);
+            persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
@@ -264,7 +262,9 @@ public class AutodetectResultProcessor {
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
             // We need to refresh in order for the snapshot to be available when we try to update the job with it
-            IndexResponse indexResponse = persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkResponse = persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE, this::isAlive);
+            assert bulkResponse.getItems().length == 1;
+            IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
             if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                 updateModelSnapshotOnJob(modelSnapshot);
             }
@@ -272,7 +272,7 @@ public class AutodetectResultProcessor {
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
             LOGGER.debug("[{}] Parsed Quantiles with timestamp {}", jobId, quantiles.getTimestamp());
-            persister.persistQuantiles(quantiles);
+            persister.persistQuantiles(quantiles, this::isAlive);
             bulkResultsPersister.executeRequest();
 
             if (processKilled == false && renormalizer.isEnabled()) {
@@ -288,9 +288,21 @@ public class AutodetectResultProcessor {
             // Commit previous writes here, effectively continuing
             // the flush from the C++ autodetect process right
             // through to the data store
-            bulkResultsPersister.executeRequest();
-            persister.commitResultWrites(jobId);
-            flushListener.acknowledgeFlush(flushAcknowledgement);
+            Exception exception = null;
+            try {
+                bulkResultsPersister.executeRequest();
+                persister.commitResultWrites(jobId);
+                LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
+            } catch (Exception e) {
+                LOGGER.error(
+                    "[" + jobId + "] failed to bulk persist results and commit writes during flush acknowledgement for ID " +
+                        flushAcknowledgement.getId(),
+                    e);
+                exception = e;
+                throw e;
+            } finally {
+                flushListener.acknowledgeFlush(flushAcknowledgement, exception);
+            }
             // Interim results may have been produced by the flush,
             // which need to be
             // deleted when the next finalized results come through
@@ -304,8 +316,10 @@ public class AutodetectResultProcessor {
                 modelSizeStats.getTotalOverFieldCount(), modelSizeStats.getTotalPartitionFieldCount(),
                 modelSizeStats.getBucketAllocationFailuresCount(), modelSizeStats.getMemoryStatus());
 
-        persister.persistModelSizeStats(modelSizeStats);
+        persister.persistModelSizeStats(modelSizeStats, this::isAlive);
         notifyModelMemoryStatusChange(modelSizeStats);
+        notifyCategorizationStatusChange(modelSizeStats);
+
         latestModelSizeStats = modelSizeStats;
     }
 
@@ -323,6 +337,16 @@ public class AutodetectResultProcessor {
                         new ByteSizeValue(modelSizeStats.getModelBytesMemoryLimit(), ByteSizeUnit.BYTES).toString(),
                         new ByteSizeValue(modelSizeStats.getModelBytesExceeded(), ByteSizeUnit.BYTES).toString()));
                 }
+            }
+        }
+    }
+
+    private void notifyCategorizationStatusChange(ModelSizeStats modelSizeStats) {
+        ModelSizeStats.CategorizationStatus categorizationStatus = modelSizeStats.getCategorizationStatus();
+        if (categorizationStatus != latestModelSizeStats.getCategorizationStatus()) {
+            if (categorizationStatus == ModelSizeStats.CategorizationStatus.WARN) {
+                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, categorizationStatus,
+                    priorRunsBucketCount + currentRunBucketCount));
             }
         }
     }
@@ -391,7 +415,7 @@ public class AutodetectResultProcessor {
      * @return The {@link FlushAcknowledgement} if the flush has completed or the parsing finished; {@code null} if the timeout expired
      */
     @Nullable
-    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws InterruptedException {
+    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws Exception {
         return failed ? null : flushListener.waitForFlush(flushId, timeout);
     }
 
@@ -421,6 +445,13 @@ public class AutodetectResultProcessor {
 
     boolean isDeleteInterimRequired() {
         return deleteInterimRequired;
+    }
+
+    private boolean isAlive() {
+        if (processKilled) {
+            return false;
+        }
+        return process.isProcessAliveAfterWaiting();
     }
 
     void setDeleteInterimRequired(boolean deleteInterimRequired) {

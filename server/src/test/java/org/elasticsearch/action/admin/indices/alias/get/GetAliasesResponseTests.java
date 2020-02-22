@@ -22,7 +22,8 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData.Builder;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -30,7 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-public class GetAliasesResponseTests extends AbstractStreamableTestCase<GetAliasesResponse> {
+public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
 
     @Override
     protected GetAliasesResponse createTestInstance() {
@@ -38,8 +39,8 @@ public class GetAliasesResponseTests extends AbstractStreamableTestCase<GetAlias
     }
 
     @Override
-    protected GetAliasesResponse createBlankInstance() {
-        return new GetAliasesResponse();
+    protected Writeable.Reader<GetAliasesResponse> instanceReader() {
+        return GetAliasesResponse::new;
     }
 
     @Override

@@ -18,16 +18,16 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -61,7 +61,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
 
         /**
          * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-         * {@link #serializeTargetValueType()} to return true.
+         * {@link #serializeTargetValueType(Version)} to return true.
          */
         protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
             super(in, valuesSourceType);
@@ -108,24 +108,31 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     /**
-     * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
+     * Read an aggregation from a stream that has a sensible default for TargetValueType. This should be used by most subclasses.
+     * Subclasses needing to maintain backward compatibility to a version that did not serialize TargetValueType should use this
+     * constructor, providing the old, constant value for TargetValueType and override {@link #serializeTargetValueType(Version)} to return
+     * true only for versions that support the serialization.
      */
     protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
             throws IOException {
         super(in);
-        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
         this.valuesSourceType = valuesSourceType;
-        this.targetValueType = targetValueType;
+        if (serializeTargetValueType(in.getVersion())) {
+            this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
+        } else {
+            this.targetValueType = targetValueType;
+        }
         read(in);
     }
 
     /**
      * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-     * {@link #serializeTargetValueType()} to return true.
+     * {@link #serializeTargetValueType(Version)} to return true.
      */
     protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
         super(in);
-        assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
+        // TODO: Can we get rid of this constructor and always use the three value version? Does this assert provide any value?
+        assert serializeTargetValueType(in.getVersion()) : "Wrong read constructor called for subclass that serializes its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
         read(in);
@@ -149,7 +156,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType()) {
+        if (serializeTargetValueType(out.getVersion())) {
             out.writeOptionalWriteable(targetValueType);
         }
         out.writeOptionalString(field);
@@ -177,8 +184,9 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true should use the three
      * argument read constructor rather than the four argument version.
+     * @param version For backwards compatibility, subclasses can change behavior based on the version
      */
-    protected boolean serializeTargetValueType() {
+    protected boolean serializeTargetValueType(Version version) {
         return false;
     }
 
@@ -299,21 +307,44 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS> factory = innerBuild(context, config, parent, subFactoriesBuilder);
+    protected final ValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                              Builder subFactoriesBuilder) throws IOException {
+        ValuesSourceConfig<VS> config = resolveConfig(queryShardContext);
+        ValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected ValuesSourceConfig<VS> resolveConfig(SearchContext context) {
-        ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
-        return ValuesSourceConfig.resolve(context.getQueryShardContext(),
-                valueType, field, script, missing, timeZone, format);
+    /**
+     * Provide a hook for aggregations to have finer grained control of the CoreValuesSourceType for script values.  This will only be
+     * called if the user did not supply a type hint for the script.  The script object is provided for reference.
+     *
+     * @param script - The user supplied script
+     * @return The CoreValuesSourceType we expect this script to yield.
+     */
+    protected ValuesSourceType resolveScriptAny(Script script) {
+        return CoreValuesSourceType.BYTES;
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    /**
+     * Provide a hook for aggregations to have finer grained control of the ValueType for script values.  This will only be called if the
+     * user did not supply a type hint for the script.  The script object is provided for reference
+     * @param script - the user supplied script
+     * @return The ValueType we expect this script to yield
+     */
+    protected ValueType defaultValueType(Script script) {
+        return valueType;
+    }
+
+    protected ValuesSourceConfig<VS> resolveConfig(QueryShardContext queryShardContext) {
+        ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
+        return ValuesSourceConfig.resolve(queryShardContext,
+                valueType, field, script, missing, timeZone, format, this::resolveScriptAny);
+    }
+
+    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<VS> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

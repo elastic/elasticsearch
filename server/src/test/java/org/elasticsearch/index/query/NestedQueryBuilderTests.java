@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
@@ -60,7 +61,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
                 STRING_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
@@ -95,27 +96,20 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
+    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
         // TODO how to assert this?
         if (queryBuilder.innerHit() != null) {
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
             // doCreateTestQueryBuilder)
-            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
+            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(context);
 
-            assertNotNull(searchContext);
+            assertNotNull(context);
             Map<String, InnerHitContextBuilder> innerHitInternals = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(queryBuilder, innerHitInternals);
-            for (InnerHitContextBuilder builder : innerHitInternals.values()) {
-                builder.build(searchContext, searchContext.innerHits());
-            }
-            assertNotNull(searchContext.innerHits());
-            assertEquals(1, searchContext.innerHits().getInnerHits().size());
-            assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-            InnerHitsContext.InnerHitSubContext innerHits = searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
-            assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-            assertEquals(innerHits.sort().sort.getSort().length, 1);
-            assertEquals(innerHits.sort().sort.getSort()[0].getField(), INT_FIELD_NAME);
+            assertTrue(innerHitInternals.containsKey(queryBuilder.innerHit().getName()));
+            InnerHitContextBuilder innerHits = innerHitInternals.get(queryBuilder.innerHit().getName());
+            assertEquals(innerHits.innerHitBuilder(), queryBuilder.innerHit());
         }
     }
 
@@ -173,7 +167,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 "            }\n" +
                 "          }\n" +
                 "        } ],\n" +
-                "        \"adjust_pure_negative\" : true,\n" +
                 "        \"boost\" : 1.0\n" +
                 "      }\n" +
                 "    },\n" +
@@ -362,5 +355,17 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         queryBuilder.innerHit(new InnerHitBuilder("some_name"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> InnerHitContextBuilder.extractInnerHits(queryBuilder,Collections.singletonMap("some_name", null)));
+        assertEquals("[inner_hits] already contains an entry for key [some_name]", e.getMessage());
+    }
+
+    public void testDisallowExpensiveQueries() {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+
+        NestedQueryBuilder queryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> queryBuilder.toQuery(queryShardContext));
+        assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                e.getMessage());
     }
 }

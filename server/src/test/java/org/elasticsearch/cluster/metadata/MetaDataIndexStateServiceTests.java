@@ -51,6 +51,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -63,6 +64,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -122,6 +124,42 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
                 assertThat(updatedState.blocks().hasIndexBlockWithId(blockedIndex.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
             }
         }
+    }
+
+    public void testCloseRoutingTableWithRestoredIndex() {
+        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableWithRestoredIndex")).build();
+
+        String indexName = "restored-index";
+        ClusterBlock block = MetaDataIndexStateService.createIndexClosingBlock();
+        state = addRestoredIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
+            .build();
+
+        final Index index = state.metaData().index(indexName).getIndex();
+        final ClusterState updatedState =
+            MetaDataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
+                .v1();
+        assertIsOpened(index.getName(), updatedState);
+        assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
+    }
+
+    public void testCloseRoutingTableWithSnapshottedIndex() {
+        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableWithSnapshottedIndex")).build();
+
+        String indexName = "snapshotted-index";
+        ClusterBlock block = MetaDataIndexStateService.createIndexClosingBlock();
+        state = addSnapshotIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
+            .build();
+
+        final Index index = state.metaData().index(indexName).getIndex();
+        final ClusterState updatedState =
+            MetaDataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
+                .v1();
+        assertIsOpened(index.getName(), updatedState);
+        assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
     }
 
     public void testCloseRoutingTableRemovesRoutingTable() {
@@ -296,7 +334,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
     }
 
     public void testValidateShardLimit() {
-        int nodesInCluster = randomIntBetween(2,100);
+        int nodesInCluster = randomIntBetween(2, 90);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
         Settings clusterSettings = Settings.builder()
             .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
@@ -428,14 +466,14 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
 
         final ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
-            shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId()));
+            shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId(), "1"));
         }
 
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         final SnapshotsInProgress.Entry entry =
             new SnapshotsInProgress.Entry(snapshot, randomBoolean(), false, SnapshotsInProgress.State.INIT,
                 Collections.singletonList(new IndexId(index, index)), randomNonNegativeLong(), randomLong(), shardsBuilder.build(),
-                SnapshotInfoTests.randomUserMetadata());
+                SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
         return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(entry)).build();
     }
 

@@ -70,9 +70,7 @@ public class MonitoringBulkResponseTests extends ESTestCase {
 
             StreamInput streamInput = output.bytes().streamInput();
             streamInput.setVersion(version);
-            MonitoringBulkResponse response2 = new MonitoringBulkResponse();
-            response2.readFrom(streamInput);
-
+            MonitoringBulkResponse response2 = new MonitoringBulkResponse(streamInput);
             assertThat(response2.getTookInMillis(), equalTo(response.getTookInMillis()));
             if (response.getError() == null) {
                 assertThat(response2.getError(), is(nullValue()));

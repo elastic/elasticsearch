@@ -281,12 +281,10 @@ setup:
   - length: { suggest.result.0.options: 2  }
   - match:  { suggest.result.0.options.0.text: "baz" }
   - match:  { suggest.result.0.options.0._index: "test" }
-  - match:  { suggest.result.0.options.0._type: "_doc" }
   - match:  { suggest.result.0.options.0._source.title: "title_baz" }
   - match:  { suggest.result.0.options.0._source.count: 3 }
   - match:  { suggest.result.0.options.1.text: "bar" }
   - match:  { suggest.result.0.options.1._index: "test" }
-  - match:  { suggest.result.0.options.1._type: "_doc" }
   - match:  { suggest.result.0.options.1._source.title: "title_bar" }
   - match:  { suggest.result.0.options.1._source.count: 4 }
 

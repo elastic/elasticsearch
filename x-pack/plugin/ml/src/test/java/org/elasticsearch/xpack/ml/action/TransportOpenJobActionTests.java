@@ -47,8 +47,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -90,6 +91,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
     }
 
     public void testVerifyIndicesPrimaryShardsAreActive() {
+        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metaData, routingTable);
@@ -99,7 +101,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0, TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", cs).size());
+        assertEquals(0, TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", cs, resolver).size());
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
@@ -120,7 +122,8 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
-        List<String> result = TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", csBuilder.build());
+        List<String> result =
+            TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", csBuilder.build(), resolver);
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
     }
@@ -152,7 +155,8 @@ public class TransportOpenJobActionTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
-                Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class));
+                Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
+                new IndexNameExpressionResolver());
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
         assertEquals(TransportOpenJobAction.AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
@@ -177,13 +181,44 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder.routingTable(routingTable.build());
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
-            settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class));
+            settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
+            new IndexNameExpressionResolver());
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("unavailable_index_with_lazy_node");
         params.setJob(mock(Job.class));
         assertEquals("Not opening job [unavailable_index_with_lazy_node], " +
             "because not all primary shards are active for the following indices [.ml-state]",
             executor.getAssignment(params, csBuilder.build()).getExplanation());
+    }
+
+    public void testGetAssignment_GivenLazyJobAndNoGlobalLazyNodes() {
+        Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 0).build();
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(settings,
+            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE)
+        );
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addIndices(metaData, routingTable);
+        csBuilder.metaData(metaData);
+        csBuilder.routingTable(routingTable.build());
+
+        TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
+            settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
+            new IndexNameExpressionResolver());
+
+        Job job = mock(Job.class);
+        when(job.allowLazyOpen()).thenReturn(true);
+        OpenJobAction.JobParams params = new OpenJobAction.JobParams("lazy_job");
+        params.setJob(job);
+        Assignment assignment = executor.getAssignment(params, csBuilder.build());
+        assertNotNull(assignment);
+        assertNull(assignment.getExecutorNode());
+        assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
@@ -202,9 +237,10 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
+        indices.add(AnomalyDetectorsIndex.configIndexName());
         indices.add(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         indices.add(MlMetaIndex.INDEX_NAME);
-        indices.add(AuditorField.NOTIFICATIONS_INDEX);
+        indices.add(NotificationsIndex.NOTIFICATIONS_INDEX);
         indices.add(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         for (String indexName : indices) {
             IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);

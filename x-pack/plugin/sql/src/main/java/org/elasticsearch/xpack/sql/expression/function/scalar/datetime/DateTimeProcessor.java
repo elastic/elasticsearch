@@ -13,6 +13,7 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
+import java.time.temporal.WeekFields;
 import java.util.Objects;
 
 public class DateTimeProcessor extends BaseDateTimeProcessor {
@@ -36,7 +37,11 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
         }
 
         public int extract(ZonedDateTime dt) {
-            return dt.get(field);
+            if (field == ChronoField.ALIGNED_WEEK_OF_YEAR) {
+                return dt.get(WeekFields.ISO.weekOfWeekBasedYear());
+            } else {
+                return dt.get(field);
+            }
         }
 
         public int extract(OffsetTime time) {
@@ -63,7 +68,6 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeEnum(extractor);
     }
 

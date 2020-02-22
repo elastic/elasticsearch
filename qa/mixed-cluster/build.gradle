@@ -17,58 +17,89 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
+tasks.register("bwcTest") {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
 }
 
-for (Version version : bwcVersions.wireCompatible) {
-  String baseName = "v${version}"
+configurations {
+  restSpec
+}
 
-  Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask) {
-    mustRunAfter(precommit)
-    includePackaged = true
+dependencies {
+  restSpec project(':rest-api-spec')
+}
+
+processTestResources {
+  from({ zipTree(configurations.restSpec.singleFile) })
+  dependsOn configurations.restSpec
+}
+
+for (Version bwcVersion : bwcVersions.wireCompatible) {
+  if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
+    // Not really a mixed cluster
+    continue;
   }
+
+  String baseName = "v${bwcVersion}"
 
   /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
-  Object extension = extensions.findByName("${baseName}#mixedClusterTestCluster")
-  configure(extension) {
-    numNodes = 4
-    numBwcNodes = 2
-    bwcVersion = version
+  testClusters {
+    "${baseName}" {
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 4
+
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    }
   }
 
-  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-    dependsOn = [mixedClusterTest]
+  tasks.register("${baseName}#mixedClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter(precommit)
+    doFirst {
+      project.delete("${buildDir}/cluster/shared/repo/${baseName}")
+      // Getting the endpoints causes a wait for the cluster
+      println "Test cluster endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Upgrading one node to create a mixed cluster"
+      testClusters."${baseName}".nextNodeToNextVersion()
+      // Getting the endpoints causes a wait for the cluster
+      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Upgrading another node to create a mixed cluster"
+      testClusters."${baseName}".nextNodeToNextVersion()
+
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    }
+    systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    onlyIf { project.bwc_tests_enabled }
   }
 
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn(versionBwcTest)
+  tasks.register("${baseName}#bwcTest") {
+    dependsOn "${baseName}#mixedClusterTest"
   }
 
-  tasks.getByName("${baseName}#mixedClusterTestRunner").configure {
-    /* To support taking index snapshots, we have to set path.repo setting */
-    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
-  }
+  tasks.bwcTest.dependsOn "${baseName}#bwcTest"
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
-
-// basic integ tests includes testing bwc against the most recent version
 task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedWireCompatible) {
-      dependsOn "v${version}#bwcTest"
+    for (Version bwcVersion : bwcVersions.unreleasedWireCompatible) {
+      if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
+        dependsOn "v${bwcVersion}#bwcTest"
+      }
     }
   }
 }
 
 check.dependsOn(bwcTestSnapshots)
+
+test.enabled = false

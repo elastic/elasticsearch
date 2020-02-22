@@ -16,10 +16,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  * A wrapper around gradle's Exec task to capture output and log on error.
@@ -28,7 +31,7 @@ import java.util.function.Function;
 public class LoggedExec extends Exec {
 
     private Consumer<Logger> outputLogger;
-    
+
     public LoggedExec() {
 
         if (getLogger().isInfoEnabled() == false) {
@@ -98,28 +101,34 @@ public class LoggedExec extends Exec {
         return genericExec(project, project::javaexec, action);
     }
 
-    private static <T extends BaseExecSpec>  ExecResult genericExec(
+    private static final Pattern NEWLINE = Pattern.compile(System.lineSeparator());
+
+    private static <T extends BaseExecSpec> ExecResult genericExec(
         Project project,
-        Function<Action<T>,ExecResult> function,
+        Function<Action<T>, ExecResult> function,
         Action<T> action
     ) {
         if (project.getLogger().isInfoEnabled()) {
             return function.apply(action);
         }
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        ByteArrayOutputStream error = new ByteArrayOutputStream();
         try {
             return function.apply(spec -> {
                 spec.setStandardOutput(output);
-                spec.setErrorOutput(error);
+                spec.setErrorOutput(output);
                 action.execute(spec);
+                try {
+                    output.write(("Output for " + spec.getExecutable() + ":").getBytes(StandardCharsets.UTF_8));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             });
         } catch (Exception e) {
             try {
-                project.getLogger().error("Standard output:");
-                project.getLogger().error(output.toString("UTF-8"));
-                project.getLogger().error("Standard error:");
-                project.getLogger().error(error.toString("UTF-8"));
+                if (output.size() != 0) {
+                    project.getLogger().error("Exec output and error:");
+                    NEWLINE.splitAsStream(output.toString("UTF-8")).forEach(s -> project.getLogger().error("| " + s));
+                }
             } catch (UnsupportedEncodingException ue) {
                 throw new GradleException("Failed to read exec output", ue);
             }

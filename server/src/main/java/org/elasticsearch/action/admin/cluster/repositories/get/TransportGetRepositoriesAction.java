@@ -64,11 +64,6 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     }
 
     @Override
-    protected GetRepositoriesResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected GetRepositoriesResponse read(StreamInput in) throws IOException {
         return new GetRepositoriesResponse(in);
     }

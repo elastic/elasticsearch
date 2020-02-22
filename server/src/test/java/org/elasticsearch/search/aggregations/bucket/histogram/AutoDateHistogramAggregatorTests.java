@@ -36,10 +36,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
+import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -58,9 +63,12 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     private static final String DATE_FIELD = "date";
     private static final String INSTANT_FIELD = "instant";
+    private static final String NUMERIC_FIELD = "numeric";
 
     private static final List<ZonedDateTime> DATES_WITH_TIME = Arrays.asList(
         ZonedDateTime.of(2010, 3, 12, 1, 7, 45, 0, ZoneOffset.UTC),
@@ -210,6 +218,17 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             }
         );
     }
+
+    public void testUnmappedMissing() throws IOException {
+        testBothCases(DEFAULT_QUERY, DATES_WITH_TIME,
+            aggregation -> aggregation.setNumBuckets(10).field("wrong_field").missing("2017-12-12"),
+            histogram -> {
+                assertEquals(1, histogram.getBuckets().size());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        );
+    }
+
 
     public void testIntervalYear() throws IOException {
 
@@ -718,6 +737,35 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testWithPipelineReductions() throws IOException {
+        testSearchAndReduceCase(DEFAULT_QUERY, DATES_WITH_TIME,
+            aggregation -> aggregation.setNumBuckets(1).field(DATE_FIELD)
+                .subAggregation(AggregationBuilders.histogram("histo").field(NUMERIC_FIELD).interval(1)
+                    .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "max"))),
+            histogram -> {
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(1, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2010-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(10, bucket.getDocCount());
+                assertThat(bucket.getAggregations().asList().size(), equalTo(1));
+                InternalHistogram histo = (InternalHistogram) bucket.getAggregations().asList().get(0);
+                assertThat(histo.getBuckets().size(), equalTo(10));
+                for (int i = 0; i < 10; i++) {
+                    assertThat(histo.getBuckets().get(i).key, equalTo((double)i));
+                    assertThat(((InternalMax)histo.getBuckets().get(i).aggregations.get("max")).getValue(), equalTo((double)i));
+                    if (i > 0) {
+                        assertThat(((InternalSimpleValue)histo.getBuckets().get(i).aggregations.get("deriv")).getValue(), equalTo(1.0));
+                    }
+                }
+
+
+            });
+    }
+
     private void testSearchCase(final Query query, final List<ZonedDateTime> dataset,
                                 final Consumer<AutoDateHistogramAggregationBuilder> configure,
                                 final Consumer<InternalAutoDateHistogram> verify) throws IOException {
@@ -757,6 +805,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 final Document document = new Document();
+                int i = 0;
                 for (final ZonedDateTime date : dataset) {
                     if (frequently()) {
                         indexWriter.commit();
@@ -765,8 +814,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                     final long instant = date.toInstant().toEpochMilli();
                     document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
                     document.add(new LongPoint(INSTANT_FIELD, instant));
+                    document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
                     indexWriter.addDocument(document);
                     document.clear();
+                    i += 1;
                 }
             }
 
@@ -783,11 +834,19 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                 fieldType.setHasDocValues(true);
                 fieldType.setName(aggregationBuilder.field());
 
+                MappedFieldType instantFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                instantFieldType.setName(INSTANT_FIELD);
+                instantFieldType.setHasDocValues(true);
+
+                MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                numericFieldType.setName(NUMERIC_FIELD);
+                numericFieldType.setHasDocValues(true);
+
                 final InternalAutoDateHistogram histogram;
                 if (reduced) {
-                    histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                    histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType, instantFieldType, numericFieldType);
                 } else {
-                    histogram = search(indexSearcher, query, aggregationBuilder, fieldType);
+                    histogram = search(indexSearcher, query, aggregationBuilder, fieldType, instantFieldType, numericFieldType);
                 }
                 verify.accept(histogram);
             }

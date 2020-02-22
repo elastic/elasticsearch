@@ -83,17 +83,19 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                     CheckIndex.Status status = store.checkIndex(out);
                     out.flush();
                     if (!status.clean) {
-                        ESTestCase.checkIndexFailed = true;
-                        logger.warn("check index [failure] index files={}\n{}", Arrays.toString(dir.listAll()), os.bytes().utf8ToString());
-                        throw new IOException("index check failure");
+                        IOException failure = new IOException("failed to check index for shard " + shardId +
+                            ";index files [" + Arrays.toString(dir.listAll()) + "] os [" + os.bytes().utf8ToString() + "]");
+                        ESTestCase.checkIndexFailures.add(failure);
+                        throw failure;
                     } else {
                         if (logger.isDebugEnabled()) {
                             logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
                         }
                     }
                 } catch (LockObtainFailedException e) {
-                    ESTestCase.checkIndexFailed = true;
-                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId, e);
+                    IllegalStateException failure = new IllegalStateException("IndexWriter is still open on shard " + shardId, e);
+                    ESTestCase.checkIndexFailures.add(failure);
+                    throw failure;
                 }
             } catch (Exception e) {
                 logger.warn("failed to check index", e);

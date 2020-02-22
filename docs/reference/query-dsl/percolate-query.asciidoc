@@ -1,5 +1,8 @@
 [[query-dsl-percolate-query]]
-=== Percolate Query
+=== Percolate query
+++++
+<titleabbrev>Percolate</titleabbrev>
+++++
 
 The `percolate` query can be used to match queries
 stored in an index. The `percolate` query itself
@@ -11,7 +14,7 @@ to match with the stored queries.
 
 Create an index with two fields:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index
 {
@@ -27,7 +30,6 @@ PUT /my-index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `message` field is the field used to preprocess the document defined in
 the `percolator` query before it gets indexed into a temporary index.
@@ -40,7 +42,7 @@ used later on to match documents defined on the `percolate` query.
 
 Register a query in the percolator:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index/_doc/1?refresh
 {
@@ -51,12 +53,11 @@ PUT /my-index/_doc/1?refresh
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Match a document to the registered percolator queries:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -70,12 +71,11 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The above request will yield the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -95,7 +95,6 @@ The above request will yield the following response:
     "hits": [
       { <1>
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.26152915,
         "_source": {
@@ -155,7 +154,7 @@ In that case the `document` parameter can be substituted with the following para
 In case you are not interested in the score, better performance can be expected by wrapping
 the percolator query in a `bool` query's filter clause or in a `constant_score` query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -173,7 +172,6 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 At index time terms are extracted from the percolator query and the percolator
@@ -196,7 +194,7 @@ The `_percolator_document_slot` field that is being returned with each matched p
 multiple documents simultaneously. It indicates which documents matched with a particular percolator query. The numbers
 correlate with the slot in the `documents` array specified in the `percolate` query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -221,12 +219,11 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The documents array contains 4 documents that are going to be percolated at the same time.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -246,7 +243,6 @@ GET /my-index/_search
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.7093853,
         "_source": {
@@ -283,22 +279,20 @@ Based on the previous example.
 
 Index the document we want to percolate:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index/_doc/2
 {
   "message" : "A new bonsai tree in the office"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 Index response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_shards": {
@@ -311,11 +305,10 @@ Index response:
   "_primary_term" : 1
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Percolating an existing document, using the index response as basis to build to new search request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -329,7 +322,6 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The version is optional, but useful in certain cases. We can ensure that we are trying to percolate
@@ -352,7 +344,7 @@ This example is based on the mapping of the first example.
 
 Save a query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index/_doc/3?refresh
 {
@@ -363,12 +355,11 @@ PUT /my-index/_doc/3?refresh
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Save another query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index/_doc/4?refresh
 {
@@ -379,12 +370,11 @@ PUT /my-index/_doc/4?refresh
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Execute a search request with the `percolate` query and highlighting enabled:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -403,12 +393,11 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 This will yield the following response.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 7,
@@ -428,7 +417,6 @@ This will yield the following response.
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "3",
         "_score": 0.26152915,
         "_source": {
@@ -449,7 +437,6 @@ This will yield the following response.
       },
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "4",
         "_score": 0.26152915,
         "_source": {
@@ -481,7 +468,7 @@ the document defined in the `percolate` query.
 
 When percolating multiple documents at the same time like the request below then the highlight response is different:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -511,12 +498,11 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The slightly different response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -536,7 +522,6 @@ The slightly different response:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.7093853,
         "_source": {
@@ -575,7 +560,7 @@ The slightly different response:
 
 It is possible to specify multiple `percolate` queries in a single search request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -605,7 +590,6 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The `name` parameter will be used to identify which percolator document slots belong to what `percolate` query.
@@ -615,7 +599,7 @@ If that isn't specified then the `field` parameter will be used, which in this c
 
 The above search request returns a response similar to this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -635,7 +619,6 @@ The above search request returns a response similar to this:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.26152915,
         "_source": {
@@ -681,7 +664,7 @@ or the unsupported query is the only query in the percolator document).  These q
 can be found by running the following search:
 
 
-[source,js]
+[source,console]
 ---------------------------------------------------
 GET /_search
 {
@@ -692,7 +675,6 @@ GET /_search
   }
 }
 ---------------------------------------------------
-// CONSOLE
 
 NOTE: The above example assumes that there is a `query` field of type
 `percolator` in the mappings.
@@ -704,3 +686,8 @@ being percolated, as opposed to a single index as we do in examples. There are a
 allows for fields to be stored in a denser, more efficient way.
 - Percolate queries do not scale in the same way as other queries, so percolation performance may benefit from using
 a different index configuration, like the number of primary shards.
+
+=== Notes
+==== Allow expensive queries
+Percolate queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

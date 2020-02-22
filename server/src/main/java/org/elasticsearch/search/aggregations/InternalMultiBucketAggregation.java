@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -66,23 +67,46 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
      */
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
+    /**
+     * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
+     * requires all buckets to have the same key.
+     */
+    protected abstract B reduceBucket(List<B> buckets, ReduceContext context);
+
     @Override
-    public abstract List<? extends InternalBucket> getBuckets();
+    public abstract List<B> getBuckets();
 
     @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
-        } else if (path.get(0).equals("_bucket_count")) {
-            return getBuckets().size();
-        } else {
-            List<? extends InternalBucket> buckets = getBuckets();
-            Object[] propertyArray = new Object[buckets.size()];
-            for (int i = 0; i < buckets.size(); i++) {
-                propertyArray[i] = buckets.get(i).getProperty(getName(), path);
-            }
-            return propertyArray;
         }
+        return resolvePropertyFromPath(path, getBuckets(), getName());
+    }
+
+    static Object resolvePropertyFromPath(List<String> path, List<? extends InternalBucket> buckets, String name) {
+        String aggName = path.get(0);
+        if (aggName.equals("_bucket_count")) {
+            return buckets.size();
+        }
+
+        // This is a bucket key, look through our buckets and see if we can find a match
+        if (aggName.startsWith("'") && aggName.endsWith("'")) {
+            for (InternalBucket bucket : buckets) {
+                if (bucket.getKeyAsString().equals(aggName.substring(1, aggName.length() - 1))) {
+                    return bucket.getProperty(name, path.subList(1, path.size()));
+                }
+            }
+            // No key match, time to give up
+            throw new InvalidAggregationPathException("Cannot find an key [" + aggName + "] in [" + name + "]");
+        }
+
+        Object[] propertyArray = new Object[buckets.size()];
+        for (int i = 0; i < buckets.size(); i++) {
+            propertyArray[i] = buckets.get(i).getProperty(name, path);
+        }
+        return propertyArray;
+
     }
 
     /**
@@ -118,6 +142,30 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         return size;
     }
 
+    /**
+     * Unlike {@link InternalAggregation#reducePipelines(InternalAggregation, ReduceContext)}, a multi-bucket
+     * agg needs to first reduce the buckets (and their parent pipelines) before allowing sibling pipelines
+     * to materialize
+     */
+    @Override
+    public final InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        assert reduceContext.isFinalReduce();
+        List<B> materializedBuckets = reducePipelineBuckets(reduceContext);
+        return super.reducePipelines(create(materializedBuckets), reduceContext);
+    }
+
+    private List<B> reducePipelineBuckets(ReduceContext reduceContext) {
+        List<B> reducedBuckets = new ArrayList<>();
+        for (B bucket : getBuckets()) {
+            List<InternalAggregation> aggs = new ArrayList<>();
+            for (Aggregation agg : bucket.getAggregations()) {
+                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext));
+            }
+            reducedBuckets.add(createBucket(new InternalAggregations(aggs), bucket));
+        }
+        return reducedBuckets;
+    }
+
     public abstract static class InternalBucket implements Bucket, Writeable {
 
         public Object getProperty(String containingAggName, List<String> path) {
@@ -144,5 +192,6 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }
+
     }
 }

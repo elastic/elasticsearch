@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -32,18 +32,13 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 
-public class UpdateFilterAction extends StreamableResponseActionType<PutFilterAction.Response> {
+public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
 
     public static final UpdateFilterAction INSTANCE = new UpdateFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/update";
 
     private UpdateFilterAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutFilterAction.Response newResponse() {
-        return new PutFilterAction.Response();
+        super(NAME, PutFilterAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -79,6 +74,14 @@ public class UpdateFilterAction extends StreamableResponseActionType<PutFilterAc
         private SortedSet<String> removeItems = Collections.emptySortedSet();
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            filterId = in.readString();
+            description = in.readOptionalString();
+            addItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
+            removeItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
         }
 
         public Request(String filterId) {
@@ -120,15 +123,6 @@ public class UpdateFilterAction extends StreamableResponseActionType<PutFilterAc
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            filterId = in.readString();
-            description = in.readOptionalString();
-            addItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
-            removeItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
         }
 
         @Override

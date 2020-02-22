@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,13 +49,12 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .build();
         final IndexService indexService = createIndex("index", settings);
 
         final int numWrites = randomIntBetween(10, 4096);
         for (int i = 0; i < numWrites; i++) {
-            client().prepareIndex("index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         // A number of times, get operations within a range that exists:
@@ -134,13 +133,12 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .build();
         final IndexService indexService = createIndex("index", settings);
 
         final long numWrites = 32;
         for (int i = 0; i < numWrites; i++) {
-            client().prepareIndex("index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         final IndexShard indexShard = indexService.getShard(0);
@@ -165,11 +163,10 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .build();
         final IndexService indexService = createIndex("index", settings);
 
-        client().prepareIndex("index", "doc", "0").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("0").setSource("{}", XContentType.JSON).get();
 
         final IndexShard indexShard = indexService.getShard(0);
         final Translog.Operation[] operations =
@@ -183,7 +180,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
-        transportAction.execute(
+        ActionTestUtils.execute(transportAction, null,
                 new ShardChangesAction.Request(new ShardId(new Index("non-existent", "uuid"), 0), "uuid"),
                 new ActionListener<ShardChangesAction.Response>() {
                     @Override
@@ -208,7 +205,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
-        transportAction.execute(
+        ActionTestUtils.execute(transportAction, null,
                 new ShardChangesAction.Request(new ShardId(indexService.getMetaData().getIndex(), numberOfShards), "uuid"),
                 new ActionListener<ShardChangesAction.Response>() {
                     @Override

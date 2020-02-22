@@ -1,5 +1,8 @@
 [[boolean]]
 === Boolean datatype
+++++
+<titleabbrev>Boolean</titleabbrev>
+++++
 
 Boolean fields accept JSON `true` and `false` values, but can also accept
 strings which are interpreted as either true or false:
@@ -15,7 +18,7 @@ True values::
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -42,7 +45,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Indexing a document with `"true"`, which is interpreted as `true`.
 <2> Searching for documents with a JSON `true`.
 
@@ -51,7 +54,7 @@ aggregation>>  use `1` and `0` for the `key`, and the strings `"true"` and
 `"false"` for the `key_as_string`. Boolean fields  when used in scripts,
 return `1` and `0`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST my_index/_doc/1
 {
@@ -82,7 +85,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[boolean-params]]
 ==== Parameters for `boolean` fields
@@ -90,11 +92,6 @@ GET my_index/_search
 The following parameters are accepted by `boolean` fields:
 
 [horizontal]
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<doc-values,`doc_values`>>::
 
@@ -118,3 +115,6 @@ The following parameters are accepted by `boolean` fields:
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

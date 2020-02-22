@@ -32,12 +32,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/close";
 
     private CloseJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, CloseJobAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -45,7 +40,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
         public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString(Request::setJobId, Job.ID);

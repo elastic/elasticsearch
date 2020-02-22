@@ -5,29 +5,34 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.process.NativeController;
-import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
+import org.elasticsearch.xpack.ml.process.StateToProcessWriterHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
-import java.util.Iterator;
+import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
-public class NativeAnalyticsProcess extends AbstractNativeProcess implements AnalyticsProcess {
+public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<AnalyticsResult> {
 
     private static final String NAME = "analytics";
 
-    private final ProcessResultsParser<AnalyticsResult> resultsParser = new ProcessResultsParser<>(AnalyticsResult.PARSER);
+    private final AnalyticsProcessConfig config;
 
     protected NativeAnalyticsProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
                                      InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
-                                     List<Path> filesToDelete, Consumer<String> onProcessCrash) {
-        super(jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete,
-            onProcessCrash);
+                                     List<Path> filesToDelete, Consumer<String> onProcessCrash, Duration processConnectTimeout,
+                                     AnalyticsProcessConfig config, NamedXContentRegistry namedXContentRegistry) {
+        super(NAME, AnalyticsResult.PARSER, jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream,
+            numberOfFields, filesToDelete, onProcessCrash, processConnectTimeout, namedXContentRegistry);
+        this.config = Objects.requireNonNull(config);
     }
 
     @Override
@@ -46,7 +51,15 @@ public class NativeAnalyticsProcess extends AbstractNativeProcess implements Ana
     }
 
     @Override
-    public Iterator<AnalyticsResult> readAnalyticsResults() {
-        return resultsParser.parseResults(processOutStream());
+    public AnalyticsProcessConfig getConfig() {
+        return config;
+    }
+
+    @Override
+    public void restoreState(BytesReference state) throws IOException {
+        Objects.requireNonNull(state);
+        try (OutputStream restoreStream = processRestoreStream()) {
+            StateToProcessWriterHelper.writeStateToStream(state, restoreStream);
+        }
     }
 }

@@ -1,80 +1,89 @@
 [role="xpack"]
 [[watcher-api-stats]]
-=== Stats API
+=== Get {watcher} stats API
+[subs="attributes"]
 ++++
-<titleabbrev>Stats</titleabbrev>
+<titleabbrev>Get {watcher} stats</titleabbrev>
 ++++
 
-The `stats` API returns the current {watcher} metrics.
+Retrieves the current {watcher} metrics.
 
-[float]
-==== Request
+[[watcher-api-stats-request]]
+==== {api-request-title}
 
 `GET _watcher/stats` +
 
 `GET _watcher/stats/<metric>`
 
-[float]
-==== Description
+[[watcher-api-stats-prereqs]]
+==== {api-prereq-title}
 
-This API always returns basic metrics. You retrieve more metrics by using
-the `metric` parameter.
+* You must have `manage_watcher` or `monitor_watcher` cluster privileges to use
+this API. For more information, see
+<<security-privileges>>.
 
-[float]
-===== Current executing watches metric
+//[[watcher-api-stats-desc]]
+//==== {api-description-title}
 
-The current executing watches metric gives insight into the watches that are
-currently being executed by {watcher}. Additional information is shared per
-watch that is currently executing. This information includes the `watch_id`,
-the time its execution started and its current execution phase.
-
-To include this metric, the `metric` option should be set to `current_watches`
-or `_all`. In addition you can also specify the `emit_stacktraces=true`
-parameter, which adds stack traces for each watch that is being executed. These
-stack traces can give you more insight into an execution of a watch.
-
-[float]
-===== Queued watches metric
-
-{watcher} moderates the execution of watches such that their execution won't put
-too much pressure on the node and its resources. If too many watches trigger
-concurrently and there isn't enough capacity to execute them all, some of the
-watches are queued, waiting for the current executing watches to finish their
-execution. The queued watches metric gives insight on these queued watches.
-
-To include this metric, the `metric` option should include `queued_watches` or
-`_all`.
-
-[float]
-==== Path Parameters
+[[watcher-api-stats-path-params]]
+==== {api-path-parms-title}
 
 `emit_stacktraces`::
-  (boolean) Defines whether stack traces are generated for each watch that is
-  running. The default value is `false`.
+  (Optional, boolean) Defines whether stack traces are generated for each watch
+  that is running. The default value is `false`.
 
-`metric`::
-  (enum) Defines which additional metrics are included in the response.
+`<metric>`::
+  (Optional, enum) Defines which additional metrics are included in the response.
   `current_watches`::: Includes the current executing watches in the response.
   `queued_watches`::: Includes the watches queued for execution in the response.
   `_all`::: Includes all metrics in the response.
 
-[float]
-==== Authorization
+//[[watcher-api-stats-query-params]]
+//==== {api-query-parms-title}
 
-You must have `manage_watcher` or `monitor_watcher` cluster privileges to use
-this API. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+//[[watcher-api-stats-request-body]]
+//==== {api-request-body-title}
 
-[float]
-==== Examples
+[[watcher-api-stats-response-body]]
+==== {api-response-body-title}
+
+This API always returns basic metrics. You retrieve more metrics by using
+the `metric` parameter.
+
+`current_watches`::
+  (list) The current executing watches metric gives insight into the watches
+  that are currently being executed by {watcher}. Additional information is
+  shared per watch that is currently executing. This information includes the
+  `watch_id`, the time its execution started and its current execution phase.
+  
+  To include this metric, the `metric` option should be set to `current_watches`
+  or `_all`. In addition you can also specify the `emit_stacktraces=true`
+  parameter, which adds stack traces for each watch that is being executed. These
+  stack traces can give you more insight into an execution of a watch.
+
+`queued_watches`::
+  (list) {watcher} moderates the execution of watches such that their execution
+  won't put too much pressure on the node and its resources. If too many watches
+  trigger concurrently and there isn't enough capacity to execute them all, some
+  of the watches are queued, waiting for the current executing watches to finish
+  their execution. The queued watches metric gives insight on these queued
+  watches.
+  
+  To include this metric, the `metric` option should include `queued_watches` or
+  `_all`.
+
+//[[watcher-api-stats-response-codes]]
+//==== {api-response-codes-title}
+
+[[watcher-api-stats-example]]
+==== {api-examples-title}
 
 The following example calls the `stats` API to retrieve basic metrics:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/stats
 --------------------------------------------------
-// CONSOLE
 
 A successful call returns a JSON structure similar to the following example:
 
@@ -99,19 +108,17 @@ number of concurrent executing watches.
 The following example specifies the `metric` option as a query string argument
 and will include the basic metrics and metrics about the current executing watches:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/stats?metric=current_watches
 --------------------------------------------------
-// CONSOLE
 
 The following example specifies the `metric` option as part of the url path:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/stats/current_watches
 --------------------------------------------------
-// CONSOLE
 
 The following snippet shows an example of a successful JSON response that
 captures a watch in execution:
@@ -152,11 +159,10 @@ captures a watch in execution:
 The following example specifies the `queued_watches` metric option and includes
 both the basic metrics and the queued watches:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/stats/queued_watches
 --------------------------------------------------
-// CONSOLE
 
 An example of a successful JSON response that captures a watch in execution:
 

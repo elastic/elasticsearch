@@ -72,14 +72,10 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         SNAPSHOT_ONLY_FORMAT_PARAMS = new ToXContent.MapParams(snapshotOnlyParams);
     }
 
-    private static final XContentType DEFAULT_X_CONTENT_TYPE = XContentType.SMILE;
-
     // The format version
     public static final int VERSION = 1;
 
     private static final int BUFFER_SIZE = 4096;
-
-    private final XContentType xContentType;
 
     private final boolean compress;
 
@@ -96,27 +92,14 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
      * @param compress       true if the content should be compressed
-     * @param xContentType   content type that should be used for write operations
-     */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader,
-                                   NamedXContentRegistry namedXContentRegistry, boolean compress, XContentType xContentType) {
-        this.reader = reader;
-        this.blobNameFormat = blobNameFormat;
-        this.namedXContentRegistry = namedXContentRegistry;
-        this.xContentType = xContentType;
-        this.compress = compress;
-        this.codec = codec;
-    }
-
-    /**
-     * @param codec          codec name
-     * @param blobNameFormat format of the blobname in {@link String#format} format
-     * @param reader         prototype object that can deserialize T from XContent
-     * @param compress       true if the content should be compressed
      */
     public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader,
                                    NamedXContentRegistry namedXContentRegistry, boolean compress) {
-        this(codec, blobNameFormat, reader, namedXContentRegistry, compress, DEFAULT_X_CONTENT_TYPE);
+        this.reader = reader;
+        this.blobNameFormat = blobNameFormat;
+        this.namedXContentRegistry = namedXContentRegistry;
+        this.compress = compress;
+        this.codec = codec;
     }
 
     /**
@@ -129,13 +112,6 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     public T read(BlobContainer blobContainer, String name) throws IOException {
         String blobName = blobName(name);
         return readBlob(blobContainer, blobName);
-    }
-
-    /**
-     * Deletes obj in the blob container
-     */
-    public void delete(BlobContainer blobContainer, String name) throws IOException {
-        blobContainer.deleteBlob(blobName(name));
     }
 
     public String blobName(String name) {
@@ -158,7 +134,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             long filePointer = indexInput.getFilePointer();
             long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
             try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                bytes.slice((int) filePointer, (int) contentSize))) {
+                bytes.slice((int) filePointer, (int) contentSize), XContentType.SMILE)) {
                 return reader.apply(parser);
             }
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
@@ -192,15 +168,16 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * <p>
      * The blob will be compressed and checksum will be written if required.
      *
-     * @param obj           object to be serialized
-     * @param blobContainer blob container
-     * @param name          blob name
+     * @param obj                 object to be serialized
+     * @param blobContainer       blob container
+     * @param name                blob name
+     * @param failIfAlreadyExists Whether to fail if the blob already exists
      */
-    public void write(T obj, BlobContainer blobContainer, String name) throws IOException {
+    public void write(T obj, BlobContainer blobContainer, String name, boolean failIfAlreadyExists) throws IOException {
         final String blobName = blobName(name);
         writeTo(obj, blobName, bytesArray -> {
             try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlob(blobName, stream, bytesArray.length(), true);
+                blobContainer.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
             }
         });
     }
@@ -237,7 +214,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     }
 
     private void write(T obj, StreamOutput streamOutput) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, streamOutput)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE, streamOutput)) {
             builder.startObject();
             obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
             builder.endObject();

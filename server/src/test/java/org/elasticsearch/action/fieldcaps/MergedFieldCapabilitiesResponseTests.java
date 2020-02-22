@@ -20,12 +20,13 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,16 +34,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class MergedFieldCapabilitiesResponseTests extends AbstractStreamableXContentTestCase<FieldCapabilitiesResponse> {
+public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
     protected FieldCapabilitiesResponse doParseInstance(XContentParser parser) throws IOException {
         return FieldCapabilitiesResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected FieldCapabilitiesResponse createBlankInstance() {
-        return new FieldCapabilitiesResponse();
     }
 
     @Override
@@ -69,6 +65,11 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractStreamableXCon
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
         return new FieldCapabilitiesResponse(indices, responses);
+    }
+
+    @Override
+    protected Writeable.Reader<FieldCapabilitiesResponse> instanceReader() {
+        return FieldCapabilitiesResponse::new;
     }
 
     @Override
@@ -151,19 +152,19 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractStreamableXCon
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
-        titleCapabilities.put("text", new FieldCapabilities("title", "text", true, false));
+        titleCapabilities.put("text", new FieldCapabilities("title", "text", true, false, null, null, null, Collections.emptyMap()));
 
         Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
         ratingCapabilities.put("long", new FieldCapabilities("rating", "long",
             true, false,
             new String[]{"index1", "index2"},
             null,
-            new String[]{"index1"}));
+            new String[]{"index1"}, Collections.emptyMap()));
         ratingCapabilities.put("keyword", new FieldCapabilities("rating", "keyword",
             false, true,
             new String[]{"index3", "index4"},
             new String[]{"index4"},
-            null));
+            null, Collections.emptyMap()));
 
         Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
         responses.put("title", titleCapabilities);

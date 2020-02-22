@@ -223,7 +223,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         if (out.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             out.writeVInt(successfulResponses.size());
             for (Map.Entry<String, List<SnapshotInfo>> snapshots : successfulResponses.entrySet()) {
@@ -256,11 +255,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 throw failedResponses.values().iterator().next();
             }
         }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {

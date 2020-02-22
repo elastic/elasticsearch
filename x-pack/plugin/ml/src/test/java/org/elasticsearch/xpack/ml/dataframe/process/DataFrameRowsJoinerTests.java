@@ -5,22 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -35,7 +29,8 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.same;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -46,19 +41,22 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
     private static final String ANALYTICS_ID = "my_analytics";
 
-    private Client client;
+    private static final Map<String, String> HEADERS = Collections.singletonMap("foo", "bar");
+
     private DataFrameDataExtractor dataExtractor;
+    private ResultsPersisterService resultsPersisterService;
     private ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 
     @Before
     public void setUpMocks() {
-        client = mock(Client.class);
         dataExtractor = mock(DataFrameDataExtractor.class);
+        when(dataExtractor.getHeaders()).thenReturn(HEADERS);
+        resultsPersisterService = mock(ResultsPersisterService.class);
     }
 
     public void testProcess_GivenNoResults() {
         givenProcessResults(Collections.emptyList());
-        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(resultsPersisterService);
     }
 
     public void testProcess_GivenSingleRowAndResult() throws IOException {
@@ -67,7 +65,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row row = newRow(newHit(dataDoc), dataValues, 1);
-        givenDataFrameBatches(Arrays.asList(row));
+        givenDataFrameBatches(List.of(Arrays.asList(row)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -97,7 +95,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         IntStream.range(0, 1000).forEach(i -> firstBatch.add(newRow(newHit(dataDoc), dataValues, i)));
         List<DataFrameDataExtractor.Row> secondBatch = new ArrayList<>(1);
         secondBatch.add(newRow(newHit(dataDoc), dataValues, 1000));
-        givenDataFrameBatches(firstBatch, secondBatch);
+        givenDataFrameBatches(List.of(firstBatch, secondBatch));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -118,7 +116,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row row = newRow(newHit(dataDoc), dataValues, 1);
-        givenDataFrameBatches(Arrays.asList(row));
+        givenDataFrameBatches(List.of(Arrays.asList(row)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -126,7 +124,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         RowResults result = new RowResults(2, resultFields);
         givenProcessResults(Arrays.asList(result));
 
-        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(resultsPersisterService);
     }
 
     public void testProcess_GivenSingleBatchWithSkippedRows() throws IOException {
@@ -136,7 +134,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row normalRow = newRow(newHit(dataDoc), dataValues, 2);
-        givenDataFrameBatches(Arrays.asList(skippedRow, normalRow));
+        givenDataFrameBatches(List.of(Arrays.asList(skippedRow, normalRow)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -166,7 +164,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         DataFrameDataExtractor.Row normalRow2 = newRow(newHit(dataDoc), dataValues, 2);
         DataFrameDataExtractor.Row skippedRow = newRow(newHit("{}"), null, 3);
         DataFrameDataExtractor.Row normalRow3 = newRow(newHit(dataDoc), dataValues, 4);
-        givenDataFrameBatches(Arrays.asList(normalRow1, normalRow2, skippedRow), Arrays.asList(normalRow3));
+        givenDataFrameBatches(List.of(Arrays.asList(normalRow1, normalRow2, skippedRow), Arrays.asList(normalRow3)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -195,7 +193,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row row = newRow(newHit(dataDoc), dataValues, 1);
-        givenDataFrameBatches(Arrays.asList(row));
+        givenDataFrameBatches(List.of(List.of(row)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -204,7 +202,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         RowResults result2 = new RowResults(2, resultFields);
         givenProcessResults(Arrays.asList(result1, result2));
 
-        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(resultsPersisterService);
     }
 
     public void testProcess_GivenNoResults_ShouldCancelAndConsumeExtractor() throws IOException {
@@ -214,29 +212,29 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row row1 = newRow(newHit(dataDoc), dataValues, 1);
         DataFrameDataExtractor.Row row2 = newRow(newHit(dataDoc), dataValues, 1);
-        givenDataFrameBatches(Arrays.asList(row1), Arrays.asList(row2));
+        givenDataFrameBatches(List.of(List.of(row1), List.of(row2)));
 
         givenProcessResults(Collections.emptyList());
 
-        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(resultsPersisterService);
         verify(dataExtractor).cancel();
         verify(dataExtractor, times(2)).next();
     }
 
     private void givenProcessResults(List<RowResults> results) {
-        try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, client, dataExtractor)) {
+        try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, dataExtractor, resultsPersisterService)) {
             results.forEach(joiner::processRowResults);
         }
     }
 
-    private void givenDataFrameBatches(List<DataFrameDataExtractor.Row>... batches) throws IOException {
-        DelegateStubDataExtractor delegateStubDataExtractor = new DelegateStubDataExtractor(Arrays.asList(batches));
+    private void givenDataFrameBatches(List<List<DataFrameDataExtractor.Row>> batches) throws IOException {
+        DelegateStubDataExtractor delegateStubDataExtractor = new DelegateStubDataExtractor(batches);
         when(dataExtractor.hasNext()).thenAnswer(a -> delegateStubDataExtractor.hasNext());
         when(dataExtractor.next()).thenAnswer(a -> delegateStubDataExtractor.next());
     }
 
     private static SearchHit newHit(String json) {
-        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), new Text("doc"), Collections.emptyMap());
+        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), Collections.emptyMap());
         hit.sourceRef(new BytesArray(json));
         return hit;
     }
@@ -251,13 +249,9 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private void givenClientHasNoFailures() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        ActionFuture<BulkResponse> responseFuture = mock(ActionFuture.class);
-        when(responseFuture.actionGet()).thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
-        when(client.execute(same(BulkAction.INSTANCE), bulkRequestCaptor.capture())).thenReturn(responseFuture);
-        when(client.threadPool()).thenReturn(threadPool);
+        when(resultsPersisterService.bulkIndexWithHeadersWithRetry(
+            eq(HEADERS), bulkRequestCaptor.capture(), eq(ANALYTICS_ID), any(), any()))
+            .thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
     }
 
     private static class DelegateStubDataExtractor {

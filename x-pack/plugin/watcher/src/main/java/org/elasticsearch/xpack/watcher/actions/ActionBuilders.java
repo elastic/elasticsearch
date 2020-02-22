@@ -33,14 +33,6 @@ public final class ActionBuilders {
         return EmailAction.builder(email);
     }
 
-    /**
-     * Types are deprecated and should not be used. use {@link #indexAction(String)}
-     */
-    @Deprecated
-    public static IndexAction.Builder indexAction(String index, String type) {
-        return IndexAction.builder(index, type);
-    }
-
     public static IndexAction.Builder indexAction(String index) {
         return IndexAction.builder(index);
     }

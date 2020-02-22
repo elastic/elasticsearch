@@ -5,20 +5,14 @@
  */
 package org.elasticsearch.xpack.ccr.action.bulk;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class BulkShardOperationsAction extends StreamableResponseActionType<BulkShardOperationsResponse> {
+public class BulkShardOperationsAction extends ActionType<BulkShardOperationsResponse> {
 
     public static final BulkShardOperationsAction INSTANCE = new BulkShardOperationsAction();
     public static final String NAME = "indices:data/write/bulk_shard_operations[s]";
 
     private BulkShardOperationsAction() {
-        super(NAME);
+        super(NAME, BulkShardOperationsResponse::new);
     }
-
-    @Override
-    public BulkShardOperationsResponse newResponse() {
-        return new BulkShardOperationsResponse();
-    }
-
 }

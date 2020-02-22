@@ -23,7 +23,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.Executor;
@@ -109,7 +109,7 @@ interface SearchPhaseContext extends Executor {
     /**
      * Builds an request for the initial search phase.
      */
-    ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt);
+    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution

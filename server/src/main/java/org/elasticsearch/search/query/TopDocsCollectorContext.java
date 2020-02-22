@@ -33,13 +33,11 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -238,7 +236,15 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             this.sortAndFormats = sortAndFormats;
 
             final TopDocsCollector<?> topDocsCollector;
-            if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+
+            if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0]))
+                    && hasInfMaxScore(query)) {
+                // disable max score optimization since we have a mandatory clause
+                // that doesn't track the maximum score
+                topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, Integer.MAX_VALUE);
+                topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
+                totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
+            } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 // don't compute hit counts via the collector
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1);
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
@@ -274,27 +280,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 maxScoreSupplier = () -> Float.NaN;
             }
 
-            final Collector collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector);
-            if (sortAndFormats == null ||
-                    SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0])) {
-                if (hasInfMaxScore(query)) {
-                    // disable max score optimization since we have a mandatory clause
-                    // that doesn't track the maximum score
-                    this.collector = new FilterCollector(collector) {
-                        @Override
-                        public ScoreMode scoreMode() {
-                            if (in.scoreMode() == ScoreMode.TOP_SCORES) {
-                                return ScoreMode.COMPLETE;
-                            }
-                            return in.scoreMode();
-                        }
-                    };
-                } else {
-                    this.collector = collector;
-                }
-            } else {
-                this.collector = collector;
-            }
+            this.collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector);
 
         }
 
@@ -428,8 +414,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
      * @param hasFilterCollector True if the collector chain contains at least one collector that can filters document.
      */
     static TopDocsCollectorContext createTopDocsCollectorContext(SearchContext searchContext,
-                                                                 IndexReader reader,
                                                                  boolean hasFilterCollector) throws IOException {
+        final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.query();
         // top collectors don't like a size of 0
         final int totalNumDocs = Math.max(1, reader.numDocs());

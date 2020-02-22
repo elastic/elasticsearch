@@ -68,6 +68,11 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 public class CorsHandler {
 
     public static final String ANY_ORIGIN = "*";
+    public static final String ORIGIN = "origin";
+    public static final String DATE = "date";
+    public static final String VARY = "vary";
+    public static final String ACCESS_CONTROL_REQUEST_METHOD = "access-control-request-method";
+    public static final String ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin";
 
     private CorsHandler() {
     }

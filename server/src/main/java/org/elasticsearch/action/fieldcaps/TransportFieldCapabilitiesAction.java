@@ -176,20 +176,20 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
             typeMap.put("unmapped", unmapped);
             for (String index : unmappedIndices) {
-                unmapped.add(index, false, false);
+                unmapped.add(index, false, false, Collections.emptyMap());
             }
         }
     }
 
     private void innerMerge(Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-                                String indexName, Map<String, FieldCapabilities> map) {
-        for (Map.Entry<String, FieldCapabilities> entry : map.entrySet()) {
+                                String indexName, Map<String, IndexFieldCapabilities> map) {
+        for (Map.Entry<String, IndexFieldCapabilities> entry : map.entrySet()) {
             final String field = entry.getKey();
-            final FieldCapabilities fieldCap = entry.getValue();
+            final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.getType(),
                 key -> new FieldCapabilities.Builder(field, key));
-            builder.add(indexName, fieldCap.isSearchable(), fieldCap.isAggregatable());
+            builder.add(indexName, fieldCap.isSearchable(), fieldCap.isAggregatable(), fieldCap.meta());
         }
     }
 }

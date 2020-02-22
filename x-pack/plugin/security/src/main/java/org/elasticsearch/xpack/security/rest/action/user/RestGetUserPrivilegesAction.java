@@ -5,17 +5,14 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -24,13 +21,14 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -40,17 +38,23 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetUserPrivilegesAction.class));
 
-    public RestGetUserPrivilegesAction(Settings settings, RestController controller, SecurityContext securityContext,
-                                       XPackLicenseState licenseState) {
+    public RestGetUserPrivilegesAction(Settings settings, SecurityContext securityContext, XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/_privileges", this,
-            GET, "/_xpack/security/user/_privileges", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRoute(GET, "/_security/user/_privileges", GET, "/_xpack/security/user/_privileges")
+        );
     }
 
     @Override
@@ -81,8 +85,8 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
 
             builder.field(RoleDescriptor.Fields.CLUSTER.getPreferredName(), response.getClusterPrivileges());
             builder.startArray(RoleDescriptor.Fields.GLOBAL.getPreferredName());
-            for (ConditionalClusterPrivilege ccp : response.getConditionalClusterPrivileges()) {
-                ConditionalClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS, Collections.singleton(ccp));
+            for (ConfigurableClusterPrivilege ccp : response.getConditionalClusterPrivileges()) {
+                ConfigurableClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS, Collections.singleton(ccp));
             }
             builder.endArray();
 

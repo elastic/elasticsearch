@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class NodesInfoAction extends StreamableResponseActionType<NodesInfoResponse> {
+public class NodesInfoAction extends ActionType<NodesInfoResponse> {
 
     public static final NodesInfoAction INSTANCE = new NodesInfoAction();
     public static final String NAME = "cluster:monitor/nodes/info";
 
     private NodesInfoAction() {
-        super(NAME);
-    }
-
-    @Override
-    public NodesInfoResponse newResponse() {
-        return new NodesInfoResponse();
+        super(NAME, NodesInfoResponse::new);
     }
 }

@@ -87,7 +87,6 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   int getNano()
   int getSecond()
   int getYear()
-  ZoneId getZone()
   ZonedDateTime minus(TemporalAmount)
   ZonedDateTime minus(long,TemporalUnit)
   ZonedDateTime minusYears(long)
@@ -108,7 +107,6 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   ZonedDateTime plusSeconds(long)
   ZonedDateTime plusWeeks(long)
   ZonedDateTime plusYears(long)
-  Instant toInstant()
   OffsetDateTime toOffsetDateTime()
   ZonedDateTime truncatedTo(TemporalUnit)
   ZonedDateTime with(TemporalAdjuster)
@@ -126,14 +124,6 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   ZonedDateTime withYear(int)
   ZonedDateTime withZoneSameLocal(ZoneId)
   ZonedDateTime withZoneSameInstant(ZoneId)
-
-  #### Joda methods that exist in java time
-  boolean equals(Object)
-  int hashCode()
-  boolean isAfter(JodaCompatibleZonedDateTime)
-  boolean isBefore(JodaCompatibleZonedDateTime)
-  boolean isEqual(JodaCompatibleZonedDateTime)
-  String toString()
 
   #### Joda time methods
   long getMillis()
@@ -239,4 +229,8 @@ class org.elasticsearch.index.query.IntervalFilterScript$Interval {
   int getStart()
   int getEnd()
   int getGaps()
+}
+
+class org.elasticsearch.script.ScoreScript$ExplanationHolder {
+  void set(String)
 }

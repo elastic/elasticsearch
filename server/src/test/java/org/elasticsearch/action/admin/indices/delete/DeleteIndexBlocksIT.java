@@ -45,13 +45,13 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
     public void testDeleteIndexOnIndexReadOnlyAllowDeleteSetting() {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar").get();
+        client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
         refresh();
         try {
             Settings settings = Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, true).build();
             assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get());
             assertSearchHits(client().prepareSearch().get(), "1");
-            assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
+            assertBlocked(client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
                 IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertBlocked(client().admin().indices().prepareUpdateSettings("test")
                     .setSettings(Settings.builder().put("index.number_of_replicas", 2)), IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
@@ -71,8 +71,8 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             Settings settings = Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, true).build();
             client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
             ClusterBlockException e = expectThrows(ClusterBlockException.class, () ->
-                client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar").get());
-            assertEquals("index [test] blocked by: [FORBIDDEN/12/index read-only / allow delete (api)];", e.getMessage());
+                client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get());
+            assertEquals("index [test] blocked by: [TOO_MANY_REQUESTS/12/index read-only / allow delete (api)];", e.getMessage());
         } finally {
             assertAcked(client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().putNull(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE).build()).get());
@@ -82,13 +82,13 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
     public void testDeleteIndexOnClusterReadOnlyAllowDeleteSetting() {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar").get();
+        client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
         refresh();
         try {
             Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
             assertSearchHits(client().prepareSearch().get(), "1");
-            assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
+            assertBlocked(client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
                 MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertBlocked(client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 2)), MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);

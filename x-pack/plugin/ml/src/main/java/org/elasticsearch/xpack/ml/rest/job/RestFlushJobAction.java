@@ -5,20 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -30,15 +28,18 @@ public class RestFlushJobAction extends BaseRestHandler {
     private static final String DEFAULT_ADVANCE_TIME = "";
     private static final String DEFAULT_SKIP_TIME = "";
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestFlushJobAction.class));
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
 
-    public RestFlushJobAction(Settings settings, RestController controller) {
-        super(settings);
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush")
+        );
     }
 
     @Override

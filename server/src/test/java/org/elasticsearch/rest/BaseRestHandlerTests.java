@@ -22,7 +22,6 @@ package org.elasticsearch.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -34,6 +33,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -45,7 +45,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testOneUnconsumedParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -55,6 +55,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_one_unconsumed_response_action";
+            }
+
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
             }
         };
 
@@ -71,7 +76,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testMultipleUnconsumedParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -81,6 +86,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_multiple_unconsumed_response_action";
+            }
+
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
             }
         };
 
@@ -98,7 +108,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testUnconsumedParametersDidYouMean() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -117,6 +127,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_unconsumed_did_you_mean_response_action";
+            }
+
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
             }
         };
 
@@ -145,7 +160,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testUnconsumedResponseParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -161,6 +176,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             public String getName() {
                 return "test_unconsumed_response_action";
             }
+
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
+            }
         };
 
         final HashMap<String, String> params = new HashMap<>();
@@ -174,7 +194,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testDefaultResponseParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 return channel -> executed.set(true);
@@ -183,6 +203,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_default_response_action";
+            }
+
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
             }
         };
 
@@ -199,7 +224,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testCatResponseParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        AbstractCatAction handler = new AbstractCatAction(Settings.EMPTY) {
+        AbstractCatAction handler = new AbstractCatAction() {
             @Override
             protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
                 return channel -> executed.set(true);
@@ -218,6 +243,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_cat_response_action";
+            }
+
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
             }
         };
 
@@ -238,7 +268,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testConsumedBody() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        final BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        final BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
                 request.content();
@@ -250,6 +280,10 @@ public class BaseRestHandlerTests extends ESTestCase {
                 return "test_consumed_body";
             }
 
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
+            }
         };
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
@@ -264,7 +298,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testUnconsumedNoBody() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        final BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        final BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
                 return channel -> executed.set(true);
@@ -275,6 +309,10 @@ public class BaseRestHandlerTests extends ESTestCase {
                 return "test_unconsumed_body";
             }
 
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
+            }
         };
 
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
@@ -285,7 +323,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testUnconsumedBody() throws IOException {
         final AtomicBoolean executed = new AtomicBoolean();
-        final BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        final BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
                 return channel -> executed.set(true);
@@ -296,6 +334,10 @@ public class BaseRestHandlerTests extends ESTestCase {
                 return "test_unconsumed_body";
             }
 
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
+            }
         };
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {

@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -32,11 +32,13 @@ import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
-import java.util.Collections;
+import java.io.IOException;
 import java.util.Map;
 
-public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
+public class TransportUpdateDatafeedAction extends
+    TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
+    private final Client client;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
@@ -46,12 +48,13 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
                                          Client client, NamedXContentRegistry xContentRegistry) {
-        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, UpdateDatafeedAction.Request::new);
+        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateDatafeedAction.Request::new,
+                indexNameExpressionResolver);
 
-        datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
-        jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
-        migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        this.client = client;
+        this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 
     @Override
@@ -60,8 +63,8 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     }
 
     @Override
-    protected PutDatafeedAction.Response newResponse() {
-        return new PutDatafeedAction.Response();
+    protected PutDatafeedAction.Response read(StreamInput in) throws IOException {
+        return new PutDatafeedAction.Response(in);
     }
 
     @Override
@@ -84,48 +87,14 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
             return;
         }
 
-        String datafeedId = request.getUpdate().getId();
-
-        CheckedConsumer<Boolean, Exception> updateConsumer = ok -> {
-            datafeedConfigProvider.updateDatefeedConfig(request.getUpdate().getId(), request.getUpdate(), headers,
-                    jobConfigProvider::validateDatafeedJob,
-                    ActionListener.wrap(
-                            updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                            listener::onFailure
-                    ));
-        };
-
-
-        if (request.getUpdate().getJobId() != null) {
-            checkJobDoesNotHaveADifferentDatafeed(request.getUpdate().getJobId(), datafeedId,
-                    ActionListener.wrap(updateConsumer, listener::onFailure));
-        } else {
-            updateConsumer.accept(Boolean.TRUE);
-        }
-    }
-
-    /*
-     * This is a check against changing the datafeed's jobId and that job
-     * already having a datafeed.
-     * The job the updated datafeed refers to should have no datafeed or
-     * if it does have a datafeed it must be the one we are updating
-     */
-    private void checkJobDoesNotHaveADifferentDatafeed(String jobId, String datafeedId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
-                datafeedIds -> {
-                    if (datafeedIds.isEmpty()) {
-                        // Ok the job does not have a datafeed
-                        listener.onResponse(Boolean.TRUE);
-                    } else if (datafeedIds.size() == 1 && datafeedIds.contains(datafeedId)) {
-                        // Ok the job has the datafeed being updated
-                        listener.onResponse(Boolean.TRUE);
-                    } else {
-                        listener.onFailure(ExceptionsHelper.conflictStatusException("A datafeed [" + datafeedIds.iterator().next()
-                                + "] already exists for job [" + jobId + "]"));
-                    }
-                },
-                listener::onFailure
-        ));
+        datafeedConfigProvider.updateDatefeedConfig(
+            request.getUpdate().getId(),
+            request.getUpdate(),
+            headers,
+            jobConfigProvider::validateDatafeedJob,
+            ActionListener.wrap(
+                updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
+                listener::onFailure));
     }
 
     @Override

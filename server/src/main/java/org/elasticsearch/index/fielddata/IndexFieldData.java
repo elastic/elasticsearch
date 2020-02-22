@@ -20,9 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
@@ -37,17 +35,20 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.NestedSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 /**
  * Thread-safe utility class that allows to get per-segment values via the
@@ -71,9 +72,15 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     FD loadDirect(LeafReaderContext context) throws Exception;
 
     /**
-     * Returns the {@link SortField} to used for sorting.
+     * Returns the {@link SortField} to use for sorting.
      */
     SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
+
+    /**
+     * Build a sort implementation specialized for aggregations.
+     */
+    BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode,
+            Nested nested, SortOrder sortOrder, DocValueFormat format);
 
     /**
      * Clears any resources associated with this field data.
@@ -115,22 +122,17 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             private final BitSetProducer rootFilter;
             private final Query innerQuery;
             private final NestedSortBuilder nestedSort;
-            private final Function<IndexReaderContext, IndexSearcher> searcherFactory;
+            private final IndexSearcher searcher;
 
-            public Nested(BitSetProducer rootFilter, Query innerQuery, NestedSortBuilder nestedSort,
-                          Function<IndexReaderContext, IndexSearcher> searcherFactory) {
+            public Nested(BitSetProducer rootFilter, Query innerQuery, NestedSortBuilder nestedSort, IndexSearcher searcher) {
                 this.rootFilter = rootFilter;
                 this.innerQuery = innerQuery;
                 this.nestedSort = nestedSort;
-                this.searcherFactory = searcherFactory;
+                this.searcher = searcher;
             }
 
             public Query getInnerQuery() {
                 return innerQuery;
-            }
-
-            public BitSetProducer getRootFilter() {
-                return rootFilter;
             }
 
             public NestedSortBuilder getNestedSort() { return nestedSort; }
@@ -146,9 +148,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
              * Get a {@link DocIdSet} that matches the inner documents.
              */
             public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
-                final IndexReaderContext topLevelCtx = ReaderUtil.getTopLevelContext(ctx);
-                IndexSearcher indexSearcher = searcherFactory.apply(topLevelCtx);
-                Weight weight = indexSearcher.createWeight(indexSearcher.rewrite(innerQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                Weight weight = searcher.createWeight(searcher.rewrite(innerQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Scorer s = weight.scorer(ctx);
                 return s == null ? null : s.iterator();
             }
@@ -237,6 +237,11 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         public Object missingValue(boolean reversed) {
             return null;
         }
+
+        /**
+         * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
+         */
+        public abstract BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format);
     }
 
     interface Builder {
@@ -252,5 +257,4 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         IndexFieldData<FD> localGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     }
-
 }

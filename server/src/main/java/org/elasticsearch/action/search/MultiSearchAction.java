@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class MultiSearchAction extends ActionType<MultiSearchResponse> {
 
@@ -28,11 +27,6 @@ public class MultiSearchAction extends ActionType<MultiSearchResponse> {
     public static final String NAME = "indices:data/read/msearch";
 
     private MultiSearchAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<MultiSearchResponse> getResponseReader() {
-        return MultiSearchResponse::new;
+        super(NAME, MultiSearchResponse::new);
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.WriteOperation;
 
 import javax.net.ssl.SSLEngine;
@@ -41,22 +42,24 @@ public final class SSLChannelContext extends SocketChannelContext {
     private final LinkedList<FlushOperation> encryptedFlushes = new LinkedList<>();
     private Runnable closeTimeoutCanceller = DEFAULT_TIMEOUT_CANCELLER;
 
-    SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      NioChannelHandler readWriteHandler, InboundChannelBuffer applicationBuffer) {
-        this(channel, selector, exceptionHandler, sslDriver, readWriteHandler, InboundChannelBuffer.allocatingInstance(),
+    SSLChannelContext(NioSocketChannel channel, NioSelector selector, Config.Socket socketConfig,
+                      Consumer<Exception> exceptionHandler, SSLDriver sslDriver, NioChannelHandler readWriteHandler,
+                      InboundChannelBuffer applicationBuffer) {
+        this(channel, selector, socketConfig, exceptionHandler, sslDriver, readWriteHandler, InboundChannelBuffer.allocatingInstance(),
             applicationBuffer);
     }
 
-    SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      NioChannelHandler readWriteHandler, InboundChannelBuffer networkReadBuffer, InboundChannelBuffer channelBuffer) {
-        super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
+    SSLChannelContext(NioSocketChannel channel, NioSelector selector, Config.Socket socketConfig,
+                      Consumer<Exception> exceptionHandler, SSLDriver sslDriver, NioChannelHandler readWriteHandler,
+                      InboundChannelBuffer networkReadBuffer, InboundChannelBuffer channelBuffer) {
+        super(channel, selector, socketConfig, exceptionHandler, readWriteHandler, channelBuffer);
         this.sslDriver = sslDriver;
         this.networkReadBuffer = networkReadBuffer;
     }
 
     @Override
-    public void register() throws IOException {
-        super.register();
+    protected void channelActive() throws IOException {
+        super.channelActive();
         sslDriver.init();
         SSLOutboundBuffer outboundBuffer = sslDriver.getOutboundBuffer();
         if (outboundBuffer.hasEncryptedBytesToFlush()) {
@@ -179,8 +182,15 @@ public final class SSLChannelContext extends SocketChannelContext {
     @Override
     public void closeChannel() {
         if (isClosing.compareAndSet(false, true)) {
-            WriteOperation writeOperation = new CloseNotifyOperation(this);
-            getSelector().queueWrite(writeOperation);
+            // The model for closing channels will change at some point, removing the need for this "schedule
+            // a write" signal. But for now, we need to handle the edge case where the channel is not
+            // registered.
+            if (getSelectionKey() == null) {
+                getSelector().queueChannelClose(channel);
+            } else {
+                WriteOperation writeOperation = new CloseNotifyOperation(this);
+                getSelector().queueWrite(writeOperation);
+            }
         }
     }
 

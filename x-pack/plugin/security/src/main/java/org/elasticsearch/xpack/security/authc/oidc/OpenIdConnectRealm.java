@@ -44,11 +44,11 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -143,6 +143,14 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         return token instanceof OpenIdConnectToken;
     }
 
+    private boolean isTokenForRealm(OpenIdConnectToken oidcToken) {
+        if (oidcToken.getAuthenticatingRealm() == null) {
+            return true;
+        } else {
+            return oidcToken.getAuthenticatingRealm().equals(this.name());
+        }
+    }
+
     @Override
     public AuthenticationToken token(ThreadContext context) {
         return null;
@@ -150,7 +158,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
-        if (token instanceof OpenIdConnectToken) {
+        if (token instanceof OpenIdConnectToken && isTokenForRealm((OpenIdConnectToken) token)) {
             OpenIdConnectToken oidcToken = (OpenIdConnectToken) token;
             openIdConnectAuthenticator.authenticate(oidcToken, ActionListener.wrap(
                 jwtClaimsSet -> {
@@ -207,7 +215,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                  * We whitelist the Types that we want to parse as metadata from the Claims, explicitly filtering out {@link Date}s
                  */
                 Object v = entry.getValue();
-                return (v instanceof String || v instanceof Boolean || v instanceof Number || v instanceof Collections);
+                return (v instanceof String || v instanceof Boolean || v instanceof Number || v instanceof Collection);
             }).collect(Collectors.toUnmodifiableMap(entry -> "oidc(" + entry.getKey() + ")", Map.Entry::getValue));
         } else {
             userMetadata = Map.of();
@@ -277,25 +285,31 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_AUTHORIZATION_ENDPOINT.getKey(), e);
         }
+        String responseType = require(config, RP_RESPONSE_TYPE);
+        String tokenEndpointString = config.getSetting(OP_TOKEN_ENDPOINT);
+        if (responseType.equals("code") && tokenEndpointString.isEmpty()) {
+            throw new SettingsException("The configuration setting [" + OP_TOKEN_ENDPOINT.getConcreteSettingForNamespace(name()).getKey()
+                + "] is required when [" + RP_RESPONSE_TYPE.getConcreteSettingForNamespace(name()).getKey() + "] is set to \"code\"");
+        }
         URI tokenEndpoint;
         try {
-            tokenEndpoint = new URI(require(config, OP_TOKEN_ENDPOINT));
+            tokenEndpoint = tokenEndpointString.isEmpty() ? null : new URI(tokenEndpointString);
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URL: " + OP_TOKEN_ENDPOINT.getKey(), e);
         }
         URI userinfoEndpoint;
         try {
-            userinfoEndpoint = (config.getSetting(OP_USERINFO_ENDPOINT, () -> null) == null) ? null :
-                new URI(config.getSetting(OP_USERINFO_ENDPOINT, () -> null));
+            userinfoEndpoint = (config.getSetting(OP_USERINFO_ENDPOINT).isEmpty()) ? null :
+                new URI(config.getSetting(OP_USERINFO_ENDPOINT));
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_USERINFO_ENDPOINT.getKey(), e);
         }
         URI endsessionEndpoint;
         try {
-            endsessionEndpoint = (config.getSetting(OP_ENDSESSION_ENDPOINT, () -> null) == null) ? null :
-                new URI(config.getSetting(OP_ENDSESSION_ENDPOINT, () -> null));
+            endsessionEndpoint = (config.getSetting(OP_ENDSESSION_ENDPOINT).isEmpty()) ? null :
+                new URI(config.getSetting(OP_ENDSESSION_ENDPOINT));
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_ENDSESSION_ENDPOINT.getKey(), e);

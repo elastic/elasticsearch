@@ -19,6 +19,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -83,7 +84,8 @@ public final class MockIndexEventListener {
         public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                                   IndexNameExpressionResolver expressionResolver) {
             return Collections.singletonList(listener);
         }
     }
@@ -124,11 +126,6 @@ public final class MockIndexEventListener {
         public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
                 IndexShardState currentState, @Nullable String reason) {
             delegate.indexShardStateChanged(indexShard, previousState, currentState, reason);
-        }
-
-        @Override
-        public void onShardInactive(IndexShard indexShard) {
-            delegate.onShardInactive(indexShard);
         }
 
         @Override

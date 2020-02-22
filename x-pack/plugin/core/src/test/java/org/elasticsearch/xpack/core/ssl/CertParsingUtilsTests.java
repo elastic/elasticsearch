@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -86,7 +87,7 @@ public class CertParsingUtilsTests extends ESTestCase {
         assertEquals("EC", cert.getPublicKey().getAlgorithm());
     }
 
-    private void verifyPrime256v1ECKey(Path keyPath) {
+    private void verifyPrime256v1ECKey(Path keyPath) throws IOException {
         PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, () -> null);
         assertEquals("EC", privateKey.getAlgorithm());
         assertThat(privateKey, instanceOf(ECPrivateKey.class));

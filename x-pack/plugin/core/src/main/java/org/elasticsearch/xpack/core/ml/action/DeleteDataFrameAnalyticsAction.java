@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionType;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -28,21 +27,24 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/delete";
 
     private DeleteDataFrameAnalyticsAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
-    }
+    public static class Request extends AcknowledgedRequest<Request> {
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentFragment {
+        public static final ParseField FORCE = new ParseField("force");
 
         private String id;
+        private boolean force;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                force = in.readBoolean();
+            } else {
+                force = false;
+            }
         }
 
         public Request() {}
@@ -55,15 +57,17 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
             return id;
         }
 
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public boolean isForce() {
+            return force;
+        }
+
+        public void setForce(boolean force) {
+            this.force = force;
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
-            return builder;
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override
@@ -71,18 +75,21 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeleteDataFrameAnalyticsAction.Request request = (DeleteDataFrameAnalyticsAction.Request) o;
-            return Objects.equals(id, request.id);
+            return Objects.equals(id, request.id) && force == request.force;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                out.writeBoolean(force);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            return Objects.hash(id, force);
         }
     }
 

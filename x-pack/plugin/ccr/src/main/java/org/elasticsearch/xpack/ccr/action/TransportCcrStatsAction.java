@@ -68,11 +68,6 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
     }
 
     @Override
-    protected CcrStatsAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected CcrStatsAction.Response read(StreamInput in) throws IOException {
         return new CcrStatsAction.Response(in);
     }

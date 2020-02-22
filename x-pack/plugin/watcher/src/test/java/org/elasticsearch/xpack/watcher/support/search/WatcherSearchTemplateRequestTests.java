@@ -39,24 +39,6 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
         assertHitCount(source, hitCountsAsInt);
     }
 
-    public void testDeprecationForSingleType() throws IOException {
-        String source = "{\"types\":\"mytype\"}";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            parser.nextToken();
-            WatcherSearchTemplateRequest.fromXContent(parser, SearchType.QUERY_THEN_FETCH);
-        }
-        assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testDeprecationForMultiType() throws IOException {
-        String source = "{\"types\":[\"mytype1\",\"mytype2\"]}";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            parser.nextToken();
-            WatcherSearchTemplateRequest.fromXContent(parser, SearchType.QUERY_THEN_FETCH);
-        }
-        assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
-    }
-
     private void assertHitCount(String source, boolean expectedHitCountAsInt) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             parser.nextToken();

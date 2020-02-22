@@ -80,12 +80,12 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         return counts == null ? 0 : counts.cardinality(0);
     }
 
-    HyperLogLogPlusPlus getCounts() {
+    public HyperLogLogPlusPlus getCounts() {
         return counts;
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalCardinality reduced = null;
         for (InternalAggregation aggregation : aggregations) {
             final InternalCardinality cardinality = (InternalCardinality) aggregation;

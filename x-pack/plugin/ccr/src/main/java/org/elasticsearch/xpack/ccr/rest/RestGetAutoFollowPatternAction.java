@@ -6,23 +6,23 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.Request;
 
-import java.io.IOException;
+import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.INSTANCE;
 
 public class RestGetAutoFollowPatternAction extends BaseRestHandler {
 
-    public RestGetAutoFollowPatternAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow/{name}", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_ccr/auto_follow/{name}"),
+            new Route(GET, "/_ccr/auto_follow"));
     }
 
     @Override
@@ -31,7 +31,7 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         Request request = new Request();
         request.setName(restRequest.param("name"));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));

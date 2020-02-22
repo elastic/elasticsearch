@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -44,7 +43,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
+public class MlMetadata implements MetaData.Custom {
 
     public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");

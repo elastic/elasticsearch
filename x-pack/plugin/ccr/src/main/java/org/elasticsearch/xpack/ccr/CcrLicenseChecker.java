@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,7 +63,7 @@ import java.util.stream.Collectors;
 /**
  * Encapsulates licensing checking for CCR.
  */
-public final class CcrLicenseChecker {
+public class CcrLicenseChecker {
 
     private final BooleanSupplier isCcrAllowed;
     private final BooleanSupplier isAuthAllowed;
@@ -129,7 +131,10 @@ public final class CcrLicenseChecker {
                         onFailure.accept(new IndexNotFoundException(leaderIndex));
                         return;
                     }
-
+                    if (leaderIndexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                        onFailure.accept(new IndexClosedException(leaderIndexMetaData.getIndex()));
+                        return;
+                    }
                     final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
                     hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {
@@ -307,9 +312,12 @@ public final class CcrLicenseChecker {
             return;
         }
 
-        ThreadContext threadContext = remoteClient.threadPool().getThreadContext();
-        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        String username = securityContext.getUser().principal();
+        final User user = getUser(remoteClient);
+        if (user == null) {
+            handler.accept(new IllegalStateException("missing or unable to read authentication info on request"));
+            return;
+        }
+        String username = user.principal();
 
         RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
             .indices(indices)
@@ -342,6 +350,12 @@ public final class CcrLicenseChecker {
             }
         };
         remoteClient.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(responseHandler, handler));
+    }
+
+    User getUser(final Client remoteClient) {
+        final ThreadContext threadContext = remoteClient.threadPool().getThreadContext();
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        return securityContext.getUser();
     }
 
     public static Client wrapClient(Client client, Map<String, String> headers) {
@@ -398,7 +412,7 @@ public final class CcrLicenseChecker {
                 RemoteClusterLicenseChecker.buildErrorMessage(
                         "ccr",
                         licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+                        RemoteClusterLicenseChecker::isAllowedByLicense));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
@@ -412,7 +426,7 @@ public final class CcrLicenseChecker {
                 RemoteClusterLicenseChecker.buildErrorMessage(
                         "ccr",
                         licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+                        RemoteClusterLicenseChecker::isAllowedByLicense));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 

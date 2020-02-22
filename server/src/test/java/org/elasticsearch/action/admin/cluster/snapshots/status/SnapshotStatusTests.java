@@ -50,7 +50,7 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
         List<SnapshotIndexShardStatus> snapshotIndexShardStatuses = new ArrayList<>();
         snapshotIndexShardStatuses.add(snapshotIndexShardStatus);
         boolean includeGlobalState = randomBoolean();
-        SnapshotStatus status = new SnapshotStatus(snapshot, state, snapshotIndexShardStatuses, includeGlobalState);
+        SnapshotStatus status = new SnapshotStatus(snapshot, state, snapshotIndexShardStatuses, includeGlobalState, 0L, 0L);
 
         int initializingShards = 0;
         int startedShards = 0;
@@ -166,7 +166,7 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
             snapshotIndexShardStatuses.add(snapshotIndexShardStatus);
         }
         boolean includeGlobalState = randomBoolean();
-        return new SnapshotStatus(snapshot, state, snapshotIndexShardStatuses, includeGlobalState);
+        return new SnapshotStatus(snapshot, state, snapshotIndexShardStatuses, includeGlobalState, 0L, 0L);
     }
 
     @Override

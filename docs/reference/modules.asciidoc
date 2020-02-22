@@ -50,10 +50,6 @@ The modules in this section are:
 
     Using plugins to extend Elasticsearch.
 
-<<modules-snapshots,Snapshot/Restore>>::
-
-    Backup your data with snapshot/restore.
-
 <<modules-threadpool,Thread pools>>::
 
     Information about the dedicated thread pools used in Elasticsearch.
@@ -89,15 +85,10 @@ include::modules/network.asciidoc[]
 
 include::modules/node.asciidoc[]
 
-:edit_url:
 include::modules/plugins.asciidoc[]
-
-include::modules/snapshots.asciidoc[]
 
 include::modules/threadpool.asciidoc[]
 
 include::modules/transport.asciidoc[]
 
 include::modules/remote-clusters.asciidoc[]
-
-include::modules/cross-cluster-search.asciidoc[]

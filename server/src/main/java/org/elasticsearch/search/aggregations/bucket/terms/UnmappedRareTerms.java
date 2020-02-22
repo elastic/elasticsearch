@@ -83,12 +83,17 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
     }
 
     @Override
+    UnmappedRareTerms.Bucket createBucket(long docCount, InternalAggregations aggs, Bucket prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedRareTerms");
+    }
+
+    @Override
     protected UnmappedRareTerms createWithFilter(String name, List<UnmappedRareTerms.Bucket> buckets, SetBackedScalingCuckooFilter filter) {
         throw new UnsupportedOperationException("not supported for UnmappedRareTerms");
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         return new UnmappedRareTerms(name, pipelineAggregators(), metaData);
     }
 

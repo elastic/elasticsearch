@@ -62,14 +62,12 @@ final class RemoteResponseParsers {
             new ConstructingObjectParser<>("hit", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
-                String type = (String) a[i++];
                 String id = (String) a[i++];
                 Long version = (Long) a[i++];
-                return new BasicHit(index, type, id, version == null ? -1 : version);
+                return new BasicHit(index, id, version == null ? -1 : version);
             });
     static {
         HIT_PARSER.declareString(constructorArg(), new ParseField("_index"));
-        HIT_PARSER.declareString(constructorArg(), new ParseField("_type"));
         HIT_PARSER.declareString(constructorArg(), new ParseField("_id"));
         HIT_PARSER.declareLong(optionalConstructorArg(), new ParseField("_version"));
         HIT_PARSER.declareObject(((basicHit, tuple) -> basicHit.setSource(tuple.v1(), tuple.v2())), (p, s) -> {
@@ -126,7 +124,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
-    public static final ConstructingObjectParser<SearchFailure, XContentType> SEARCH_FAILURE_PARSER =
+    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER =
             new ConstructingObjectParser<>("failure", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
@@ -148,7 +146,7 @@ final class RemoteResponseParsers {
         SEARCH_FAILURE_PARSER.declareString(optionalConstructorArg(), new ParseField("node"));
         SEARCH_FAILURE_PARSER.declareField(constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                return ThrowableBuilder.PARSER.apply(p, c);
+                return ThrowableBuilder.PARSER.apply(p, null);
             } else {
                 return p.text();
             }
@@ -159,7 +157,7 @@ final class RemoteResponseParsers {
      * Parser for the {@code _shards} element. Throws everything out except the errors array if there is one. If there isn't one then it
      * parses to an empty list.
      */
-    public static final ConstructingObjectParser<List<Throwable>, XContentType> SHARDS_PARSER =
+    public static final ConstructingObjectParser<List<Throwable>, Void> SHARDS_PARSER =
             new ConstructingObjectParser<>("_shards", true, a -> {
                 @SuppressWarnings("unchecked")
                 List<Throwable> failures = (List<Throwable>) a[0];
@@ -198,20 +196,20 @@ final class RemoteResponseParsers {
                 return new Response(timedOut, failures, totalHits, hits, scroll);
             });
     static {
-        RESPONSE_PARSER.declareObject(optionalConstructorArg(), ThrowableBuilder.PARSER::apply, new ParseField("error"));
+        RESPONSE_PARSER.declareObject(optionalConstructorArg(), (p, c) -> ThrowableBuilder.PARSER.apply(p, null), new ParseField("error"));
         RESPONSE_PARSER.declareBoolean(optionalConstructorArg(), new ParseField("timed_out"));
         RESPONSE_PARSER.declareString(optionalConstructorArg(), new ParseField("_scroll_id"));
         RESPONSE_PARSER.declareObject(optionalConstructorArg(), HITS_PARSER, new ParseField("hits"));
-        RESPONSE_PARSER.declareObject(optionalConstructorArg(), SHARDS_PARSER, new ParseField("_shards"));
+        RESPONSE_PARSER.declareObject(optionalConstructorArg(), (p, c) -> SHARDS_PARSER.apply(p, null), new ParseField("_shards"));
     }
 
     /**
      * Collects stuff about Throwables and attempts to rebuild them.
      */
     public static class ThrowableBuilder {
-        public static final BiFunction<XContentParser, XContentType, Throwable> PARSER;
+        public static final BiFunction<XContentParser, Void, Throwable> PARSER;
         static {
-            ObjectParser<ThrowableBuilder, XContentType> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
+            ObjectParser<ThrowableBuilder, Void> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
             PARSER = parser.andThen(ThrowableBuilder::build);
             parser.declareString(ThrowableBuilder::setType, new ParseField("type"));
             parser.declareString(ThrowableBuilder::setReason, new ParseField("reason"));

@@ -7,24 +7,32 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceNotFoundException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -35,9 +43,15 @@ import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction.R
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
-import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask;
-import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
+import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -52,19 +66,17 @@ public class TransportGetDataFrameAnalyticsStatsAction
     extends TransportTasksAction<DataFrameAnalyticsTask, GetDataFrameAnalyticsStatsAction.Request,
         GetDataFrameAnalyticsStatsAction.Response, QueryPage<Stats>> {
 
-    private static final Logger LOGGER = LogManager.getLogger(TransportGetDataFrameAnalyticsStatsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetDataFrameAnalyticsStatsAction.class);
 
     private final Client client;
-    private final AnalyticsProcessManager analyticsProcessManager;
 
     @Inject
     public TransportGetDataFrameAnalyticsStatsAction(TransportService transportService, ClusterService clusterService, Client client,
-                                                     ActionFilters actionFilters, AnalyticsProcessManager analyticsProcessManager) {
+                                                     ActionFilters actionFilters) {
         super(GetDataFrameAnalyticsStatsAction.NAME, clusterService, transportService, actionFilters,
             GetDataFrameAnalyticsStatsAction.Request::new, GetDataFrameAnalyticsStatsAction.Response::new,
             in -> new QueryPage<>(in, GetDataFrameAnalyticsStatsAction.Response.Stats::new), ThreadPool.Names.MANAGEMENT);
         this.client = client;
-        this.analyticsProcessManager = analyticsProcessManager;
     }
 
     @Override
@@ -84,9 +96,9 @@ public class TransportGetDataFrameAnalyticsStatsAction
     @Override
     protected void taskOperation(GetDataFrameAnalyticsStatsAction.Request request, DataFrameAnalyticsTask task,
                                  ActionListener<QueryPage<Stats>> listener) {
-        LOGGER.debug("Get stats for running task [{}]", task.getParams().getId());
+        logger.debug("Get stats for running task [{}]", task.getParams().getId());
 
-        ActionListener<Integer> progressListener = ActionListener.wrap(
+        ActionListener<List<PhaseProgress>> progressListener = ActionListener.wrap(
             progress -> {
                 Stats stats = buildStats(task.getParams().getId(), progress);
                 listener.onResponse(new QueryPage<>(Collections.singletonList(stats), 1,
@@ -94,52 +106,35 @@ public class TransportGetDataFrameAnalyticsStatsAction
             }, listener::onFailure
         );
 
-        ClusterState clusterState = clusterService.state();
-        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(task.getParams().getId(), tasks);
+        ActionListener<Void> reindexingProgressListener = ActionListener.wrap(
+            aVoid -> progressListener.onResponse(task.getStatsHolder().getProgressTracker().report()),
+            listener::onFailure
+        );
 
-        // For a running task we report the progress associated with its current state
-        if (analyticsState == DataFrameAnalyticsState.REINDEXING) {
-            getReindexTaskProgress(task, progressListener);
-        } else {
-            progressListener.onResponse(analyticsProcessManager.getProgressPercent(task.getAllocationId()));
-        }
-    }
-
-    private void getReindexTaskProgress(DataFrameAnalyticsTask task, ActionListener<Integer> listener) {
-        TaskId reindexTaskId = new TaskId(clusterService.localNode().getId(), task.getReindexingTaskId());
-        GetTaskRequest getTaskRequest = new GetTaskRequest();
-        getTaskRequest.setTaskId(reindexTaskId);
-        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(
-            taskResponse -> {
-                TaskResult taskResult = taskResponse.getTask();
-                BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
-                int progress =  taskStatus.getTotal() == 0 ? 100 : (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
-                listener.onResponse(progress);
-            },
-            error -> {
-                if (error instanceof ResourceNotFoundException) {
-                    // The task has either not started yet or has finished, thus it is better to respond null and not show progress at all
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(error);
-                }
-            }
-        ));
+        task.updateReindexTaskProgress(reindexingProgressListener);
     }
 
     @Override
     protected void doExecute(Task task, GetDataFrameAnalyticsStatsAction.Request request,
                              ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener) {
-        LOGGER.debug("Get stats for data frame analytics [{}]", request.getId());
+        logger.debug("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(
-            response -> {
-                List<String> expandedIds = response.getResources().results().stream().map(DataFrameAnalyticsConfig::getId)
+            getResponse -> {
+                List<String> expandedIds = getResponse.getResources().results().stream().map(DataFrameAnalyticsConfig::getId)
                     .collect(Collectors.toList());
                 request.setExpandedIds(expandedIds);
                 ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = ActionListener.wrap(
-                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(request.getExpandedIds(), runningTasksStatsResponse, listener),
+                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(request.getExpandedIds(), runningTasksStatsResponse,
+                        ActionListener.wrap(
+                            finalResponse -> {
+                                // While finalResponse has all the stats objects we need, we should report the count
+                                // from the get response
+                                QueryPage<Stats> finalStats = new QueryPage<>(finalResponse.getResponse().results(),
+                                    getResponse.getResources().count(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD);
+                                listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
+                            },
+                            listener::onFailure)),
                     listener::onFailure
                 );
                 super.doExecute(task, request, runningTasksStatsListener);
@@ -157,12 +152,27 @@ public class TransportGetDataFrameAnalyticsStatsAction
     void gatherStatsForStoppedTasks(List<String> expandedIds, GetDataFrameAnalyticsStatsAction.Response runningTasksResponse,
                                     ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener) {
         List<String> stoppedTasksIds = determineStoppedTasksIds(expandedIds, runningTasksResponse.getResponse().results());
-        List<Stats> stoppedTasksStats = stoppedTasksIds.stream().map(this::buildStatsForStoppedTask).collect(Collectors.toList());
-        List<Stats> allTasksStats = new ArrayList<>(runningTasksResponse.getResponse().results());
-        allTasksStats.addAll(stoppedTasksStats);
-        Collections.sort(allTasksStats, Comparator.comparing(Stats::getId));
-        listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(new QueryPage<>(
-            allTasksStats, allTasksStats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+        if (stoppedTasksIds.isEmpty()) {
+            listener.onResponse(runningTasksResponse);
+            return;
+        }
+
+        searchStoredProgresses(stoppedTasksIds, ActionListener.wrap(
+            storedProgresses -> {
+                List<Stats> stoppedStats = new ArrayList<>(stoppedTasksIds.size());
+                for (int i = 0; i < stoppedTasksIds.size(); i++) {
+                    String configId = stoppedTasksIds.get(i);
+                    StoredProgress storedProgress = storedProgresses.get(i);
+                    stoppedStats.add(buildStats(configId, storedProgress.get()));
+                }
+                List<Stats> allTasksStats = new ArrayList<>(runningTasksResponse.getResponse().results());
+                allTasksStats.addAll(stoppedStats);
+                Collections.sort(allTasksStats, Comparator.comparing(Stats::getId));
+                listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(new QueryPage<>(
+                    allTasksStats, allTasksStats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+            },
+            listener::onFailure
+        ));
     }
 
     static List<String> determineStoppedTasksIds(List<String> expandedIds, List<Stats> runningTasksStats) {
@@ -170,11 +180,52 @@ public class TransportGetDataFrameAnalyticsStatsAction
         return expandedIds.stream().filter(id -> startedTasksIds.contains(id) == false).collect(Collectors.toList());
     }
 
-    private GetDataFrameAnalyticsStatsAction.Response.Stats buildStatsForStoppedTask(String concreteAnalyticsId) {
-        return buildStats(concreteAnalyticsId, null);
+    private void searchStoredProgresses(List<String> configIds, ActionListener<List<StoredProgress>> listener) {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        for (String configId : configIds) {
+            SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
+            searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+            searchRequest.source().size(1);
+            searchRequest.source().query(QueryBuilders.idsQuery().addIds(StoredProgress.documentId(configId)));
+            multiSearchRequest.add(searchRequest);
+        }
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, MultiSearchAction.INSTANCE, multiSearchRequest, ActionListener.wrap(
+            multiSearchResponse -> {
+                List<StoredProgress> progresses = new ArrayList<>(configIds.size());
+                for (MultiSearchResponse.Item itemResponse : multiSearchResponse.getResponses()) {
+                    if (itemResponse.isFailure()) {
+                        listener.onFailure(ExceptionsHelper.serverError(itemResponse.getFailureMessage(), itemResponse.getFailure()));
+                        return;
+                    } else {
+                        SearchHit[] hits = itemResponse.getResponse().getHits().getHits();
+                        if (hits.length == 0) {
+                            progresses.add(new StoredProgress(new ProgressTracker().report()));
+                        } else {
+                            progresses.add(parseStoredProgress(hits[0]));
+                        }
+                    }
+                }
+                listener.onResponse(progresses);
+            },
+            e -> listener.onFailure(ExceptionsHelper.serverError("Error searching for stored progresses", e))
+        ));
     }
 
-    private GetDataFrameAnalyticsStatsAction.Response.Stats buildStats(String concreteAnalyticsId, @Nullable Integer progressPercent) {
+    private StoredProgress parseStoredProgress(SearchHit hit) {
+        BytesReference source = hit.getSourceRef();
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            StoredProgress storedProgress = StoredProgress.PARSER.apply(parser, null);
+            return storedProgress;
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("failed to parse progress from doc with it [{}]", hit.getId()), e);
+            return new StoredProgress(Collections.emptyList());
+        }
+    }
+
+    private GetDataFrameAnalyticsStatsAction.Response.Stats buildStats(String concreteAnalyticsId, List<PhaseProgress> progress) {
         ClusterState clusterState = clusterService.state();
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
@@ -191,6 +242,6 @@ public class TransportGetDataFrameAnalyticsStatsAction
             assignmentExplanation = analyticsTask.getAssignment().getExplanation();
         }
         return new GetDataFrameAnalyticsStatsAction.Response.Stats(
-            concreteAnalyticsId, analyticsState, failureReason, progressPercent, node, assignmentExplanation);
+            concreteAnalyticsId, analyticsState, failureReason, progress, node, assignmentExplanation);
     }
 }

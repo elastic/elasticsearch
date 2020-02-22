@@ -212,14 +212,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
                     final Translog.Index o1 = (Translog.Index) prvOp;
                     final Translog.Index o2 = (Translog.Index) newOp;
-                    sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
+                    sameOp = Objects.equals(o1.id(), o2.id())
                         && Objects.equals(o1.source(), o2.source()) && Objects.equals(o1.routing(), o2.routing())
                         && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo()
                         && o1.version() == o2.version();
                 } else if (newOp instanceof Translog.Delete && prvOp instanceof Translog.Delete) {
                     final Translog.Delete o1 = (Translog.Delete) newOp;
                     final Translog.Delete o2 = (Translog.Delete) prvOp;
-                    sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
+                    sameOp = Objects.equals(o1.id(), o2.id())
                         && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo() && o1.version() == o2.version();
                 } else {
                     sameOp = false;
@@ -350,15 +350,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      *
      * @return <code>true</code> if this call caused an actual sync operation
      */
-    public boolean syncUpTo(long offset) throws IOException {
-        boolean synced = false;
+    final boolean syncUpTo(long offset) throws IOException {
         if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
-            LongArrayList flushedSequenceNumbers = null;
             synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
                 if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
+                    final LongArrayList flushedSequenceNumbers;
                     synchronized (this) {
                         ensureOpen();
                         try {
@@ -380,17 +379,15 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         closeWithTragicEvent(ex);
                         throw ex;
                     }
+                    flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset :
                         "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;
                     lastSyncedCheckpoint = checkpointToSync; // write protected by syncLock
-                    synced = true;
+                    return true;
                 }
             }
-            if (flushedSequenceNumbers != null) {
-                flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
-            }
         }
-        return synced;
+        return false;
     }
 
     @Override

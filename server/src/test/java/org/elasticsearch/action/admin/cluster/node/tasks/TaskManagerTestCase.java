@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +50,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
@@ -61,7 +63,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -102,8 +103,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     static class NodeResponse extends BaseNodeResponse {
 
-        protected NodeResponse() {
-            super();
+        protected NodeResponse(StreamInput in) throws IOException {
+            super(in);
         }
 
         protected NodeResponse(DiscoveryNode node) {
@@ -119,12 +120,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(NodeResponse::new);
+            return in.readList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
 
         public int failureCount() {
@@ -139,8 +140,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
         AbstractTestNodesAction(String actionName, ThreadPool threadPool,
-                                ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
-                                Supplier<NodeRequest> nodeRequest) {
+                                ClusterService clusterService, TransportService transportService, Writeable.Reader<NodesRequest> request,
+                                Writeable.Reader<NodeRequest> nodeRequest) {
             super(actionName, threadPool, clusterService, transportService,
                     new ActionFilters(new HashSet<>()),
                 request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
@@ -152,8 +153,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         @Override
-        protected NodeResponse newNodeResponse() {
-            return new NodeResponse();
+        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new NodeResponse(in);
         }
 
         @Override
@@ -222,7 +223,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
         for (TestNode nodeA : nodes) {
             for (TestNode nodeB : nodes) {
-                nodeA.transportService.connectToNode(nodeB.discoveryNode());
+                AbstractSimpleTransportTestCase.connectToNode(nodeA.transportService, nodeB.discoveryNode());
             }
         }
     }

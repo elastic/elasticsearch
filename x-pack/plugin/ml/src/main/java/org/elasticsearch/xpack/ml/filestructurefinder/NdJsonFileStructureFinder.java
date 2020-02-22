@@ -61,8 +61,10 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
                 .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
-                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), timeField.v1(),
-                    timeField.v2().getJavaTimestampFormats(), needClientTimeZone));
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null,
+                    // Note: no convert processors are added based on mappings for NDJSON input
+                    // because it's reasonable that _source matches the supplied JSON precisely
+                    Collections.emptyMap(), timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =

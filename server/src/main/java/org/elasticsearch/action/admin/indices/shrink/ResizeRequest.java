@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -44,7 +45,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 
-    public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request", null);
+    public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
     static {
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
@@ -56,6 +57,14 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
+
+    public ResizeRequest(StreamInput in) throws IOException {
+        super(in);
+        targetIndexRequest = new CreateIndexRequest(in);
+        sourceIndex = in.readString();
+        type = in.readEnum(ResizeType.class);
+        copySettings = in.readOptionalBoolean();
+    }
 
     ResizeRequest() {}
 
@@ -88,20 +97,13 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        targetIndexRequest = new CreateIndexRequest();
-        targetIndexRequest.readFrom(in);
-        sourceIndex = in.readString();
-        type = in.readEnum(ResizeType.class);
-        copySettings = in.readOptionalBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         targetIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
+        if (type == ResizeType.CLONE && out.getVersion().before(Version.V_7_4_0)) {
+            throw new IllegalArgumentException("can't send clone request to a node that's older than " + Version.V_7_4_0);
+        }
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
     }

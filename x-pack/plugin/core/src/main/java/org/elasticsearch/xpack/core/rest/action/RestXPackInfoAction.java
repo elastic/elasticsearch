@@ -6,25 +6,26 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.XPackInfoRequestBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 public class RestXPackInfoAction extends BaseRestHandler {
-    public RestXPackInfoAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(HEAD, "/_xpack", this);
-        controller.registerHandler(GET, "/_xpack", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_xpack"),
+            new Route(HEAD, "/_xpack"));
     }
 
     @Override

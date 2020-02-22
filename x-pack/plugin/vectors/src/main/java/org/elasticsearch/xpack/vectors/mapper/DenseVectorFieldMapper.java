@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -25,10 +26,13 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +45,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMapperParser {
 
     public static final String CONTENT_TYPE = "dense_vector";
-    public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
+    public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
     private static final byte INT_BYTES = 4;
 
     public static class Defaults {
@@ -145,7 +149,12 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorDVIndexFieldData.Builder(true);
+            return new VectorDVIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override
@@ -180,8 +189,11 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
-        byte[] buf = new byte[dims * INT_BYTES];
-        int offset = 0;
+        byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_5_0) ? new byte[dims * INT_BYTES + INT_BYTES] : new byte[dims * INT_BYTES];
+
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        double dotProduct = 0f;
+
         int dim = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
             if (dim++ >= dims) {
@@ -190,18 +202,22 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             }
             ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
             float value = context.parser().floatValue(true);
-            int intValue = Float.floatToIntBits(value);
-            buf[offset++] = (byte) (intValue >> 24);
-            buf[offset++] = (byte) (intValue >> 16);
-            buf[offset++] = (byte) (intValue >>  8);
-            buf[offset++] = (byte) intValue;
+
+            byteBuffer.putFloat(value);
+            dotProduct += value * value;
         }
         if (dim != dims) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
                 context.sourceToParse().id() + "] has number of dimensions [" + dim +
                 "] less than defined in the mapping [" +  dims +"]");
         }
-        BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));
+
+        if (indexCreatedVersion.onOrAfter(Version.V_7_5_0)) {
+            // encode vector magnitude at the end
+            float vectorMagnitude = (float) Math.sqrt(dotProduct);
+            byteBuffer.putFloat(vectorMagnitude);
+        }
+        BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(bytes));
         if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                 "] doesn't not support indexing multiple values for the same field in the same document");

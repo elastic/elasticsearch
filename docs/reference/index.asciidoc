@@ -16,30 +16,15 @@ include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::monitoring/configuring-monitoring.asciidoc[]
-
-include::{xes-repo-dir}/security/configuring-es.asciidoc[]
-
 include::setup/bootstrap-checks-xes.asciidoc[]
 
-:edit_url:
 include::upgrade.asciidoc[]
-
-include::api-conventions.asciidoc[]
-
-include::docs.asciidoc[]
-
-include::search.asciidoc[]
 
 include::aggregations.asciidoc[]
 
-include::indices.asciidoc[]
-
-include::cat.asciidoc[]
-
-include::cluster.asciidoc[]
-
 include::query-dsl.asciidoc[]
+
+include::modules/cross-cluster-search.asciidoc[]
 
 include::scripting.asciidoc[]
 
@@ -55,19 +40,32 @@ include::ingest.asciidoc[]
 
 include::ilm/index.asciidoc[]
 
+ifdef::permanently-unreleased-branch[]
+
+include::autoscaling/index.asciidoc[]
+
+include::eql/index.asciidoc[]
+
+endif::[]
+
 include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
-include::rollup/index.asciidoc[]
-
 include::frozen-indices.asciidoc[]
 
-include::administering.asciidoc[]
+include::data-rollup-transform.asciidoc[]
+
+include::high-availability.asciidoc[]
+
+include::snapshot-restore/index.asciidoc[]
+
+include::{xes-repo-dir}/security/index.asciidoc[]
+
+include::{xes-repo-dir}/watcher/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 
-:edit_url:
 include::how-to.asciidoc[]
 
 include::testing.asciidoc[]

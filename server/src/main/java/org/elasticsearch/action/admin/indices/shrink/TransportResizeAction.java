@@ -72,8 +72,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     protected TransportResizeAction(String actionName, TransportService transportService, ClusterService clusterService,
                                  ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            ResizeRequest::new);
+        super(actionName, transportService, clusterService, threadPool, actionFilters, ResizeRequest::new, indexNameExpressionResolver);
         this.createIndexService = createIndexService;
         this.client = client;
     }
@@ -83,11 +82,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ResizeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -139,8 +133,13 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             numShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
         } else {
-            assert resizeRequest.getResizeType() == ResizeType.SHRINK : "split must specify the number of shards explicitly";
-            numShards = 1;
+            assert resizeRequest.getResizeType() != ResizeType.SPLIT : "split must specify the number of shards explicitly";
+            if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
+                numShards = 1;
+            } else {
+                assert resizeRequest.getResizeType() == ResizeType.CLONE;
+                numShards = metaData.getNumberOfShards();
+            }
         }
 
         for (int i = 0; i < numShards; i++) {
@@ -157,15 +156,17 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                             + "] docs - too many documents in shards " + shardIds);
                     }
                 }
-            } else {
+            } else if (resizeRequest.getResizeType() == ResizeType.SPLIT) {
                 Objects.requireNonNull(IndexMetaData.selectSplitShard(i, metaData, numShards));
                 // we just execute this to ensure we get the right exceptions if the number of shards is wrong or less then etc.
+            } else {
+                Objects.requireNonNull(IndexMetaData.selectCloneShard(i, metaData, numShards));
+                // we just execute this to ensure we get the right exceptions if the number of shards is wrong etc.
             }
         }
 
         if (IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
             throw new IllegalArgumentException("cannot provide a routing partition size value when resizing an index");
-
         }
         if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(targetIndexSettings)) {
             // if we have a source index with 1 shards it's legal to set this
@@ -185,7 +186,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         settingsBuilder.put("index.number_of_shards", numShards);
         targetIndex.settings(settingsBuilder);
 
-        return new CreateIndexClusterStateUpdateRequest(targetIndex, cause, targetIndex.index(), targetIndexName)
+        return new CreateIndexClusterStateUpdateRequest(cause, targetIndex.index(), targetIndexName)
                 // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
                 // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
                 // miss the mappings for everything is corrupted and hard to debug

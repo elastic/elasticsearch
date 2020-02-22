@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -38,8 +40,8 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     public TransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
                                      ClusterService clusterService, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
-        super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                XPackUsageRequest::new);
+        super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, XPackUsageRequest::new,
+            indexNameExpressionResolver);
         this.client = client;
         this.usageActions = usageActions();
     }
@@ -55,8 +57,8 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     }
 
     @Override
-    protected XPackUsageResponse newResponse() {
-        return new XPackUsageResponse();
+    protected XPackUsageResponse read(StreamInput in) throws IOException {
+        return new XPackUsageResponse(in);
     }
 
     @Override

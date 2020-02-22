@@ -6,10 +6,11 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction.Response;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -20,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class GetDataFrameAnalyticsActionResponseTests extends AbstractStreamableTestCase<Response> {
+public class GetDataFrameAnalyticsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -49,7 +50,7 @@ public class GetDataFrameAnalyticsActionResponseTests extends AbstractStreamable
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
 }

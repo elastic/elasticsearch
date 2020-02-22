@@ -31,6 +31,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -57,12 +58,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         this.threadPool = threadPool;
     }
 
-    @Override
-    public boolean blobExists(String blobName) {
+    private boolean blobExists(String blobName) {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));
-        } catch (URISyntaxException | StorageException e) {
+        } catch (URISyntaxException | StorageException | IOException e) {
             logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
         }
         return false;
@@ -97,7 +97,6 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
-
         try {
             blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
         } catch (URISyntaxException|StorageException e) {
@@ -111,25 +110,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        logger.trace("deleteBlob({})", blobName);
-
+    public DeleteResult delete() throws IOException {
         try {
-            blobStore.deleteBlob(buildKey(blobName));
-        } catch (StorageException e) {
-            if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
-                throw new NoSuchFileException(e.getMessage());
-            }
-            throw new IOException(e);
-        } catch (URISyntaxException e) {
-            throw new IOException(e);
-        }
-    }
-
-    @Override
-    public void delete() throws IOException {
-        try {
-            blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
+            return blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
         } catch (URISyntaxException | StorageException e) {
             throw new IOException(e);
         }
@@ -147,13 +130,18 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             // Executing deletes in parallel since Azure SDK 8 is using blocking IO while Azure does not provide a bulk delete API endpoint
             // TODO: Upgrade to newer non-blocking Azure SDK 11 and execute delete requests in parallel that way.
             for (String blobName : blobNames) {
-                executor.execute(new ActionRunnable<>(listener) {
-                    @Override
-                    protected void doRun() throws IOException {
-                        deleteBlobIgnoringIfNotExists(blobName);
-                        listener.onResponse(null);
+                executor.execute(ActionRunnable.run(listener, () -> {
+                    logger.trace("deleteBlob({})", blobName);
+                    try {
+                        blobStore.deleteBlob(buildKey(blobName));
+                    } catch (StorageException e) {
+                        if (e.getHttpStatusCode() != HttpURLConnection.HTTP_NOT_FOUND) {
+                            throw new IOException(e);
+                        }
+                    } catch (URISyntaxException e) {
+                        throw new IOException(e);
                     }
-                });
+                }));
             }
         }
         try {

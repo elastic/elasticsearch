@@ -126,8 +126,7 @@ public class CreateTokenRequestTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                final CreateTokenRequest serialized = new CreateTokenRequest();
-                serialized.readFrom(in);
+                final CreateTokenRequest serialized = new CreateTokenRequest(in);
                 assertEquals(grantType, serialized.getGrantType());
                 if (scope != null) {
                     assertEquals(scope, serialized.getScope());

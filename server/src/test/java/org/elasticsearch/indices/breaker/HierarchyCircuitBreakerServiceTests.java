@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -201,7 +202,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
             assertThat(exception.getMessage(),
-                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, in_flight_requests=0/0b, accounting=0/0b]"));
+                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, accounting=0/0b, inflight_requests=0/0b]"));
             assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         }
     }
@@ -246,6 +247,10 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(exception.getMessage(),
             containsString("real usage: [181/181b], new bytes reserved: [" + (reservationInBytes * 2) +
                 "/" + new ByteSizeValue(reservationInBytes * 2) + "]"));
+        final long requestCircuitBreakerUsed = (requestBreaker.getUsed() + reservationInBytes) * 2;
+        assertThat(exception.getMessage(),
+            containsString("usages [request=" + requestCircuitBreakerUsed + "/" + new ByteSizeValue(requestCircuitBreakerUsed) +
+                ", fielddata=0/0b, accounting=0/0b, inflight_requests=0/0b]"));
         assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         assertEquals(0, requestBreaker.getTrippedCount());
         assertEquals(1, service.stats().getStats(CircuitBreaker.PARENT).getTrippedCount());
@@ -286,6 +291,32 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
             assertThat("Expected [" + expectedDurability + "] due to [" + exception.getMessage() + "]",
                 exception.getDurability(), equalTo(expectedDurability));
+        }
+    }
+
+    public void testAllocationBucketsBreaker() throws Exception {
+        Settings clusterSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "false")
+            .build();
+
+        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+
+            long parentLimitBytes = ((HierarchyCircuitBreakerService) service).getParentLimit();
+            assertEquals(new ByteSizeValue(100, ByteSizeUnit.BYTES).getBytes(), parentLimitBytes);
+
+            CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
+            MultiBucketConsumerService.MultiBucketConsumer multiBucketConsumer =
+                new MultiBucketConsumerService.MultiBucketConsumer(10000, breaker);
+
+            // make sure used bytes is greater than the total circuit breaker limit
+            breaker.addWithoutBreaking(200);
+
+            CircuitBreakingException exception =
+                expectThrows(CircuitBreakingException.class, () -> multiBucketConsumer.accept(1024));
+            assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [allocated_buckets] would be"));
+            assertThat(exception.getMessage(), containsString("which is larger than the limit of [100/100b]"));
         }
     }
 

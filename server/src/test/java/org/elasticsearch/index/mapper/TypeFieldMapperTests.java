@@ -59,7 +59,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
     public static void testDocValues(Function<String, IndexService> createIndex) throws IOException {
         MapperService mapperService = createIndex.apply("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
@@ -67,7 +67,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         DirectoryReader r = DirectoryReader.open(w);
         w.close();
 
-        MappedFieldType ft = mapperService.fullName(TypeFieldMapper.NAME);
+        MappedFieldType ft = mapperService.fieldType(TypeFieldMapper.NAME);
         IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
                 ft, new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         AtomicOrdinalsFieldData afd = fd.load(r.leaves().get(0));
@@ -84,7 +84,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
         assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(TypeFieldMapper.NAME)));
     }
 }

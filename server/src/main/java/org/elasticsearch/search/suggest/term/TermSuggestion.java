@@ -179,8 +179,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             return new Option(in);
         }
 
-        private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
-
+        private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
         static {
             declareCommonFields(PARSER);
             PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));

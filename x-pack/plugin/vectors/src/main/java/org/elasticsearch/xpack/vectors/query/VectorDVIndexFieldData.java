@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -19,15 +20,16 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 
 public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<VectorDVAtomicFieldData> {
-    private final boolean isDense;
 
-    public VectorDVIndexFieldData(Index index, String fieldName, boolean isDense) {
+    public VectorDVIndexFieldData(Index index, String fieldName) {
         super(index, fieldName);
-        this.isDense = isDense;
     }
 
     @Override
@@ -36,26 +38,28 @@ public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements I
     }
 
     @Override
-    public VectorDVAtomicFieldData load(LeafReaderContext context) {
-        return new VectorDVAtomicFieldData(context.reader(), fieldName, isDense);
+    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format) {
+        throw new IllegalArgumentException("only supported on numeric fields");
     }
 
     @Override
-    public VectorDVAtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public VectorDVAtomicFieldData load(LeafReaderContext context) {
+        return new VectorDVAtomicFieldData(context.reader(), fieldName);
+    }
+
+    @Override
+    public VectorDVAtomicFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 
     public static class Builder implements IndexFieldData.Builder {
-        private final boolean isDense;
-        public Builder(boolean isDense) {
-            this.isDense = isDense;
-        }
 
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             final String fieldName = fieldType.name();
-            return new VectorDVIndexFieldData(indexSettings.getIndex(), fieldName, isDense);
+            return new VectorDVIndexFieldData(indexSettings.getIndex(), fieldName);
         }
 
     }

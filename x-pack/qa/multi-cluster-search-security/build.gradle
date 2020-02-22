@@ -15,7 +15,7 @@ task 'remote-cluster'(type: RestIntegTestTask) {
 }
 
 testClusters.'remote-cluster' {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'cluster.remote.connect', "false"
   setting 'xpack.ilm.enabled', 'false'
@@ -37,7 +37,7 @@ task 'mixed-cluster'(type: RestIntegTestTask) {
 }
 
 testClusters.'mixed-cluster' {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'

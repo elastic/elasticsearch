@@ -63,7 +63,7 @@ public class BatchedShardExecutor {
     private final ThreadPool threadPool;
     private final int numberOfWriteThreads;
 
-    private final ConcurrentHashMap<IndexShard, ShardState> shardState = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<IndexShard, ShardState> shardStateMap = new ConcurrentHashMap<>();
 
 
     public BatchedShardExecutor(ClusterService clusterService, ThreadPool threadPool, UpdateHelper updateHelper,
@@ -82,26 +82,26 @@ public class BatchedShardExecutor {
     public void primary(BulkShardRequest request, IndexShard primary, ActionListener<WriteResult> writeListener,
                         ActionListener<FlushResult> flushListener) {
         PrimaryOp shardOp = new PrimaryOp(request, primary, writeListener, flushListener);
-        enqueueAndSchedule(shardOp, true);
+        enqueueAndScheduleWrite(shardOp, true);
     }
 
     public void replica(BulkShardRequest request, IndexShard replica, ActionListener<Void> writeListener,
                         ActionListener<FlushResult> flushListener) {
         ReplicaOp shardOp = new ReplicaOp(request, replica, writeListener, flushListener);
-        enqueueAndSchedule(shardOp, true);
+        enqueueAndScheduleWrite(shardOp, true);
     }
 
     ShardState getShardState(IndexShard indexShard) {
-        return shardState.get(indexShard);
+        return shardStateMap.get(indexShard);
     }
 
-    private void enqueueAndSchedule(ShardOp shardOp, boolean allowReject) {
+    private void enqueueAndScheduleWrite(ShardOp shardOp, boolean allowReject) {
         IndexShard indexShard = shardOp.getIndexShard();
         ShardState shardState = getOrCreateShardState(indexShard);
         if (shardState.attemptPreIndexedEnqueue(shardOp, allowReject)) {
             // If the ShardState was closed after we enqueued, attempt to remove our operation and finish it
             // to ensure that it does not get lost.
-            if (shardState.isClosed() && shardState.remove(shardOp)) {
+            if (shardState.isClosed() && shardState.removePreIndexed(shardOp)) {
                 onFailure(Stream.of(shardOp.getWriteListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
             } else {
                 maybeSchedule(shardOp.getIndexShard(), shardState);
@@ -111,11 +111,18 @@ public class BatchedShardExecutor {
         }
     }
 
+    private void enqueueFlush(ShardState shardState, ShardOp shardOp) {
+        shardState.postIndexedEnqueue(shardOp);
+        if (shardState.isClosed() && shardState.removePostIndexed(shardOp)) {
+            onFailure(Stream.of(shardOp.getFlushListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
+        }
+    }
+
     private ShardState getOrCreateShardState(IndexShard indexShard) {
-        ShardState queue = shardState.get(indexShard);
+        ShardState queue = shardStateMap.get(indexShard);
         if (queue == null) {
             ShardState createdQueue = new ShardState(numberOfWriteThreads);
-            ShardState previous = shardState.putIfAbsent(indexShard, createdQueue);
+            ShardState previous = shardStateMap.putIfAbsent(indexShard, createdQueue);
             queue = Objects.requireNonNullElse(previous, createdQueue);
         }
         return queue;
@@ -158,7 +165,7 @@ public class BatchedShardExecutor {
     }
 
     private void performShardOperations(IndexShard indexShard) {
-        ShardState shardState = this.shardState.get(indexShard);
+        ShardState shardState = this.shardStateMap.get(indexShard);
         if (shardState == null) {
             // The IndexShard has closed and the resources have been cleaned
             return;
@@ -177,7 +184,7 @@ public class BatchedShardExecutor {
                 try {
                     if (shardOp instanceof PrimaryOp) {
                         PrimaryOp primaryOp = (PrimaryOp) shardOp;
-                        Runnable rescheduler = () -> enqueueAndSchedule(primaryOp, false);
+                        Runnable rescheduler = () -> enqueueAndScheduleWrite(primaryOp, false);
                         opCompleted = primaryOpHandler.apply(primaryOp, rescheduler);
                     } else {
                         opCompleted = replicaOpHandler.apply((ReplicaOp) shardOp);
@@ -187,11 +194,11 @@ public class BatchedShardExecutor {
                 } finally {
                     ++opsExecuted;
                     if (opCompleted) {
-                        shardState.postIndexedEnqueue(shardOp);
-                        completedOps.add(shardOp);
-
                         // Complete the write listener
                         onResponse(Stream.of(shardOp.getWriteListener()), null);
+
+                        enqueueFlush(shardState, shardOp);
+                        completedOps.add(shardOp);
                         indexShard.afterWriteOperation();
                     }
 
@@ -375,17 +382,20 @@ public class BatchedShardExecutor {
 
     private void cleanupIfShardClosed(IndexShard indexShard) {
         if (indexShard.state() == IndexShardState.CLOSED) {
-            ShardState removed = shardState.remove(indexShard);
+            ShardState removed = shardStateMap.remove(indexShard);
             // If we did not successfully remove the ShardState, another thread did and will handling the
             // closing.
             if (removed != null) {
                 removed.close();
                 ShardOp shardOp;
-                ArrayList<ActionListener<Void>> writeListeners = new ArrayList<>();
+                ArrayList<ActionListener<Void>> listenersToFail = new ArrayList<>();
                 while ((shardOp = removed.pollPreIndexed()) != null) {
-                    writeListeners.add(shardOp.getWriteListener());
+                    listenersToFail.add(shardOp.getWriteListener());
                 }
-                onFailure(writeListeners.stream(), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
+                while ((shardOp = removed.pollPostIndexed()) != null) {
+                    listenersToFail.add(shardOp.getFlushListener());
+                }
+                onFailure(listenersToFail.stream(), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
             }
         }
     }
@@ -458,7 +468,7 @@ public class BatchedShardExecutor {
             }
         }
 
-        private boolean remove(ShardOp shardOp) {
+        private boolean removePreIndexed(ShardOp shardOp) {
             if (preIndexedQueue.remove(shardOp)) {
                 pendingOps.getAndDecrement();
                 return true;
@@ -476,6 +486,10 @@ public class BatchedShardExecutor {
 
         private void postIndexedEnqueue(ShardOp shardOp) {
             postIndexedQueue.add(shardOp);
+        }
+
+        private boolean removePostIndexed(ShardOp shardOp) {
+            return postIndexedQueue.remove(shardOp);
         }
 
         private ShardOp pollPostIndexed() {

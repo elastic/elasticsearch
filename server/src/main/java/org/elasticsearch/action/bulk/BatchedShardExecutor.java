@@ -171,7 +171,8 @@ public class BatchedShardExecutor {
             return;
         }
 
-        ArrayList<ShardOp> completedOps = new ArrayList<>();
+        ArrayList<ShardOp> needRefresh = new ArrayList<>(0);
+        boolean immediateRefresh = false;
         try {
             ShardOp shardOp;
             int opsExecuted = 0;
@@ -198,7 +199,15 @@ public class BatchedShardExecutor {
                         onResponse(Stream.of(shardOp.getWriteListener()), null);
 
                         enqueueFlush(shardState, shardOp);
-                        completedOps.add(shardOp);
+
+                        WriteRequest.RefreshPolicy refreshPolicy = shardOp.getRequest().getRefreshPolicy();
+                        if (refreshPolicy == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
+                            needRefresh.add(shardOp);
+                        } else if (refreshPolicy == WriteRequest.RefreshPolicy.IMMEDIATE) {
+                            needRefresh.add(shardOp);
+                            immediateRefresh = true;
+                            shardOp.getFlushListener().setForcedRefresh(true);
+                        }
                         indexShard.afterWriteOperation();
                     }
 
@@ -219,8 +228,8 @@ public class BatchedShardExecutor {
                 }
             }
         } finally {
-            if (completedOps.isEmpty() == false) {
-                performRefreshes(indexShard, completedOps);
+            if (needRefresh.isEmpty() == false) {
+                performRefreshes(indexShard, needRefresh, immediateRefresh);
             }
             maybeExecuteSync(indexShard, shardState);
             cleanupIfShardClosed(indexShard);
@@ -295,48 +304,46 @@ public class BatchedShardExecutor {
         }
     }
 
-    private void performRefreshes(IndexShard indexShard, ArrayList<ShardOp> completedOps) {
-        ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
-        ArrayList<ShardOp> completedOpsForceRefresh = new ArrayList<>(0);
+    private void performRefreshes(IndexShard indexShard, ArrayList<ShardOp> needRefresh, boolean immediateRefresh) {
+        assert needRefresh.isEmpty() == false;
+        if (immediateRefresh) {
+            immediateRefresh(indexShard, needRefresh);
+        } else {
+            waitUntilRefresh(indexShard, needRefresh);
+        }
+    }
+
+    private void waitUntilRefresh(IndexShard indexShard, ArrayList<ShardOp> needRefresh) {
 
         Translog.Location maxLocation = null;
-
-        for (ShardOp indexedOp : completedOps) {
+        for (ShardOp indexedOp : needRefresh) {
             Translog.Location location = indexedOp.locationToSync();
             if (maxLocation == null) {
                 maxLocation = location;
             } else if (location != null && location.compareTo(maxLocation) > 0) {
                 maxLocation = location;
             }
-
-            if (indexedOp.getRequest().getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
-                completedOpsWaitForRefresh.add(indexedOp);
-            } else if (indexedOp.getRequest().getRefreshPolicy() == WriteRequest.RefreshPolicy.IMMEDIATE) {
-                completedOpsForceRefresh.add(indexedOp);
-                indexedOp.getFlushListener().setForcedRefresh(true);
-            }
         }
 
-        finishOperations(indexShard, maxLocation, completedOpsWaitForRefresh, completedOpsForceRefresh);
+        if (maxLocation != null) {
+            addRefreshListeners(indexShard, maxLocation, needRefresh);
+        } else {
+            onResponse(needRefresh.stream().map(ShardOp::getFlushListener), null);
+        }
     }
 
-    private void finishOperations(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> completedOpsWaitForRefresh,
-                                  ArrayList<ShardOp> completedOpsForceRefresh) {
-        AtomicBoolean refreshed = new AtomicBoolean(false);
-        if (completedOpsWaitForRefresh.isEmpty() == false) {
-            if (maxLocation != null) {
-                // TODO: Do we want to add each listener individually?
-                addRefreshListeners(indexShard, maxLocation, completedOpsWaitForRefresh);
-            } else {
-                onResponse(completedOpsWaitForRefresh.stream().map(ShardOp::getFlushListener), null);
+    private void immediateRefresh(IndexShard indexShard, ArrayList<ShardOp> needRefresh) {
+        boolean refreshed = false;
+        try {
+            indexShard.refresh("refresh_flag_index");
+            refreshed = true;
+        } catch (Exception ex) {
+            logger.warn("exception while forcing immediate refresh for shard operation", ex);
+            onFailure(needRefresh.stream().map(ShardOp::getFlushListener), null);
+        } finally {
+            if (refreshed) {
+                onResponse(needRefresh.stream().map(ShardOp::getFlushListener), null);
             }
-        }
-
-        if (completedOpsForceRefresh.isEmpty() == false) {
-            if (refreshed.get() == false) {
-                forceRefresh(indexShard);
-            }
-            onResponse(completedOpsForceRefresh.stream().map(ShardOp::getFlushListener), null);
         }
     }
 
@@ -359,6 +366,7 @@ public class BatchedShardExecutor {
 
     private void addRefreshListeners(IndexShard indexShard, Translog.Location maxLocation, ArrayList<ShardOp> operations) {
         try {
+            // TODO: Do we want to add each listener individually?
             indexShard.addRefreshListener(maxLocation, forcedRefresh -> {
                 if (forcedRefresh) {
                     logger.warn("block until refresh ran out of slots and forced a refresh");
@@ -369,14 +377,7 @@ public class BatchedShardExecutor {
             });
         } catch (Exception ex) {
             logger.warn("exception while adding refresh listener for shard operations", ex);
-        }
-    }
-
-    private void forceRefresh(IndexShard indexShard) {
-        try {
-            indexShard.refresh("refresh_flag_index");
-        } catch (Exception ex) {
-            logger.warn("exception while forcing immediate refresh for shard operation", ex);
+            onFailure(operations.stream().map(ShardOp::getFlushListener), ex);
         }
     }
 

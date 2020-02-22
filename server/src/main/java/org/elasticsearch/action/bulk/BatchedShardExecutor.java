@@ -242,7 +242,7 @@ public class BatchedShardExecutor {
                         ++opsToHandle;
                         Translog.Location location = indexedOp.locationToSync();
                         if (location != null) {
-                            if (syncedLocation == null || location.compareTo(syncedLocation) > 0) {
+                            if (syncedLocation == null || needsSync(location, syncedLocation)) {
                                 completedOpsNeedSync.add(indexedOp);
                                 if (maxLocation == null) {
                                     maxLocation = location;
@@ -276,6 +276,15 @@ public class BatchedShardExecutor {
                 shardState.markDoneSyncing();
             }
             return true;
+        } else {
+            return false;
+        }
+    }
+
+    private static boolean needsSync(Translog.Location location, Translog.Location syncedLocation) {
+        // if we have a new one it's already synced
+        if (location.generation == syncedLocation.generation) {
+            return (location.translogLocation + location.size) > syncedLocation.translogLocation;
         } else {
             return false;
         }

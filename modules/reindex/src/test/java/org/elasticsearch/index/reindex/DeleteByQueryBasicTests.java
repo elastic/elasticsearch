@@ -237,7 +237,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         final int docs = randomIntBetween(1, 50);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            builders.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", 1));
+            builders.add(client().prepareIndex("test", "test").setId(Integer.toString(i)).setSource("field", 1));
         }
         indexRandom(true, true, true, builders);
 

@@ -196,14 +196,13 @@ may be added to an existing nested object.
 
 `include_in_parent`::
 (Optional, boolean)
-If `true`, inner objects are indexed as <<object,flat key-value pairs>> for the
-parent field _and_ `nested` values. Defaults to `false`.
+If `true`, all fields in the nested object are also added to the parent document
+as standard (flat) fields. Defaults to `false`.
 
 `include_in_root`::
 (Optional, boolean)
-If `true`, inner objects are indexed as <<object,flat key-value pairs>> for the
-topmost object _and_ `nested` values. Defaults to `false`.
-
+If `true`, all fields in the nested object are also added to the topmost
+document as standard (flat) fields. Defaults to `false`.
 
 [float]
 === Limits on `nested` mappings and objects

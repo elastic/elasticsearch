@@ -81,7 +81,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         httpServer.setExecutor(r -> {
             Thread runThread = new Thread(r);
             runThread.setUncaughtExceptionHandler((t, e) -> {
-                log.error("Error in execution on mock http server IO thread", t);
+                log.error("Error in execution on mock http server IO thread", e);
                 Thread.currentThread().getUncaughtExceptionHandler().uncaughtException(t, e);
             });
             runThread.start();

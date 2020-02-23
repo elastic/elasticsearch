@@ -237,18 +237,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     }
 
     public boolean isAvailableWithLicense(XPackLicenseState licenseState) {
-        // Basic is always true
-        if (licenseLevel.equals(License.OperationMode.BASIC)) {
-            return true;
-        }
-
-        // The model license does not matter, Platinum license gets the same functions as the highest license
-        if (licenseState.isAllowedByLicense(License.OperationMode.PLATINUM)) {
-            return true;
-        }
-
-        // catch the rest, if the license is active and is at least the required model license
-        return licenseState.isAllowedByLicense(licenseLevel, true, false);
+        return licenseState.isAllowedByLicense(licenseLevel);
     }
 
     @Override

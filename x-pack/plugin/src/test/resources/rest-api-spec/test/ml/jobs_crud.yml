@@ -470,7 +470,8 @@
           model_bytes: 10000000
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: ["*",".ml-*"]
 
   - do:
       catch: /Invalid update value for analysis_limits[:] model_memory_limit cannot be decreased below current usage; current usage \[9mb\], update had \[5mb\]/
@@ -920,13 +921,14 @@
 
   - do:
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: jobs-crud-existing-docs_categorizer_state#1
         body:
           key: value
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: ["*",".ml-*"]
 
   - do:
       catch: /status_exception/
@@ -947,13 +949,14 @@
 
   - do:
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: jobs-crud-existing-docs_quantiles
         body:
           key: value
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: ["*",".ml-*"]
 
   - do:
       catch: /status_exception/
@@ -990,7 +993,8 @@
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: ["*",".ml-*"]
 
   - do:
       catch: /status_exception/
@@ -1126,14 +1130,14 @@
 
   - do:
       indices.create:
-        index: ".ml-state"
+        index: ".ml-state-000001"
 
   - do:
       indices.close:
-        index: ".ml-state"
+        index: ".ml-state-000001"
 
   - do:
-      catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-state\]/
+      catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-state-000001\]/
       ml.put_job:
         job_id: closed-results-job
         body:  >

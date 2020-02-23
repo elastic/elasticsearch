@@ -126,4 +126,3 @@ check {
   // also execute the QA tests when testing the plugin
   dependsOn 'qa:google-cloud-storage:check'
 }
-

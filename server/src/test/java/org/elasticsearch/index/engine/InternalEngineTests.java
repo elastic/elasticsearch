@@ -4207,7 +4207,6 @@ public class InternalEngineTests extends EngineTestCase {
             final EngineConfig engineConfig;
             final SeqNoStats prevSeqNoStats;
             final List<DocIdSeqNoAndSource> prevDocs;
-            final List<Translog.Operation> existingTranslog;
             try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
                 engineConfig = engine.config();
                 for (final long seqNo : seqNos) {
@@ -4226,24 +4225,17 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.syncTranslog();
                 prevSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 prevDocs = getDocIds(engine, true);
-                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                    existingTranslog = TestTranslog.drainSnapshot(snapshot, false);
-                }
             }
             try (InternalEngine engine = new InternalEngine(engineConfig)) {
-                final Translog.TranslogGeneration currrentTranslogGeneration = new Translog.TranslogGeneration(
-                    engine.getTranslog().getTranslogUUID(), engine.getTranslog().currentFileGeneration());
+                final long currentTranslogGeneration = engine.getTranslog().currentFileGeneration();
                 engine.recoverFromTranslog(translogHandler, globalCheckpoint.get());
                 engine.restoreLocalHistoryFromTranslog(translogHandler);
                 assertThat(getDocIds(engine, true), equalTo(prevDocs));
                 SeqNoStats seqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 assertThat(seqNoStats.getLocalCheckpoint(), equalTo(prevSeqNoStats.getLocalCheckpoint()));
                 assertThat(seqNoStats.getMaxSeqNo(), equalTo(prevSeqNoStats.getMaxSeqNo()));
-                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                    assertThat("restore from local translog must not add operations to translog",
-                        snapshot.totalOperations(), equalTo(existingTranslog.size()));
-                    assertThat(TestTranslog.drainSnapshot(snapshot, false), equalTo(existingTranslog));
-                }
+                assertThat("restore from local translog must not add operations to translog",
+                    engine.getTranslog().totalOperationsByMinGen(currentTranslogGeneration), equalTo(0));
             }
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService());
         }
@@ -5538,32 +5530,25 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testGetReaderAttributes() throws IOException {
+        Settings.Builder settingsBuilder = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings settings = settingsBuilder.build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+
         try(BaseDirectoryWrapper dir = newFSDirectory(createTempDir())) {
             Directory unwrap = FilterDirectory.unwrap(dir);
             boolean isMMap = unwrap instanceof MMapDirectory;
-            Map<String, String> readerAttributes = InternalEngine.getReaderAttributes(dir);
-            assertEquals(2, readerAttributes.size());
-            assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
-            if (isMMap) {
-                assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
-            } else {
-                assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
-            }
+            Map<String, String> readerAttributes = InternalEngine.getReaderAttributes(dir, indexSettings);
+            assertEquals(Collections.singletonMap("blocktree.terms.fst", isMMap ? "OFF_HEAP" : "ON_HEAP"), readerAttributes);
         }
 
         try(MMapDirectory dir = new MMapDirectory(createTempDir())) {
             Map<String, String> readerAttributes =
                 InternalEngine.getReaderAttributes(randomBoolean() ? dir :
-                    new MockDirectoryWrapper(random(), dir));
-            assertEquals(2, readerAttributes.size());
-            assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
-            assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
+                    new MockDirectoryWrapper(random(), dir), indexSettings);
+            assertEquals(Collections.singletonMap("blocktree.terms.fst", "OFF_HEAP"), readerAttributes);
         }
 
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
-        Settings settings = settingsBuilder.build();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         FsDirectoryFactory service = new FsDirectoryFactory();
         Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
         ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
@@ -5571,20 +5556,45 @@ public class InternalEngineTests extends EngineTestCase {
 
             Map<String, String> readerAttributes =
                 InternalEngine.getReaderAttributes(randomBoolean() ? directory :
-                    new MockDirectoryWrapper(random(), directory));
-            assertEquals(2, readerAttributes.size());
+                    new MockDirectoryWrapper(random(), directory), indexSettings);
+            assertEquals(1, readerAttributes.size());
 
             switch (IndexModule.defaultStoreType(true)) {
                 case HYBRIDFS:
                 case MMAPFS:
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
                     assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
                     break;
                 case NIOFS:
                 case SIMPLEFS:
                 case FS:
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
                     assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
+                    break;
+                default:
+                    fail("unknownw type");
+            }
+        }
+
+        settingsBuilder.put(IndexSettings.ON_HEAP_ID_TERMS_INDEX.getKey(), true);
+        settings = settingsBuilder.build();
+        indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        try (Directory directory = service.newDirectory(indexSettings, path)) {
+
+            Map<String, String> readerAttributes =
+                InternalEngine.getReaderAttributes(randomBoolean() ? directory :
+                    new MockDirectoryWrapper(random(), directory), indexSettings);
+            assertEquals(2, readerAttributes.size());
+
+            switch (IndexModule.defaultStoreType(true)) {
+                case HYBRIDFS:
+                case MMAPFS:
+                    assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
+                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
+                    break;
+                case NIOFS:
+                case SIMPLEFS:
+                case FS:
+                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
+                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
                     break;
                 default:
                     fail("unknownw type");

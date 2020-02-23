@@ -7,17 +7,20 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
 import org.joda.time.Duration;
 import org.joda.time.ReadableDuration;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
 
 public class CloudServiceProvider implements SamlServiceProvider {
 
     private final String entityid;
     private final URI assertionConsumerService;
     private final ReadableDuration authnExpiry;
+    private final ServiceProviderPrivileges privileges;
 
     public CloudServiceProvider(String entityId, String assertionConsumerService) {
         if (Strings.isNullOrEmpty(entityId)) {
@@ -30,6 +33,7 @@ public class CloudServiceProvider implements SamlServiceProvider {
             throw new IllegalArgumentException("Invalid URI for Assertion Consumer Service", e);
         }
         this.authnExpiry = Duration.standardMinutes(5);
+        this.privileges = new ServiceProviderPrivileges("cloud-idp", "service$" + entityId, "action:sso", Map.of());
     }
 
     @Override
@@ -50,5 +54,10 @@ public class CloudServiceProvider implements SamlServiceProvider {
     @Override
     public AttributeNames getAttributeNames() {
         return new SamlServiceProvider.AttributeNames();
+    }
+
+    @Override
+    public ServiceProviderPrivileges getPrivileges() {
+        return privileges;
     }
 }

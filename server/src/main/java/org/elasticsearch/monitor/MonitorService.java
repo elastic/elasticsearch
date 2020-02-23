@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsService;
@@ -31,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.cluster.ClusterInfoService;
 
 import java.io.IOException;
+import java.util.function.LongSupplier;
 
 public class MonitorService extends AbstractLifecycleComponent {
 
@@ -40,13 +42,13 @@ public class MonitorService extends AbstractLifecycleComponent {
     private final JvmService jvmService;
     private final FsService fsService;
 
-    public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool,
-                          ClusterInfoService clusterInfoService) throws IOException {
+    public MonitorService(Settings settings, ClusterSettings clusterSettings, NodeEnvironment nodeEnvironment, ThreadPool threadPool,
+                          ClusterInfoService clusterInfoService, LongSupplier currentTimeMillisSupplier) throws IOException {
         this.jvmGcMonitorService = new JvmGcMonitorService(settings, threadPool);
         this.osService = new OsService(settings);
         this.processService = new ProcessService(settings);
         this.jvmService = new JvmService(settings);
-        this.fsService = new FsService(settings, nodeEnvironment, clusterInfoService);
+        this.fsService = new FsService(settings, clusterSettings, nodeEnvironment, clusterInfoService, threadPool, currentTimeMillisSupplier);
     }
 
     public OsService osService() {
@@ -68,16 +70,19 @@ public class MonitorService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         jvmGcMonitorService.start();
+        fsService.getFsHealthService().start();
     }
 
     @Override
     protected void doStop() {
         jvmGcMonitorService.stop();
+        fsService.getFsHealthService().stop();
     }
 
     @Override
     protected void doClose() {
         jvmGcMonitorService.close();
+        fsService.getFsHealthService().close();
     }
 
 }

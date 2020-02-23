@@ -47,8 +47,11 @@ public class FsProbe {
 
     private final NodeEnvironment nodeEnv;
 
-    public FsProbe(NodeEnvironment nodeEnv) {
+    private final FsHealthService fsHealthService;
+
+    public FsProbe(NodeEnvironment nodeEnv, FsHealthService fsHealthService) {
         this.nodeEnv = nodeEnv;
+        this.fsHealthService = fsHealthService;
     }
 
     public FsInfo stats(FsInfo previous, @Nullable ClusterInfo clusterInfo) throws IOException {
@@ -59,6 +62,7 @@ public class FsProbe {
         FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
             paths[i] = getFSInfo(dataLocations[i]);
+            paths[i].isWritable = fsHealthService.isWritable(dataLocations[i].path);
         }
         FsInfo.IoStats ioStats = null;
         if (Constants.LINUX) {

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
@@ -67,6 +68,8 @@ import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
+import org.elasticsearch.monitor.fs.FsReadOnlyMonitor;
+import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
@@ -149,6 +152,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<Join> lastJoin;
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
+    private final FsService fsService;
+    private final FsReadOnlyMonitor fsReadOnlyMonitor;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -158,7 +163,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random,
-                       RerouteService rerouteService, ElectionStrategy electionStrategy) {
+                       RerouteService rerouteService, ElectionStrategy electionStrategy, FsService fsService,
+                       ClusterInfoService clusterInfoService) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
@@ -168,7 +174,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.electionStrategy = electionStrategy;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators,
-            rerouteService);
+            rerouteService, fsService);
         this.persistedStateSupplier = persistedStateSupplier;
         this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -178,7 +184,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
-        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy);
+        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy, fsService);
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
@@ -196,6 +202,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
             transportService.getThreadPool(), joinHelper::logLastFailedJoinAttempt);
+        //TODO check if FsReadOnlyMonitor and LagDetector can be implemented as a part of a common interface
+        this.fsReadOnlyMonitor = new FsReadOnlyMonitor(settings, clusterSettings, this::getStateForMasterService, transportService::getLocalNode,
+            this::removeNode, clusterInfoService);
+        this.fsService = fsService;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -1167,6 +1177,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                         if (localNodeMayWinElection(lastAcceptedState) == false) {
                             logger.trace("skip prevoting as local node may not win election: {}",
+                                lastAcceptedState.coordinationMetaData());
+                            return;
+                        }
+
+                        if(fsService.stats().getTotal().isWritable() == Boolean.FALSE){
+                            logger.warn("skip prevoting as local node is not writable: {}",
                                 lastAcceptedState.coordinationMetaData());
                             return;
                         }

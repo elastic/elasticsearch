@@ -44,9 +44,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     final ImmutableOpenMap<String, Long> shardSizes;
     public static final ClusterInfo EMPTY = new ClusterInfo();
     final ImmutableOpenMap<ShardRouting, String> routingToDataPath;
+    final ImmutableOpenMap<String, Boolean> nodeAllPathsWritable;
 
     protected ClusterInfo() {
-       this(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+       this(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
     }
 
     /**
@@ -60,24 +61,27 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      */
     public ClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
             ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage, ImmutableOpenMap<String, Long> shardSizes,
-            ImmutableOpenMap<ShardRouting, String> routingToDataPath) {
+            ImmutableOpenMap<ShardRouting, String> routingToDataPath, ImmutableOpenMap<String, Boolean> nodeAllPathsWritable) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
         this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
         this.routingToDataPath = routingToDataPath;
+        this.nodeAllPathsWritable = nodeAllPathsWritable;
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
         Map<String, DiskUsage> leastMap = in.readMap(StreamInput::readString, DiskUsage::new);
         Map<String, DiskUsage> mostMap = in.readMap(StreamInput::readString, DiskUsage::new);
+        Map<String, Boolean> allPathsWritable = in.readMap(StreamInput::readString, StreamInput::readBoolean);
         Map<String, Long> sizeMap = in.readMap(StreamInput::readString, StreamInput::readLong);
         Map<ShardRouting, String> routingMap = in.readMap(ShardRouting::new, StreamInput::readString);
-
         ImmutableOpenMap.Builder<String, DiskUsage> leastBuilder = ImmutableOpenMap.builder();
         this.leastAvailableSpaceUsage = leastBuilder.putAll(leastMap).build();
         ImmutableOpenMap.Builder<String, DiskUsage> mostBuilder = ImmutableOpenMap.builder();
         this.mostAvailableSpaceUsage = mostBuilder.putAll(mostMap).build();
         ImmutableOpenMap.Builder<String, Long> sizeBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, Boolean> allPathsWritableBuilder = ImmutableOpenMap.builder();
+        this.nodeAllPathsWritable = allPathsWritableBuilder.putAll(allPathsWritable).build();
         this.shardSizes = sizeBuilder.putAll(sizeMap).build();
         ImmutableOpenMap.Builder<ShardRouting, String> routingBuilder = ImmutableOpenMap.builder();
         this.routingToDataPath = routingBuilder.putAll(routingMap).build();
@@ -94,6 +98,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         for (ObjectObjectCursor<String, DiskUsage> c : this.mostAvailableSpaceUsage) {
             out.writeString(c.key);
             c.value.writeTo(out);
+        }
+        out.writeVInt(this.nodeAllPathsWritable.size());
+        for (ObjectObjectCursor<String, Boolean> c : this.nodeAllPathsWritable) {
+            out.writeString(c.key);
+            out.writeBoolean(c.value);
         }
         out.writeVInt(this.shardSizes.size());
         for (ObjectObjectCursor<String, Long> c : this.shardSizes) {
@@ -127,6 +136,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
                         }
                     }
                     builder.endObject(); // end "most_available"
+                    builder.field("all_path_writable", this.nodeAllPathsWritable.get(c.key));
                 }
                 builder.endObject(); // end $nodename
             }
@@ -160,6 +170,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public ImmutableOpenMap<String, DiskUsage> getNodeMostAvailableDiskUsages() {
         return this.mostAvailableSpaceUsage;
     }
+
+    /**
+     * Returns a node id to writeablity mapping for the path that is not writeable.
+     */
+    public ImmutableOpenMap<String, Boolean> getNodeAllPathsWritable() { return this.nodeAllPathsWritable; }
 
     /**
      * Returns the shard size for the given shard routing or <code>null</code> it that metric is not available.

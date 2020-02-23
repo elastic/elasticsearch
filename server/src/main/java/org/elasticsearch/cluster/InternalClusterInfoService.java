@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
@@ -80,6 +81,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
 
     private volatile ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsages;
+    private volatile ImmutableOpenMap<String, Boolean> allPathsWritable;
     private volatile ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath;
     private volatile ImmutableOpenMap<String, Long> shardSizes;
     private volatile boolean isMaster = false;
@@ -94,6 +96,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
         this.shardRoutingToDataPath = ImmutableOpenMap.of();
+        this.allPathsWritable = ImmutableOpenMap.of();
         this.shardSizes = ImmutableOpenMap.of();
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -105,7 +108,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
         clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
-                                                  this::setEnabled);
+                                                  FsHealthService.ENABLED_SETTING, this::setEnabled);
 
         // Add InternalClusterInfoService to listen for Master changes
         this.clusterService.addLocalNodeMasterListener(this);
@@ -113,8 +116,8 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         this.clusterService.addListener(this);
     }
 
-    private void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+    private void setEnabled(boolean diskThresholdEnabled, boolean fsHealthEnabled) {
+        this.enabled = diskThresholdEnabled || fsHealthEnabled;
     }
 
     private void setFetchTimeout(TimeValue fetchTimeout) {
@@ -200,7 +203,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
 
     @Override
     public ClusterInfo getClusterInfo() {
-        return new ClusterInfo(leastAvailableSpaceUsages, mostAvailableSpaceUsages, shardSizes, shardRoutingToDataPath);
+        return new ClusterInfo(leastAvailableSpaceUsages, mostAvailableSpaceUsages, shardSizes, shardRoutingToDataPath, allPathsWritable);
     }
 
     /**
@@ -242,7 +245,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
      */
     protected CountDownLatch updateNodeStats(final ActionListener<NodesStatsResponse> listener) {
         final CountDownLatch latch = new CountDownLatch(1);
-        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
+        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
         nodesStatsRequest.clear();
         nodesStatsRequest.fs(true);
         nodesStatsRequest.timeout(fetchTimeout);
@@ -293,10 +296,12 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             public void onResponse(NodesStatsResponse nodesStatsResponse) {
                 ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
                 ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
-                fillDiskUsagePerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()),
-                    leastAvailableUsagesBuilder, mostAvailableUsagesBuilder);
+                ImmutableOpenMap.Builder<String, Boolean> allPathsWritableBuilder = ImmutableOpenMap.builder();
+                fillDiskStatsPerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()), clusterService,
+                    leastAvailableUsagesBuilder, mostAvailableUsagesBuilder, allPathsWritableBuilder);
                 leastAvailableSpaceUsages = leastAvailableUsagesBuilder.build();
                 mostAvailableSpaceUsages = mostAvailableUsagesBuilder.build();
+                allPathsWritable = allPathsWritableBuilder.build();
             }
 
             @Override
@@ -396,51 +401,57 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
     }
 
-    static void fillDiskUsagePerNode(Logger logger, List<NodeStats> nodeStatsArray,
+    static void fillDiskStatsPerNode(Logger logger, List<NodeStats> nodeStatsArray, ClusterService clusterService,
             ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages,
-            ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages) {
+            ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages,
+            ImmutableOpenMap.Builder<String, Boolean> allPathsWritableBuilder) {
         for (NodeStats nodeStats : nodeStatsArray) {
             if (nodeStats.getFs() == null) {
                 logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().getName());
             } else {
                 FsInfo.Path leastAvailablePath = null;
                 FsInfo.Path mostAvailablePath = null;
-                for (FsInfo.Path info : nodeStats.getFs()) {
-                    if (leastAvailablePath == null) {
-                        assert mostAvailablePath == null;
-                        mostAvailablePath = leastAvailablePath = info;
-                    } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()) {
-                        leastAvailablePath = info;
-                    } else if (mostAvailablePath.getAvailable().getBytes() < info.getAvailable().getBytes()) {
-                        mostAvailablePath = info;
-                    }
-                }
                 String nodeId = nodeStats.getNode().getId();
                 String nodeName = nodeStats.getNode().getName();
-                if (logger.isTraceEnabled()) {
-                    logger.trace("node: [{}], most available: total disk: {}," +
-                            " available disk: {} / least available: total disk: {}, available disk: {}",
+                Boolean allPathsWritable  = nodeStats.getFs().getTotal().isWritable();
+                if (clusterService.state().getNodes().getMasterNodes().containsKey(nodeStats.getNode().getId()) == false) {
+                    for (FsInfo.Path info : nodeStats.getFs()) {
+                        if (leastAvailablePath == null) {
+                            assert mostAvailablePath == null;
+                            mostAvailablePath = leastAvailablePath = info;
+                        } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()) {
+                            leastAvailablePath = info;
+                        } else if (mostAvailablePath.getAvailable().getBytes() < info.getAvailable().getBytes()) {
+                            mostAvailablePath = info;
+                        }
+                    }
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("node: [{}], most available: total disk: {}," +
+                                " available disk: {} / least available: total disk: {}, available disk: {}",
                             nodeId, mostAvailablePath.getTotal(), leastAvailablePath.getAvailable(),
                             leastAvailablePath.getTotal(), leastAvailablePath.getAvailable());
-                }
-                if (leastAvailablePath.getTotal().getBytes() < 0) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("node: [{}] least available path has less than 0 total bytes of disk [{}], skipping",
+                    }
+                    if (leastAvailablePath.getTotal().getBytes() < 0) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("node: [{}] least available path has less than 0 total bytes of disk [{}], skipping",
                                 nodeId, leastAvailablePath.getTotal().getBytes());
+                        }
+                    } else {
+                        newLeastAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(),
+                            leastAvailablePath.getTotal().getBytes(), leastAvailablePath.getAvailable().getBytes()));
                     }
-                } else {
-                    newLeastAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(),
-                        leastAvailablePath.getTotal().getBytes(), leastAvailablePath.getAvailable().getBytes()));
-                }
-                if (mostAvailablePath.getTotal().getBytes() < 0) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("node: [{}] most available path has less than 0 total bytes of disk [{}], skipping",
+                    if (mostAvailablePath.getTotal().getBytes() < 0) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("node: [{}] most available path has less than 0 total bytes of disk [{}], skipping",
                                 nodeId, mostAvailablePath.getTotal().getBytes());
+                        }
+                    } else {
+                        newMostAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(),
+                            mostAvailablePath.getTotal().getBytes(), mostAvailablePath.getAvailable().getBytes()));
                     }
-                } else {
-                    newMostAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(),
-                        mostAvailablePath.getTotal().getBytes(), mostAvailablePath.getAvailable().getBytes()));
+
                 }
+                allPathsWritableBuilder.put(nodeId, allPathsWritable);
 
             }
         }

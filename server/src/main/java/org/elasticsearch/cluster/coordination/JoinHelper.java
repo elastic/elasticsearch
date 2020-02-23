@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportChannel;
@@ -88,6 +89,8 @@ public class JoinHelper {
 
     @Nullable // if using single-node discovery
     private final TimeValue joinTimeout;
+    private final FsService fsService;
+
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
 
@@ -96,9 +99,10 @@ public class JoinHelper {
     JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
                BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
-               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService) {
+               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService, FsService fsService) {
         this.masterService = masterService;
         this.transportService = transportService;
+        this.fsService = fsService;
         this.joinTimeout = DiscoveryModule.isSingleNodeDiscovery(settings) ? null : JOIN_TIMEOUT_SETTING.get(settings);
         this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, rerouteService) {
 
@@ -232,6 +236,10 @@ public class JoinHelper {
 
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
+        if (fsService.stats().getTotal().isWritable() == Boolean.FALSE) {
+            logger.warn("All paths are not writable. Blocking join request");
+            return;
+        }
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {

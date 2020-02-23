@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -64,7 +63,7 @@ public class SamlServiceProviderIndex implements Closeable {
 
     private static final String TEMPLATE_RESOURCE = "/index/saml-service-provider-template.json";
     private static final String TEMPLATE_META_VERSION_KEY = "idp-version";
-    private static final String TEMPLATE_VERSION_SUBSTITUTE = Pattern.quote("${idp.template.version}");
+    private static final String TEMPLATE_VERSION_SUBSTITUTE = "idp.template.version";
     private final ClusterStateListener clusterStateListener;
 
     public SamlServiceProviderIndex(Client client, ClusterService clusterService) {

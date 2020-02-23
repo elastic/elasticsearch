@@ -1,6 +1,6 @@
 [[uppercase-processor]]
 === Uppercase Processor
-Converts a string to its uppercase equivalent.
+Converts a string to its uppercase equivalent. If the field value is an array, all members will be converted.
 
 [[uppercase-options]]
 .Uppercase Options

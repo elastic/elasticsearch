@@ -1,6 +1,6 @@
 [[lowercase-processor]]
 === Lowercase Processor
-Converts a string to its lowercase equivalent.
+Converts a string to its lowercase equivalent. If the field value is an array, all members will be converted.
 
 [[lowercase-options]]
 .Lowercase Options

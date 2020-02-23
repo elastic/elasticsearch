@@ -1,6 +1,6 @@
 [[urldecode-processor]]
 === URL Decode Processor
-URL-decodes a string
+URL-decodes a string. If the field value is an array, all members will be decoded.
 
 [[urldecode-options]]
 .URL Decode Options

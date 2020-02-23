@@ -1,6 +1,6 @@
 [[htmlstrip-processor]]
 === HTML Strip Processor
-Removes HTML from field.
+Removes HTML from field. If the field value is an array, all members will be converted.
 
 NOTE: Each HTML tag is replaced with a `\n` character.
 

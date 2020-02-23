@@ -76,7 +76,7 @@ public final class ERegex extends AExpression {
 
         String name = scriptRoot.getNextSyntheticName("regex");
         scriptRoot.getClassNode().addField(
-                new SField(location, Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE, name, Pattern.class, null));
+                new SField(location, Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE, name, Pattern.class));
         constant = new Constant(location, MethodWriter.getType(Pattern.class), name, this::initializeConstant);
         actual = Pattern.class;
     }

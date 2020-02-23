@@ -239,9 +239,10 @@ public class BatchedShardExecutor {
     private boolean maybeExecuteSync(IndexShard indexShard, ShardState shardState) {
         if (shardState.shouldStartSyncing()) {
             try {
-                ArrayList<ShardOp> completedOpsAlreadySynced = new ArrayList<>();
-                ArrayList<ShardOp> completedOpsNeedSync = new ArrayList<>();
                 while (true) {
+                    ArrayList<ShardOp> completedOpsAlreadySynced = new ArrayList<>();
+                    ArrayList<ShardOp> completedOpsNeedSync = new ArrayList<>();
+
                     Translog.Location maxLocation = null;
                     Translog.Location syncedLocation = null;
                     try {
@@ -282,9 +283,6 @@ public class BatchedShardExecutor {
                     } else {
                         onResponse(completedOpsNeedSync.stream().map(ShardOp::getFlushListener), null);
                     }
-
-                    completedOpsAlreadySynced.clear();
-                    completedOpsNeedSync.clear();
                 }
             } finally {
                 shardState.markDoneSyncing();

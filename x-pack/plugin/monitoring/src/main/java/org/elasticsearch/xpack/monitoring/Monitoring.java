@@ -101,7 +101,8 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         if (enabled == false) {
             return Collections.singletonList(new MonitoringUsageServices(null, null));
         }
@@ -117,7 +118,8 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));
-        collectors.add(new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService()));
+        collectors.add(
+            new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService(), expressionResolver));
         collectors.add(new ShardsCollector(clusterService, getLicenseState()));
         collectors.add(new NodeStatsCollector(clusterService, getLicenseState(), client));
         collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));

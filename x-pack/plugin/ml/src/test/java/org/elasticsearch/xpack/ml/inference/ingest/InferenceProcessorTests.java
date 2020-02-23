@@ -102,6 +102,43 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(document.getFieldValue("ml.my_processor.predicted_value", String.class), equalTo("foo"));
     }
 
+    public void testMutateDocumentClassificationFeatureInfluence() {
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, 2);
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "ml.my_processor",
+            "classification_model",
+            classificationConfig,
+            Collections.emptyMap());
+
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
+        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6));
+        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4));
+
+        Map<String, Double> featureInfluence = new HashMap<>();
+        featureInfluence.put("feature_1", 1.13);
+        featureInfluence.put("feature_2", -42.0);
+
+        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+            Collections.singletonList(new ClassificationInferenceResults(1.0,
+                "foo",
+                classes,
+                featureInfluence,
+                classificationConfig)),
+            true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
+        assertThat(document.getFieldValue("ml.my_processor.predicted_value", String.class), equalTo("foo"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.feature_1", Double.class), equalTo(1.13));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.feature_2", Double.class), equalTo(-42.0));
+    }
+
     @SuppressWarnings("unchecked")
     public void testMutateDocumentClassificationTopNClassesWithSpecificField() {
         ClassificationConfig classificationConfig = new ClassificationConfig(2, "result", "tops");
@@ -152,6 +189,34 @@ public class InferenceProcessorTests extends ESTestCase {
 
         assertThat(document.getFieldValue("ml.my_processor.foo", Double.class), equalTo(0.7));
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("regression_model"));
+    }
+
+    public void testMutateDocumentRegressionWithTopFetures() {
+        RegressionConfig regressionConfig = new RegressionConfig("foo", 2);
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "ml.my_processor",
+            "regression_model",
+            regressionConfig,
+            Collections.emptyMap());
+
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        Map<String, Double> featureInfluence = new HashMap<>();
+        featureInfluence.put("feature_1", 1.13);
+        featureInfluence.put("feature_2", -42.0);
+
+        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+            Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig, featureInfluence)), true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.getFieldValue("ml.my_processor.foo", Double.class), equalTo(0.7));
+        assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("regression_model"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.feature_1", Double.class), equalTo(1.13));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.feature_2", Double.class), equalTo(-42.0));
     }
 
     public void testGenerateRequestWithEmptyMapping() {

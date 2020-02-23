@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -56,7 +57,7 @@ public class EncryptedAzureBlobStoreRepositoryIntegTests extends AzureBlobStoreR
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), License.LicenseType.TRIAL.getTypeName())
                 .build();
     }
 
@@ -65,7 +66,7 @@ public class EncryptedAzureBlobStoreRepositoryIntegTests extends AzureBlobStoreR
         MockSecureSettings secureSettings = super.nodeSecureSettings(nodeOrdinal);
         for (String repositoryName : repositoryNames) {
             secureSettings.setString(EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.
-                    getConcreteSettingForNamespace(repositoryName).getKey(), "passwordPassword");
+                    getConcreteSettingForNamespace(repositoryName).getKey(), "password" + repositoryName);
         }
         return secureSettings;
     }
@@ -99,7 +100,7 @@ public class EncryptedAzureBlobStoreRepositoryIntegTests extends AzureBlobStoreR
     protected Settings repositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put(super.repositorySettings());
-        settings.put(EncryptedRepositoryPlugin.DELEGATE_TYPE.getKey(), "azure");
+        settings.put(EncryptedRepositoryPlugin.DELEGATE_TYPE.getKey(), AzureRepository.TYPE);
         if (ESTestCase.randomBoolean()) {
             long size = 1 << ESTestCase.randomInt(10);
             settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));

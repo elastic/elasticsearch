@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.gcs;
+package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
@@ -31,7 +29,6 @@ import org.elasticsearch.repositories.encrypted.DecryptionPacketsInputStream;
 import org.elasticsearch.repositories.encrypted.EncryptedRepository;
 import org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin;
 import org.elasticsearch.repositories.encrypted.LocalStateEncryptedRepositoryPlugin;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -40,7 +37,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloudStorageBlobStoreRepositoryTests {
+public class EncryptedS3BlobStoreRepositoryIntegTests extends S3BlobStoreRepositoryTests {
 
     private static List<String> repositoryNames;
 
@@ -88,7 +85,7 @@ public class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloudStorag
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateEncryptedRepositoryPlugin.class, TestGoogleCloudStoragePlugin.class);
+        return Arrays.asList(LocalStateEncryptedRepositoryPlugin.class, TestS3RepositoryPlugin.class);
     }
 
     @Override
@@ -100,12 +97,14 @@ public class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloudStorag
     protected Settings repositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put(super.repositorySettings());
-        settings.put(EncryptedRepositoryPlugin.DELEGATE_TYPE.getKey(), GoogleCloudStorageRepository.TYPE);
-        if (ESTestCase.randomBoolean()) {
-            long size = 1 << ESTestCase.randomInt(10);
-            settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));
-        }
+        settings.put(EncryptedRepositoryPlugin.DELEGATE_TYPE.getKey(), S3Repository.TYPE);
         return settings.build();
+    }
+
+    @Override
+    public void testEnforcedCooldownPeriod() {
+        // this test is not applicable for the encrypted repository because it verifies behavior which pertains to snapshots that must
+        // be created before the encrypted repository was introduced, hence no such encrypted snapshots can possibly exist
     }
 
 }

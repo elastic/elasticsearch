@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
-import org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -77,14 +76,14 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     protected Settings nodeSettings(int nodeOrdinal) {
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl();
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
-            .build();
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
+                .setSecureSettings(nodeSecureSettings(nodeOrdinal))
+                .build();
     }
 
-    @Override
     protected MockSecureSettings nodeSecureSettings(int nodeOrdinal) {
-        MockSecureSettings secureSettings = super.nodeSecureSettings(nodeOrdinal);
+        MockSecureSettings secureSettings = new MockSecureSettings();
         final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(StandardCharsets.UTF_8));
         secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), "account");
         secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);

@@ -79,12 +79,12 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.setExecutor(r -> {
-            try {
-                r.run();
-            } catch (Throwable t) {
+            Thread runThread = new Thread(r);
+            runThread.setUncaughtExceptionHandler((t, e) -> {
                 log.error("Error in execution on mock http server IO thread", t);
-                throw t;
-            }
+                Thread.currentThread().getUncaughtExceptionHandler().uncaughtException(t, e);
+            });
+            runThread.start();
         });
         httpServer.start();
     }

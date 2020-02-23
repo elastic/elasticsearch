@@ -101,16 +101,16 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        final Settings.Builder settings = Settings.builder();
-        settings.put(super.nodeSettings(nodeOrdinal));
-        settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl());
-        settings.put(TOKEN_URI_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl() + "/token");
+        final Settings.Builder settings = Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
+                .put(TOKEN_URI_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl() + "/token")
+                .setSecureSettings(nodeSecureSettings(nodeOrdinal));
         return settings.build();
     }
 
-    @Override
     protected MockSecureSettings nodeSecureSettings(int nodeOrdinal) {
-        final MockSecureSettings secureSettings = super.nodeSecureSettings(nodeOrdinal);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace("test").getKey(), serviceAccount);
         return secureSettings;

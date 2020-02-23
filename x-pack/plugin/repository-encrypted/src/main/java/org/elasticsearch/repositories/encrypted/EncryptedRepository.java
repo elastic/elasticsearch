@@ -521,33 +521,45 @@ public final class EncryptedRepository extends BlobStoreRepository {
          */
         @Override
         public InputStream readBlob(String blobName) throws IOException {
+            // TODO this requires two concurrent readBlob operations and it's technically possible that the storage server has concurrent
+            //  connections handling limit which gets saturated with only the first connection of the pair, thereby hampering progress,
+            //  when connections start timing out on read until the pair connection for an existing live connection succeeds
             final InputStream encryptedDataInputStream = delegatedBlobContainer.readBlob(blobName);
-            // read the metadata identifier (fixed length) which is prepended to the encrypted blob
-            final byte[] metaId = encryptedDataInputStream.readNBytes(MetadataIdentifier.byteLength());
-            if (metaId.length != MetadataIdentifier.byteLength()) {
-                throw new IOException("Failure to read encrypted blob metadata identifier");
-            }
-            final MetadataIdentifier metadataIdentifier = MetadataIdentifier.fromByteArray(metaId);
-            // the metadata blob name is the name of the data blob followed by the base64 encoding (URL safe) of the metadata identifier
-            final String metadataBlobName = MetadataIdentifier.formMetadataBlobName(blobName, metadataIdentifier);
-            // read the encrypted metadata contents
-            final BytesReference encryptedMetadataBytes = Streams.readFully(encryptionMetadataBlobContainer.readBlob(metadataBlobName));
-            final BlobEncryptionMetadata metadata;
             try {
-                // decrypt and parse metadata
-                metadata = BlobEncryptionMetadata.deserializeMetadata(BytesReference.toBytes(encryptedMetadataBytes),
-                        metadataEncryption::decrypt);
-            } catch (IOException e) {
-                // friendlier exception message
-                String failureMessage = "Failure to decrypt metadata for blob [" + blobName + "]";
-                if (e.getCause() instanceof AEADBadTagException) {
-                    failureMessage = failureMessage + ". The repository password is probably wrong.";
+                // read the metadata identifier (fixed length) which is prepended to the encrypted blob
+                final byte[] metaId = encryptedDataInputStream.readNBytes(MetadataIdentifier.byteLength());
+                if (metaId.length != MetadataIdentifier.byteLength()) {
+                    throw new IOException("Failure to read encrypted blob metadata identifier");
                 }
-                throw new IOException(failureMessage, e);
+                final MetadataIdentifier metadataIdentifier = MetadataIdentifier.fromByteArray(metaId);
+                // the metadata blob name is the name of the data blob followed by the base64 encoding (URL safe) of the metadata identifier
+                final String metadataBlobName = MetadataIdentifier.formMetadataBlobName(blobName, metadataIdentifier);
+                // read the encrypted metadata contents
+                final BytesReference encryptedMetadataBytes = Streams.readFully(encryptionMetadataBlobContainer.readBlob(metadataBlobName));
+                final BlobEncryptionMetadata metadata;
+                try {
+                    // decrypt and parse metadata
+                    metadata = BlobEncryptionMetadata.deserializeMetadata(BytesReference.toBytes(encryptedMetadataBytes),
+                            metadataEncryption::decrypt);
+                } catch (IOException e) {
+                    // friendlier exception message
+                    String failureMessage = "Failure to decrypt metadata for blob [" + blobName + "]";
+                    if (e.getCause() instanceof AEADBadTagException) {
+                        failureMessage = failureMessage + ". The repository password is probably wrong.";
+                    }
+                    throw new IOException(failureMessage, e);
+                }
+                // read and decrypt the data blob
+                return new DecryptionPacketsInputStream(encryptedDataInputStream, metadata.getDataEncryptionKey(), metadata.getNonce(),
+                        metadata.getPacketLengthInBytes());
+            } catch (Exception e) {
+                try {
+                    encryptedDataInputStream.close();
+                } catch (IOException closeEx) {
+                    e.addSuppressed(closeEx);
+                }
+                throw e;
             }
-            // read and decrypt the data blob
-            return new DecryptionPacketsInputStream(encryptedDataInputStream, metadata.getDataEncryptionKey(), metadata.getNonce(),
-                    metadata.getPacketLengthInBytes());
         }
 
         /**

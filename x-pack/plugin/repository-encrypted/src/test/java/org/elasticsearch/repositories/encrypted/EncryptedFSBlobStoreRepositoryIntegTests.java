@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -40,16 +41,16 @@ public class EncryptedFSBlobStoreRepositoryIntegTests extends ESBlobStoreReposit
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), License.LicenseType.TRIAL.getTypeName())
+                .setSecureSettings(nodeSecureSettings(nodeOrdinal))
                 .build();
     }
 
-    @Override
     protected MockSecureSettings nodeSecureSettings(int nodeOrdinal) {
-        MockSecureSettings secureSettings = super.nodeSecureSettings(nodeOrdinal);
+        MockSecureSettings secureSettings = new MockSecureSettings();
         for (String repositoryName : repositoryNames) {
             secureSettings.setString(EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.
-                    getConcreteSettingForNamespace(repositoryName).getKey(), "passwordPassword");
+                    getConcreteSettingForNamespace(repositoryName).getKey(), "password" + repositoryName);
         }
         return secureSettings;
     }

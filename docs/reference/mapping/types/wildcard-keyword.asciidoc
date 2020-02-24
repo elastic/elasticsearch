@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[wildcard-keyword]]
-=== Wildcard datatype
+=== Wildcard keyword datatype
 ++++
-<titleabbrev>Wildcard</titleabbrev>
+<titleabbrev>Wildcard keyword</titleabbrev>
 ++++
 
 A `wildcard_keyword` field stores values optimised for wildcard queries.

@@ -137,6 +137,23 @@ public class ValuesSourceConfig {
         return valuesSourceType.getFormatter(format, tz);
     }
 
+    /**
+     * Special case factory method, intended to be used by aggregations which have some specialized logic for figuring out what field they
+     * are operating on, for example Parent & Child join aggregations, which use the join relation to find the field they are reading from
+     * rather than a user specified field.
+     */
+    public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType,
+                                                      QueryShardContext queryShardContext) {
+        return new ValuesSourceConfig(fieldType.getValuesSourceType(), fieldType, false, null, null, queryShardContext);
+    }
+
+    /**
+     * Convenience method for creating unmapped configs
+     */
+    public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, QueryShardContext queryShardContext) {
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, queryShardContext);
+    }
+
     private final ValuesSourceType valuesSourceType;
     private FieldContext fieldContext;
     private AggregationScript.LeafFactory script;
@@ -145,24 +162,8 @@ public class ValuesSourceConfig {
     private DocValueFormat format = DocValueFormat.RAW;
     private Object missing;
     private ZoneId timeZone;
-    private LongSupplier now;
+    private LongSupplier nowSupplier;
 
-
-    /**
-     * Config instances which only need to specify a field should use this constructor
-     */
-    public ValuesSourceConfig(ValuesSourceType valuesSourceType,
-                              MappedFieldType fieldType,
-                              QueryShardContext queryShardContext) {
-        this(valuesSourceType, fieldType, false, null, null, queryShardContext);
-    }
-
-    /**
-     * Convenience method for creating unmapped configs
-     */
-    public ValuesSourceConfig(ValuesSourceType valuesSourceType, QueryShardContext queryShardContext) {
-        this(valuesSourceType, null, true, null, null, queryShardContext);
-    }
 
     public ValuesSourceConfig(ValuesSourceType valuesSourceType,
                               MappedFieldType fieldType,
@@ -180,7 +181,7 @@ public class ValuesSourceConfig {
         this.unmapped = unmapped;
         this.script = script;
         this.scriptValueType = scriptValueType;
-        this.now = queryShardContext::nowInMillis;
+        this.nowSupplier = queryShardContext::nowInMillis;
 
     }
 
@@ -270,6 +271,6 @@ public class ValuesSourceConfig {
         if (missing() == null) {
             return vs;
         }
-        return valueSourceType().replaceMissing(vs, missing, format, now);
+        return valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
     }
 }

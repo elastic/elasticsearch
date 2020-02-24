@@ -107,17 +107,17 @@ public class ParentAggregationBuilder
 
     @Override
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
-        ValuesSourceConfig config; // = new ValuesSourceConfig(CoreValuesSourceType.BYTES, null, null);
+        ValuesSourceConfig config;
         ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(queryShardContext.getMapperService());
         ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
         if (parentIdFieldMapper != null) {
             parentFilter = parentIdFieldMapper.getParentFilter();
             childFilter = parentIdFieldMapper.getChildFilter(childType);
             MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            config = new ValuesSourceConfig(fieldType.getValuesSourceType(), fieldType, queryShardContext);
+            config = ValuesSourceConfig.resolveFieldOnly(fieldType, queryShardContext);
         } else {
             // unmapped case
-            config = new ValuesSourceConfig(defaultValueSourceType(), queryShardContext);
+            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), queryShardContext);
         }
         return config;
     }

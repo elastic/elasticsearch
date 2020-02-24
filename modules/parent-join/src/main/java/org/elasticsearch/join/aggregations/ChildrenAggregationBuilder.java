@@ -114,10 +114,10 @@ public class ChildrenAggregationBuilder
             parentFilter = parentIdFieldMapper.getParentFilter();
             childFilter = parentIdFieldMapper.getChildFilter(childType);
             MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            config = new ValuesSourceConfig(fieldType.getValuesSourceType(), fieldType, queryShardContext);
+            config = ValuesSourceConfig.resolveFieldOnly(fieldType, queryShardContext);
         } else {
             // Unmapped field case
-            config = new ValuesSourceConfig(defaultValueSourceType(), queryShardContext);
+            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), queryShardContext);
         }
         return config;
     }

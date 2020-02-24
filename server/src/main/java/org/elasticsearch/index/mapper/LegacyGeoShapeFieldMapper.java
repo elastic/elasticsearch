@@ -292,7 +292,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
             setupFieldType(context);
 
             return new LegacyGeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                coerce(context), orientation(), ignoreZValue(), context.indexSettings(),
+                coerce(context), orientation(), ignoreZValue(), docValues(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -318,6 +318,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
             setStored(false);
             setStoreTermVectors(false);
             setOmitNorms(true);
+            setHasDocValues(false);
         }
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
@@ -470,10 +471,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
 
     public LegacyGeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<Orientation> orientation,
-                               Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                               Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
-            multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, docValues,
+            indexSettings, multiFields, copyTo);
     }
 
     @Override

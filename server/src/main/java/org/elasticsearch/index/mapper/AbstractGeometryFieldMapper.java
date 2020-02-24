@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
@@ -67,6 +68,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
+        public static final Explicit<Boolean> DOC_VALUES = new Explicit<>(false, false);
     }
 
 
@@ -114,15 +116,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         /** default builder - used for external mapper*/
         public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name, fieldType, defaultFieldType);
-        }
-
-        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                       boolean coerce, boolean ignoreMalformed, Orientation orientation, boolean ignoreZ) {
-            super(name, fieldType, defaultFieldType);
-            this.coerce = coerce;
-            this.ignoreMalformed = ignoreMalformed;
-            this.orientation = orientation;
-            this.ignoreZValue = ignoreZ;
         }
 
         public Builder coerce(boolean coerce) {
@@ -182,6 +175,27 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public Builder ignoreZValue(final boolean ignoreZValue) {
             this.ignoreZValue = ignoreZValue;
             return this;
+        }
+
+        public T docValues(boolean hasDocValues) {
+            // TODO(talevy): see how to best make this pluggable with the DataHandler work
+            if (hasDocValues) {
+                throw new ElasticsearchParseException("field [" + name + "] of type [" + fieldType().typeName()
+                    + "] does not support doc_values");
+            }
+            return super.docValues(hasDocValues);
+        }
+
+        protected Explicit<Boolean> docValues() {
+            // TODO(talevy): see how to best make this pluggable with the DataHandler work
+            // although these values can be true, an ElasticsearchParseException
+            // prevents this Explicit(true,true) path to ever occur in practice
+            if (docValuesSet && fieldType.hasDocValues()) {
+                return new Explicit<>(true, true);
+            } else if (docValuesSet) {
+                return new Explicit<>(false, true);
+            }
+            return Defaults.DOC_VALUES;
         }
 
         @Override
@@ -245,12 +259,19 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                         XContentMapValues.nodeBooleanValue(fieldNode,
                             name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
+                } else if (TypeParsers.DOC_VALUES.equals(fieldName)) {
+                    params.put(TypeParsers.DOC_VALUES, XContentMapValues.nodeBooleanValue(fieldNode, name + "." + TypeParsers.DOC_VALUES));
+                    iterator.remove();
                 }
             }
             if (parsedDeprecatedParameters == false) {
                 params.remove(DEPRECATED_PARAMETERS_KEY);
             }
             Builder builder = newBuilder(name, params);
+
+            if (params.containsKey(TypeParsers.DOC_VALUES)) {
+                builder.docValues((Boolean) params.get(TypeParsers.DOC_VALUES));
+            }
 
             if (params.containsKey(Names.COERCE.getPreferredName())) {
                 builder.coerce((Boolean)params.get(Names.COERCE.getPreferredName()));
@@ -352,15 +373,17 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected Explicit<Boolean> coerce;
     protected Explicit<Boolean> ignoreMalformed;
     protected Explicit<Boolean> ignoreZValue;
+    protected Explicit<Boolean> docValues;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                          Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                                          Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
                                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.coerce = coerce;
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
+        this.docValues = docValues;
     }
 
     @Override
@@ -375,6 +398,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
         if (gsfm.ignoreZValue.explicit()) {
             this.ignoreZValue = gsfm.ignoreZValue;
+        }
+        if (gsfm.docValues.explicit()) {
+            this.docValues = gsfm.docValues;
         }
     }
 
@@ -399,6 +425,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         if (includeDefaults || ignoreZValue.explicit()) {
             builder.field(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
         }
+        if (includeDefaults || docValues.explicit()) {
+            builder.field(TypeParsers.DOC_VALUES, docValues.value());
+        }
     }
 
     public Explicit<Boolean> coerce() {
@@ -411,6 +440,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     public Explicit<Boolean> ignoreZValue() {
         return ignoreZValue;
+    }
+
+    public Explicit<Boolean> docValues() {
+        return docValues;
     }
 
     public Orientation orientation() {

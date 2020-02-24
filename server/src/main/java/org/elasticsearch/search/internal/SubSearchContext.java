@@ -24,7 +24,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.NamedQuery;
 import org.elasticsearch.index.query.NamedSpanQuery;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -41,7 +40,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 public class SubSearchContext extends FilteredSearchContext {
 
@@ -203,26 +201,6 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public SortAndFormats sort() {
         return sort;
-    }
-
-    @Override
-    public SearchContext setQuery(QueryBuilder query, QueryBuilder postFilter, Function<QueryBuilder, Query> parser) {
-        assert postFilter == null;
-        if (query != null) {
-            this.query = parser.apply(query);
-            this.originalQuery = this.query;
-        }
-        this.namedQueries.clear();
-        this.query.visit(new QueryVisitor() {
-            @Override
-            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                if (parent instanceof NamedQuery || parent instanceof NamedSpanQuery) {
-                    SubSearchContext.this.namedQueries.add(parent);
-                }
-                return super.getSubVisitor(occur, parent);
-            }
-        });
-        return this;
     }
 
     @Override

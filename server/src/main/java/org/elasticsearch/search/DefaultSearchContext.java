@@ -84,7 +84,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-final class DefaultSearchContext extends SearchContext {
+public final class DefaultSearchContext extends SearchContext {
 
     private final long id;
     private final ShardSearchRequest request;
@@ -607,12 +607,11 @@ final class DefaultSearchContext extends SearchContext {
         return collapse;
     }
 
-    public SearchContext sliceBuilder(SliceBuilder sliceBuilder) {
+    public DefaultSearchContext sliceBuilder(SliceBuilder sliceBuilder) {
         this.sliceBuilder = sliceBuilder;
         return this;
     }
 
-    @Override
     public SearchContext setQuery(QueryBuilder query, QueryBuilder postFilter, Function<QueryBuilder, Query> parser) {
         this.namedQueries.clear();
         if (query != null) {

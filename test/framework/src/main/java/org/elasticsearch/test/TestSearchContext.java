@@ -32,7 +32,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -64,7 +63,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class TestSearchContext extends SearchContext {
     public static final SearchShardTarget SHARD_TARGET =
@@ -406,17 +404,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public CollapseContext collapse() {
         return null;
-    }
-
-    @Override
-    public SearchContext setQuery(QueryBuilder query, QueryBuilder postFilter, Function<QueryBuilder, Query> parser) {
-        if (query != null) {
-            this.originalQuery = parser.apply(query);
-        }
-        if (postFilter != null) {
-            this.postFilter = parser.apply(postFilter);
-        }
-        return this;
     }
 
     public SearchContext setQuery(Query query) {

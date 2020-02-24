@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.search.DefaultSearchContext;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -195,7 +196,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         String error = null;
         ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(request.shardId(),
             request.nowInMillis(), request.filteringAliases());
-        SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
+        DefaultSearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         try {
             searchContext.setQuery(request.query(), null, searchContext.getQueryShardContext()::toQuery);
             searchContext.preProcess(request.rewrite());

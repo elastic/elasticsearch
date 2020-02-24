@@ -31,7 +31,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -56,7 +55,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public abstract class FilteredSearchContext extends SearchContext {
 
@@ -339,11 +337,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public FieldDoc searchAfter() {
         return in.searchAfter();
-    }
-
-    @Override
-    public SearchContext setQuery(QueryBuilder query, QueryBuilder postFilter, Function<QueryBuilder, Query> parser) {
-        return in.setQuery(query, postFilter, parser);
     }
 
     @Override

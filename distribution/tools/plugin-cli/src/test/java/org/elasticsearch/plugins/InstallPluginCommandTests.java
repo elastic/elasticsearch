@@ -114,6 +114,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class InstallPluginCommandTests extends ESTestCase {
@@ -1112,7 +1113,17 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testMavenChecksumWithoutFilename() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".sha512", checksum(digest), null, (b, p) -> null);
+        assertInstallPluginFromUrl(
+            "mygroup:myplugin:1.0.0",
+            "myplugin",
+            url,
+            null,
+            false,
+            ".sha512",
+            checksum(digest),
+            null,
+            (b, p) -> null
+        );
     }
 
     public void testOfficialChecksumWithoutFilename() throws Exception {
@@ -1135,7 +1146,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             )
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
-        assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
+        assertThat(e.getMessage(), startsWith("Invalid checksum file"));
     }
 
     public void testOfficialShaMissing() throws Exception {

@@ -50,7 +50,7 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(PercentilesAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.HISTOGRAM),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.HISTOGRAM, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new PercentilesAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,

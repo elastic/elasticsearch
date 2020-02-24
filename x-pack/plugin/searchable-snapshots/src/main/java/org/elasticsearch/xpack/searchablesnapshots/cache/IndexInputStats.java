@@ -211,6 +211,6 @@ public class IndexInputStats {
         public long totalNanoseconds() {
             return totalNanoseconds.sum();
         }
-
     }
+
 }

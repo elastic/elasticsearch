@@ -447,5 +447,4 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
     }
 
-
 }

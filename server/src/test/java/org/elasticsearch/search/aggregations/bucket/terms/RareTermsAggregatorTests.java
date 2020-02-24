@@ -52,7 +52,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -311,7 +310,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name")
                         .field("field");
-                    expectThrows(AggregationExecutionException.class,
+                    expectThrows(IllegalArgumentException.class,
                         () -> createAggregator(aggregationBuilder, indexSearcher, fieldType));
                 }
             }

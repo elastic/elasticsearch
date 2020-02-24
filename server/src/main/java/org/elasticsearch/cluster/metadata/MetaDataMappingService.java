@@ -326,7 +326,7 @@ public class MetaDataMappingService {
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("put-mapping",
+        clusterService.submitStateUpdateTask("put-mapping " + getRequestIndex(request),
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
                 putMappingExecutor,
@@ -358,4 +358,19 @@ public class MetaDataMappingService {
                     }
                 });
     }
+
+    public String getRequestIndex(PutMappingClusterStateUpdateRequest request) {
+        Index[] indices = request.indices();
+
+        if (indices == null) {
+            return "";
+        }
+
+        List<String> indexList = new ArrayList<>(indices.length);
+        for (Index index : indices) {
+            indexList.add(index.toString());
+        }
+        return String.join(",", indexList);
+    }
+
 }

@@ -117,7 +117,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     // Some functions fail with "Unknown" message at the parse stage
-    // TODO (@costin): Should we make the error messaging consistent?
     public void testFunctionParsingUnknown() {
         assertEquals("1:15: Unknown function [matchLite]",
                 errorParsing("process where matchLite(?'.*?net1\\s+localgroup\\s+.*?', command_line)"));
@@ -222,8 +221,7 @@ public class VerifierTests extends ESTestCase {
     public void testNumeric() {
         final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
         accept(idxr, "foo where long_field == 0");
-        accept(idxr, "foo where integer_field == " +
-                "0");
+        accept(idxr, "foo where integer_field == 0");
         accept(idxr, "foo where short_field == 0");
         accept(idxr, "foo where byte_field == 0");
         accept(idxr, "foo where double_field == 0");
@@ -303,7 +301,6 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals("1:11: Unknown column [endgame.pi], did you mean [endgame.pid]?",
                 error(idxr, "foo where endgame.pi == 0"));
-
     }
 
     public void testNested() {

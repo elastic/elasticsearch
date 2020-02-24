@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 /**
  * {@link CacheDirectory} uses a {@link CacheService} to cache Lucene files provided by another {@link Directory}.
@@ -49,8 +50,10 @@ public class CacheDirectory extends FilterDirectory {
     private final IndexId indexId;
     private final ShardId shardId;
     private final Path cacheDir;
+    private final LongSupplier currentTimeNanosSupplier;
 
-    public CacheDirectory(Directory in, CacheService cacheService, Path cacheDir, SnapshotId snapshotId, IndexId indexId, ShardId shardId)
+    public CacheDirectory(Directory in, CacheService cacheService, Path cacheDir, SnapshotId snapshotId, IndexId indexId, ShardId shardId,
+                          LongSupplier currentTimeNanosSupplier)
         throws IOException {
         super(in);
         this.stats = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -59,6 +62,7 @@ public class CacheDirectory extends FilterDirectory {
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indexId = Objects.requireNonNull(indexId);
         this.shardId = Objects.requireNonNull(shardId);
+        this.currentTimeNanosSupplier = Objects.requireNonNull(currentTimeNanosSupplier);
     }
 
     private CacheKey createCacheKey(String fileName) {
@@ -274,6 +278,7 @@ public class CacheDirectory extends FilterDirectory {
             int bytesCopied = 0;
             try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
                 stats.incrementInnerOpenCount();
+                final long startTimeNanos = currentTimeNanosSupplier.getAsLong();
                 if (start > 0) {
                     input.seek(start);
                 }
@@ -285,7 +290,8 @@ public class CacheDirectory extends FilterDirectory {
                     bytesCopied += size;
                     remaining -= size;
                 }
-                stats.addCachedBytesWritten(bytesCopied);
+                final long endTimeNanos = currentTimeNanosSupplier.getAsLong();
+                stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
             }
         }
 
@@ -336,6 +342,7 @@ public class CacheDirectory extends FilterDirectory {
             int bytesCopied = 0;
             try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
                 stats.incrementInnerOpenCount();
+                final long startTimeNanos = currentTimeNanosSupplier.getAsLong();
                 if (start > 0) {
                     input.seek(start);
                 }
@@ -347,7 +354,8 @@ public class CacheDirectory extends FilterDirectory {
                     bytesCopied += len;
                     remaining -= len;
                 }
-                stats.addDirectBytesRead(bytesCopied);
+                final long endTimeNanos = currentTimeNanosSupplier.getAsLong();
+                stats.addDirectBytesRead(bytesCopied, endTimeNanos - startTimeNanos);
             }
             return bytesCopied;
         }

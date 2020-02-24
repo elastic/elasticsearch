@@ -30,6 +30,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.CacheIndexInputStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.Counter;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.TimedCounter;
 import org.elasticsearch.xpack.searchablesnapshots.InMemoryNoOpCommitDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
@@ -122,12 +123,16 @@ public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastB
             toCounter(inputStats.getForwardSmallSeeks()), toCounter(inputStats.getBackwardSmallSeeks()),
             toCounter(inputStats.getForwardLargeSeeks()), toCounter(inputStats.getBackwardLargeSeeks()),
             toCounter(inputStats.getContiguousReads()), toCounter(inputStats.getNonContiguousReads()),
-            toCounter(inputStats.getCachedBytesRead()), toCounter(inputStats.getCachedBytesWritten()),
-            toCounter(inputStats.getDirectBytesRead()));
+            toCounter(inputStats.getCachedBytesRead()), toTimedCounter(inputStats.getCachedBytesWritten()),
+            toTimedCounter(inputStats.getDirectBytesRead()));
     }
 
     private static Counter toCounter(final IndexInputStats.Counter counter) {
         return new Counter(counter.count(), counter.total(), counter.min(), counter.max());
+    }
+
+    private static TimedCounter toTimedCounter(final IndexInputStats.TimedCounter counter) {
+        return new TimedCounter(counter.count(), counter.total(), counter.min(), counter.max(), counter.totalNanoseconds());
     }
 
     @Nullable

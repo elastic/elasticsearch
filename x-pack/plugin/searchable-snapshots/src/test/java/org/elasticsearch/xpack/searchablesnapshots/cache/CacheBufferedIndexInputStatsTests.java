@@ -15,12 +15,14 @@ import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.assertCounter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
@@ -36,6 +38,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
     private static final int MAX_FILE_LENGTH = 10_000;
+
+    /**
+     * These tests simulate the passage of time with a clock that advances 100ms each time it is read.
+     */
+    private static final long FAKE_CLOCK_ADVANCE_NANOS = TimeValue.timeValueMillis(100).nanos();
 
     public void testOpenCount() throws Exception {
         executeTestCase(createCacheService(random()),
@@ -113,13 +120,16 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                 assertThat(inputStats, notNullValue());
 
                 randomReadAndSlice(input, Math.toIntExact(length));
+                final long cachedBytesWriteCount = numberOfRanges(length, rangeSize.getBytes());
 
                 assertThat(inputStats.getCachedBytesWritten(), notNullValue());
                 assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
-                assertThat(inputStats.getCachedBytesWritten().count(), equalTo(numberOfRanges(length, rangeSize.getBytes())));
+                assertThat(inputStats.getCachedBytesWritten().count(), equalTo(cachedBytesWriteCount));
                 assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
                 assertThat(inputStats.getCachedBytesWritten().max(),
                     (length < rangeSize.getBytes()) ? equalTo(length) : equalTo(rangeSize.getBytes()));
+                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(),
+                    equalTo(cachedBytesWriteCount * FAKE_CLOCK_ADVANCE_NANOS));
 
                 assertThat(inputStats.getCachedBytesRead(), notNullValue());
                 assertThat(inputStats.getCachedBytesRead().total(), greaterThanOrEqualTo(length));
@@ -129,6 +139,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                     (length < rangeSize.getBytes()) ? lessThanOrEqualTo(length) : lessThanOrEqualTo(rangeSize.getBytes()));
 
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
+                assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -169,11 +180,13 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                     } else {
                         assertCounter(inputStats.getDirectBytesRead(), expectedTotal, expectedCount, minRead, maxRead);
                     }
+                    assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(currentCount * FAKE_CLOCK_ADVANCE_NANOS));
                 }
 
                 // cache file has never been written nor read
                 assertCounter(inputStats.getCachedBytesWritten(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getCachedBytesRead(), 0L, 0L, 0L, 0L);
+                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(0L));
 
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -221,9 +234,11 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
                 // cache file has been written in a single chunk
                 assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
 
                 assertCounter(inputStats.getNonContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
+                assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -267,9 +282,11 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
                 // cache file has been written in a single chunk
                 assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
 
                 assertCounter(inputStats.getContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
+                assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -279,19 +296,16 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
     private static void executeTestCase(CacheService cacheService, TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
         final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
-        executeTestCase(cacheService, randomAlphaOfLength(10), fileContent, test);
-    }
-
-    private static void executeTestCase(CacheService cacheService, String fileName, byte[] fileContent,
-                                        TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
-
+        final String fileName = randomAlphaOfLength(10);
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
         final IndexId indexId = new IndexId("_name", "_uuid");
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
+        final AtomicLong fakeClock = new AtomicLong();
 
         try (CacheService ignored = cacheService;
              Directory directory = newDirectory();
-             CacheDirectory cacheDirectory = new CacheDirectory(directory, cacheService, createTempDir(), snapshotId, indexId, shardId)
+             CacheDirectory cacheDirectory = new CacheDirectory(directory, cacheService, createTempDir(), snapshotId, indexId, shardId,
+                 () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS))
         ) {
             cacheService.start();
             assertThat(cacheDirectory.getStats(fileName), nullValue());

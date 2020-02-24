@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -85,7 +86,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey waitForSnapshotInProgressKey = new StepKey(phase, NAME, WaitForSnapshotInProgressStep.NAME);
         StepKey verifySnapshotStatusBranchingKey = new StepKey(phase, NAME, OnAsyncWaitBranchingStep.NAME);
         StepKey restoreFromSearchableRepoKey = new StepKey(phase, NAME, RestoreSnapshotStep.NAME);
-        StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForGreenIndexHealthStep.NAME);
+        StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey copyLifecyclePolicySettingKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey swapAliasesKey = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
@@ -101,8 +102,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             cleanSnapshotKey, restoreFromSearchableRepoKey, client, getCheckSnapshotStatusAsyncAction(snapshotRepository));
         RestoreSnapshotStep restoreSnapshotStep = new RestoreSnapshotStep(restoreFromSearchableRepoKey, waitForGreenRestoredIndexKey,
             client, searchableRepository, RESTORED_INDEX_PREFIX);
-        WaitForGreenIndexHealthStep waitForGreenIndexHealthStep = new WaitForGreenIndexHealthStep(waitForGreenRestoredIndexKey,
-            copyMetadataKey, RESTORED_INDEX_PREFIX);
+        WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,
+            copyMetadataKey, ClusterHealthStatus.GREEN, RESTORED_INDEX_PREFIX);
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
             RESTORED_INDEX_PREFIX, nextStepKey.getName());
         CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, swapAliasesKey, client,

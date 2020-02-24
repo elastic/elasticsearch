@@ -24,7 +24,7 @@ import java.util.Locale;
  */
 public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
     public static final String NAME = "swap-aliases-to-restored";
-    private static final Logger logger = LogManager.getLogger(WaitForGreenIndexHealthStep.class);
+    private static final Logger logger = LogManager.getLogger(SwapAliasesAndDeleteSourceIndexStep.class);
 
     private final String restoredIndexPrefix;
 

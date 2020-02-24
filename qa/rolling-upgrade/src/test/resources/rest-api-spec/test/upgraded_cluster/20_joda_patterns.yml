@@ -11,7 +11,7 @@
               datetime:
                 gte: "2019-12-01"
                 lte: "2020-01-02"
-  - match: { hits.total: 1 }
+  - match: { hits.total: 3 }
 
 ---
 "Verify that we can find results with java style pattern":
@@ -28,6 +28,6 @@
               datetime:
                 gte: "2019-12-01"
                 lte: "2020-01-02"
-  - match: { hits.total: 1 }
+  - match: { hits.total: 3 }
 
 

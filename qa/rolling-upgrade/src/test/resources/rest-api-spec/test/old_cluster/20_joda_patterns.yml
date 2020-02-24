@@ -11,6 +11,9 @@
       indices.create:
         index: joda
         body:
+          settings:
+            index:
+              number_of_replicas: 2
           mappings:
               "properties":
                 "datetime":
@@ -48,6 +51,9 @@
       indices.create:
         index: joda
         body:
+          settings:
+            index:
+              number_of_replicas: 2
           mappings:
               "properties":
                 "datetime":
@@ -82,6 +88,9 @@
       indices.create:
         index: java
         body:
+          settings:
+            index:
+              number_of_replicas: 2
           mappings:
               "properties":
                 "datetime":

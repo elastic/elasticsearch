@@ -112,6 +112,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -2000,8 +2001,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             Map<String, Set<AliasMetaData>> aliases = response.getAliases(); // <1>
             // end::get-alias-response
 
+            // tag::get-alias-response-error
+            RestStatus status = response.status(); // <1>
+            ElasticsearchException exception = response.getException(); // <2>
+            String error = response.getError(); // <3>
+            // end::get-alias-response-error
+
             assertThat(response.getAliases().get("index").size(), equalTo(1));
             assertThat(response.getAliases().get("index").iterator().next().alias(), equalTo("alias"));
+            assertThat(status, equalTo(RestStatus.OK));
+            assertThat(error, nullValue());
+            assertThat(exception, nullValue());
 
             // tag::get-alias-execute-listener
             ActionListener<GetAliasesResponse> listener =

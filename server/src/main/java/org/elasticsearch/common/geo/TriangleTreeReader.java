@@ -56,6 +56,7 @@ public class TriangleTreeReader {
     private final Tile2D tile2D;
     private final Extent extent;
     private int treeOffset;
+    private int docValueOffset;
 
     public TriangleTreeReader(CoordinateEncoder coordinateEncoder) {
         this.coordinateEncoder = coordinateEncoder;
@@ -66,6 +67,7 @@ public class TriangleTreeReader {
 
     public void reset(BytesRef bytesRef) throws IOException {
         this.input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        docValueOffset = bytesRef.offset;
         treeOffset = 0;
     }
 
@@ -87,7 +89,7 @@ public class TriangleTreeReader {
      * returns the X coordinate of the centroid.
      */
     public double getCentroidX() {
-        input.setPosition(0);
+        input.setPosition(docValueOffset + 0);
         return coordinateEncoder.decodeX(input.readInt());
     }
 
@@ -95,17 +97,17 @@ public class TriangleTreeReader {
      * returns the Y coordinate of the centroid.
      */
     public double getCentroidY() {
-        input.setPosition(4);
+        input.setPosition(docValueOffset + 4);
         return coordinateEncoder.decodeY(input.readInt());
     }
 
     public DimensionalShapeType getDimensionalShapeType() {
-        input.setPosition(8);
+        input.setPosition(docValueOffset + 8);
         return DimensionalShapeType.readFrom(input);
     }
 
     public double getSumCentroidWeight() {
-        input.setPosition(9);
+        input.setPosition(docValueOffset + 9);
         return Double.longBitsToDouble(input.readVLong());
     }
 

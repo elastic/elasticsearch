@@ -75,17 +75,15 @@ public class RestCatJobsAction extends AbstractCatAction {
         table.startHeaders();
 
         // Job Info
-        table.addCell("id", TableColumnAttributeBuilder.builder().setDescription("the job_id").build());
-        table.addCell("state", TableColumnAttributeBuilder.builder()
-            .setDescription("the job state")
-            .setAliases("s")
-            .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
-            .build());
+        table.addCell("id", TableColumnAttributeBuilder.builder("the job_id").build());
+        table.addCell("state",
+            TableColumnAttributeBuilder.builder("the job state")
+                .setAliases("s")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build());
         table.addCell("opened_time",
-            TableColumnAttributeBuilder.builder()
-                .setDescription("the amount of time the job has been opened")
+            TableColumnAttributeBuilder.builder("the amount of time the job has been opened", false)
                 .setAliases("ot")
-                .setDisplayByDefault(false)
                 .build());
         table.addCell("assignment_explanation",
             TableColumnAttributeBuilder.builder("why the job is or is not assigned to a node", false)

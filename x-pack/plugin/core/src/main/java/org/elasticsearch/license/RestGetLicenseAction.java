@@ -6,8 +6,6 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
@@ -31,8 +29,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetLicenseAction extends XPackRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetLicenseAction.class));
-
     RestGetLicenseAction() {}
 
     @Override
@@ -42,7 +38,7 @@ public class RestGetLicenseAction extends XPackRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(GET, "/_license", GET,  URI_BASE + "/license", deprecationLogger));
+        return singletonList(new ReplacedRoute(GET, "/_license", GET,  URI_BASE + "/license"));
     }
 
     @Override

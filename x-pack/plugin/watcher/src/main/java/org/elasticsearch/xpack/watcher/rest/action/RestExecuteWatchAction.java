@@ -6,11 +6,9 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,8 +42,6 @@ import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction
 
 public class RestExecuteWatchAction extends WatcherRestHandler implements RestRequestFilter {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestExecuteWatchAction.class));
-
     private static final List<String> RESERVED_FIELD_NAMES = asList(WatchField.TRIGGER.getPreferredName(),
             WatchField.INPUT.getPreferredName(), WatchField.CONDITION.getPreferredName(),
             WatchField.ACTIONS.getPreferredName(), WatchField.TRANSFORM.getPreferredName(),
@@ -60,10 +56,10 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(POST, "/_watcher/watch/{id}/_execute", POST, URI_BASE + "/watcher/watch/{id}/_execute", deprecationLogger),
-            new ReplacedRoute(PUT, "/_watcher/watch/{id}/_execute", PUT, URI_BASE + "/watcher/watch/{id}/_execute", deprecationLogger),
-            new ReplacedRoute(POST, "/_watcher/watch/_execute", POST, URI_BASE + "/watcher/watch/_execute", deprecationLogger),
-            new ReplacedRoute(PUT, "/_watcher/watch/_execute", PUT, URI_BASE + "/watcher/watch/_execute", deprecationLogger)));
+            new ReplacedRoute(POST, "/_watcher/watch/{id}/_execute", POST, URI_BASE + "/watcher/watch/{id}/_execute"),
+            new ReplacedRoute(PUT, "/_watcher/watch/{id}/_execute", PUT, URI_BASE + "/watcher/watch/{id}/_execute"),
+            new ReplacedRoute(POST, "/_watcher/watch/_execute", POST, URI_BASE + "/watcher/watch/_execute"),
+            new ReplacedRoute(PUT, "/_watcher/watch/_execute", PUT, URI_BASE + "/watcher/watch/_execute")));
     }
 
     @Override

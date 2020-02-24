@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -34,8 +32,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestActivateWatchAction extends WatcherRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestActivateWatchAction.class));
-
     @Override
     public List<Route> routes() {
             return emptyList();
@@ -44,8 +40,8 @@ public class RestActivateWatchAction extends WatcherRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(POST, "/_watcher/watch/{id}/_activate", POST, URI_BASE + "/watcher/watch/{id}/_activate", deprecationLogger),
-            new ReplacedRoute(PUT, "/_watcher/watch/{id}/_activate", PUT, URI_BASE + "/watcher/watch/{id}/_activate", deprecationLogger)));
+            new ReplacedRoute(POST, "/_watcher/watch/{id}/_activate", POST, URI_BASE + "/watcher/watch/{id}/_activate"),
+            new ReplacedRoute(PUT, "/_watcher/watch/{id}/_activate", PUT, URI_BASE + "/watcher/watch/{id}/_activate")));
     }
 
     @Override
@@ -79,10 +75,10 @@ public class RestActivateWatchAction extends WatcherRestHandler {
             return unmodifiableList(asList(
                 new ReplacedRoute(
                     POST, "/_watcher/watch/{id}/_deactivate",
-                    POST, URI_BASE + "/watcher/watch/{id}/_deactivate", deprecationLogger),
+                    POST, URI_BASE + "/watcher/watch/{id}/_deactivate"),
                 new ReplacedRoute(
                     PUT, "/_watcher/watch/{id}/_deactivate",
-                    PUT, URI_BASE + "/watcher/watch/{id}/_deactivate", deprecationLogger)));
+                    PUT, URI_BASE + "/watcher/watch/{id}/_deactivate")));
         }
 
         @Override

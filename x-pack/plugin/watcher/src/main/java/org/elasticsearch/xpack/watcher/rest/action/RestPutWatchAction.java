@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,8 +34,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestPutWatchAction extends WatcherRestHandler implements RestRequestFilter {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutWatchAction.class));
-
     @Override
     public List<Route> routes() {
         return emptyList();
@@ -46,8 +42,8 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(POST, "/_watcher/watch/{id}", POST, URI_BASE + "/watcher/watch/{id}", deprecationLogger),
-            new ReplacedRoute(PUT, "/_watcher/watch/{id}", PUT, URI_BASE + "/watcher/watch/{id}", deprecationLogger)));
+            new ReplacedRoute(POST, "/_watcher/watch/{id}", POST, URI_BASE + "/watcher/watch/{id}"),
+            new ReplacedRoute(PUT, "/_watcher/watch/{id}", PUT, URI_BASE + "/watcher/watch/{id}")));
     }
 
     @Override

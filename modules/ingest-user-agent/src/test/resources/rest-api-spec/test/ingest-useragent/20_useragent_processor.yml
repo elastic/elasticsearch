@@ -81,6 +81,8 @@
 ---
 "Test user agent processor with non-ECS schema":
   - skip:
+      version : "all"
+      reason  : "tracked at https://github.com/elastic/elasticsearch/issues/52266"
       features: warnings
 
   - do:

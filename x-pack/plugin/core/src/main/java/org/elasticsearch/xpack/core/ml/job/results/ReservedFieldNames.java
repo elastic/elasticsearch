@@ -234,6 +234,7 @@ public final class ReservedFieldNames {
             Job.MODEL_SNAPSHOT_ID.getPreferredName(),
             Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(),
             Job.RESULTS_INDEX_NAME.getPreferredName(),
+            Job.ALLOW_LAZY_OPEN.getPreferredName(),
 
             AnalysisConfig.BUCKET_SPAN.getPreferredName(),
             AnalysisConfig.CATEGORIZATION_FIELD_NAME.getPreferredName(),

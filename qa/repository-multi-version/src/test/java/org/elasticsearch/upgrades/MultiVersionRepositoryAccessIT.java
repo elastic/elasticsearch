@@ -219,7 +219,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards);
                 }
             } else {
-                if (minimumNodeVersion().before(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                if (SnapshotsService.useShardGenerations(minimumNodeVersion()) == false) {
                     assertThat(TEST_STEP, is(TestStep.STEP3_OLD_CLUSTER));
                     final List<Class<? extends Exception>> expectedExceptions =
                         Arrays.asList(ResponseException.class, ElasticsearchStatusException.class);

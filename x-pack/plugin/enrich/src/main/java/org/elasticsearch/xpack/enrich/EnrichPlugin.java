@@ -198,7 +198,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver
     ) {
         if (enabled == false || transportClientMode) {
             return emptyList();

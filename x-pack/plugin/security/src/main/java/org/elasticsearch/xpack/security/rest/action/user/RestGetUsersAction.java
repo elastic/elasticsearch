@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -34,8 +32,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetUsersAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetUsersAction.class));
-
     public RestGetUsersAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
@@ -49,8 +45,8 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(GET, "/_security/user/", GET, "/_xpack/security/user/", deprecationLogger),
-            new ReplacedRoute(GET, "/_security/user/{username}", GET, "/_xpack/security/user/{username}", deprecationLogger)
+            new ReplacedRoute(GET, "/_security/user/", GET, "/_xpack/security/user/"),
+            new ReplacedRoute(GET, "/_security/user/{username}", GET, "/_xpack/security/user/{username}")
         ));
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -148,7 +149,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             transformServices,
             mock(ThreadPool.class),
             clusterService,
-            Settings.EMPTY
+            Settings.EMPTY,
+            new IndexNameExpressionResolver()
         );
 
         assertThat(
@@ -234,7 +236,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             transformServices,
             mock(ThreadPool.class),
             clusterService,
-            Settings.EMPTY
+            Settings.EMPTY,
+            new IndexNameExpressionResolver()
         );
 
         // old-data-node-1 prevents assignment
@@ -279,7 +282,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0, TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs).size());
+        assertEquals(0,
+            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, new IndexNameExpressionResolver()).size());
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
@@ -303,7 +307,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
-        List<String> result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(csBuilder.build());
+        List<String> result =
+            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(csBuilder.build(), new IndexNameExpressionResolver());
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
     }

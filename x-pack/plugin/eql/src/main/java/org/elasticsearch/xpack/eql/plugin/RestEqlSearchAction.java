@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,6 +47,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             eqlRequest = EqlSearchRequest.fromXContent(parser);
             eqlRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+            eqlRequest.indicesOptions(IndicesOptions.fromRequest(request, eqlRequest.indicesOptions()));
         }
 
         return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<EqlSearchResponse>(channel) {

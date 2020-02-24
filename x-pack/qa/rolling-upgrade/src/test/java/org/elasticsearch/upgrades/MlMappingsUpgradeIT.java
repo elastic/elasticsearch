@@ -99,6 +99,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertNotNull(indexLevel);
             Map<String, Object> mappingsLevel = (Map<String, Object>) indexLevel.get("mappings");
             assertNotNull(mappingsLevel);
+
             Map<String, Object> metaLevel = (Map<String, Object>) mappingsLevel.get("_meta");
             assertEquals(Collections.singletonMap("version", Version.CURRENT.toString()), metaLevel);
             Map<String, Object> propertiesLevel = (Map<String, Object>) mappingsLevel.get("properties");

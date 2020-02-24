@@ -133,7 +133,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         queryShardContext = new QueryShardContext(0,
             new IndexSettings(IndexMetaData.builder("test").settings(indexSettings).build(), indexSettings),
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> randomNonNegativeLong(), null, null);
+            null, null, () -> randomNonNegativeLong(), null, null, () -> true);
     }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
@@ -641,11 +641,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     public void testIndexNameExclusionsList() {
         // this test case should be removed when DOT_INDICES_EXCLUSIONS is empty
         List<String> excludedNames = Arrays.asList(
-            ".slm-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             ".watch-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
-            ".ml-anomalies-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
-            ".ml-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
-            ".ml-annotations-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             ".data-frame-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             ".transform-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT)
         );

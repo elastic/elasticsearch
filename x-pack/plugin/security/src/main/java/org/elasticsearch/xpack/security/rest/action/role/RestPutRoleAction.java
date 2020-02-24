@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -34,8 +32,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestPutRoleAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutRoleAction.class));
-
     public RestPutRoleAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
@@ -49,8 +45,8 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(POST, "/_security/role/{name}", POST, "/_xpack/security/role/{name}", deprecationLogger),
-            new ReplacedRoute(PUT, "/_security/role/{name}", PUT, "/_xpack/security/role/{name}", deprecationLogger)
+            new ReplacedRoute(POST, "/_security/role/{name}", POST, "/_xpack/security/role/{name}"),
+            new ReplacedRoute(PUT, "/_security/role/{name}", PUT, "/_xpack/security/role/{name}")
         ));
     }
 

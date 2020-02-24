@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -16,10 +17,14 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -30,6 +35,32 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public final class AnomalyDetectorsIndex {
 
     public static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
+
+    private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
+
+    // Visible for testing
+    static final Comparator<String> STATE_INDEX_NAME_COMPARATOR = new Comparator<String>() {
+
+        private final Pattern HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}");
+
+        @Override
+        public int compare(String index1, String index2) {
+            String[] index1Parts = index1.split("-");
+            String index1Suffix = index1Parts[index1Parts.length - 1];
+            boolean index1HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.matcher(index1Suffix).matches();
+            String[] index2Parts = index2.split("-");
+            String index2Suffix = index2Parts[index2Parts.length - 1];
+            boolean index2HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.matcher(index2Suffix).matches();
+            if (index1HasSixDigitsSuffix && index2HasSixDigitsSuffix) {
+                return index1Suffix.compareTo(index2Suffix);
+            } else if (index1HasSixDigitsSuffix != index2HasSixDigitsSuffix) {
+                return Boolean.compare(index1HasSixDigitsSuffix, index2HasSixDigitsSuffix);
+            } else {
+                return index1.compareTo(index2);
+            }
+        }
+    };
 
     private AnomalyDetectorsIndex() {
     }
@@ -84,10 +115,11 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
-     * Create the .ml-state index (if necessary)
-     * Create the .ml-state-write alias for the .ml-state index (if necessary)
+     * Creates the .ml-state-000001 index (if necessary)
+     * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */
-    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state, final ActionListener<Boolean> finalListener) {
+    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state, IndexNameExpressionResolver resolver,
+                                                           final ActionListener<Boolean> finalListener) {
 
         if (state.getMetaData().getAliasAndIndexLookup().containsKey(jobStateIndexWriteAlias())) {
             finalListener.onResponse(false);
@@ -112,17 +144,18 @@ public final class AnomalyDetectorsIndex {
             finalListener::onFailure
         );
 
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
-        String[] stateIndices = indexNameExpressionResolver.concreteIndexNames(state,
+        String[] stateIndices = resolver.concreteIndexNames(state,
             IndicesOptions.lenientExpandOpen(),
             jobStateIndexPattern());
         if (stateIndices.length > 0) {
-            Arrays.sort(stateIndices, Collections.reverseOrder());
-            createAliasListener.onResponse(stateIndices[0]);
+            String latestStateIndex = Arrays.stream(stateIndices).max(STATE_INDEX_NAME_COMPARATOR).get();
+            createAliasListener.onResponse(latestStateIndex);
         } else {
+            // The initial index name must be suitable for rollover functionality.
+            String initialJobStateIndex = AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001";
             CreateIndexRequest createIndexRequest = client.admin()
                 .indices()
-                .prepareCreate(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
+                .prepareCreate(initialJobStateIndex)
                 .addAlias(new Alias(jobStateIndexWriteAlias()))
                 .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(),
@@ -135,7 +168,7 @@ public final class AnomalyDetectorsIndex {
                         // Adding an alias that already exists is idempotent. So, no need to double check if the alias exists
                         // as well.
                         if (ExceptionsHelper.unwrapCause(createIndexFailure) instanceof ResourceAlreadyExistsException) {
-                            createAliasListener.onResponse(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
+                            createAliasListener.onResponse(initialJobStateIndex);
                         } else {
                             finalListener.onFailure(createIndexFailure);
                         }
@@ -144,4 +177,12 @@ public final class AnomalyDetectorsIndex {
         }
     }
 
+    public static String resultsMapping() {
+        return resultsMapping(MapperService.SINGLE_MAPPING_NAME);
+    }
+
+    public static String resultsMapping(String mappingType) {
+        return TemplateUtils.loadTemplate(RESOURCE_PATH + "results_index_mappings.json",
+            Version.CURRENT.toString(), RESULTS_MAPPINGS_VERSION_VARIABLE, Collections.singletonMap("xpack.ml.mapping_type", mappingType));
+    }
 }

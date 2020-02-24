@@ -331,7 +331,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Now calling the _delete_expired_data API should remove unused state
         assertThat(deleteExpiredData().isDeleted(), is(true));
 
-        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state").execute().actionGet();
+        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state*").execute().actionGet();
         assertThat(stateIndexSearchResponse.getHits().getTotalHits().value, equalTo(0L));
     }
 

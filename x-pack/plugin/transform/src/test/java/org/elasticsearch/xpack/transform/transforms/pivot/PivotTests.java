@@ -215,8 +215,8 @@ public class PivotTests extends ESTestCase {
                 "{\"pivot_scripted_metric\": {\n"
                     + "\"scripted_metric\": {\n"
                     + "    \"init_script\" : \"state.transactions = []\",\n"
-                    + "    \"map_script\" : \"state.transactions.add("
-                    + "doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\",\n"
+                    + "    \"map_script\" : "
+                    + "        \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n"
                     + "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n"
                     + "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n"
                     + "  }\n"
@@ -251,6 +251,12 @@ public class PivotTests extends ESTestCase {
                     + "}"
             );
         }
+        if (agg.equals(AggregationType.FILTER.getName())) {
+            return parseAggregations(
+                "{" + "\"pivot_filter\": {" + "  \"filter\": {" + "   \"term\": {\"field\": \"value\"}" + "  }" + "}" + "}"
+            );
+        }
+
         return parseAggregations(
             "{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n" + "    }\n" + "  }" + "}"
         );

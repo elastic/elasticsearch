@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -46,15 +48,17 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     private final String jobId;
     private final QueryBuilder datafeedQuery;
     private final String[] datafeedIndices;
+    private final IndicesOptions indicesOptions;
 
     DatafeedDelayedDataDetector(long bucketSpan, long window, String jobId, String timeField, QueryBuilder datafeedQuery,
-                                String[] datafeedIndices, Client client) {
+                                String[] datafeedIndices, @Nullable IndicesOptions indicesOptions, Client client) {
         this.bucketSpan = bucketSpan;
         this.window = window;
         this.jobId = jobId;
         this.timeField = timeField;
         this.datafeedQuery = datafeedQuery;
         this.datafeedIndices = datafeedIndices;
+        this.indicesOptions = indicesOptions;
         this.client = client;
     }
 
@@ -116,6 +120,9 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
             .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end));
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder);
+        if (indicesOptions != null) {
+            searchRequest.indicesOptions(indicesOptions);
+        }
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             SearchResponse response = client.execute(SearchAction.INSTANCE, searchRequest).actionGet();
             List<? extends Histogram.Bucket> buckets = ((Histogram)response.getAggregations().get(DATE_BUCKETS)).getBuckets();

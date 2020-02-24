@@ -444,7 +444,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
         ScrollDataExtractorContext context = new ScrollDataExtractorContext(jobId, extractedFields, indices,
-                query, sFields, scrollSize, 1000, 2000, Collections.emptyMap());
+                query, sFields, scrollSize, 1000, 2000, Collections.emptyMap(), null);
 
         TestDataExtractor extractor = new TestDataExtractor(context);
 
@@ -490,7 +490,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
     private ScrollDataExtractorContext createContext(long start, long end) {
         return new ScrollDataExtractorContext(jobId, extractedFields, indices, query, scriptFields, scrollSize, start, end,
-                Collections.emptyMap());
+                Collections.emptyMap(), null);
     }
 
     private SearchResponse createEmptySearchResponse() {

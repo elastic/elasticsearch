@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import java.util.Objects;
 
 public class ScrollDataExtractorFactory implements DataExtractorFactory {
-
     private final Client client;
     private final DatafeedConfig datafeedConfig;
     private final Job job;
@@ -54,7 +53,9 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 datafeedConfig.getScrollSize(),
                 start,
                 end,
-                datafeedConfig.getHeaders());
+                datafeedConfig.getHeaders(),
+                datafeedConfig.getIndicesOptions()
+        );
         return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }
 
@@ -87,11 +88,16 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[datafeed.getIndices().size()]));
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0]));
+        if (datafeed.getIndicesOptions() != null) {
+            fieldCapabilitiesRequest.indicesOptions(datafeed.getIndicesOptions());
+        }
         // We need capabilities for all fields matching the requested fields' parents so that we can work around
         // multi-fields that are not in source.
-        String[] requestFields = job.allInputFields().stream().map(f -> MlStrings.getParentField(f) + "*")
-                .toArray(size -> new String[size]);
+        String[] requestFields = job.allInputFields()
+            .stream()
+            .map(f -> MlStrings.getParentField(f) + "*")
+            .toArray(String[]::new);
         fieldCapabilitiesRequest.fields(requestFields);
         ClientHelper.<FieldCapabilitiesResponse> executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);

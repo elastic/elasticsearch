@@ -79,7 +79,9 @@ public interface DataExtractorFactory {
                 client,
                 ClientHelper.ML_ORIGIN,
                 GetRollupIndexCapsAction.INSTANCE,
-                new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0])),
+                datafeed.getIndicesOptions() == null ?
+                    new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0])) :
+                    new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0]), datafeed.getIndicesOptions()),
                 getRollupIndexCapsActionHandler);
         }
     }

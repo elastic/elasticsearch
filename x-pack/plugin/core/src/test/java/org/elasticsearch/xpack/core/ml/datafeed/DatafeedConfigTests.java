@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -137,6 +138,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()));
         }
         return builder;
     }
@@ -865,7 +873,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) throws IOException {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 10)) {
+        switch (between(0, 11)) {
         case 0:
             builder.setId(instance.getId() + randomValidDatafeedId());
             break;
@@ -936,6 +944,17 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             } else {
                 builder.setMaxEmptySearches(instance.getMaxEmptySearches() + 1);
             }
+            break;
+        case 11:
+            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()));
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

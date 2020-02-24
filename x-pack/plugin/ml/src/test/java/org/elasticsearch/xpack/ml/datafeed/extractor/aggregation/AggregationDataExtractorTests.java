@@ -272,7 +272,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
 
     private AggregationDataExtractorContext createContext(long start, long end) {
         return new AggregationDataExtractorContext(jobId, timeField, fields, indices, query, aggs, start, end, true,
-                Collections.emptyMap());
+                Collections.emptyMap(), null);
     }
 
     @SuppressWarnings("unchecked")

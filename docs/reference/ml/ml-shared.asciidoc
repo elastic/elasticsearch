@@ -655,6 +655,19 @@ not be set to `false` on any {ml} nodes.
 --
 end::indices[]
 
+tag::indices-options[]
+Object specifying index expansion options used during search.
+For example:
+```
+{
+   "expand_wildcards": ["all"],
+   "ignore_unavailable": true,
+   "allow_no_indices": "false",
+   "ignore_throttled": true
+}
+```
+end::indices-options[]
+
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 
 over, or partition fields that are used in the detector configuration. You might 

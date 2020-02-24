@@ -47,7 +47,7 @@ public class PutDatafeedActionRequestTests extends AbstractSerializingTestCase<R
 
     @Override
     protected Request doParseInstance(XContentParser parser) {
-        return Request.parseRequest(datafeedId, parser);
+        return Request.parseRequest(datafeedId, null, parser);
     }
 
     @Override

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -107,6 +108,13 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()));
         }
         return builder.build();
     }
@@ -275,6 +283,16 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getAggregations(), equalTo(aggProvider.getAggs()));
     }
 
+    public void testApply_givenIndicesOptions() {
+        DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
+        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId())
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
+            .build()
+            .apply(datafeed, Collections.emptyMap());
+        assertThat(datafeed.getIndicesOptions(), is(not(equalTo(updatedDatafeed.getIndicesOptions()))));
+        assertThat(updatedDatafeed.getIndicesOptions(), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN));
+    }
+
     public void testApply_GivenRandomUpdates_AssertImmutability() {
         for (int i = 0; i < 100; ++i) {
             DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());
@@ -346,7 +364,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(1, 10)) {
+        switch (between(1, 11)) {
         case 1:
             builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
             break;
@@ -424,6 +442,17 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             } else {
                 builder.setMaxEmptySearches(instance.getMaxEmptySearches() + 100);
             }
+            break;
+        case 11:
+            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()));
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

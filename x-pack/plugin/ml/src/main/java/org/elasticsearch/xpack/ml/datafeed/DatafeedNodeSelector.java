@@ -37,9 +37,10 @@ public class DatafeedNodeSelector {
     private final PersistentTasksCustomMetaData.PersistentTask<?> jobTask;
     private final ClusterState clusterState;
     private final IndexNameExpressionResolver resolver;
+    private final IndicesOptions indicesOptions;
 
     public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId,
-                                String jobId, List<String> datafeedIndices) {
+                                String jobId, List<String> datafeedIndices, IndicesOptions indicesOptions) {
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         this.datafeedId = datafeedId;
         this.jobId = jobId;
@@ -47,6 +48,7 @@ public class DatafeedNodeSelector {
         this.jobTask = MlTasks.getJobTask(jobId, tasks);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.resolver = Objects.requireNonNull(resolver);
+        this.indicesOptions = indicesOptions == null ? IndicesOptions.lenientExpandOpen() : indicesOptions;
     }
 
     public void checkDatafeedTaskCanBeCreated() {
@@ -121,7 +123,7 @@ public class DatafeedNodeSelector {
                     + index + "] does not exist, is closed, or is still initializing.";
 
             try {
-                concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), index);
+                concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, index);
                 if (concreteIndices.length == 0) {
                     return new AssignmentFailure(reason, true);
                 }

@@ -155,7 +155,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     Map<String, Object> metaData) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-                    throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
+                    throw new IllegalArgumentException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
                         + "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses "
                         + "used to filter numeric fields");
                 }
